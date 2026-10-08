@@ -6,9 +6,10 @@
 //
 // It wraps the same validate() the editor and the card use, so there is nothing to keep in step: it bundles
 // src/core in memory on every run and imports the result.
-import { build } from "esbuild";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { build } from "vite";
 
 const file = process.argv[2];
 if (!file) {
@@ -32,15 +33,24 @@ try {
   process.exit(1);
 }
 
-const out = await build({
-  stdin: {
-    contents: `export { validate } from "./schema"; export { migrate } from "./migrate"; export { polys, nearestEdge, dist } from "./geometry";`,
-    resolveDir: resolve("src/core"),
-    loader: "ts",
-  },
-  bundle: true, write: false, format: "esm", platform: "node", logLevel: "silent",
-});
-const core = await import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString("base64")}`);
+// Vite bundles from a file, so the entry goes in a temp dir; imports resolve from src/core either way.
+const tmp = mkdtempSync(join(tmpdir(), "fp-validate-"));
+const entry = join(tmp, "entry.ts");
+const coreDir = resolve("src/core").replaceAll("\\", "/");
+writeFileSync(
+  entry,
+  `export { validate } from "${coreDir}/schema"; export { migrate } from "${coreDir}/migrate"; export { polys, nearestEdge, dist } from "${coreDir}/geometry";`,
+);
+let out;
+try {
+  out = await build({
+    configFile: false, logLevel: "silent",
+    build: { write: false, minify: false, lib: { entry, formats: ["es"], fileName: "core" } },
+  });
+} finally {
+  rmSync(tmp, { recursive: true, force: true });
+}
+const core = await import(`data:text/javascript;base64,${Buffer.from(out[0].output[0].code).toString("base64")}`);
 
 // S7.16: migrate first, as the editor and the card do. A plan saved before a field existed (`unlinked`, say) is
 // filled in there, not refused here; a plan migrate itself refuses is reported with its reason.

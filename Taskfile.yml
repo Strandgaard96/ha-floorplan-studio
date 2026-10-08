@@ -1,0 +1,72 @@
+version: "3"
+
+# One entry point for the local workflow. CI runs the same commands
+# (.github/workflows/ci.yml); when you change a command here, change it there.
+
+tasks:
+  setup:
+    desc: "Install Node and Python dependencies, the Playwright browser and the git hooks"
+    cmds:
+      - npm ci
+      - uv sync --locked
+      - npx playwright install chromium
+      - task: hooks
+
+  hooks:
+    desc: "Install the pre-commit hooks (prek, a drop-in pre-commit runner; uvx fetches it when missing)"
+    cmds:
+      - |
+        if command -v prek >/dev/null 2>&1; then prek install; else uvx prek install; fi
+
+  check:
+    desc: "THE local gate: web + Python checks, then every pre-commit hook on all files"
+    cmds:
+      - task: check:web
+      - task: check:py
+      - |
+        if command -v prek >/dev/null 2>&1; then prek run --all-files; else uvx prek run --all-files; fi
+
+  check:web:
+    desc: "Web: typecheck, oxlint, oxfmt check, vitest"
+    cmds:
+      - npm run typecheck
+      - npm run lint
+      - npm run format:check
+      - npm test
+
+  check:py:
+    desc: "Python: ruff lint + format check, ty, pytest (builds www/ first: one test reads it)"
+    cmds:
+      - uv run --locked ruff check .
+      - uv run --locked ruff format --check .
+      - uv run --locked ty check
+      - npm run build
+      - uv run --locked pytest
+
+  fix:
+    desc: "Apply every autofix and formatter (oxlint --fix, oxfmt, ruff --fix, ruff format)"
+    cmds:
+      - npm run lint -- --fix
+      - npm run format
+      - uv run --locked ruff check --fix .
+      - uv run --locked ruff format .
+
+  test:e2e:
+    desc: "Playwright end-to-end suite (rebuilds dist/ itself); PW_PORT=<port> beside another checkout"
+    cmds:
+      - npx playwright test {{.CLI_ARGS}}
+
+  build:
+    desc: "Build dist/ and custom_components/floorplan_studio/www/"
+    cmds:
+      - npm run build
+
+  dev:
+    desc: "Vite dev server for the standalone editor on 127.0.0.1"
+    cmds:
+      - npm run dev
+
+  shots:
+    desc: "Render the demo through card and editor to shots/current/ (run and look after touching render.ts or CSS)"
+    cmds:
+      - npm run shots

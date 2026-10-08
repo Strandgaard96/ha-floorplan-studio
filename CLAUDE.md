@@ -18,7 +18,8 @@ Notes for AI assistants working in this repo. Read `docs/SPEC.md`,
 
 ## Commands
 
-`npm run lint`, `npm test`, `npm run build`, `npx playwright test`
+`task check` (typecheck, oxlint, oxfmt check, vitest, ruff, ty, pytest, all
+pre-commit hooks), `task fix`, `npm run build`, `npx playwright test`
 (`PW_PORT=<port>` when another checkout runs tests; default 5273). `globalSetup` rebuilds
 `dist/` and `custom_components/floorplan_studio/www/` on every Playwright run.
 

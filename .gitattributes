@@ -1,0 +1,13 @@
+# Normalise line endings so a clone on Windows does not produce a diff in every
+# file.
+* text=auto eol=lf
+
+*.png binary
+*.gif binary
+*.jpg binary
+*.webp binary
+
+# Generated: collapse in diffs and keep out of language stats.
+package-lock.json linguist-generated=true -diff
+uv.lock linguist-generated=true -diff
+docs/schema.md linguist-generated=true

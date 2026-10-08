@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import demo from "../../demo/layout.json";
 import { buildScene } from "../../src/core/scene";
 import { liveOf } from "../../src/core/live";
@@ -9,7 +9,7 @@ const boom = () => { throw new Error("boom"); };
 const floor = () => structuredClone(demo.floors.ground) as any;
 
 describe("skipped pieces say so, once, at debug level", () => {
-  let debug: ReturnType<typeof vi.spyOn>, others: ReturnType<typeof vi.spyOn>[];
+  let debug: MockInstance<typeof console.debug>, others: MockInstance[];
   beforeEach(() => { forgetDebug(); debug = vi.spyOn(console, "debug").mockImplementation(() => undefined); others = [vi.spyOn(console, "warn"), vi.spyOn(console, "error"), vi.spyOn(console, "log")].map((s) => s.mockImplementation(() => undefined)); });
   afterEach(() => vi.restoreAllMocks());
 
