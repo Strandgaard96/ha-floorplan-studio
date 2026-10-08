@@ -1,5 +1,17 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 120,
-  "ignorePatterns": ["dist", "dist-test", "custom_components/**/www", "shots", "docs", "demo", "prompts", "*.md", "package-lock.json"]
+  "embeddedLanguageFormatting": "off",
+  "ignorePatterns": [
+    "dist",
+    "dist-test",
+    "custom_components/**/www",
+    "shots",
+    "docs",
+    "demo",
+    "prompts",
+    "*.md",
+    "package-lock.json",
+    "src/core/schema.ts"
+  ]
 }

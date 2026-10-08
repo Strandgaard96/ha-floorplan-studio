@@ -14,6 +14,8 @@ Notes for AI assistants working in this repo. Read `docs/SPEC.md`,
 - English in files, metric units, ISO dates.
 - A decision that changes the spec goes into `docs/DECISIONS.md` (newest first)
   in the same commit as the work.
+- This is a fork. Every change upstream does not have gets a line in
+  `FORK.md` (newest first) in the same commit.
 - Scratch scripts go in the scratchpad or `/private/tmp`, never the repo root.
 
 ## Commands

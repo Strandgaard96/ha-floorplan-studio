@@ -1,5 +1,5 @@
 # Fast checks on staged files: lint, format and typecheck for both halves of
-# the repo, plus secrets and workflow linting. Install once with `task hooks`;
+# the repo, plus secrets and workflow linting (actionlint). Install once with `task hooks`;
 # run everything with `task check`. The tools themselves are pinned by
 # package-lock.json and uv.lock, so a hook and CI run the same version.
 # Tests are not here (vitest takes ~20 s, Playwright minutes): `task check`
@@ -22,15 +22,10 @@ repos:
       - id: check-json
       - id: check-toml
       - id: end-of-file-fixer
+        exclude: ^docs/schema\.md$ # generated; a test compares it byte for byte
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
       - id: mixed-line-ending
-
-  - repo: https://github.com/zizmorcore/zizmor-pre-commit
-    rev: v1.30.0
-    hooks:
-      - id: zizmor
-        args: ["--no-progress", "--min-severity=medium"]
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
