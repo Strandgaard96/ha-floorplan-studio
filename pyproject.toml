@@ -1,4 +1,53 @@
+# Python tooling for the Home Assistant integration in custom_components/.
+# Not a package: HACS ships the folder as is. uv manages the dev environment;
+# uv.lock pins it, so the pre-commit hooks, `task check` and CI run the same
+# versions. `uv sync` installs everything below.
+[project]
+name = "ha-floorplan-studio"
+version = "0.20.0"
+requires-python = ">=3.14.2"
+
+[dependency-groups]
+dev = [
+    # Pins homeassistant exactly. Hold it on a stable HA release (0.13.367 =
+    # 2026.9.4); newer builds track HA betas.
+    "pytest-homeassistant-custom-component==0.13.367",
+    # The frontend component imports it; match the version that HA release's
+    # frontend/manifest.json pins.
+    "home-assistant-frontend==20260826.7",
+    "ruff",
+    "ty",
+]
+
+[tool.uv]
+package = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests/integration"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+extend-exclude = ["node_modules", "dist", "dist-test"]
+
+[tool.ruff.lint]
+# B = bugbear, UP = pyupgrade, SIM = simplify, C4 = comprehensions,
+# RUF = ruff-specific, PT = pytest style, S = bandit (security), T20 = no stray
+# print, ASYNC = blocking calls in async code (on top of pycodestyle, pyflakes
+# and isort).
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "RUF", "PT", "S", "T20", "ASYNC"]
+# E501: the formatter owns line length.
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# S101: pytest asserts. ASYNC240: tests read repo files (manifest, built www/)
+# inside async tests; blocking for a millisecond there is harmless.
+"tests/*" = ["S101", "ASYNC240"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components"]
+
+[tool.ty.src]
+include = ["custom_components", "tests/integration"]

@@ -1,4 +1,5 @@
 """Floorplan Studio: load and save a floor plan layout, serve the editor panel."""
+
 from __future__ import annotations
 
 from homeassistant.config_entries import ConfigEntry
