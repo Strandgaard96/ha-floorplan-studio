@@ -38,6 +38,9 @@ git diff upstream/main --stat           # files we changed
 - ESLint → oxlint (`.oxlintrc.json`, correctness rules). oxfmt formats
   TS/JS/JSON/YAML/HTML (`.oxfmtrc.json`, width 120); whole repo formatted once
   (in `.git-blame-ignore-revs`).
+  Lit `html`` ` templates and `src/core/schema.ts` are not formatted
+  (template whitespace changed rendered labels; schema.ts feeds `docs/schema.md`).
+- Playwright runs `fullyParallel`: 15.6 → ~4 minutes, same 1237 tests passing.
 - `scripts/validate-layout.mjs` uses Vite's `build()` instead of esbuild
   (esbuild only came in through Vite 5).
 - Two test-only fixes for the new tools: a typed spy in
@@ -47,6 +50,7 @@ git diff upstream/main --stat           # files we changed
 **Workflow**
 - `.pre-commit-config.yaml`, run by prek: gitleaks, basic file checks,
   actionlint, ruff, ty, oxlint, oxfmt, tsc. Install with `task hooks`.
+  GitHub Actions use version tags, not SHA pins (kept simple on purpose).
 - `Taskfile.yml`: `task setup`, `task check`, `task fix`, `task test:e2e`,
   `task build`, `task dev`, `task shots`.
 - CI uses the same commands as the Taskfile, adds a job that runs every hook,
