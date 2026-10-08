@@ -6,7 +6,7 @@ from custom_components.floorplan_studio.const import DOMAIN
 
 @pytest.fixture(autouse=True)
 def _enable_custom_integrations(enable_custom_integrations):
-    yield
+    return
 
 
 @pytest.fixture

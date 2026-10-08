@@ -1,20 +1,50 @@
 import { describe, it, expect } from "vitest";
 import {
-  DEFAULT_FLOOR_HEIGHT, DEFAULT_SLAB, DEVICE_Z, DOOR_DEFAULTS, FURNITURE_HEIGHTS, UNLINKED_HEIGHTS, WALL_KIND_HEIGHT,
-  deviceZ, doorSpan, edgeHeight, floorElevation, floorHeight, furnitureHeight, openingSpan, roomHeight, unlinkedHeight, wallHeight,
+  DEFAULT_FLOOR_HEIGHT,
+  DEFAULT_SLAB,
+  DEVICE_Z,
+  DOOR_DEFAULTS,
+  FURNITURE_HEIGHTS,
+  UNLINKED_HEIGHTS,
+  WALL_KIND_HEIGHT,
+  deviceZ,
+  doorSpan,
+  edgeHeight,
+  floorElevation,
+  floorHeight,
+  furnitureHeight,
+  openingSpan,
+  roomHeight,
+  unlinkedHeight,
+  wallHeight,
 } from "../../src/core/heights";
 import { DEVICE_TYPES, DOOR_KINDS, EDGE_KINDS, FURNITURE_SYMBOLS, WALL_KINDS } from "../../src/core/schema";
 
 const JUNK: unknown[] = [NaN, Infinity, -Infinity, "tall", "250", -5, 1001, null, {}, [], true];
-const floor = (o: any = {}) => ({ title: "F", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o }) as any;
+const floor = (o: any = {}) =>
+  ({
+    title: "F",
+    outline: [],
+    rooms: [],
+    walls: [],
+    stairs: [],
+    doors: [],
+    openings: [],
+    extras: [],
+    devices: [],
+    furniture: [],
+    unlinked: [],
+    ...o,
+  }) as any;
 
 describe("the default tables decide every member of every union (finding 17)", () => {
   it("DEVICE_Z and UNLINKED_HEIGHTS cover each DEVICE_TYPES member with a number from 0 to 1000", () => {
-    for (const t of DEVICE_TYPES) for (const table of [DEVICE_Z, UNLINKED_HEIGHTS]) {
-      expect(Number.isFinite(table[t]), t).toBe(true);
-      expect(table[t], t).toBeGreaterThanOrEqual(0);
-      expect(table[t], t).toBeLessThanOrEqual(1000);
-    }
+    for (const t of DEVICE_TYPES)
+      for (const table of [DEVICE_Z, UNLINKED_HEIGHTS]) {
+        expect(Number.isFinite(table[t]), t).toBe(true);
+        expect(table[t], t).toBeGreaterThanOrEqual(0);
+        expect(table[t], t).toBeLessThanOrEqual(1000);
+      }
     expect(Object.keys(DEVICE_Z).sort()).toEqual([...DEVICE_TYPES].sort());
     expect(Object.keys(UNLINKED_HEIGHTS).sort()).toEqual([...DEVICE_TYPES].sort());
   });
@@ -106,7 +136,8 @@ describe("doorSpan and openingSpan", () => {
     expect(doorSpan({ kind: "window", sill: 100, height: 130 } as any)).toEqual({ sill: 100, head: 230 });
     expect(doorSpan({ kind: "window", sill: 100 } as any)).toEqual({ sill: 100, head: 220 });
     expect(doorSpan({ kind: "door", height: 0, sill: 0 } as any)).toEqual({ sill: 0, head: 0 });
-    for (const j of JUNK) expect(doorSpan({ kind: "window", sill: j, height: j } as any), String(j)).toEqual({ sill: 90, head: 210 });
+    for (const j of JUNK)
+      expect(doorSpan({ kind: "window", sill: j, height: j } as any), String(j)).toEqual({ sill: 90, head: 210 });
     expect(doorSpan({ kind: "bogus" } as any)).toEqual({ sill: 0, head: 210 });
   });
   it("an opening is 210 from 0", () => {
@@ -121,7 +152,8 @@ describe("furnitureHeight, unlinkedHeight, deviceZ", () => {
     for (const s of FURNITURE_SYMBOLS) {
       expect(furnitureHeight({ symbol: s } as any), s).toBe(FURNITURE_HEIGHTS[s]);
       expect(furnitureHeight({ symbol: s, height: 12 } as any), s).toBe(12);
-      for (const j of JUNK) expect(furnitureHeight({ symbol: s, height: j } as any), `${s} ${String(j)}`).toBe(FURNITURE_HEIGHTS[s]);
+      for (const j of JUNK)
+        expect(furnitureHeight({ symbol: s, height: j } as any), `${s} ${String(j)}`).toBe(FURNITURE_HEIGHTS[s]);
     }
     for (const t of DEVICE_TYPES) {
       expect(unlinkedHeight({ type: t } as any), t).toBe(UNLINKED_HEIGHTS[t]);
@@ -152,19 +184,46 @@ describe("furnitureHeight, unlinkedHeight, deviceZ", () => {
 describe("DEVICE_Z: every type's mount height is pinned (S14.5, Diego: lights and high icons float too high)", () => {
   // One line per DEVICE_TYPES member: a new type fails here until someone writes down where it hangs (finding 17).
   const PRESET: Record<string, number> = {
-    light: 215, camera: 205, motion: 205, radar: 205, access_point: 205, // ceiling: 35-45 cm under a 250 ceiling, not 20
-    ac: 195, cover: 175, // high on the wall, 25 cm lower
-    switch: 120, plug: 30, contact: 120, vibration: 120, lock: 100, temp: 135, humidity: 135, climate: 135,
-    boiler: 120, battery: 120, inverter: 100, tv: 100, other: 100, speaker: 30, media: 30,
-    heater: 60, computer: 75, server: 60, ups: 30, printer: 90, car: 150, person: 170, vacuum: 10,
-    siren: 205, alarm: 120, // S18.14
+    light: 215,
+    camera: 205,
+    motion: 205,
+    radar: 205,
+    access_point: 205, // ceiling: 35-45 cm under a 250 ceiling, not 20
+    ac: 195,
+    cover: 175, // high on the wall, 25 cm lower
+    switch: 120,
+    plug: 30,
+    contact: 120,
+    vibration: 120,
+    lock: 100,
+    temp: 135,
+    humidity: 135,
+    climate: 135,
+    boiler: 120,
+    battery: 120,
+    inverter: 100,
+    tv: 100,
+    other: 100,
+    speaker: 30,
+    media: 30,
+    heater: 60,
+    computer: 75,
+    server: 60,
+    ups: 30,
+    printer: 90,
+    car: 150,
+    person: 170,
+    vacuum: 10,
+    siren: 205,
+    alarm: 120, // S18.14
   };
   it("the table is the one written here, type by type", () => {
     expect(Object.keys(PRESET).sort()).toEqual([...DEVICE_TYPES].sort());
     for (const t of DEVICE_TYPES) expect(DEVICE_Z[t], t).toBe(PRESET[t]);
   });
   it("the ceiling types clear a 250 ceiling by 35 cm or more; the high wall types are 25 cm lower than before", () => {
-    for (const t of ["light", "camera", "motion", "radar", "access_point"] as const) expect(250 - DEVICE_Z[t], t).toBeGreaterThanOrEqual(35);
+    for (const t of ["light", "camera", "motion", "radar", "access_point"] as const)
+      expect(250 - DEVICE_Z[t], t).toBeGreaterThanOrEqual(35);
     expect(DEVICE_Z.ac).toBe(220 - 25);
     expect(DEVICE_Z.cover).toBe(200 - 25);
   });

@@ -39,7 +39,10 @@ function toRows(options: readonly ComboOption[]): Row[] {
   const rows: Row[] = [];
   const seen = new Set<string>();
   for (const o of options) {
-    if (o.group !== undefined && !seen.has(o.group)) { seen.add(o.group); rows.push({ kind: "heading", group: o.group }); }
+    if (o.group !== undefined && !seen.has(o.group)) {
+      seen.add(o.group);
+      rows.push({ kind: "heading", group: o.group });
+    }
     rows.push({ kind: "option", option: o });
   }
   return rows;
@@ -73,10 +76,10 @@ export class FpCombo extends LitElement {
   /** Accessible name, mirrored as `aria-label` on the internal input (see class doc). */
   declare label: string;
   declare disabled: boolean;
-  private declare open: boolean;
-  private declare query: string;
+  declare private open: boolean;
+  declare private query: string;
   /** Index into the filtered *option* list (headings are not selectable), or -1 when nothing is active. */
-  private declare active: number;
+  declare private active: number;
   private listId = `fp-combo-list-${Math.random().toString(36).slice(2)}`;
 
   static shadowRootOptions = { ...LitElement.shadowRootOptions, delegatesFocus: true };
@@ -149,7 +152,9 @@ export class FpCombo extends LitElement {
     if (!this.open) this.open = true;
     this.active = this.filtered.length ? 0 : -1;
   };
-  private onClick = () => { if (!this.open) this.openList(); };
+  private onClick = () => {
+    if (!this.open) this.openList();
+  };
 
   private moveActive(delta: number) {
     const n = this.filtered.length;
@@ -159,16 +164,38 @@ export class FpCombo extends LitElement {
   }
 
   private onKeydown = (ev: KeyboardEvent) => {
-    if (ev.key === "ArrowDown") { ev.preventDefault(); if (!this.open) this.openList(); else this.moveActive(1); }
-    else if (ev.key === "ArrowUp") { ev.preventDefault(); if (!this.open) this.openList(); else this.moveActive(-1); }
-    else if (ev.key === "Enter") {
-      if (this.open && this.active >= 0) { ev.preventDefault(); const o = this.filtered[this.active]; if (o) this.pick(o); }
+    if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      if (!this.open) this.openList();
+      else this.moveActive(1);
+    } else if (ev.key === "ArrowUp") {
+      ev.preventDefault();
+      if (!this.open) this.openList();
+      else this.moveActive(-1);
+    } else if (ev.key === "Enter") {
+      if (this.open && this.active >= 0) {
+        ev.preventDefault();
+        const o = this.filtered[this.active];
+        if (o) this.pick(o);
+      }
     } else if (ev.key === "Escape") {
-      if (this.open) { ev.preventDefault(); ev.stopPropagation(); this.closeAndRestore(); this.requestUpdate(); }
-    } else if (ev.key === "Home" && this.open) { ev.preventDefault(); this.active = 0; }
-    else if (ev.key === "End" && this.open) { ev.preventDefault(); this.active = this.filtered.length - 1; }
+      if (this.open) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.closeAndRestore();
+        this.requestUpdate();
+      }
+    } else if (ev.key === "Home" && this.open) {
+      ev.preventDefault();
+      this.active = 0;
+    } else if (ev.key === "End" && this.open) {
+      ev.preventDefault();
+      this.active = this.filtered.length - 1;
+    }
     // Tab: close without picking, let focus move on normally (no preventDefault).
-    else if (ev.key === "Tab" && this.open) { this.closeAndRestore(); }
+    else if (ev.key === "Tab" && this.open) {
+      this.closeAndRestore();
+    }
   };
 
   render() {
@@ -194,11 +221,14 @@ export class FpCombo extends LitElement {
         @input=${this.onInput}
         @keydown=${this.onKeydown}
       >
-      ${this.open ? html`
+      ${
+        this.open
+          ? html`
         <ul id=${this.listId} role="listbox" class="list">
           ${rows.length ? nothing : html`<li class="empty">No match</li>`}
           ${rows.map((row) => {
-            if (row.kind === "heading") return html`<li class="grouphead" role="group" aria-label=${row.group}>${row.group}</li>`;
+            if (row.kind === "heading")
+              return html`<li class="grouphead" role="group" aria-label=${row.group}>${row.group}</li>`;
             const idx = this.filtered.indexOf(row.option);
             const selected = row.option.value === this.value;
             const isActive = idx === this.active;
@@ -213,7 +243,9 @@ export class FpCombo extends LitElement {
             >${row.option.label}</li>`;
           })}
           ${this.overflow > 0 ? html`<li class="more">${this.overflow} more, keep typing</li>` : nothing}
-        </ul>` : nothing}
+        </ul>`
+          : nothing
+      }
     `;
   }
 
@@ -234,5 +266,7 @@ export class FpCombo extends LitElement {
 if (!customElements.get("fp-combo")) customElements.define("fp-combo", FpCombo);
 
 declare global {
-  interface HTMLElementTagNameMap { "fp-combo": FpCombo }
+  interface HTMLElementTagNameMap {
+    "fp-combo": FpCombo;
+  }
 }

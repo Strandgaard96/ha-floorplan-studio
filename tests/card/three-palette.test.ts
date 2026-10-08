@@ -9,8 +9,22 @@ import { isKnownRole, roleStyle } from "../../src/card/three/palette";
 
 describe("palette roles", () => {
   const roles = [
-    "slab", "panel", "door-leaf", "stair", "unlinked",
-    "open-door", "door-band", "door-cover", "body-heating", "screen-on", "driver-off", "driver-on", "motion", "motion-radar", "lamp", "backdrop", // S12.5: what the live state paints
+    "slab",
+    "panel",
+    "door-leaf",
+    "stair",
+    "unlinked",
+    "open-door",
+    "door-band",
+    "door-cover",
+    "body-heating",
+    "screen-on",
+    "driver-off",
+    "driver-on",
+    "motion",
+    "motion-radar",
+    "lamp",
+    "backdrop", // S12.5: what the live state paints
     ...ROOM_KINDS.filter((k) => k !== "zone" && k !== "structure").map((k) => `room-${k}`),
     ...WALL_KINDS.map((k) => `wall-${k}`),
     ...["door", "glass", "window", "sealed", "opening"].map((k) => `glass-${k}`),
@@ -27,14 +41,15 @@ describe("palette roles", () => {
 
   it("every role the scene module emits for the demo is named", () => {
     const demo = JSON.parse(fs.readFileSync("demo/layout.json", "utf8"));
-    for (const floor of Object.values<any>(demo.floors)) for (const s of buildScene(floor).solids) expect(isKnownRole(s.paint.role), s.paint.role).toBe(true);
+    for (const floor of Object.values<any>(demo.floors))
+      for (const s of buildScene(floor).solids) expect(isKnownRole(s.paint.role), s.paint.role).toBe(true);
   });
 
   it("an unknown role, even a hostile one, gets the fallback, not an error", () => {
     expect(isKnownRole("__proto__")).toBe(false);
     expect(isKnownRole("constructor")).toBe(false);
     expect(roleStyle("__proto__").css).toMatch(/--fp-/);
-    expect(roleStyle("room-\"><script>").css).toMatch(/--fp-/);
+    expect(roleStyle('room-"><script>').css).toMatch(/--fp-/);
   });
 
   it("glass is see-through, solids are not", () => {

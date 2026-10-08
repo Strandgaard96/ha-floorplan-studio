@@ -23,15 +23,20 @@ async function mount(config: Record<string, unknown> = {}): Promise<FloorplanStu
   await el.updateComplete;
   return el;
 }
-const select = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector<HTMLSelectElement>('select[aria-label="Walls"]');
+const select = (el: FloorplanStudioCard) =>
+  el.shadowRoot!.querySelector<HTMLSelectElement>('select[aria-label="Walls"]');
 const pick = async (el: FloorplanStudioCard, value: string) => {
   const s = select(el)!;
   s.value = value;
   s.dispatchEvent(new Event("change", { bubbles: true }));
   await el.updateComplete;
 };
-const reset = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector<HTMLButtonElement>('button[aria-label="Reset view"]')!;
-const stored = () => Object.keys(localStorage).filter((k) => k.startsWith("fp-view:")).map((k) => JSON.parse(localStorage.getItem(k)!));
+const reset = (el: FloorplanStudioCard) =>
+  el.shadowRoot!.querySelector<HTMLButtonElement>('button[aria-label="Reset view"]')!;
+const stored = () =>
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith("fp-view:"))
+    .map((k) => JSON.parse(localStorage.getItem(k)!));
 
 beforeEach(() => localStorage.clear());
 afterEach(() => {
@@ -60,7 +65,9 @@ describe("card walls option", () => {
   it("the select lists every mode with its label, and shows the current one", async () => {
     const el = await mount({ walls: "low" });
     const s = select(el)!;
-    expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual(WALLS_MODES.map((m) => [m, WALLS_LABELS[m]]));
+    expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual(
+      WALLS_MODES.map((m) => [m, WALLS_LABELS[m]]),
+    );
     expect(s.value).toBe("low");
   });
 

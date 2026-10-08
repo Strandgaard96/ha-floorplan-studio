@@ -7,7 +7,10 @@ import { MAX_ZOOM, MIN_ZOOM, type Pt } from "../card/viewport";
 
 export const VIEW_MEMORY_KEY = "floorplan-studio:view";
 
-export interface FloorZoom { zoom: number; focus: Pt }
+export interface FloorZoom {
+  zoom: number;
+  focus: Pt;
+}
 export interface ViewMemory {
   floor?: string;
   labels?: boolean;
@@ -25,7 +28,11 @@ const clampFocus = (n: number) => Math.min(FOCUS_LIMIT, Math.max(-FOCUS_LIMIT, n
 export function parseViewMemory(raw: unknown): ViewMemory {
   let o: unknown = raw;
   if (typeof raw === "string") {
-    try { o = JSON.parse(raw); } catch { return {}; }
+    try {
+      o = JSON.parse(raw);
+    } catch {
+      return {};
+    }
   }
   if (!o || typeof o !== "object" || Array.isArray(o)) return {};
   const r = o as Record<string, unknown>;
@@ -41,7 +48,10 @@ export function parseViewMemory(raw: unknown): ViewMemory {
       const z = e[1] as { zoom?: unknown; focus?: unknown } | null;
       const f = z?.focus;
       if (!z || !isNum(z.zoom) || !Array.isArray(f) || f.length !== 2 || !isNum(f[0]) || !isNum(f[1])) continue;
-      const out: FloorZoom = { zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z.zoom)), focus: [clampFocus(f[0]), clampFocus(f[1])] };
+      const out: FloorZoom = {
+        zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z.zoom)),
+        focus: [clampFocus(f[0]), clampFocus(f[1])],
+      };
       zooms.push([e[0], out]);
     }
     if (zooms.length) out.zooms = zooms;
@@ -50,7 +60,11 @@ export function parseViewMemory(raw: unknown): ViewMemory {
 }
 
 export function readViewMemory(): ViewMemory {
-  try { return parseViewMemory(localStorage.getItem(VIEW_MEMORY_KEY)); } catch { return {}; }
+  try {
+    return parseViewMemory(localStorage.getItem(VIEW_MEMORY_KEY));
+  } catch {
+    return {};
+  }
 }
 
 /** Writes the memory, or removes the entry when there is nothing to say. False when storage refused (private mode). */

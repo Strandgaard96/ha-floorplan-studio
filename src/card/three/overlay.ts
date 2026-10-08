@@ -8,13 +8,17 @@
 import type { Live3D } from "../../core/live";
 
 type P3 = readonly [number, number, number];
-export interface Anchors { devices: Map<number, P3>; rooms: Map<number, P3> }
+export interface Anchors {
+  devices: Map<number, P3>;
+  rooms: Map<number, P3>;
+}
 /** Where a point is on the screen (px from the layer's top left), and whether it is in front of the camera at all. */
 export type Projector = (p: P3) => { x: number; y: number; front: boolean };
 
 const NS = "http://www.w3.org/2000/svg";
 /** px. An icon is a 32 px box (the plan's halo is 32 units across); a tap lands on it within this radius of its centre. */
-const ICON_PX = 32, HIT_PX = 16;
+const ICON_PX = 32,
+  HIT_PX = 16;
 const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
 .fp3-ov *{pointer-events:none}
 .fp3-dev,.fp3-rm{position:absolute;left:0;top:0;will-change:transform}
@@ -28,7 +32,14 @@ const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:no
 .fp3-name,.fp3-val{display:block}
 .fp3-val{font-weight:400;font-size:11px}`;
 
-interface Item { el: HTMLElement; at: P3; sig: string; shown: boolean; x: number; y: number }
+interface Item {
+  el: HTMLElement;
+  at: P3;
+  sig: string;
+  shown: boolean;
+  x: number;
+  y: number;
+}
 
 export function createOverlay(container: HTMLElement) {
   const root = document.createElement("div");
@@ -37,12 +48,22 @@ export function createOverlay(container: HTMLElement) {
   style.textContent = CSS;
   root.appendChild(style);
   container.appendChild(root);
-  const icons = new Map<number, Item & { svg: SVGSVGElement; g: SVGGElement; dv: HTMLElement | null; dn: HTMLElement | null }>(), rooms = new Map<number, Item & { name: HTMLElement; val: HTMLElement }>();
-  const text = (cls: string, s: string) => { const e = document.createElement("span"); e.className = cls; e.textContent = s; return e; };
+  const icons = new Map<
+      number,
+      Item & { svg: SVGSVGElement; g: SVGGElement; dv: HTMLElement | null; dn: HTMLElement | null }
+    >(),
+    rooms = new Map<number, Item & { name: HTMLElement; val: HTMLElement }>();
+  const text = (cls: string, s: string) => {
+    const e = document.createElement("span");
+    e.className = cls;
+    e.textContent = s;
+    return e;
+  };
 
   /** Brings the elements in line with the live state: made, changed or removed in place. A change of nothing writes nothing. */
   function set(live: Live3D, anchors: Anchors) {
-    const seenD = new Set<number>(), seenR = new Set<number>();
+    const seenD = new Set<number>(),
+      seenR = new Set<number>();
     anchors.devices.forEach((a, i) => {
       const d = live.devices[i];
       if (!d) return;
@@ -50,7 +71,9 @@ export function createOverlay(container: HTMLElement) {
       const at: P3 = d.at ? [d.at[0], a[1], d.at[1]] : a; // a person's room sensor puts the icon at the room's centre, as in 2D
       let it = icons.get(i);
       if (!it) {
-        const el = document.createElement("div"), svg = document.createElementNS(NS, "svg"), g = document.createElementNS(NS, "g");
+        const el = document.createElement("div"),
+          svg = document.createElementNS(NS, "svg"),
+          g = document.createElementNS(NS, "g");
         el.className = "fp3-dev";
         el.style.visibility = "hidden"; // until `place` has put it somewhere
         svg.setAttribute("class", "fp3-ic");
@@ -63,13 +86,41 @@ export function createOverlay(container: HTMLElement) {
       }
       it.at = at;
       const sig = [d.klass, d.style, d.icon].join("\u0000");
-      if (sig !== it.sig) { it.sig = sig; it.g.setAttribute("class", d.klass); it.g.setAttribute("style", d.style); it.g.innerHTML = d.icon; }
-      const val = live.labels ? d.value : "", name = live.labels && live.names ? d.name : "";
-      if (val) { if (!it.dv) { it.dv = text("fp3-dv", ""); it.el.appendChild(it.dv); } if (it.dv.textContent !== val) it.dv.textContent = val; } else if (it.dv) { it.dv.remove(); it.dv = null; }
-      if (name) { if (!it.dn) { it.dn = text("fp3-dn", ""); it.el.appendChild(it.dn); } if (it.dn.textContent !== name) it.dn.textContent = name; } else if (it.dn) { it.dn.remove(); it.dn = null; }
+      if (sig !== it.sig) {
+        it.sig = sig;
+        it.g.setAttribute("class", d.klass);
+        it.g.setAttribute("style", d.style);
+        it.g.innerHTML = d.icon;
+      }
+      const val = live.labels ? d.value : "",
+        name = live.labels && live.names ? d.name : "";
+      if (val) {
+        if (!it.dv) {
+          it.dv = text("fp3-dv", "");
+          it.el.appendChild(it.dv);
+        }
+        if (it.dv.textContent !== val) it.dv.textContent = val;
+      } else if (it.dv) {
+        it.dv.remove();
+        it.dv = null;
+      }
+      if (name) {
+        if (!it.dn) {
+          it.dn = text("fp3-dn", "");
+          it.el.appendChild(it.dn);
+        }
+        if (it.dn.textContent !== name) it.dn.textContent = name;
+      } else if (it.dn) {
+        it.dn.remove();
+        it.dn = null;
+      }
       if (it.dn) it.dn.style.top = `${ICON_PX / 2 + (val ? 13 : 1)}px`;
     });
-    for (const [i, it] of icons) if (!seenD.has(i)) { it.el.remove(); icons.delete(i); }
+    for (const [i, it] of icons)
+      if (!seenD.has(i)) {
+        it.el.remove();
+        icons.delete(i);
+      }
     if (live.labels) {
       anchors.rooms.forEach((a, r) => {
         const lr = live.rooms[r];
@@ -77,7 +128,9 @@ export function createOverlay(container: HTMLElement) {
         seenR.add(r);
         let it = rooms.get(r);
         if (!it) {
-          const el = document.createElement("div"), name = text("fp3-name", ""), val = text("fp3-val", "");
+          const el = document.createElement("div"),
+            name = text("fp3-name", ""),
+            val = text("fp3-val", "");
           el.className = "fp3-rm";
           el.style.visibility = "hidden";
           el.setAttribute("data-r", String(r));
@@ -87,19 +140,35 @@ export function createOverlay(container: HTMLElement) {
         }
         it.at = [lr.at[0], a[1], lr.at[1]];
         const sig = `${lr.name}\u0000${lr.readout}`;
-        if (sig !== it.sig) { it.sig = sig; it.name.textContent = lr.name; it.val.textContent = lr.readout; it.name.hidden = !lr.name; it.val.hidden = !lr.readout; }
+        if (sig !== it.sig) {
+          it.sig = sig;
+          it.name.textContent = lr.name;
+          it.val.textContent = lr.readout;
+          it.name.hidden = !lr.name;
+          it.val.hidden = !lr.readout;
+        }
       });
     }
-    for (const [r, it] of rooms) if (!seenR.has(r)) { it.el.remove(); rooms.delete(r); }
+    for (const [r, it] of rooms)
+      if (!seenR.has(r)) {
+        it.el.remove();
+        rooms.delete(r);
+      }
   }
 
   /** Moves every element to where its point is on the screen, and hides the ones that are behind the camera, off the view or behind a wall. */
   function place(project: Projector, blocked: (p: P3) => boolean, w: number, h: number) {
     const put = (it: Item, centred: boolean) => {
-      const s = project(it.at), shown = s.front && s.x > -ICON_PX && s.x < w + ICON_PX && s.y > -ICON_PX && s.y < h + ICON_PX && !blocked(it.at);
-      if (shown !== it.shown) { it.shown = shown; it.el.style.visibility = shown ? "" : "hidden"; }
+      const s = project(it.at),
+        shown =
+          s.front && s.x > -ICON_PX && s.x < w + ICON_PX && s.y > -ICON_PX && s.y < h + ICON_PX && !blocked(it.at);
+      if (shown !== it.shown) {
+        it.shown = shown;
+        it.el.style.visibility = shown ? "" : "hidden";
+      }
       if (shown && (Math.abs(s.x - it.x) > 0.05 || Math.abs(s.y - it.y) > 0.05 || Number.isNaN(it.x))) {
-        it.x = s.x; it.y = s.y;
+        it.x = s.x;
+        it.y = s.y;
         it.el.style.transform = `translate(${s.x.toFixed(1)}px,${s.y.toFixed(1)}px)${centred ? " translate(-50%,-50%)" : ""}`;
       }
     };
@@ -108,26 +177,42 @@ export function createOverlay(container: HTMLElement) {
   }
 
   return {
-    set, place,
+    set,
+    place,
     /** The device whose icon is under (x, y) in the layer's pixels, the nearest one within `HIT_PX`, or null. Hidden icons do not count. */
     hit(x: number, y: number): number | null {
-      let best: number | null = null, d2 = HIT_PX * HIT_PX;
+      let best: number | null = null,
+        d2 = HIT_PX * HIT_PX;
       for (const [i, it] of icons) {
         if (!it.shown) continue;
         const d = (it.x - x) ** 2 + (it.y - y) ** 2;
-        if (d <= d2) { d2 = d; best = i; }
+        if (d <= d2) {
+          d2 = d;
+          best = i;
+        }
       }
       return best;
     },
     /** What an icon is filled with now, as the browser computes it from the card's own stylesheet: a CSS colour and an opacity 0..1. */
     fill(i: number): { css: string; opacity: number } | null {
-      const it = icons.get(i), path = it?.g.querySelector("path");
+      const it = icons.get(i),
+        path = it?.g.querySelector("path");
       if (!it || !path) return null;
-      const op = (e: Element) => { const v = parseFloat(getComputedStyle(e).opacity); return Number.isFinite(v) ? v : 1; };
+      const op = (e: Element) => {
+        const v = parseFloat(getComputedStyle(e).opacity);
+        return Number.isFinite(v) ? v : 1;
+      };
       return { css: getComputedStyle(path).fill, opacity: op(it.g) * op(path) };
     },
     /** Test and debug: which devices and rooms have an element, and whether it is on show. */
-    state: () => ({ icons: [...icons].map(([i, it]) => ({ i, shown: it.shown })), rooms: [...rooms].map(([r, it]) => ({ r, shown: it.shown })) }),
-    dispose() { root.remove(); icons.clear(); rooms.clear(); },
+    state: () => ({
+      icons: [...icons].map(([i, it]) => ({ i, shown: it.shown })),
+      rooms: [...rooms].map(([r, it]) => ({ r, shown: it.shown })),
+    }),
+    dispose() {
+      root.remove();
+      icons.clear();
+      rooms.clear();
+    },
   };
 }

@@ -17,7 +17,12 @@ const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 async function open(page: Page) {
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
-  await page.evaluate(() => Promise.all([customElements.whenDefined("floorplan-studio-card"), customElements.whenDefined("floorplan-studio-card-editor")]));
+  await page.evaluate(() =>
+    Promise.all([
+      customElements.whenDefined("floorplan-studio-card"),
+      customElements.whenDefined("floorplan-studio-card-editor"),
+    ]),
+  );
 }
 
 /** Calls FloorplanStudioCard.getConfigElement(), appends the result to the body, calls setConfig, and returns
@@ -41,7 +46,9 @@ function events(page: Page) {
   return page.evaluate(() => (window as unknown as { __events: unknown[] }).__events);
 }
 
-test("walls field: lists the three modes, default dropped from the payload, picks written, junk shows Cutaway", async ({ page }) => {
+test("walls field: lists the three modes, default dropped from the payload, picks written, junk shows Cutaway", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");

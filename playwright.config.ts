@@ -14,7 +14,13 @@ export default defineConfig({
   // file://, the same way the standalone editor tests do, and needs to be discovered alongside them.
   testDir: "tests",
   testMatch: "**/*.spec.ts",
+  // editor.spec.ts alone holds ~500 tests; without this they run one by one on a single worker (~14 min).
+  fullyParallel: true,
   use: { baseURL: `http://${host}:${port}` },
   // The dev root has no index.html, so wait on the editor page itself.
-  webServer: { command: `npm run dev -- --host ${host} --port ${port} --strictPort`, url: `http://${host}:${port}/standalone.html`, reuseExistingServer: false },
+  webServer: {
+    command: `npm run dev -- --host ${host} --port ${port} --strictPort`,
+    url: `http://${host}:${port}/standalone.html`,
+    reuseExistingServer: false,
+  },
 });

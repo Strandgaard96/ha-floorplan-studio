@@ -8,18 +8,20 @@ Notes for AI assistants working in this repo. Read `docs/SPEC.md`,
 - Public repo. Never commit a token, a private HA URL, or the maintainer's
   house layout. The only layout here is `demo/`.
 - Branch `task/<id>`, small commits, imperative subject, body says why. Ask
-  before push, PR, merge or tag; with Diego's yes, Claude does it and finishes
-  the release (below).
+  before push, PR, merge or tag; with Diego's yes, Claude does it.
 - Process: `docs/WORKFLOW.md`. Coding agents run on Sonnet; Opus reviews the
   finished, integrated build once and re-checks its fixes.
 - English in files, metric units, ISO dates.
 - A decision that changes the spec goes into `docs/DECISIONS.md` (newest first)
   in the same commit as the work.
+- This is a fork. Every change upstream does not have gets a line in
+  `FORK.md` (newest first) in the same commit.
 - Scratch scripts go in the scratchpad or `/private/tmp`, never the repo root.
 
 ## Commands
 
-`npm run lint`, `npm test`, `npm run build`, `npx playwright test`
+`task check` (typecheck, oxlint, oxfmt check, vitest, ruff, ty, pytest, all
+pre-commit hooks), `task fix`, `npm run build`, `npx playwright test`
 (`PW_PORT=<port>` when another checkout runs tests; default 5273). `globalSetup` rebuilds
 `dist/` and `custom_components/floorplan_studio/www/` on every Playwright run.
 
@@ -154,7 +156,3 @@ Each of these was a real defect. Do not repeat them.
   custom colour joins `layout.palette` in the same step. Textures come from
   `src/core/textures.ts`; add one there and the schema, render and swatches
   follow. A test in `tests/editor/editor.spec.ts` counts the swatches by group.
-
-## Release ends on Diego's HA
-
-Once Diego approves a push and a tag, finish the release without asking again: refresh HACS (`hacs/repository/refresh`, key `repository`), install `update.floorplan_studio_update`, restart HA, and read the installed version back. Push and tag still need his yes each time.

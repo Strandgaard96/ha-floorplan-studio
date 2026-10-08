@@ -21,19 +21,20 @@ async function open(page: Page) {
 
 /** Same shape as card.spec.ts's spy: callService records onto `window.__calls`. */
 async function configure(page: Page, config: Cfg) {
-  await page.evaluate(
-    (config) => {
-      (window as unknown as { __calls: unknown[] }).__calls = [];
-      const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-      el.setConfig(config);
-      el.hass = {
-        states: { "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } },
-        callService: (...args: unknown[]) => (window as unknown as { __calls: unknown[] }).__calls.push(args),
-      };
-      return el.updateComplete;
-    },
-    config,
-  );
+  await page.evaluate((config) => {
+    (window as unknown as { __calls: unknown[] }).__calls = [];
+    const el = document.getElementById("card") as unknown as {
+      setConfig(c: unknown): void;
+      hass: unknown;
+      updateComplete: Promise<unknown>;
+    };
+    el.setConfig(config);
+    el.hass = {
+      states: { "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } },
+      callService: (...args: unknown[]) => (window as unknown as { __calls: unknown[] }).__calls.push(args),
+    };
+    return el.updateComplete;
+  }, config);
 }
 
 const card = (page: Page) => page.locator("floorplan-studio-card");
@@ -112,7 +113,9 @@ test.describe("rotation: the visible turn", () => {
   test("names stay upright: a label's own transform undoes the plan's turn", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", rotation: 90 });
-    const t = await card(page).evaluate((el) => el.shadowRoot!.querySelector("svg text.lbl")!.getAttribute("transform"));
+    const t = await card(page).evaluate((el) =>
+      el.shadowRoot!.querySelector("svg text.lbl")!.getAttribute("transform"),
+    );
     expect(t).toMatch(/^rotate\(-90 /);
   });
 
@@ -140,7 +143,9 @@ test.describe("rotation: the visible turn", () => {
 });
 
 test.describe("rotation: taps", () => {
-  test("a tap on a light after a turn still reaches that light: its popup button makes the call (hit-test at real coordinates)", async ({ page }) => {
+  test("a tap on a light after a turn still reaches that light: its popup button makes the call (hit-test at real coordinates)", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
     await button(page, "Rotate right").click();
@@ -167,7 +172,9 @@ test.describe("rotation: taps", () => {
   });
 
   // CLAUDE.md finding 10: the rule is read where it lands, on the elements that carry their own pointer-events.
-  test("CSS pair: while turning the plan and its devices take no pointer events, and after it they do", async ({ page }) => {
+  test("CSS pair: while turning the plan and its devices take no pointer events, and after it they do", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
     const read = () =>
@@ -181,7 +188,9 @@ test.describe("rotation: taps", () => {
       });
     const idle = await read();
     expect(idle.device).not.toBe("none");
-    await card(page).evaluate((el) => el.shadowRoot!.querySelector<HTMLButtonElement>('button[aria-label="Rotate right"]')!.click());
+    await card(page).evaluate((el) =>
+      el.shadowRoot!.querySelector<HTMLButtonElement>('button[aria-label="Rotate right"]')!.click(),
+    );
     await expect(card(page).locator("css=svg.fp-turning")).toHaveCount(1);
     expect(await read()).toEqual({ svg: "none", device: "none", room: "none" });
     await settled(page);
@@ -203,7 +212,9 @@ test.describe("the card remembers its view", () => {
     await settled(page);
   }
 
-  test("zoom, focus, rotation, view and theme are back after a reload; Reset view brings the defaults back, and they stay", async ({ page }) => {
+  test("zoom, focus, rotation, view and theme are back after a reload; Reset view brings the defaults back, and they stay", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, cfg());
     const fresh = await viewBox(page);
@@ -241,7 +252,9 @@ test.describe("the card remembers its view", () => {
     expect(await hostTheme(page)).toBe(freshTheme);
   });
 
-  test("there is no flash of the default: the first frame after a reload is already the remembered one", async ({ page }) => {
+  test("there is no flash of the default: the first frame after a reload is already the remembered one", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, cfg());
     await button(page, "Rotate right").click();
@@ -252,11 +265,19 @@ test.describe("the card remembers its view", () => {
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
     // setConfig and the first render in one task: whatever the card drew first is what MutationObserver saw first.
     const first = await page.evaluate(async (config) => {
-      const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown>; shadowRoot: ShadowRoot };
+      const el = document.getElementById("card") as unknown as {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+        shadowRoot: ShadowRoot;
+      };
       const seen: { deg: string | null; theme: string | null }[] = [];
       new MutationObserver(() => {
         const g = el.shadowRoot.querySelector("svg g.plan-turn");
-        seen.push({ deg: g?.getAttribute("transform")?.slice(0, 10) ?? null, theme: (el as unknown as Element).getAttribute("data-theme") });
+        seen.push({
+          deg: g?.getAttribute("transform")?.slice(0, 10) ?? null,
+          theme: (el as unknown as Element).getAttribute("data-theme"),
+        });
       }).observe(el.shadowRoot, { subtree: true, childList: true, attributes: true });
       el.setConfig(config);
       el.hass = { states: {} };
@@ -279,19 +300,23 @@ test.describe("the card remembers its view", () => {
 });
 
 test.describe("toolbar", () => {
-  test("view_switch: false hides the View controls (theme, labels, names) but keeps the zoom, rotate and reset buttons (Diego, 0.12.22)", async ({ page }) => {
+  test("view_switch: false hides the View controls (theme, labels, names) but keeps the zoom, rotate and reset buttons (Diego, 0.12.22)", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view_switch: false });
     await expect(select(page, "Theme")).toHaveCount(0);
     for (const l of ["Labels", "Device names"]) await expect(button(page, l)).toHaveCount(0);
-    for (const l of ["Zoom in", "Rotate left", "Rotate right", "Reset view"]) await expect(button(page, l)).toHaveCount(1);
+    for (const l of ["Zoom in", "Rotate left", "Rotate right", "Reset view"])
+      await expect(button(page, l)).toHaveCount(1);
   });
 
   test("rotate_switch: false and kiosk hide rotate and reset", async ({ page }) => {
     for (const cfg of [{ rotate_switch: false, view_switch: false }, { kiosk: true }]) {
       await open(page);
       await configure(page, { layout: structuredClone(demo), floor: "ground", ...cfg });
-      for (const l of ["Rotate left", "Rotate right", "Reset view"]) await expect(button(page, l), JSON.stringify(cfg)).toHaveCount(0);
+      for (const l of ["Rotate left", "Rotate right", "Reset view"])
+        await expect(button(page, l), JSON.stringify(cfg)).toHaveCount(0);
     }
   });
 
@@ -303,7 +328,11 @@ test.describe("toolbar", () => {
       const host = el.getBoundingClientRect();
       const bar = el.shadowRoot!.querySelector(".fp-zoom")!.getBoundingClientRect();
       const kids = [...el.shadowRoot!.querySelectorAll(".fp-zoom > *")].map((k) => k.getBoundingClientRect());
-      return { host: { l: host.left, r: host.right }, bar: { l: bar.left, r: bar.right }, kids: kids.map((k) => ({ l: k.left, r: k.right })) };
+      return {
+        host: { l: host.left, r: host.right },
+        bar: { l: bar.left, r: bar.right },
+        kids: kids.map((k) => ({ l: k.left, r: k.right })),
+      };
     });
     expect(r.bar.l).toBeGreaterThanOrEqual(r.host.l);
     expect(r.bar.r).toBeLessThanOrEqual(r.host.r);

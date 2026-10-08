@@ -18,7 +18,16 @@ function readComment(i) {
   let start = i;
   while (start >= 0 && !lines[start].trim().startsWith("/**")) start--;
   if (start < 0) return { text: "", above: i + 1 };
-  const body = lines.slice(start, i + 1).map((l) => l.trim().replace(/^\/\*\*\s?/, "").replace(/\s?\*\/$/, "").replace(/^\*\s?/, "")).filter((l) => l !== "");
+  const body = lines
+    .slice(start, i + 1)
+    .map((l) =>
+      l
+        .trim()
+        .replace(/^\/\*\*\s?/, "")
+        .replace(/\s?\*\/$/, "")
+        .replace(/^\*\s?/, ""),
+    )
+    .filter((l) => l !== "");
   return { text: body.join(" "), above: start };
 }
 
@@ -27,11 +36,19 @@ function readDecl(i) {
   // bare union with a leading "|" per line and no braces at all (FurnitureSymbol). A brace/bracket block ends
   // the moment it balances back to zero, whether or not that line also carries a trailing ";" (interfaces
   // don't need one); a brace-free declaration ends at the first line that does.
-  let depth = 0, opened = false, text = "";
+  let depth = 0,
+    opened = false,
+    text = "";
   for (let j = i; j < lines.length; j++) {
     const line = lines[j];
     text += (text ? "\n" : "") + line;
-    for (const ch of line) { if ("{[(".includes(ch)) { depth++; opened = true; } if ("}])".includes(ch)) depth--; }
+    for (const ch of line) {
+      if ("{[(".includes(ch)) {
+        depth++;
+        opened = true;
+      }
+      if ("}])".includes(ch)) depth--;
+    }
     if (opened && depth <= 0) break;
     if (!opened && line.trim().endsWith(";")) break;
   }
@@ -63,7 +80,10 @@ for (const s of sections) {
   if (!s.hasComment && s.kind !== "interface") continue; // skip the small internal type aliases with nothing to say
   out.push(`## ${s.name}`);
   out.push("");
-  if (s.comment) { out.push(s.comment); out.push(""); }
+  if (s.comment) {
+    out.push(s.comment);
+    out.push("");
+  }
   out.push("```ts");
   out.push(s.decl);
   out.push("```");

@@ -9,18 +9,36 @@ import type { Floor, Layout } from "../../src/core/schema";
 
 const ground = (demo as unknown as Layout).floors.ground;
 const box = (o: Partial<Floor> = {}): Floor => ({
-  title: "T", outline: [[0, 0], [400, 0], [400, 300], [0, 300]], owk: ["external", "external", "external", "external"], rooms: [],
-  walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o,
+  title: "T",
+  outline: [
+    [0, 0],
+    [400, 0],
+    [400, 300],
+    [0, 300],
+  ],
+  owk: ["external", "external", "external", "external"],
+  rooms: [],
+  walls: [],
+  stairs: [],
+  doors: [],
+  openings: [],
+  extras: [],
+  devices: [],
+  furniture: [],
+  unlinked: [],
+  ...o,
 });
 const deep = (f: Floor, o: Record<string, unknown> = {}) => renderFloor(f, { scale: 1, view: "2.5d", ...o });
 const faceClasses = (html: string) => [...html.matchAll(/<polygon class="(ws[^"]*)" points/g)].map((m) => m[1]);
-const tones = (html: string) => new Set(faceClasses(html).map((c) => (c.includes(" lit") ? "lit" : c.includes(" dim") ? "dim" : "plain")));
+const tones = (html: string) =>
+  new Set(faceClasses(html).map((c) => (c.includes(" lit") ? "lit" : c.includes(" dim") ? "dim" : "plain")));
 
 describe("a wall face is lit by which way it looks on screen", () => {
   it("the demo ground floor at rotation 0 shows a lit side and a plain front (the skew hides the dim side); turned round, the dim side shows", () => {
     expect([...tones(deep(ground))].sort()).toEqual(["lit", "plain"]);
     const all = new Set<string>();
-    for (let deg = 0; deg < 360; deg += 30) for (const t of tones(deep(ground, { rotate: { deg, pivot: [400, 300] } }))) all.add(t);
+    for (let deg = 0; deg < 360; deg += 30)
+      for (const t of tones(deep(ground, { rotate: { deg, pivot: [400, 300] } }))) all.add(t);
     expect(all.has("dim")).toBe(true);
   });
   it("opposite faces of one box differ; turning the plan changes which face is lit, never how many tones there are", () => {
@@ -34,7 +52,22 @@ describe("a wall face is lit by which way it looks on screen", () => {
     expect([...seen].sort()).toEqual(["dim", "lit", "plain"]);
   });
   it("the rotation is real: a front wall that is plain at 0 degrees is not plain at 90", () => {
-    const front = (deg: number) => faceClasses(deep(box({ outline: [[0, 0], [400, 0], [400, 20], [0, 20]], owk: ["none", "none", "none", "none"], walls: [{ id: "w", a: [0, 300], b: [400, 300], kind: "wall" }] as never }), { rotate: { deg, pivot: [200, 150] } }))[0];
+    const front = (deg: number) =>
+      faceClasses(
+        deep(
+          box({
+            outline: [
+              [0, 0],
+              [400, 0],
+              [400, 20],
+              [0, 20],
+            ],
+            owk: ["none", "none", "none", "none"],
+            walls: [{ id: "w", a: [0, 300], b: [400, 300], kind: "wall" }] as never,
+          }),
+          { rotate: { deg, pivot: [200, 150] } },
+        ),
+      )[0];
     expect(front(0)).not.toMatch(/lit|dim/);
     expect(front(90)).toMatch(/lit|dim/);
   });
@@ -52,8 +85,16 @@ describe("a wall face is lit by which way it looks on screen", () => {
 
 describe("the cap of a wall is thinner than the flat wall, and thins with the tilt", () => {
   const capWidth = (tilt: number, kind: "external" | "wall") => {
-    const f = kind === "external" ? box() : box({ owk: ["none", "none", "none", "none"], walls: [{ id: "w", a: [0, 150], b: [400, 150], kind: "wall" }] as never });
-    const m = deep(f, { tilt }).match(new RegExp(`<line class="e${kind === "wall" ? "" : " external"} top"[^>]*style="stroke-width:([\\d.]+)"`));
+    const f =
+      kind === "external"
+        ? box()
+        : box({
+            owk: ["none", "none", "none", "none"],
+            walls: [{ id: "w", a: [0, 150], b: [400, 150], kind: "wall" }] as never,
+          });
+    const m = deep(f, { tilt }).match(
+      new RegExp(`<line class="e${kind === "wall" ? "" : " external"} top"[^>]*style="stroke-width:([\\d.]+)"`),
+    );
     return m ? +m[1] : null;
   };
   it("at the default tilt an external cap is 12 cm, a wall cap 7, against 20 and 10 flat", () => {

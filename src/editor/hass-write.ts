@@ -35,13 +35,39 @@ export interface HaWriter {
 /** The label everything the tool creates carries, so the person can find it in HA and remove it. */
 export const LABEL_NAME = "floorplan-studio";
 
-interface Label { label_id: string; name: string }
-interface FlowResult { type: string; flow_id?: string; errors?: Record<string, string> | null; reason?: string; result?: unknown; description_placeholders?: Record<string, string> | null }
-interface EntityEntry { entity_id: string; config_entry_id?: string | null; unique_id?: string; name?: string | null; original_name?: string | null; labels?: string[] }
-interface AreaEntry { area_id: string; name: string; labels?: string[] }
+interface Label {
+  label_id: string;
+  name: string;
+}
+interface FlowResult {
+  type: string;
+  flow_id?: string;
+  errors?: Record<string, string> | null;
+  reason?: string;
+  result?: unknown;
+  description_placeholders?: Record<string, string> | null;
+}
+interface EntityEntry {
+  entity_id: string;
+  config_entry_id?: string | null;
+  unique_id?: string;
+  name?: string | null;
+  original_name?: string | null;
+  labels?: string[];
+}
+interface AreaEntry {
+  area_id: string;
+  name: string;
+  labels?: string[];
+}
 
 /** S4.10: one thing floorplan-studio created in HA (a helper, an automation, or an area) that can be found again for cleanup. */
-export interface Labelled { kind: "helper" | "automation" | "area"; id: string; name: string; entityId?: string }
+export interface Labelled {
+  kind: "helper" | "automation" | "area";
+  id: string;
+  name: string;
+  entityId?: string;
+}
 
 /** The id of the `floorplan-studio` label, created when missing. Not cached: `hass` changes all the time and the label may have been deleted in HA. */
 export async function ensureLabel(hass: WriteHass): Promise<string> {
@@ -75,7 +101,10 @@ const flowError = (r: FlowResult) => {
   return errs.length ? errs.join(", ") : r.reason ? `${r.type}: ${r.reason}` : `unexpected answer (${r.type})`;
 };
 
-export interface HelperOptions { retryMs?: number; tries?: number }
+export interface HelperOptions {
+  retryMs?: number;
+  tries?: number;
+}
 
 /**
  * Creates a helper through its config flow: one POST to start it, one POST per step. `steps` are the answers, in order (for `group`
@@ -83,9 +112,17 @@ export interface HelperOptions { retryMs?: number; tries?: number }
  * so nothing is created. When the flow is done the new entity is found in the entity registry by its config entry (HA needs a moment
  * to register it: it is looked for `tries` times, `retryMs` apart, then this rejects) and given the `floorplan-studio` label.
  */
-export async function createHelper(hass: WriteHass, handler: "switch_as_x" | "group", steps: Record<string, unknown>[], opt: HelperOptions = {}): Promise<{ entity_id: string }> {
+export async function createHelper(
+  hass: WriteHass,
+  handler: "switch_as_x" | "group",
+  steps: Record<string, unknown>[],
+  opt: HelperOptions = {},
+): Promise<{ entity_id: string }> {
   const labelId = await ensureLabel(hass);
-  let r = await hass.callApi<FlowResult>("POST", "config/config_entries/flow", { handler, show_advanced_options: false });
+  let r = await hass.callApi<FlowResult>("POST", "config/config_entries/flow", {
+    handler,
+    show_advanced_options: false,
+  });
   for (const data of steps) {
     if ((r.type !== "form" && r.type !== "menu") || !r.flow_id) break;
     r = await hass.callApi<FlowResult>("POST", `config/config_entries/flow/${r.flow_id}`, data);
@@ -94,18 +131,28 @@ export async function createHelper(hass: WriteHass, handler: "switch_as_x" | "gr
   if (r.type !== "create_entry") throw new Error(`Home Assistant did not finish creating it: ${flowError(r)}`);
   const res = r.result as { entry_id?: string } | string | undefined;
   const entryId = typeof res === "string" ? res : res?.entry_id;
-  if (!entryId) throw new Error("Home Assistant created the helper but did not say which one; look for it under Settings, Devices & services, Helpers.");
-  const tries = opt.tries ?? 10, ms = opt.retryMs ?? 500;
+  if (!entryId)
+    throw new Error(
+      "Home Assistant created the helper but did not say which one; look for it under Settings, Devices & services, Helpers.",
+    );
+  const tries = opt.tries ?? 10,
+    ms = opt.retryMs ?? 500;
   for (let n = 0; n < tries; n++) {
     const all = await hass.callWS<EntityEntry[]>({ type: "config/entity_registry/list" });
     const hit = all.find((e) => e.config_entry_id === entryId);
     if (hit) {
-      await hass.callWS({ type: "config/entity_registry/update", entity_id: hit.entity_id, labels: [...new Set([...(hit.labels ?? []), labelId])] });
+      await hass.callWS({
+        type: "config/entity_registry/update",
+        entity_id: hit.entity_id,
+        labels: [...new Set([...(hit.labels ?? []), labelId])],
+      });
       return { entity_id: hit.entity_id };
     }
     if (n < tries - 1) await new Promise((res2) => setTimeout(res2, ms));
   }
-  throw new Error("Home Assistant made the helper but it did not appear in time; look for it under Settings, Devices & services, Helpers.");
+  throw new Error(
+    "Home Assistant made the helper but it did not appear in time; look for it under Settings, Devices & services, Helpers.",
+  );
 }
 
 /**
@@ -125,7 +172,8 @@ export async function listLabelled(hass: WriteHass): Promise<Labelled[]> {
   for (const e of entities) {
     if (!has(e.labels)) continue;
     const name = e.name ?? e.original_name ?? e.entity_id;
-    if (e.entity_id.startsWith("automation.")) out.push({ kind: "automation", id: e.unique_id ?? e.entity_id, name, entityId: e.entity_id });
+    if (e.entity_id.startsWith("automation."))
+      out.push({ kind: "automation", id: e.unique_id ?? e.entity_id, name, entityId: e.entity_id });
     else if (e.config_entry_id) out.push({ kind: "helper", id: e.config_entry_id, name, entityId: e.entity_id });
   }
   for (const a of areas) if (has(a.labels)) out.push({ kind: "area", id: a.area_id, name: a.name });
@@ -137,21 +185,32 @@ export async function listLabelled(hass: WriteHass): Promise<Labelled[]> {
  * moment to register the new `automation.*` entity (found by its `unique_id`, which is this id), exactly as
  * `createHelper` waits for its own entity; the label is added the same way once it appears.
  */
-export async function createAutomation(hass: WriteHass, cfg: AutomationConfig, opt: HelperOptions = {}): Promise<string> {
+export async function createAutomation(
+  hass: WriteHass,
+  cfg: AutomationConfig,
+  opt: HelperOptions = {},
+): Promise<string> {
   const labelId = await ensureLabel(hass);
   const id = `fp_${Math.random().toString(36).slice(2, 10)}`;
   await hass.callApi("POST", `config/automation/config/${id}`, cfg as unknown as Record<string, unknown>);
-  const tries = opt.tries ?? 10, ms = opt.retryMs ?? 500;
+  const tries = opt.tries ?? 10,
+    ms = opt.retryMs ?? 500;
   for (let n = 0; n < tries; n++) {
     const all = await hass.callWS<EntityEntry[]>({ type: "config/entity_registry/list" });
     const hit = all.find((e) => e.unique_id === id);
     if (hit) {
-      await hass.callWS({ type: "config/entity_registry/update", entity_id: hit.entity_id, labels: [...new Set([...(hit.labels ?? []), labelId])] });
+      await hass.callWS({
+        type: "config/entity_registry/update",
+        entity_id: hit.entity_id,
+        labels: [...new Set([...(hit.labels ?? []), labelId])],
+      });
       return id;
     }
     if (n < tries - 1) await new Promise((res) => setTimeout(res, ms));
   }
-  throw new Error("Home Assistant made the automation but it did not appear in time; look for it under Settings, Automations.");
+  throw new Error(
+    "Home Assistant made the automation but it did not appear in time; look for it under Settings, Automations.",
+  );
 }
 
 /** S4.7: the room box's "Run" button on a scene row. */
@@ -160,9 +219,18 @@ export async function runScene(hass: WriteHass, entityId: string): Promise<void>
 }
 
 /** S17.7: one service call. `entity_id` goes in `target`, the rest in `service_data`. */
-export async function callService(hass: WriteHass, call: { domain: string; service: string; data: Record<string, unknown> }): Promise<void> {
+export async function callService(
+  hass: WriteHass,
+  call: { domain: string; service: string; data: Record<string, unknown> },
+): Promise<void> {
   const { entity_id, ...rest } = call.data;
-  await hass.callWS({ type: "call_service", domain: call.domain, service: call.service, service_data: rest, target: { entity_id } });
+  await hass.callWS({
+    type: "call_service",
+    domain: call.domain,
+    service: call.service,
+    service_data: rest,
+    target: { entity_id },
+  });
 }
 
 /** `openAutomation` actually lives in `automations.ts` (it touches no `hass`, and the editor must never import this

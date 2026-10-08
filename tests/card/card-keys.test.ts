@@ -19,7 +19,12 @@ const lastOpts = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as
 const deg = () => lastOpts().rotate?.deg ?? 0;
 
 function mockMotion(reduce: boolean) {
-  window.matchMedia = ((q: string) => ({ matches: reduce && q.includes("prefers-reduced-motion"), media: q, addEventListener() {}, removeEventListener() {} })) as never;
+  window.matchMedia = ((q: string) => ({
+    matches: reduce && q.includes("prefers-reduced-motion"),
+    media: q,
+    addEventListener() {},
+    removeEventListener() {},
+  })) as never;
 }
 async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<FloorplanStudioCard> {
   const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
@@ -41,7 +46,9 @@ function press(key: string, from: Element = document.body, init: KeyboardEventIn
   from.dispatchEvent(e);
   return e.defaultPrevented;
 }
-const settle = async (el: FloorplanStudioCard) => { await el.updateComplete; };
+const settle = async (el: FloorplanStudioCard) => {
+  await el.updateComplete;
+};
 
 beforeEach(() => {
   localStorage.clear();
@@ -80,7 +87,8 @@ describe("card keys: what each key does", () => {
     press("+");
     press("+");
     await settle(el);
-    const x0 = vbX(el), w = vbW(el);
+    const x0 = vbX(el),
+      w = vbW(el);
     press("ArrowRight");
     await settle(el);
     expect(vbX(el) - x0).toBeCloseTo(w * 0.1, 4);
@@ -98,7 +106,9 @@ describe("card keys: what each key does", () => {
     press("+");
     press("+");
     await settle(el);
-    const y0 = vbY(el), h = vbH(el), w0 = vbW(el);
+    const y0 = vbY(el),
+      h = vbH(el),
+      w0 = vbW(el);
     expect(press("ArrowDown")).toBe(true);
     await settle(el);
     expect(vbY(el) - y0).toBeCloseTo(h * 0.1, 4);
@@ -301,7 +311,10 @@ describe("card keys: what they never take", () => {
 });
 
 describe("card keys are remembered like any other touch", () => {
-  const stored = () => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:")).map(([, v]) => JSON.parse(v));
+  const stored = () =>
+    Object.entries(localStorage)
+      .filter(([k]) => k.startsWith("fp-view:"))
+      .map(([, v]) => JSON.parse(v));
 
   it("a turn by button is in storage the moment it settles", async () => {
     const el = await mount();
@@ -311,7 +324,9 @@ describe("card keys are remembered like any other touch", () => {
   });
 
   it("a zoom by key is in storage within 200 ms", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"],
+    });
     const el = await mount();
     hover(el);
     press("+");
@@ -324,10 +339,16 @@ describe("rotate_switch: the pair follows the other controls unless the key says
   const btn = (el: FloorplanStudioCard, l: string) => q(el, `button[aria-label="${l}"]`);
   it("every config with zoom or the View dropdown draws the pair; no control at all draws none", async () => {
     for (const [cfg, want] of [
-      [{}, true], [{ view: "2.5d" }, true], [{ zoom: false }, true], [{ view_switch: false }, true],
-      [{ zoom: false, view_switch: false }, false], [{ kiosk: true }, false],
-      [{ kiosk: true, rotate_switch: true }, true], [{ zoom: false, view_switch: false, rotate_switch: true }, true],
-      [{ rotate_switch: false }, false], [{ rotate_switch: "yes" as never }, true],
+      [{}, true],
+      [{ view: "2.5d" }, true],
+      [{ zoom: false }, true],
+      [{ view_switch: false }, true],
+      [{ zoom: false, view_switch: false }, false],
+      [{ kiosk: true }, false],
+      [{ kiosk: true, rotate_switch: true }, true],
+      [{ zoom: false, view_switch: false, rotate_switch: true }, true],
+      [{ rotate_switch: false }, false],
+      [{ rotate_switch: "yes" as never }, true],
     ] as const) {
       const el = await mount(cfg);
       expect(btn(el, "Rotate left") !== null, JSON.stringify(cfg)).toBe(want);

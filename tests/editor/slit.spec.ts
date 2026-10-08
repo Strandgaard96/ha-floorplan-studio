@@ -5,7 +5,8 @@ import type { Layout } from "../../src/core/schema";
 // goes through page.mouse at real coordinates (CLAUDE.md finding 3). Slit 2D drawing is a thin band of the window mark.
 
 const EDITOR = "floorplan-studio-editor";
-const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
+const layoutOf = (page: Page) =>
+  page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const doors = async (page: Page) => (await layoutOf(page)).floors.ground.doors;
 const len = (o: { a: number[]; b: number[] }) => Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]);
 const line = (page: Page, i: number) => page.locator(`${EDITOR} svg line.door[data-d="${i}"]`);
@@ -23,7 +24,9 @@ async function addSlit(page: Page) {
   await page.locator("#addSlit").click();
 }
 
-test("Add, Openings, Slit window places a 120 cm slit, selected, with the window's fields and a 60 cm default", async ({ page }) => {
+test("Add, Openings, Slit window places a 120 cm slit, selected, with the window's fields and a 60 cm default", async ({
+  page,
+}) => {
   const before = (await doors(page)).length;
   await addSlit(page);
   const d = await doors(page);
@@ -46,9 +49,17 @@ test("the length field sets the width, in one undo step, and the band on the pla
   const i = (await doors(page)).length - 1;
   // Pixels of a 90 cm reference door on the same plan give the scale, so a view that re-fits after the edit cannot fool it.
   // The line's own geometry (getBoundingClientRect); Playwright's boundingBox adds the stroke.
-  const px = (sel: string) => page.locator(sel).first().evaluate((el) => { const b = el.getBoundingClientRect(); return Math.max(b.width, b.height); });
+  const px = (sel: string) =>
+    page
+      .locator(sel)
+      .first()
+      .evaluate((el) => {
+        const b = el.getBoundingClientRect();
+        return Math.max(b.width, b.height);
+      });
   const ref = len((await doors(page))[0]); // door 0, by its own layout length
-  const cm = async () => (await px(`${EDITOR} svg line.door-slit`)) / ((await px(`${EDITOR} svg line.door[data-d="0"]`)) / ref);
+  const cm = async () =>
+    (await px(`${EDITOR} svg line.door-slit`)) / ((await px(`${EDITOR} svg line.door[data-d="0"]`)) / ref);
   await expect.poll(cm, { message: "the plan settles at 120 cm" }).toBeCloseTo(120, -1);
   await page.locator("#dl").fill("240");
   await page.locator("#dl").press("Tab");
@@ -59,30 +70,48 @@ test("the length field sets the width, in one undo step, and the band on the pla
   await expect.poll(cm).toBeCloseTo(120, -1);
 });
 
-test("the slit is a band 0.4 as thick as a window on the same wall, and a real click on it selects it", async ({ page }) => {
+test("the slit is a band 0.4 as thick as a window on the same wall, and a real click on it selects it", async ({
+  page,
+}) => {
   await addSlit(page);
   const i = (await doors(page)).length - 1;
   await page.locator("#mAdd").evaluate((el) => el.removeAttribute("open"));
   await page.mouse.click(2, 2); // unselected: a selected door is drawn 8 cm wider
   await expect(line(page, i)).not.toHaveClass(/sel/);
   // The stroke the browser resolves, in plan units (a line's bounding box has no thickness).
-  const thick = (sel: string) => page.locator(sel).first().evaluate((el) => parseFloat(getComputedStyle(el).strokeWidth));
+  const thick = (sel: string) =>
+    page
+      .locator(sel)
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).strokeWidth));
   const slitT = await thick(`${EDITOR} svg line.door-slit`);
   // The same door as a window, on the same wall: only the kind differs.
-  await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.doors.at(-1).kind = "window"; el.layout = l; }, EDITOR);
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any,
+      l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.doors.at(-1).kind = "window";
+    el.layout = l;
+  }, EDITOR);
   const windowT = await thick(`${EDITOR} svg line.door-window`);
   expect(slitT).toBeGreaterThan(0);
   expect(slitT / windowT).toBeCloseTo(0.4, 1);
-  await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.doors.at(-1).kind = "slit"; el.layout = l; }, EDITOR);
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any,
+      l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.doors.at(-1).kind = "slit";
+    el.layout = l;
+  }, EDITOR);
   // click the slit at its middle, on the real top element
   const b = (await line(page, i).boundingBox())!;
   await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
   await expect(page.locator("#dk")).toHaveValue("slit");
 });
 
-test("the type selector and the wall menu say \"slit window\", the stored kind stays slit", async ({ page }) => {
+test('the type selector and the wall menu say "slit window", the stored kind stays slit', async ({ page }) => {
   await addSlit(page);
-  const opts = await page.locator("#dk option").evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent]));
+  const opts = await page
+    .locator("#dk option")
+    .evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent]));
   expect(opts).toContainEqual(["slit", "slit window"]);
   expect(opts.map((o) => o[1])).not.toContain("slit");
   expect(await page.locator("#dk option:checked").textContent()).toBe("slit window");
@@ -112,8 +141,15 @@ test("an own height and sill are kept as typed; clearing them brings the default
   expect("height" in (await doors(page)).at(-1)!).toBe(false);
 });
 
-test("the sill default follows the wall the slit hangs from: a 300 cm storey reads 200 (head 260, 40 under the ceiling)", async ({ page }) => {
-  await page.evaluate((tag) => { const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout)); l.floors.ground.height = 300; el.layout = l; }, EDITOR);
+test("the sill default follows the wall the slit hangs from: a 300 cm storey reads 200 (head 260, 40 under the ceiling)", async ({
+  page,
+}) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag as string) as any,
+      l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.height = 300;
+    el.layout = l;
+  }, EDITOR);
   await addSlit(page);
   await expect(page.locator("#dsill")).toHaveAttribute("placeholder", "200");
   await expect(page.locator("#dht")).toHaveAttribute("placeholder", "60");

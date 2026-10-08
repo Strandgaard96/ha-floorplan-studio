@@ -26,7 +26,9 @@ async def test_unloading_removes_the_sidebar_entry_and_a_reload_brings_it_back(h
     assert "floorplan-studio" in hass.data["frontend_panels"]
 
 
-@pytest.mark.skipif(not (WWW / "floorplan-studio-panel.js").exists(), reason="run `npm run build` first: www/ is built, not committed")
+@pytest.mark.skipif(
+    not (WWW / "floorplan-studio-panel.js").exists(), reason="run `npm run build` first: www/ is built, not committed"
+)
 async def test_the_built_panel_file_is_served_from_the_static_path(hass, entry, hass_client):
     client = await hass_client()
     r = await client.get("/floorplan_studio_static/floorplan-studio-panel.js")
@@ -34,7 +36,9 @@ async def test_the_built_panel_file_is_served_from_the_static_path(hass, entry, 
     assert "floorplan-studio-panel" in await r.text()
 
 
-@pytest.mark.skipif(not (WWW / "floorplan-studio-card.js").exists(), reason="run `npm run build` first: www/ is built, not committed")
+@pytest.mark.skipif(
+    not (WWW / "floorplan-studio-card.js").exists(), reason="run `npm run build` first: www/ is built, not committed"
+)
 async def test_the_card_has_exactly_one_3d_chunk_beside_it_and_it_is_served(hass, entry, hass_client):
     # The card loads its 3D view with import() the first time 3D is picked, relative to its own URL (S12.3).
     chunks = sorted(p.name for p in WWW.glob("floorplan-studio-3d-*.js"))
@@ -59,8 +63,8 @@ def _extra_urls(hass):
 
 
 async def _yaml_entry(hass):
-    from homeassistant.setup import async_setup_component  # noqa: PLC0415
-    from pytest_homeassistant_custom_component.common import MockConfigEntry  # noqa: PLC0415
+    from homeassistant.setup import async_setup_component
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
 
     assert await async_setup_component(hass, "lovelace", {"lovelace": {"mode": "yaml"}})
     e = MockConfigEntry(domain=DOMAIN, title="Floorplan Studio")
@@ -145,7 +149,9 @@ async def test_the_options_form_offers_the_switch_defaulting_to_on(hass, entry):
     assert key.default() is True
 
 
-async def test_switching_it_off_hides_the_sidebar_entry_but_keeps_the_editor_and_the_card_working(hass, entry, hass_ws_client):
+async def test_switching_it_off_hides_the_sidebar_entry_but_keeps_the_editor_and_the_card_working(
+    hass, entry, hass_ws_client
+):
     await _set_sidebar(hass, entry, False)
     assert "floorplan-studio" not in hass.data["frontend_panels"]
     assert len(_card_resources(hass)) == 1
@@ -169,7 +175,7 @@ BRAND = Path("custom_components/floorplan_studio/brand")
 
 
 def _png_size(path: Path) -> tuple[int, int]:
-    import struct  # noqa: PLC0415
+    import struct
 
     data = path.read_bytes()
     assert data[:8] == b"\x89PNG\r\n\x1a\n", f"{path.name} is not a PNG"
@@ -177,8 +183,15 @@ def _png_size(path: Path) -> tuple[int, int]:
 
 
 @pytest.mark.parametrize(
-    "name,size",
-    [("icon.png", (256, 256)), ("icon@2x.png", (512, 512)), ("logo.png", (640, 256)), ("logo@2x.png", (1280, 512)), ("dark_logo.png", (640, 256)), ("dark_logo@2x.png", (1280, 512))],
+    ("name", "size"),
+    [
+        ("icon.png", (256, 256)),
+        ("icon@2x.png", (512, 512)),
+        ("logo.png", (640, 256)),
+        ("logo@2x.png", (1280, 512)),
+        ("dark_logo.png", (640, 256)),
+        ("dark_logo@2x.png", (1280, 512)),
+    ],
 )
 def test_the_brand_images_ship_inside_the_integration_at_the_sizes_home_assistant_expects(name, size):
     assert _png_size(BRAND / name) == size

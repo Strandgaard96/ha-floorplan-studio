@@ -184,13 +184,19 @@ dropped again the next time the file is opened or re-exported.
 
 ## Develop
 
+Needs Node 24, [uv](https://docs.astral.sh/uv/) and [Task](https://taskfile.dev).
+
 ```bash
-npm ci
-npm run lint        # eslint and tsc
-npm test            # unit tests
-npm run build       # dist/ and custom_components/floorplan_studio/www/
-npx playwright test # editor tests; PW_PORT=5400 to run beside another checkout
+task setup          # npm ci, uv sync, Playwright's Chromium, git hooks
+task check          # typecheck, lint, format check and tests, web and Python
+task fix            # apply every autofix and formatter
+task test:e2e       # editor tests; PW_PORT=5400 to run beside another checkout
+task build          # dist/ and custom_components/floorplan_studio/www/
 ```
+
+The git hooks (`.pre-commit-config.yaml`, run by
+[prek](https://github.com/j178/prek)) lint, format and typecheck what you
+commit: oxlint, oxfmt and tsc for TypeScript, ruff and ty for Python.
 
 After a build, open `dist/editor.html` in a browser to use the editor with no
 Home Assistant and no server.

@@ -17,7 +17,9 @@ async function mount(layout: Layout) {
 }
 
 describe("the card draws layout.colors (S19.E3)", () => {
-  afterEach(() => { document.body.innerHTML = ""; });
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
   it("sets each device type's colour on a group round the plan, as the editor does", async () => {
     const el = await mount(withColors({ light: "#123456", tv: "#abcdef" }));
     const g = el.shadowRoot!.querySelector<SVGGElement>("svg g.dev-colours")!;

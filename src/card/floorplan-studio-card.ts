@@ -1,7 +1,58 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { DEFAULT_MOTION_FADE_S, customCalls, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, floorSummary, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
-import type { ActiveDevice, DeviceType, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
+import {
+  DEFAULT_MOTION_FADE_S,
+  customCalls,
+  customScene,
+  presetCalls,
+  roomScenes,
+  sceneNeedsConfirm,
+  entitiesOfDevice,
+  entitiesOfDoor,
+  stateText,
+  wattsOf,
+  DEVICE_ICONS,
+  FLOORPLAN_CSS,
+  THEMES,
+  UI_ICONS,
+  WALLS_LABELS,
+  WALLS_MODES,
+  wallsModeOf,
+  type PlanView,
+  activeDevices,
+  findPowerSensor,
+  floorsAroundKey,
+  deviceColourVars,
+  plugThreshold,
+  heatRange,
+  pieceDevice,
+  HEAT_FROM,
+  HEAT_TO,
+  clampTilt,
+  groupByCategory,
+  deviceInfo,
+  filterToRoom,
+  formatChanged,
+  roomSummary,
+  floorSummary,
+  migrate,
+  planPivot,
+  renderFloor,
+  rotateAbout,
+  tag,
+  validate,
+  viewBoxFor,
+} from "../core";
+import type {
+  ActiveDevice,
+  DeviceType,
+  PowerCandidate,
+  RoomDeviceRow,
+  RoomSensorRow,
+  RoomSummary,
+  Theme,
+  WallsMode,
+} from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
 import { lightCaps, popupOp, type PopupOp } from "./popup";
@@ -18,18 +69,38 @@ import { PAN_STEP, viewKeyFor, type ViewKey } from "./view-keys";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
-import { ROTATION_STEP, easeInOut, normaliseRotation, parseStoredView, shortestDelta, viewAround, type FloorView, type StoredView } from "./view-state";
+import {
+  ROTATION_STEP,
+  easeInOut,
+  normaliseRotation,
+  parseStoredView,
+  shortestDelta,
+  viewAround,
+  type FloorView,
+  type StoredView,
+} from "./view-state";
 
 const NO_LAYOUT = "No layout: install the Floorplan Studio integration or set layout_url";
 
 /** What the card needs of `hass`. Home Assistant's real object has far more; this is only what the card reads. */
-export interface HassEntity { state: string; attributes: Record<string, unknown>; last_changed: string }
+export interface HassEntity {
+  state: string;
+  attributes: Record<string, unknown>;
+  last_changed: string;
+}
 export interface Hass {
   states: Record<string, HassEntity>;
   /** HA's entity registry (display copy): the device an entity belongs to, and its category. Absent on an old frontend; the plug auto-link then does nothing. */
-  entities?: Record<string, { device_id?: string | null; area_id?: string | null; entity_category?: string | null } | undefined>;
+  entities?: Record<
+    string,
+    { device_id?: string | null; area_id?: string | null; entity_category?: string | null } | undefined
+  >;
   /** S11.4: HA's device and area registries (display copies), for a device row's details. Shapes from the frontend's own `hass` (src/types.ts: `devices: Record<string, DeviceRegistryEntry>`, `areas: Record<string, AreaRegistryEntry>`), only the fields read. Absent on an old frontend; the details then show entity, state and last changed. */
-  devices?: Record<string, { manufacturer?: string | null; model?: string | null; sw_version?: string | null; area_id?: string | null } | undefined>;
+  devices?: Record<
+    string,
+    | { manufacturer?: string | null; model?: string | null; sw_version?: string | null; area_id?: string | null }
+    | undefined
+  >;
   areas?: Record<string, { name?: string | null } | undefined>;
   themes?: { darkMode?: boolean };
   connection?: { sendMessagePromise<T>(msg: Record<string, unknown>): Promise<T> };
@@ -127,9 +198,19 @@ const isView = (v: unknown): v is CardView => VIEW_OPTIONS.some((o) => o.value =
 
 /** The Theme dropdown's labels. A Record over `Theme`, so a theme added to core fails the build here until it has a name. */
 const THEME_LABELS: Record<Theme, string> = {
-  blueprint: "Blueprint", midnight: "Midnight", light: "Light", slate: "Slate", terminal: "Terminal", solarized: "Solarized",
-  ha: "Home Assistant", coffee: "Coffee", "a-team": "A-Team", space: "Space", cyberpunk: "Cyberpunk",
-  "carpenter-brut": "Carpenter Brut", "beach-house": "Beach house",
+  blueprint: "Blueprint",
+  midnight: "Midnight",
+  light: "Light",
+  slate: "Slate",
+  terminal: "Terminal",
+  solarized: "Solarized",
+  ha: "Home Assistant",
+  coffee: "Coffee",
+  "a-team": "A-Team",
+  space: "Space",
+  cyberpunk: "Cyberpunk",
+  "carpenter-brut": "Carpenter Brut",
+  "beach-house": "Beach house",
 };
 const isTheme = (v: unknown): v is Theme => typeof v === "string" && (THEMES as readonly string[]).includes(v);
 
@@ -150,11 +231,36 @@ const DOUBLE_TAP_PX = 24;
 /** One click of a zoom button. */
 const BUTTON_ZOOM = 1.5;
 /** The words the side panel says for a room and for a floor (S20.2): the same panel, one subject. */
-interface Scope { unnamed: string; clear: string; noDevices: string; nothingOn: string; activeHere: string; onlyHere: string }
-const ROOM_SCOPE: Scope = { unnamed: "Unnamed room", clear: "Clear the room selection", noDevices: "No devices in this room", nothingOn: "Nothing on in this room", activeHere: "Active in this room", onlyHere: "This room only" };
-const FLOOR_SCOPE: Scope = { unnamed: "Unnamed floor", clear: "Clear the floor selection", noDevices: "No devices on this floor", nothingOn: "Nothing is on, on this floor", activeHere: "Active on this floor", onlyHere: "This floor only" };
+interface Scope {
+  unnamed: string;
+  clear: string;
+  noDevices: string;
+  nothingOn: string;
+  activeHere: string;
+  onlyHere: string;
+}
+const ROOM_SCOPE: Scope = {
+  unnamed: "Unnamed room",
+  clear: "Clear the room selection",
+  noDevices: "No devices in this room",
+  nothingOn: "Nothing on in this room",
+  activeHere: "Active in this room",
+  onlyHere: "This room only",
+};
+const FLOOR_SCOPE: Scope = {
+  unnamed: "Unnamed floor",
+  clear: "Clear the floor selection",
+  noDevices: "No devices on this floor",
+  nothingOn: "Nothing is on, on this floor",
+  activeHere: "Active on this floor",
+  onlyHere: "This floor only",
+};
 /** What a double tap restores: the room or floor pick as it stood before the first tap changed it. */
-interface PickMemo { pick: { floor: string; id: string } | null; floor: string | null; filter: boolean }
+interface PickMemo {
+  pick: { floor: string; id: string } | null;
+  floor: string | null;
+  filter: boolean;
+}
 /** The Scenes section starts folded, so its fold set entry means "opened by the user" (the other groups start open and the entry means folded). */
 const SCENES_OPEN = "r:scenes:open";
 /** S9.2: `icon_size` default and clamp range. */
@@ -186,10 +292,17 @@ const loadLib3d = (): Promise<Lib3d> => {
     // A browser remembers a failed `import()` of one URL and never asks the network again. The first try is the plain import;
     // each later one asks for the same file under a new query, which is a new URL to the browser (and the same file to the server).
     const n = lib3dTries++;
-    const load: Promise<Lib3d> = n > 0 && /^floorplan-studio-3d-.+\.js$/.test(CHUNK_FILE)
-      ? import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${CHUNK_FILE}?r=${n}`) // not `new URL(.., import.meta.url)`: Vite reads that as an asset and rewrites it
-      : import("./three/view3d");
-    lib3dLoading = load.then((m) => (lib3d = m), (err) => { lib3dLoading = null; throw err; }); // a failed load may be tried again
+    const load: Promise<Lib3d> =
+      n > 0 && /^floorplan-studio-3d-.+\.js$/.test(CHUNK_FILE)
+        ? import(/* @vite-ignore */ `${import.meta.url.split(/[?#]/)[0].replace(/[^/]*$/, "")}${CHUNK_FILE}?r=${n}`) // not `new URL(.., import.meta.url)`: Vite reads that as an asset and rewrites it
+        : import("./three/view3d");
+    lib3dLoading = load.then(
+      (m) => (lib3d = m),
+      (err) => {
+        lib3dLoading = null;
+        throw err;
+      },
+    ); // a failed load may be tried again
   }
   return lib3dLoading;
 };
@@ -199,7 +312,9 @@ let focusedCard: FloorplanStudioCard | null = null;
 
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 export class FloorplanStudioCard extends LitElement {
-  static styles = [unsafeCSS(FLOORPLAN_CSS), css`
+  static styles = [
+    unsafeCSS(FLOORPLAN_CSS),
+    css`
     /* S8.2: height 100% on both, matching Home Assistant's own cards (thermostat, map). In an "auto" grid row
        (no numeric height set by getGridOptions/computeCardGridSize) the containing block's height is indefinite,
        so height:100% computes to auto and the svg sizes by width and its viewBox aspect exactly as before; in a
@@ -329,7 +444,10 @@ export class FloorplanStudioCard extends LitElement {
     .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 system-ui, sans-serif; color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 system-ui, sans-serif; text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
     .fp-show-all:hover, .fp-show-all:focus-visible { background: var(--fp-idle); }
-  `, POPUP_CSS, SCENES_CSS];
+  `,
+    POPUP_CSS,
+    SCENES_CSS,
+  ];
 
   private _config: FloorplanStudioCardConfig = {};
   private _hass?: Hass;
@@ -364,7 +482,14 @@ export class FloorplanStudioCard extends LitElement {
   private _chooserDialogWasOpen = false;
   /** S14.2: the tap popup, or `null` for none. One at a time; `s.key` is who it is about, `x`/`y` where the pointer landed (client px), `opener` the
    *  focusable thing that opened it (an Active row), `confirming` the turn-OFF question, `draft` a slider's shown value until Home Assistant answers. */
-  private _popup: { s: PopupSubject; x: number; y: number; opener: Element | null; confirming: boolean; draft: { kind: SliderKind; value: number; from: number | null } | null } | null = null;
+  private _popup: {
+    s: PopupSubject;
+    x: number;
+    y: number;
+    opener: Element | null;
+    confirming: boolean;
+    draft: { kind: SliderKind; value: number; from: number | null } | null;
+  } | null = null;
   private _popupFocusKey: string | null = null;
   private _popupReturn: Element | null = null;
   /** S14.2: the hover tooltip (mouse only). `_tipKey` is who it shows, `_tipHost` the card's box read once when it appears, `_tipTitle` a plan `<title>` held back so the browser's own tooltip does not double ours. */
@@ -382,12 +507,14 @@ export class FloorplanStudioCard extends LitElement {
   /** S12.3: the live 3D view, the floor and stair context it was built for, and why 3D cannot run (`null` while it can). */
   private _view3d: View3D | null = null;
   private _view3dFloor: unknown = null;
-  private _view3dAround = "";  // JSON of `FloorsAround`, to compare
+  private _view3dAround = ""; // JSON of `FloorsAround`, to compare
   private _fallback3d: string | null = null;
   /** The fallback came from a lost graphics context: the card tries 3D once more when it is attached or shown again. */
   private _retry3d = false;
   /** How many 3D renderers are alive in this page: a test hook (a lifecycle test reads that it returns to 0). */
-  static get liveRenderers(): number { return lib3d?.liveRenderers() ?? 0; }
+  static get liveRenderers(): number {
+    return lib3d?.liveRenderers() ?? 0;
+  }
 
   /** The view picked in the dropdown; `null` means the config's own. Card state like `_view`: reset by `setConfig`, never by `hass`. */
   private _pickedView: CardView | null = null;
@@ -408,7 +535,14 @@ export class FloorplanStudioCard extends LitElement {
   /** A turn in flight: `from` and `to` are user angles in degrees, unwrapped (`to` may be 360, or -45) so the
    * interpolation never takes the long way; `anchor` is the plan point and zoom to hold at the centre, or `null`
    * when the card is at home and home itself follows the angle. */
-  private _turn: { from: number; to: number; t0: number; dur: number; anchor: { focus: Pt; zoom: number } | null; raf: number } | null = null;
+  private _turn: {
+    from: number;
+    to: number;
+    t0: number;
+    dur: number;
+    anchor: { focus: Pt; zoom: number } | null;
+    raf: number;
+  } | null = null;
   /** The user angle drawn this frame while `_turn` runs. */
   private _turnAngle = 0;
   /** A stored zoom and focus (plan cm) waiting for the first render, the first moment the fit box is known. */
@@ -510,7 +644,14 @@ export class FloorplanStudioCard extends LitElement {
    * config's look. Storage is untrusted: `parseStoredView` drops each bad field, and a throwing `localStorage`
    * (private mode, blocked) is nothing stored. */
   private _loadViewState(): void {
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = null;
+    this._pickedView =
+      this._pickedTilt =
+      this._pickedWalls =
+      this._pickedTheme =
+      this._pickedLabels =
+      this._pickedNames =
+      this._pickedRot =
+        null;
     this._pendingView = null;
     this._shownFloor = null;
     this._floorViews = new Map();
@@ -539,7 +680,8 @@ export class FloorplanStudioCard extends LitElement {
     const key = this._floorKey();
     if (!key || key === this._memFloor) return;
     const fv = this._floorViews.get(key);
-    this._pickedRot = fv?.rotation !== undefined && fv.rotation !== normaliseRotation(this._config.rotation) ? fv.rotation : null;
+    this._pickedRot =
+      fv?.rotation !== undefined && fv.rotation !== normaliseRotation(this._config.rotation) ? fv.rotation : null;
     this._pendingView = fv?.zoom !== undefined && fv.focus ? { focus: fv.focus, zoom: fv.zoom } : null;
     this._view = null;
     this._memFloor = key;
@@ -553,8 +695,14 @@ export class FloorplanStudioCard extends LitElement {
     const fv: FloorView = {};
     if (this._pickedRot !== null) fv.rotation = this._pickedRot;
     const anchor = this._pendingView ?? this._anchorOfView();
-    if (anchor) { fv.zoom = anchor.zoom; fv.focus = anchor.focus; }
-    const cam = this._camMoved && this._view3d && this._view3dKey === key ? this._view3d.camera() : this._floorViews.get(key)?.cam;
+    if (anchor) {
+      fv.zoom = anchor.zoom;
+      fv.focus = anchor.focus;
+    }
+    const cam =
+      this._camMoved && this._view3d && this._view3dKey === key
+        ? this._view3d.camera()
+        : this._floorViews.get(key)?.cam;
     if (cam) fv.cam = cam;
     if (Object.keys(fv).length) this._floorViews.set(key, fv);
     else this._floorViews.delete(key);
@@ -611,11 +759,19 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  private _onPointerEnter = (): void => { this._hovered = true; };
-  private _onPointerLeave = (): void => { this._hovered = false; };
+  private _onPointerEnter = (): void => {
+    this._hovered = true;
+  };
+  private _onPointerLeave = (): void => {
+    this._hovered = false;
+  };
 
-  private _onFocusIn = (ev: Event): void => { focusedCard = ev.currentTarget as FloorplanStudioCard; };
-  private _onFocusOut = (): void => { if (focusedCard === this) focusedCard = null; };
+  private _onFocusIn = (ev: Event): void => {
+    focusedCard = ev.currentTarget as FloorplanStudioCard;
+  };
+  private _onFocusOut = (): void => {
+    if (focusedCard === this) focusedCard = null;
+  };
 
   /** The card the view keys belong to: the one with focus, else the one under the pointer. Never two. Focus is
    * tracked by the card's own focusin and focusout, not read from `document.activeElement`: in Home Assistant the
@@ -633,8 +789,13 @@ export class FloorplanStudioCard extends LitElement {
   private _onViewKey = (ev: KeyboardEvent): void => {
     if (!this.isConnected || !this._ownsViewKeys()) return;
     if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return; // a dialog has its own keys
-    if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
-    if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
+    if (ev.key === "Escape" && this._popup) {
+      this._closePopup();
+      ev.preventDefault();
+      return;
+    }
+    if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) {
+      // S11.3: the same ownership gate as the view keys, so another card never loses its room
       this._pickRoom(null);
       ev.preventDefault();
       return;
@@ -674,7 +835,8 @@ export class FloorplanStudioCard extends LitElement {
       case "panUp":
       case "panDown": {
         if (this._zoomMode() === false) return false;
-        const v = this._current(), fit = this._fit;
+        const v = this._current(),
+          fit = this._fit;
         if (!v || !fit) return false;
         const dx = key === "panLeft" ? -PAN_STEP * v.w : key === "panRight" ? PAN_STEP * v.w : 0;
         const dy = key === "panUp" ? -PAN_STEP * v.h : key === "panDown" ? PAN_STEP * v.h : 0;
@@ -728,11 +890,19 @@ export class FloorplanStudioCard extends LitElement {
       const parsed = JSON.parse(raw) as { collapsed?: unknown; chosen?: unknown; x?: unknown; y?: unknown };
       // An entry from before `chosen` existed that says collapsed was a hand fold (nothing else wrote it as true);
       // one that says open may only be a dragged position, so the width still decides.
-      if (parsed.chosen === true || parsed.collapsed === true) { this._activeUserChose = true; this._activeCollapsed = parsed.collapsed === true; }
+      if (parsed.chosen === true || parsed.collapsed === true) {
+        this._activeUserChose = true;
+        this._activeCollapsed = parsed.collapsed === true;
+      }
       // Opus review finding 3: untrusted storage, including an older build's raw-px entry — clamped into the 0..1
       // fraction range rather than trusted or thrown on. A stale px value just lands at whichever edge it clamps
       // to (never off-screen); it does not need to reproduce its exact old spot.
-      if (typeof parsed.x === "number" && typeof parsed.y === "number" && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+      if (
+        typeof parsed.x === "number" &&
+        typeof parsed.y === "number" &&
+        Number.isFinite(parsed.x) &&
+        Number.isFinite(parsed.y)
+      ) {
         this._activePos = { x: Math.min(Math.max(parsed.x, 0), 1), y: Math.min(Math.max(parsed.y, 0), 1) };
       }
     } catch {
@@ -749,7 +919,8 @@ export class FloorplanStudioCard extends LitElement {
     try {
       const raw = globalThis.localStorage?.getItem(this._catStorageKey());
       const parsed: unknown = raw ? JSON.parse(raw) : null;
-      if (Array.isArray(parsed)) for (const id of parsed) if (typeof id === "string" && id.length < 40) this._foldedCats.add(id);
+      if (Array.isArray(parsed))
+        for (const id of parsed) if (typeof id === "string" && id.length < 40) this._foldedCats.add(id);
     } catch {
       /* malformed or unavailable storage: every group opens */
     }
@@ -757,13 +928,18 @@ export class FloorplanStudioCard extends LitElement {
 
   private _toggleCat(id: string): void {
     if (!this._foldedCats.delete(id)) this._foldedCats.add(id);
-    try { globalThis.localStorage?.setItem(this._catStorageKey(), JSON.stringify([...this._foldedCats])); } catch { /* storage blocked: the fold just does not persist */ }
+    try {
+      globalThis.localStorage?.setItem(this._catStorageKey(), JSON.stringify([...this._foldedCats]));
+    } catch {
+      /* storage blocked: the fold just does not persist */
+    }
     this.requestUpdate();
   }
 
   /** S14.6: one category of rows under a header button. `list` is `a` (Active) or `r` (Room); folded state is per list. */
   private _catGroup(list: "a" | "r", id: string, label: string, count: number, rows: unknown) {
-    const key = `${list}:${id}`, folded = this._foldedCats.has(key);
+    const key = `${list}:${id}`,
+      folded = this._foldedCats.has(key);
     return html`<div class="fp-active-group" data-cat=${id}>
       <button type="button" class="fp-active-group-label fp-cat" aria-expanded=${folded ? "false" : "true"} @click=${() => this._toggleCat(key)}>
         <span class="fp-cat-chev" aria-hidden="true">${folded ? "▸" : "▾"}</span><span class="fp-cat-name">${label}</span><span class="fp-active-count">${count}</span>
@@ -773,7 +949,15 @@ export class FloorplanStudioCard extends LitElement {
 
   private _saveActiveState(): void {
     try {
-      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, x: this._activePos?.x, y: this._activePos?.y }));
+      globalThis.localStorage?.setItem(
+        this._activeStorageKey(),
+        JSON.stringify({
+          collapsed: this._activeUserChose && this._activeCollapsed,
+          chosen: this._activeUserChose,
+          x: this._activePos?.x,
+          y: this._activePos?.y,
+        }),
+      );
     } catch {
       /* private browsing or storage blocked: position/collapse just don't persist */
     }
@@ -799,7 +983,11 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionToolbar(); this._positionActivePanel(); });
+      this._activeResizeObserver = new ResizeObserver(() => {
+        this._applyWidthDefault();
+        this._positionToolbar();
+        this._positionActivePanel();
+      });
       this._activeResizeObserver.observe(this);
     }
     // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
@@ -886,17 +1074,28 @@ export class FloorplanStudioCard extends LitElement {
    * `power` is never overridden (the renderer reads it first), and two candidates link nothing (`findPowerSensor`).
    */
   private _powerLinks(): Record<string, string> | undefined {
-    const reg = this._hass?.entities, states = this._hass?.states;
+    const reg = this._hass?.entities,
+      states = this._hass?.states;
     if (!this._layout || !reg || !states) return undefined;
-    const plugs = Object.values(this._layout.floors).flatMap((f) => f.devices).filter((d) => d.type === "plug" && !d.power && d.entity);
-    const devs = new Set(plugs.map((d) => reg[d.entity]?.device_id).filter((x): x is string => typeof x === "string" && !!x));
+    const plugs = Object.values(this._layout.floors)
+      .flatMap((f) => f.devices)
+      .filter((d) => d.type === "plug" && !d.power && d.entity);
+    const devs = new Set(
+      plugs.map((d) => reg[d.entity]?.device_id).filter((x): x is string => typeof x === "string" && !!x),
+    );
     if (!devs.size) return undefined;
     const rows: PowerCandidate[] = [];
     for (const [id, e] of Object.entries(reg)) {
       const dev = e?.device_id;
       if (!dev || !devs.has(dev)) continue;
       const dc = states[id]?.attributes?.device_class;
-      rows.push({ id, domain: id.split(".")[0], dc: typeof dc === "string" ? dc : undefined, dev, cat: e.entity_category });
+      rows.push({
+        id,
+        domain: id.split(".")[0],
+        dc: typeof dc === "string" ? dc : undefined,
+        dev,
+        cat: e.entity_category,
+      });
     }
     const links: Record<string, string> = {};
     for (const d of plugs) {
@@ -1009,7 +1208,10 @@ export class FloorplanStudioCard extends LitElement {
       fetch(this._config.layout_url)
         .then((res) => res.json())
         .then((json) => this._applyLayout(json))
-        .catch(() => { this._error = NO_LAYOUT; this.requestUpdate(); });
+        .catch(() => {
+          this._error = NO_LAYOUT;
+          this.requestUpdate();
+        });
       return;
     }
     if (this._hass?.connection) {
@@ -1019,7 +1221,10 @@ export class FloorplanStudioCard extends LitElement {
       this._hass.connection
         .sendMessagePromise<{ layout: unknown }>({ type: "floorplan_studio/load" })
         .then((r) => this._applyLayout(r?.layout))
-        .catch(() => { this._error = NO_LAYOUT; this.requestUpdate(); });
+        .catch(() => {
+          this._error = NO_LAYOUT;
+          this.requestUpdate();
+        });
       return;
     }
     this._error = NO_LAYOUT;
@@ -1035,7 +1240,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** The user's turn in degrees: the settled step, or the frame of a turn in flight. */
   private _userAngle(): number {
-    return this._turn ? this._turnAngle : this._pickedRot ?? normaliseRotation(this._config.rotation);
+    return this._turn ? this._turnAngle : (this._pickedRot ?? normaliseRotation(this._config.rotation));
   }
 
   private _reducedMotion(): boolean {
@@ -1141,7 +1346,9 @@ export class FloorplanStudioCard extends LitElement {
   private _floorList(): [string, Floor][] | null {
     if (!this._layout) return null;
     if (this._config.floors?.length) {
-      const entries = this._config.floors.filter((k) => this._layout!.floors[k]).map((k) => [k, this._layout!.floors[k]!] as [string, Floor]);
+      const entries = this._config.floors
+        .filter((k) => this._layout!.floors[k])
+        .map((k) => [k, this._layout!.floors[k]!] as [string, Floor]);
       if (entries.length) return entries;
     }
     if (this._config.floor === "all") return Object.entries(this._layout.floors);
@@ -1199,7 +1406,10 @@ export class FloorplanStudioCard extends LitElement {
     const fadeMs = (this._config.fade ?? DEFAULT_MOTION_FADE_S) * 1000;
     if (!f || !this._hass || fadeMs <= 0) return false;
     const now = Date.now();
-    const ids = [...f.devices.filter((d) => d.type === "motion").map((d) => d.entity), ...f.rooms.flatMap((r) => r.motion ?? [])];
+    const ids = [
+      ...f.devices.filter((d) => d.type === "motion").map((d) => d.entity),
+      ...f.rooms.flatMap((r) => r.motion ?? []),
+    ];
     return ids.some((id) => {
       const s = this._hass!.states[id];
       if (!s || s.state === "on") return false;
@@ -1260,7 +1470,9 @@ export class FloorplanStudioCard extends LitElement {
   private _glidePeople(): void {
     const devices = this._floor()?.devices;
     this.shadowRoot?.querySelectorAll<SVGGElement>("g.dev-person[data-x]").forEach((g) => {
-      const e = devices?.[Number(g.dataset.x)]?.entity, was = e ? this._peopleWere.get(e) : undefined, now = g.style.transform;
+      const e = devices?.[Number(g.dataset.x)]?.entity,
+        was = e ? this._peopleWere.get(e) : undefined,
+        now = g.style.transform;
       if (!was || was === now) return;
       g.style.transition = "none";
       g.style.transform = was;
@@ -1297,14 +1509,20 @@ export class FloorplanStudioCard extends LitElement {
       // debounce, but also no double-firing from a stale second listener).
       this._unbindActions?.();
       this._unbindActions = svg
-        ? bindDeviceActions(svg, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], {
-            longPress: !this._kiosk(),
-            openVacuumDialog: (d) => this._openVacuumDialog(d),
-            openChooser: (title, entities) => this._openChooserDialog(title, entities),
-            openPopup: (t, at, from) => this._openPopup(t, at, from),
-            getUnlinked: (i) => this._floor()?.unlinked[i],
-            getPiece: (i) => this._floor()?.furniture?.[i],
-          })
+        ? bindDeviceActions(
+            svg,
+            this,
+            (i) => this._floor()?.devices[i],
+            (i) => this._floor()?.doors[i],
+            {
+              longPress: !this._kiosk(),
+              openVacuumDialog: (d) => this._openVacuumDialog(d),
+              openChooser: (title, entities) => this._openChooserDialog(title, entities),
+              openPopup: (t, at, from) => this._openPopup(t, at, from),
+              getUnlinked: (i) => this._floor()?.unlinked[i],
+              getPiece: (i) => this._floor()?.furniture?.[i],
+            },
+          )
         : null;
       this._unbindHover?.();
       this._unbindHover = svg ? this._bindHover(svg) : null;
@@ -1388,10 +1606,22 @@ export class FloorplanStudioCard extends LitElement {
    * one line and the 2D plan. */
   private _sync3d(): void {
     const f = this._floor();
-    if (this._viewPick() !== "3d" || !f) { this._dispose3d(); return; }
-    if (this._fallback3d !== null) { this._dispose3d(); return; }
+    if (this._viewPick() !== "3d" || !f) {
+      this._dispose3d();
+      return;
+    }
+    if (this._fallback3d !== null) {
+      this._dispose3d();
+      return;
+    }
     if (!lib3d) {
-      loadLib3d().then(() => this.requestUpdate(), () => { this._fallback3d = "3D view unavailable: its code did not load. Showing 2D."; this.requestUpdate(); });
+      loadLib3d().then(
+        () => this.requestUpdate(),
+        () => {
+          this._fallback3d = "3D view unavailable: its code did not load. Showing 2D.";
+          this.requestUpdate();
+        },
+      );
       return;
     }
     const host = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d") ?? null;
@@ -1400,12 +1630,23 @@ export class FloorplanStudioCard extends LitElement {
       try {
         this._view3d = lib3d.createView3D(host, {
           turnDeg: this._rotate()?.deg ?? 0,
-          onCamera: () => { this._camMoved = true; this._scheduleSave(); },
+          onCamera: () => {
+            this._camMoved = true;
+            this._scheduleSave();
+          },
           deps: { scene: sceneDeps, live: liveDeps, texture: textureDeps.texture },
-          onFail: (why, retry) => { this._retry3d = retry === true; this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`; this._dispose3d(); this.requestUpdate(); },
+          onFail: (why, retry) => {
+            this._retry3d = retry === true;
+            this._fallback3d = `3D view unavailable: ${why}. Showing 2D.`;
+            this._dispose3d();
+            this.requestUpdate();
+          },
         });
       } catch (err) {
-        this._fallback3d = err instanceof lib3d.NoWebGL ? "3D view unavailable: this browser has no WebGL. Showing 2D." : "3D view unavailable: it could not start. Showing 2D.";
+        this._fallback3d =
+          err instanceof lib3d.NoWebGL
+            ? "3D view unavailable: this browser has no WebGL. Showing 2D."
+            : "3D view unavailable: it could not start. Showing 2D.";
         this.requestUpdate();
         return;
       }
@@ -1414,14 +1655,16 @@ export class FloorplanStudioCard extends LitElement {
     // A theme change (or Home Assistant's dark mode) re-reads the colours; a new floor, or one the layout reload replaced, rebuilds the scene.
     this._view3d.setTheme(`${this._theme()}|${this._haDark()}`);
     this._view3d.setWalls(this._walls());
-    const around = floorsAroundKey(this._layout!, this._floorKey()!), aroundKey = JSON.stringify(around);
+    const around = floorsAroundKey(this._layout!, this._floorKey()!),
+      aroundKey = JSON.stringify(around);
     // Only the selected floor is drawn (3D fixes): the dimmed stack of lower floors drifted out of line, so it is gone.
     if (f !== this._view3dFloor || aroundKey !== this._view3dAround) {
       this._view3dFloor = f;
       this._view3dAround = aroundKey;
       this._view3d.setFloor(f, around);
       const key = this._floorKey()!;
-      if (key !== this._view3dKey) { // S14.4: another floor (or a new view) brings the camera its floor was left with
+      if (key !== this._view3dKey) {
+        // S14.4: another floor (or a new view) brings the camera its floor was left with
         this._view3dKey = key;
         const cam = this._floorViews.get(key)?.cam;
         this._camMoved = cam !== undefined;
@@ -1430,7 +1673,24 @@ export class FloorplanStudioCard extends LitElement {
     }
     // The live state, decided by the plan's own rules (core/live.ts); the view changes its parts in place, and does nothing when it is the same as the last.
     const now = Date.now();
-    this._view3d.setLive(f, { scale: 1, state: this._stateForRender(), now, fade: this._config.fade, plugWatts: plugThreshold(this._config.plug_watts), plugHeat: this._plugHeat(), powerLinks: this._powerLinks(), roomGlow: this._config.room_glow, night: this._night(), labels: this._labels(), showNames: this._names(), around: floorsAroundKey(this._layout!, this._floorKey()!) }, now);
+    this._view3d.setLive(
+      f,
+      {
+        scale: 1,
+        state: this._stateForRender(),
+        now,
+        fade: this._config.fade,
+        plugWatts: plugThreshold(this._config.plug_watts),
+        plugHeat: this._plugHeat(),
+        powerLinks: this._powerLinks(),
+        roomGlow: this._config.room_glow,
+        night: this._night(),
+        labels: this._labels(),
+        showNames: this._names(),
+        around: floorsAroundKey(this._layout!, this._floorKey()!),
+      },
+      now,
+    );
     this._view3d.setRing(this._picked());
     this._apply3dInset();
   }
@@ -1455,34 +1715,62 @@ export class FloorplanStudioCard extends LitElement {
       if (linked) el.setAttribute("data-linked", "");
       return el;
     };
-    const unbindGestures = bindDeviceActions(host, this, (i) => this._floor()?.devices[i], (i) => this._floor()?.doors[i], {
-      longPress: !this._kiosk(),
-      openVacuumDialog: (d) => this._openVacuumDialog(d),
-      openChooser: (title, entities) => this._openChooserDialog(title, entities),
-      openPopup: (t, at, from) => this._openPopup(t, at, from),
-      getUnlinked: (i) => this._floor()?.unlinked[i],
-      getPiece: (i) => this._floor()?.furniture?.[i],
-      resolve: (e) => {
-        if (e.pointerType === "mouse" && e.button !== 0) return null;
-        const p = this._pick3d(e);
-        return !p ? null : p.type === "device" ? svgEl("g", "data-x", p.index) : p.type === "door" ? svgEl("line", "data-d", p.index) : p.type === "unlinked" ? svgEl("g", "data-u", p.index) : p.type === "piece" ? svgEl("g", "data-f", p.index, true) : null;
+    const unbindGestures = bindDeviceActions(
+      host,
+      this,
+      (i) => this._floor()?.devices[i],
+      (i) => this._floor()?.doors[i],
+      {
+        longPress: !this._kiosk(),
+        openVacuumDialog: (d) => this._openVacuumDialog(d),
+        openChooser: (title, entities) => this._openChooserDialog(title, entities),
+        openPopup: (t, at, from) => this._openPopup(t, at, from),
+        getUnlinked: (i) => this._floor()?.unlinked[i],
+        getPiece: (i) => this._floor()?.furniture?.[i],
+        resolve: (e) => {
+          if (e.pointerType === "mouse" && e.button !== 0) return null;
+          const p = this._pick3d(e);
+          return !p
+            ? null
+            : p.type === "device"
+              ? svgEl("g", "data-x", p.index)
+              : p.type === "door"
+                ? svgEl("line", "data-d", p.index)
+                : p.type === "unlinked"
+                  ? svgEl("g", "data-u", p.index)
+                  : p.type === "piece"
+                    ? svgEl("g", "data-f", p.index, true)
+                    : null;
+        },
       },
-    });
-    let start: { x: number; y: number } | null = null, pointers = 0;
+    );
+    let start: { x: number; y: number } | null = null,
+      pointers = 0;
     let last: { t: number; x: number; y: number; before: PickMemo } | null = null;
     const onDown = (e: PointerEvent) => {
       if (e.isPrimary) pointers = 0;
       pointers++;
-      if (pointers > 1) { start = null; last = null; return; }
+      if (pointers > 1) {
+        start = null;
+        last = null;
+        return;
+      }
       start = e.pointerType === "mouse" && e.button !== 0 ? null : { x: e.clientX, y: e.clientY };
     };
     const onUp = (e: PointerEvent) => {
       pointers = Math.max(0, pointers - 1);
       const s = start;
       start = null;
-      if (!s || this._view3d?.dragged !== false || Math.hypot(e.clientX - s.x, e.clientY - s.y) > TAP_SLOP_PX) { if (s && this._view3d?.dragged) this._closePopup(); last = null; return; }
+      if (!s || this._view3d?.dragged !== false || Math.hypot(e.clientX - s.x, e.clientY - s.y) > TAP_SLOP_PX) {
+        if (s && this._view3d?.dragged) this._closePopup();
+        last = null;
+        return;
+      }
       const p = this._pick3d({ clientX: s.x, clientY: s.y, timeStamp: -1 } as PointerEvent);
-      if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked" || p.type === "piece")) { last = null; return; } // its own thing, never a pick
+      if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked" || p.type === "piece")) {
+        last = null;
+        return;
+      } // its own thing, never a pick
       this._closePopup(); // a tap on anything else is an outside tap
       const now = performance.now();
       if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
@@ -1490,24 +1778,49 @@ export class FloorplanStudioCard extends LitElement {
         last = null;
         return;
       }
-      last = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, floor: this._pickedFloor, filter: this._roomFilter } };
+      last = {
+        t: now,
+        x: e.clientX,
+        y: e.clientY,
+        before: { pick: this._pickedRoom, floor: this._pickedFloor, filter: this._roomFilter },
+      };
       if (!this._activeListVisible()) return;
       const room = p?.type === "room" ? p.index : null;
       this._pickRoom(room !== null && this._picked() !== room ? room : null);
     };
-    const onCancel = () => { pointers = 0; start = null; };
+    const onCancel = () => {
+      pointers = 0;
+      start = null;
+    };
     // S14.2: hover (mouse only). The pointer's position is two numbers and the pick runs once a frame, whatever the pointer does in between.
-    let hx = 0, hy = 0, hraf = 0;
+    let hx = 0,
+      hy = 0,
+      hraf = 0;
     const hoverFrame = () => {
       hraf = 0;
       const p = this._view3d?.pick(hx, hy);
-      const t = p && !this._popup ? (p.type === "device" ? this._targetOf("x", p.index) : p.type === "door" ? this._targetOf("d", p.index) : p.type === "unlinked" ? this._targetOf("u", p.index) : p.type === "piece" ? this._targetOf("f", p.index) : null) : null;
+      const t =
+        p && !this._popup
+          ? p.type === "device"
+            ? this._targetOf("x", p.index)
+            : p.type === "door"
+              ? this._targetOf("d", p.index)
+              : p.type === "unlinked"
+                ? this._targetOf("u", p.index)
+                : p.type === "piece"
+                  ? this._targetOf("f", p.index)
+                  : null
+          : null;
       if (t) this._showTip(t, hx, hy, null);
       else this._hideTip();
     };
     const onHoverMove = (e: PointerEvent) => {
-      if (e.pointerType !== "mouse" || e.buttons) { this._hideTip(); return; }
-      hx = e.clientX; hy = e.clientY;
+      if (e.pointerType !== "mouse" || e.buttons) {
+        this._hideTip();
+        return;
+      }
+      hx = e.clientX;
+      hy = e.clientY;
       if (!hraf) hraf = requestAnimationFrame(hoverFrame);
     };
     const onHoverEnd = () => this._hideTip();
@@ -1535,10 +1848,13 @@ export class FloorplanStudioCard extends LitElement {
   /** The Active list floats over the model. Where it covers the left or the right part of the 3D view, the camera frames the
    * house in the rest (S12.4). Costs a layout read, so it runs after a render and when the panel moves, not per frame. */
   private _apply3dInset(): void {
-    const view = this._view3d, host = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d");
+    const view = this._view3d,
+      host = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d");
     if (!view || !host) return;
-    const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active"), h = host.getBoundingClientRect();
-    let left = 0, right = 0;
+    const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active"),
+      h = host.getBoundingClientRect();
+    let left = 0,
+      right = 0;
     // A folded list is a 36 px header: at phone width its box spans half the view, but it hides almost none of the house. Only an open one insets.
     if (panel && h.width > 0 && panel.querySelector(".fp-active-body")) {
       const p = panel.getBoundingClientRect();
@@ -1606,7 +1922,14 @@ export class FloorplanStudioCard extends LitElement {
     if (!this._popup) return;
     for (const n of e.composedPath()) {
       // Only what is in this card's own shadow tree counts as inside: an icon of another card must close this card's popup.
-      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-3d") || n.matches(`${THINGS}, button[data-x], [data-pop]`))) return;
+      if (
+        n instanceof Element &&
+        n.getRootNode() === this.shadowRoot &&
+        (n.classList.contains("fp-pop") ||
+          n.classList.contains("fp-3d") ||
+          n.matches(`${THINGS}, button[data-x], [data-pop]`))
+      )
+        return;
     }
     this._closePopup();
   };
@@ -1615,10 +1938,20 @@ export class FloorplanStudioCard extends LitElement {
   private _targetOf(kind: "x" | "d" | "u" | "f", i: number): TapTarget | null {
     const f = this._floor();
     if (!f || !Number.isFinite(i)) return null;
-    if (kind === "x") { const device = f.devices[i]; return device ? { device, index: i } : null; }
+    if (kind === "x") {
+      const device = f.devices[i];
+      return device ? { device, index: i } : null;
+    }
     // A linked piece speaks for its device (`pieceDevice`): the same name and state line as a device icon. `index` is the piece's, nothing reads it for a hover.
-    if (kind === "f") { const m = f.furniture?.[i], device = m && pieceDevice(m); return device ? { device, index: i } : null; }
-    if (kind === "d") { const door = f.doors[i]; return door ? { door, index: i } : null; }
+    if (kind === "f") {
+      const m = f.furniture?.[i],
+        device = m && pieceDevice(m);
+      return device ? { device, index: i } : null;
+    }
+    if (kind === "d") {
+      const door = f.doors[i];
+      return door ? { door, index: i } : null;
+    }
     const unlinked = f.unlinked?.[i];
     return unlinked ? { unlinked, index: i } : null;
   }
@@ -1626,7 +1959,10 @@ export class FloorplanStudioCard extends LitElement {
   private _deviceSubject(d: Device, name?: string): PopupSubject {
     const friendly = this._hass?.states[d.entity]?.attributes?.friendly_name;
     return {
-      key: `d:${d.entity || d.id}`, type: d.type, entity: d.entity || undefined, entities: entitiesOfDevice(d),
+      key: `d:${d.entity || d.id}`,
+      type: d.type,
+      entity: d.entity || undefined,
+      entities: entitiesOfDevice(d),
       name: name || d.name || (typeof friendly === "string" && friendly) || d.entity || d.id,
       powerEntity: d.power || (d.type === "plug" ? this._powerLinks()?.[d.entity] : undefined),
     };
@@ -1636,16 +1972,21 @@ export class FloorplanStudioCard extends LitElement {
   private _subjectOf(t: TapTarget): PopupSubject | null {
     if ("device" in t) return this._deviceSubject(t.device);
     if ("door" in t) {
-      const door = t.door, entities = entitiesOfDoor(door);
-      return door.cover || entities.length ? { key: `o:${door.id}`, name: door.name, type: "door", entities, ...(door.cover ? { door } : {}) } : null;
+      const door = t.door,
+        entities = entitiesOfDoor(door);
+      return door.cover || entities.length
+        ? { key: `o:${door.id}`, name: door.name, type: "door", entities, ...(door.cover ? { door } : {}) }
+        : null;
     }
-    const u = t.unlinked, entities = entitiesOfDevice(u);
+    const u = t.unlinked,
+      entities = entitiesOfDevice(u);
     return { key: `u:${u.id}`, name: u.name ?? u.id, type: u.type, entities };
   }
 
   /** The one state line: the popup and the tooltip both print this. A door says its cover's state, else its first entity's. */
   private _subjectText(s: PopupSubject): string {
-    const states = this._hass?.states, e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
+    const states = this._hass?.states,
+      e = s.door?.cover || (s.door ? s.entities[0] : s.entity);
     if (!e) return "";
     const w = s.powerEntity ? wattsOf(states?.[s.powerEntity]) : null;
     return stateText(s.type, states?.[e], w === null ? undefined : `${Math.round(w * 10) / 10} W`);
@@ -1654,9 +1995,15 @@ export class FloorplanStudioCard extends LitElement {
   private _tapActiveRow(it: ActiveDevice, e: MouseEvent): void {
     const d = this._layout?.floors[it.floor]?.devices.find((x) => x.entity === it.entity);
     // A row of a linked piece (no device of that entity) is the piece's tap on the plan: more-info.
-    if (!d && this._layout?.floors[it.floor]?.furniture?.some((m) => pieceDevice(m)?.entity === it.entity)) { fireEvent(this, "hass-more-info", { entityId: it.entity }); return; }
-    const row = e.currentTarget as Element, b = row.getBoundingClientRect();
-    const s = d ? this._deviceSubject(d, it.name) : { key: `d:${it.entity}`, name: it.name, type: it.type, entity: it.entity, entities: [it.entity] };
+    if (!d && this._layout?.floors[it.floor]?.furniture?.some((m) => pieceDevice(m)?.entity === it.entity)) {
+      fireEvent(this, "hass-more-info", { entityId: it.entity });
+      return;
+    }
+    const row = e.currentTarget as Element,
+      b = row.getBoundingClientRect();
+    const s = d
+      ? this._deviceSubject(d, it.name)
+      : { key: `d:${it.entity}`, name: it.name, type: it.type, entity: it.entity, entities: [it.entity] };
     this._openSubject(s, e.detail > 0 ? { x: e.clientX, y: e.clientY } : { x: b.left + b.width / 2, y: b.bottom }, row);
   }
 
@@ -1669,7 +2016,10 @@ export class FloorplanStudioCard extends LitElement {
   private _openSubject(s: PopupSubject, at: { x: number; y: number }, from: Element | null): void {
     if (this._coverDialog || this._vacuumDialog || this._chooserDialog) return;
     this._hideTip();
-    if (this._popup?.s.key === s.key) { this._closePopup(); return; }
+    if (this._popup?.s.key === s.key) {
+      this._closePopup();
+      return;
+    }
     this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
     this.requestUpdate();
   }
@@ -1683,7 +2033,10 @@ export class FloorplanStudioCard extends LitElement {
 
   private _levelOf(kind: SliderKind, a: Record<string, unknown> | undefined): number | null {
     const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-    if (kind === "b") { const b = n(a?.brightness); return b === null ? null : Math.max(1, Math.min(100, Math.round((b / 255) * 100))); }
+    if (kind === "b") {
+      const b = n(a?.brightness);
+      return b === null ? null : Math.max(1, Math.min(100, Math.round((b / 255) * 100)));
+    }
     if (kind === "t") return n(a?.color_temp_kelvin);
     const hs = a?.hs_color;
     const h = Array.isArray(hs) ? n(hs[0]) : null;
@@ -1697,21 +2050,46 @@ export class FloorplanStudioCard extends LitElement {
   private _popupTemplate() {
     const p = this._popup;
     if (!p) return null;
-    const s = p.s, st = this._hass?.states[s.entity ?? ""], op = this._popupOp(s);
-    const light = op !== null && s.entity?.startsWith("light.") && st?.state !== "off" ? true : op !== null && s.entity?.startsWith("light.");
+    const s = p.s,
+      st = this._hass?.states[s.entity ?? ""],
+      op = this._popupOp(s);
+    const light =
+      op !== null && s.entity?.startsWith("light.") && st?.state !== "off"
+        ? true
+        : op !== null && s.entity?.startsWith("light.");
     const caps = light ? lightCaps(st?.attributes) : null;
     const level = (k: SliderKind) => {
       const now = this._levelOf(k, st?.attributes);
       return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
     };
     return popupTemplate({
-      subject: s, text: this._subjectText(s), op, confirming: p.confirming, kiosk: this._kiosk(), caps,
+      subject: s,
+      text: this._subjectText(s),
+      op,
+      confirming: p.confirming,
+      kiosk: this._kiosk(),
+      caps,
       doorLabel: s.door?.cover ? (this._coverService(s.door) === "close_cover" ? "Close" : "Open") : null,
-      level: { b: caps?.brightness ? level("b") : null, t: caps?.temp ? level("t") : null, h: caps?.hue ? level("h") : null },
+      level: {
+        b: caps?.brightness ? level("b") : null,
+        t: caps?.temp ? level("t") : null,
+        h: caps?.hue ? level("h") : null,
+      },
       act: () => this._popupAct(),
-      cancel: () => { if (this._popup) { this._popup.confirming = false; this.requestUpdate(); } },
+      cancel: () => {
+        if (this._popup) {
+          this._popup.confirming = false;
+          this.requestUpdate();
+        }
+      },
       more: () => this._popupMore(),
-      key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); this._closePopup(); } },
+      key: (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          this._closePopup();
+        }
+      },
       slide: (kind, value, commit) => this._popupSlide(kind, value, commit),
     });
   }
@@ -1728,7 +2106,11 @@ export class FloorplanStudioCard extends LitElement {
     }
     const op = this._popupOp(p.s);
     if (!op || !p.s.entity) return;
-    if (op.confirm && !p.confirming) { p.confirming = true; this.requestUpdate(); return; }
+    if (op.confirm && !p.confirming) {
+      p.confirming = true;
+      this.requestUpdate();
+      return;
+    }
     this._hass?.callService?.(op.domain, op.service, { entity_id: p.s.entity });
     this._closePopup();
   }
@@ -1743,13 +2125,20 @@ export class FloorplanStudioCard extends LitElement {
 
   /** A slider moving only changes the number shown; its release (`change`) is the one `light.turn_on`, so dragging never floods Home Assistant. */
   private _popupSlide(kind: SliderKind, value: number, commit: boolean): void {
-    const p = this._popup, entity = p?.s.entity;
+    const p = this._popup,
+      entity = p?.s.entity;
     if (!p || !entity || !Number.isFinite(value)) return;
     const a = this._hass?.states[entity]?.attributes;
     p.draft = { kind, value, from: this._levelOf(kind, a) };
     if (commit) {
-      const hs = a?.hs_color, sat = Array.isArray(hs) && typeof hs[1] === "number" && Number.isFinite(hs[1]) ? hs[1] : 100;
-      const data = kind === "b" ? { brightness_pct: value } : kind === "t" ? { color_temp_kelvin: value } : { hs_color: [value, sat] };
+      const hs = a?.hs_color,
+        sat = Array.isArray(hs) && typeof hs[1] === "number" && Number.isFinite(hs[1]) ? hs[1] : 100;
+      const data =
+        kind === "b"
+          ? { brightness_pct: value }
+          : kind === "t"
+            ? { color_temp_kelvin: value }
+            : { hs_color: [value, sat] };
       this._hass?.callService?.("light", "turn_on", { entity_id: entity, ...data });
     }
     this.requestUpdate();
@@ -1757,16 +2146,30 @@ export class FloorplanStudioCard extends LitElement {
 
   /** After every render: the popup sits near where it was tapped, inside the card; focus goes to its button when it opens and back to what opened it when it closes. */
   private _syncPopup(): void {
-    const key = this._popup?.s.key ?? null, el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
+    const key = this._popup?.s.key ?? null,
+      el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
     if (this._popup && el) {
       const o = this._popup.opener;
-      placeNear(el, this, this._popup.x, this._popup.y, 14, o?.isConnected && o.matches(".fp-active-row") ? o.getBoundingClientRect() : null);
+      placeNear(
+        el,
+        this,
+        this._popup.x,
+        this._popup.y,
+        14,
+        o?.isConnected && o.matches(".fp-active-row") ? o.getBoundingClientRect() : null,
+      );
     }
     if (key === this._popupFocusKey) return;
     this._popupFocusKey = key;
-    if (key && el) (el.querySelector<HTMLElement>(".fp-pop-do") ?? el.querySelector<HTMLElement>(".fp-pop-more"))?.focus({ preventScroll: true });
+    if (key && el)
+      (el.querySelector<HTMLElement>(".fp-pop-do") ?? el.querySelector<HTMLElement>(".fp-pop-more"))?.focus({
+        preventScroll: true,
+      });
     else if (!key) {
-      if (this._coverDialog || this._vacuumDialog || this._chooserDialog) { this._popupReturn = null; return; } // the dialog took focus; it hands it back itself
+      if (this._coverDialog || this._vacuumDialog || this._chooserDialog) {
+        this._popupReturn = null;
+        return;
+      } // the dialog took focus; it hands it back itself
       const back = this._popupReturn as HTMLElement | null;
       this._popupReturn = null;
       (back?.isConnected ? back : this).focus({ preventScroll: true });
@@ -1777,7 +2180,10 @@ export class FloorplanStudioCard extends LitElement {
   private _bindHover(svg: Element): () => void {
     const move = (e: Event) => {
       const pe = e as PointerEvent;
-      if (pe.pointerType !== "mouse" || pe.buttons || this._popup) { this._hideTip(); return; }
+      if (pe.pointerType !== "mouse" || pe.buttons || this._popup) {
+        this._hideTip();
+        return;
+      }
       const el = (pe.target as Element | null)?.closest?.(THINGS);
       const kind = el ? thingKind(el) : "u";
       const t = el ? this._targetOf(kind, Number(el.getAttribute(`data-${kind}`))) : null;
@@ -1800,7 +2206,10 @@ export class FloorplanStudioCard extends LitElement {
   private _showTip(t: TapTarget, x: number, y: number, el: Element | null): void {
     const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
     const s = tip ? this._subjectOf(t) : null;
-    if (!tip || !s) { this._hideTip(); return; }
+    if (!tip || !s) {
+      this._hideTip();
+      return;
+    }
     if (s.key !== this._tipKey) {
       this._hideTip();
       (tip.firstElementChild as HTMLElement).textContent = s.name;
@@ -1816,7 +2225,9 @@ export class FloorplanStudioCard extends LitElement {
       }
     }
     this._tipAt = el || this._tipSel ? { x, y } : null;
-    const h = this._tipHost!, w = tip.offsetWidth, ht = tip.offsetHeight;
+    const h = this._tipHost!,
+      w = tip.offsetWidth,
+      ht = tip.offsetHeight;
     const left = Math.max(4, Math.min(h.width - w - 4, x - h.left + 12));
     const below = y - h.top + 18;
     tip.style.transform = `translate(${Math.round(left)}px, ${Math.round(below + ht > h.height - 4 ? Math.max(4, y - h.top - ht - 10) : below)}px)`;
@@ -1826,7 +2237,10 @@ export class FloorplanStudioCard extends LitElement {
   private _holdTipEl(el: Element): void {
     el.setAttribute("aria-describedby", "fp-tip");
     const title = el.querySelector(":scope > title");
-    if (title) { el.removeChild(title); this._tipTitle = { el, title }; }
+    if (title) {
+      el.removeChild(title);
+      this._tipTitle = { el, title };
+    }
     this._tipEl = el;
   }
 
@@ -1835,16 +2249,29 @@ export class FloorplanStudioCard extends LitElement {
     const tip = this.shadowRoot?.querySelector<HTMLElement>(".fp-tip");
     if (this._tipKey === null || !tip) return;
     const s = this._tipTarget ? this._subjectOf(this._tipTarget) : null;
-    if (!s || s.key !== this._tipKey) { this._hideTip(); return; }
+    if (!s || s.key !== this._tipKey) {
+      this._hideTip();
+      return;
+    }
     (tip.firstElementChild as HTMLElement).textContent = s.name;
     (tip.lastElementChild as HTMLElement).textContent = this._subjectText(s);
     if (this._tipSel) {
       const el = this.shadowRoot?.querySelector(`svg ${this._tipSel}`) ?? null;
-      if (!el) { this._hideTip(); return; }
-      if (el !== this._tipEl) { this._tipTitle = null; this._holdTipEl(el); } // the old element and its title are gone with the old drawing
+      if (!el) {
+        this._hideTip();
+        return;
+      }
+      if (el !== this._tipEl) {
+        this._tipTitle = null;
+        this._holdTipEl(el);
+      } // the old element and its title are gone with the old drawing
       // A zoom or a turn moves the icon from under a pointer that did not move, and no pointermove follows: a tooltip names what is under the pointer.
-      const at = this._tipAt, top = at ? this.shadowRoot?.elementFromPoint(at.x, at.y)?.closest(THINGS) ?? null : el;
-      if (top !== el) { this._hideTip(); return; }
+      const at = this._tipAt,
+        top = at ? (this.shadowRoot?.elementFromPoint(at.x, at.y)?.closest(THINGS) ?? null) : el;
+      if (top !== el) {
+        this._hideTip();
+        return;
+      }
     }
   }
 
@@ -1870,7 +2297,9 @@ export class FloorplanStudioCard extends LitElement {
     const friendly = this._hass?.states[entityId]?.attributes?.friendly_name;
     if (typeof friendly === "string" && friendly) return friendly;
     // Review fix: the plan's own catalog name before the bare id, the order the S10.4 brief asked for.
-    const cat = Array.isArray(this._layout?.catalog) ? this._layout!.catalog.find((c) => c?.entity === entityId)?.name : undefined;
+    const cat = Array.isArray(this._layout?.catalog)
+      ? this._layout!.catalog.find((c) => c?.entity === entityId)?.name
+      : undefined;
     return typeof cat === "string" && cat ? cat : entityId;
   }
 
@@ -1936,12 +2365,20 @@ export class FloorplanStudioCard extends LitElement {
     }
     if (e.key !== "Tab") return;
     const root = this.shadowRoot;
-    const buttons = root ? [...root.querySelectorAll<HTMLButtonElement>(".fp-dialog-actions button, .fp-chooser-list button")] : [];
+    const buttons = root
+      ? [...root.querySelectorAll<HTMLButtonElement>(".fp-dialog-actions button, .fp-chooser-list button")]
+      : [];
     if (buttons.length < 2) return;
-    const first = buttons[0]!, last = buttons[buttons.length - 1]!;
+    const first = buttons[0]!,
+      last = buttons[buttons.length - 1]!;
     const active = root?.activeElement;
-    if (e.shiftKey && active === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
   };
 
   /** S2.6/S6.5: `_floorList()`'s chips, one per switchable floor in its order, or `null` for anything else. Card
@@ -1952,11 +2389,13 @@ export class FloorplanStudioCard extends LitElement {
     if (this._kiosk()) return null; // S7.5: no switcher in kiosk mode, even with floors or floor: "all" configured
     const list = this._floorList();
     if (!list) return null;
-    const current = this._floorKey(), selected = this._pickedFloorKey();
+    const current = this._floorKey(),
+      selected = this._pickedFloorKey();
     // aria-pressed marks the floor shown; the class marks the floor whose panel is open (S20.2), a separate fact.
     return html`<div class="fp-floors">
       ${list.map(
-        ([key, fl]) => html`<button type="button" class=${key === selected ? "fp-floor-picked" : ""} aria-pressed=${key === current ? "true" : "false"} aria-expanded=${this._activeListVisible() ? (key === selected ? "true" : "false") : nothing} @click=${() => this._tapFloorChip(key)}>${fl.title || key}</button>`,
+        ([key, fl]) =>
+          html`<button type="button" class=${key === selected ? "fp-floor-picked" : ""} aria-pressed=${key === current ? "true" : "false"} aria-expanded=${this._activeListVisible() ? (key === selected ? "true" : "false") : nothing} @click=${() => this._tapFloorChip(key)}>${fl.title || key}</button>`,
       )}
     </div>`;
   }
@@ -2007,8 +2446,12 @@ export class FloorplanStudioCard extends LitElement {
     const chips = root?.querySelector<HTMLElement>(".fp-floors");
     const belowChips = chips ? chips.offsetTop + chips.offsetHeight + 6 : 8;
     if (bar) bar.style.top = "";
-    if (stack) { stack.style.top = ""; stack.classList.remove("fp-stack-row"); }
-    if (bar && chips && bar.getBoundingClientRect().left < chips.getBoundingClientRect().right + 6) bar.style.top = `${belowChips}px`;
+    if (stack) {
+      stack.style.top = "";
+      stack.classList.remove("fp-stack-row");
+    }
+    if (bar && chips && bar.getBoundingClientRect().left < chips.getBoundingClientRect().right + 6)
+      bar.style.top = `${belowChips}px`;
     if (!stack) return;
     // The stack hangs under the toolbar, wherever the toolbar ended up; with no toolbar it keeps the CSS default.
     if (bar) stack.style.top = `${bar.offsetTop + bar.offsetHeight + 4}px`;
@@ -2044,7 +2487,8 @@ export class FloorplanStudioCard extends LitElement {
     // The stack is on the right, the list on the left: they meet only on a very narrow card. Then the list goes
     // under the stack, as it goes under the toolbar.
     const stack = this.shadowRoot?.querySelector<HTMLElement>(".fp-stack");
-    if (stack && panel.offsetLeft + panel.offsetWidth + 6 > stack.offsetLeft) top = Math.max(top, stack.offsetTop + stack.offsetHeight + 8);
+    if (stack && panel.offsetLeft + panel.offsetWidth + 6 > stack.offsetLeft)
+      top = Math.max(top, stack.offsetTop + stack.offsetHeight + 8);
     panel.style.top = top ? `${top}px` : "";
   }
 
@@ -2061,20 +2505,47 @@ export class FloorplanStudioCard extends LitElement {
     if (sheet && !this._activePos) {
       const poly = this.shadowRoot?.querySelector("svg polygon.room-picked");
       if (poly) {
-        const h = this.getBoundingClientRect(), r = poly.getBoundingClientRect();
+        const h = this.getBoundingClientRect(),
+          r = poly.getBoundingClientRect();
         const hidden = () => {
           const p = panel.getBoundingClientRect();
-          return Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left)) * Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top));
+          return (
+            Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left)) *
+            Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top))
+          );
         };
         const place = {
-          below: () => { panel.classList.remove("fp-dock-bottom", "fp-dock-over"); this._placeTopDock(panel); },
-          bottom: () => { panel.classList.remove("fp-dock-over"); panel.classList.add("fp-dock-bottom"); panel.style.top = ""; panel.style.left = ""; },
-          over: () => { panel.classList.remove("fp-dock-bottom"); panel.classList.add("fp-dock-over"); panel.style.left = ""; panel.style.top = ""; },
+          below: () => {
+            panel.classList.remove("fp-dock-bottom", "fp-dock-over");
+            this._placeTopDock(panel);
+          },
+          bottom: () => {
+            panel.classList.remove("fp-dock-over");
+            panel.classList.add("fp-dock-bottom");
+            panel.style.top = "";
+            panel.style.left = "";
+          },
+          over: () => {
+            panel.classList.remove("fp-dock-bottom");
+            panel.classList.add("fp-dock-over");
+            panel.style.left = "";
+            panel.style.top = "";
+          },
         };
         const roomInUpperHalf = r.top + r.height / 2 - h.top < h.height / 2;
-        const order = (roomInUpperHalf ? ["bottom", "below", "over"] : ["below", "bottom", "over"]) as (keyof typeof place)[];
-        let best = order[0]!, least = Infinity;
-        for (const k of order) { place[k](); const o = hidden(); if (o < least) { least = o; best = k; } }
+        const order = (
+          roomInUpperHalf ? ["bottom", "below", "over"] : ["below", "bottom", "over"]
+        ) as (keyof typeof place)[];
+        let best = order[0]!,
+          least = Infinity;
+        for (const k of order) {
+          place[k]();
+          const o = hidden();
+          if (o < least) {
+            least = o;
+            best = k;
+          }
+        }
         place[best]();
         bottom = best === "bottom";
         if (best === "over") return;
@@ -2082,8 +2553,15 @@ export class FloorplanStudioCard extends LitElement {
     }
     panel.classList.remove("fp-dock-over");
     panel.classList.toggle("fp-dock-bottom", bottom);
-    if (bottom) { panel.style.top = ""; panel.style.left = ""; return; }
-    if (!this._activePos) { this._placeTopDock(panel); return; }
+    if (bottom) {
+      panel.style.top = "";
+      panel.style.left = "";
+      return;
+    }
+    if (!this._activePos) {
+      this._placeTopDock(panel);
+      return;
+    }
     const hostRect = this.getBoundingClientRect();
     const panelRect = panel.getBoundingClientRect();
     const maxX = Math.max(0, hostRect.width - panelRect.width);
@@ -2123,10 +2601,15 @@ export class FloorplanStudioCard extends LitElement {
     const panelRect = panel.getBoundingClientRect();
     const originLeft = panelRect.left - hostRect.left;
     const originTop = panelRect.top - hostRect.top;
-    const startX = e.clientX, startY = e.clientY;
+    const startX = e.clientX,
+      startY = e.clientY;
     const pointerId = e.pointerId;
     let moved = false;
-    try { head.setPointerCapture(pointerId); } catch { /* the pointer is already gone */ }
+    try {
+      head.setPointerCapture(pointerId);
+    } catch {
+      /* the pointer is already gone */
+    }
 
     // Opus review findings 3/4: the drag itself still clamps in px against the geometry captured at drag-start
     // (nothing else can resize mid-drag), but the *stored* position is the resulting fraction of that geometry's
@@ -2141,7 +2624,8 @@ export class FloorplanStudioCard extends LitElement {
 
     const onMove = (me: PointerEvent) => {
       if (me.pointerId !== pointerId) return;
-      const dx = me.clientX - startX, dy = me.clientY - startY;
+      const dx = me.clientX - startX,
+        dy = me.clientY - startY;
       if (!moved && Math.hypot(dx, dy) <= TAP_SLOP_PX) return;
       moved = true;
       this._activePos = clampFraction(originLeft + dx, originTop + dy);
@@ -2162,7 +2646,8 @@ export class FloorplanStudioCard extends LitElement {
   /** S11.3: the index of the picked room on the shown floor, or null: none picked, a room of another floor, or one the
    *  layout no longer has (a reload keeps the id, so it survives an edit that moves the index). */
   private _picked(): number | null {
-    const p = this._pickedRoom, f = this._floor();
+    const p = this._pickedRoom,
+      f = this._floor();
     if (!p || !f || this._floorKey() !== p.floor) return null;
     const i = f.rooms.findIndex((r) => r.id === p.id);
     return i < 0 ? null : i;
@@ -2189,12 +2674,16 @@ export class FloorplanStudioCard extends LitElement {
     const rooms = this._floor()?.rooms ?? [];
     const root = this.shadowRoot;
     // jsdom has no elementsFromPoint: the event's own target stands in, as it did before.
-    const stack = root && typeof root.elementsFromPoint === "function" ? root.elementsFromPoint(e.clientX, e.clientY) : [e.target as Element | null];
+    const stack =
+      root && typeof root.elementsFromPoint === "function"
+        ? root.elementsFromPoint(e.clientX, e.clientY)
+        : [e.target as Element | null];
     let i = -1;
     for (const n of stack) {
       const hit = n?.closest?.("polygon[data-r]");
       if (hit) {
-        const k = Number(hit.getAttribute("data-r")), kind = rooms[k]?.kind;
+        const k = Number(hit.getAttribute("data-r")),
+          kind = rooms[k]?.kind;
         if (kind === "zone" || kind === "structure" || kind === "fill") continue; // not rooms: look through to the room below
         i = k;
         break;
@@ -2239,8 +2728,12 @@ export class FloorplanStudioCard extends LitElement {
   private _keyToggle(r: RoomDeviceRow, row: Element | null): void {
     const d = this._floor()?.devices[r.index];
     const b = row?.getBoundingClientRect();
-    if (d?.type === "vacuum") { this._openVacuumDialog(d); return; } // as its tap on the plan does
-    if (d) this._openPopup({ device: d, index: r.index }, { x: b ? b.left + b.width / 2 : 0, y: b ? b.bottom : 0 }, row);
+    if (d?.type === "vacuum") {
+      this._openVacuumDialog(d);
+      return;
+    } // as its tap on the plan does
+    if (d)
+      this._openPopup({ device: d, index: r.index }, { x: b ? b.left + b.width / 2 : 0, y: b ? b.bottom : 0 }, row);
   }
 
   /** A row of the room section's device list. It carries `data-x`, so the panel's own `bindDeviceActions` gives it the
@@ -2248,7 +2741,9 @@ export class FloorplanStudioCard extends LitElement {
    *  (`detail` 0), which sends no pointer events. */
   private _roomDeviceRow(r: RoomDeviceRow) {
     // S14 review: every row is the plan icon's twin (`data-x`): a tap opens the popup, a hold opens more-info, whatever the type.
-    const click = (e: MouseEvent) => { if (e.detail === 0) this._keyToggle(r, e.currentTarget as Element); };
+    const click = (e: MouseEvent) => {
+      if (e.detail === 0) this._keyToggle(r, e.currentTarget as Element);
+    };
     // A linked piece has no `data-x` (its index is in `furniture`, not `devices`): its row is its tap on the plan, more-info.
     if (r.piece) {
       return html`<div class="fp-item">
@@ -2282,18 +2777,32 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S14.7: the room's scene buttons: Home Assistant scenes, custom scenes, All off and All on. */
   private _scenesBlock() {
-    const f = this._floor(), at = this._picked();
+    const f = this._floor(),
+      at = this._picked();
     if (!f || at === null) return nothing;
     const menu = roomScenes(f, at, this._hass);
-    return scenesTemplate({ menu, asking: this._sceneAsk, run: (key) => this._runScene(key), cancel: () => { this._sceneAsk = null; this.requestUpdate(); }, open: this._foldedCats.has(SCENES_OPEN), toggle: () => this._toggleCat(SCENES_OPEN) });
+    return scenesTemplate({
+      menu,
+      asking: this._sceneAsk,
+      run: (key) => this._runScene(key),
+      cancel: () => {
+        this._sceneAsk = null;
+        this.requestUpdate();
+      },
+      open: this._foldedCats.has(SCENES_OPEN),
+      toggle: () => this._toggleCat(SCENES_OPEN),
+    });
   }
 
   /** One tap on a scene button. A Home Assistant scene is `scene.turn_on`; a custom scene and the presets go through the light and switch services (`customCalls`, `presetCalls`). A custom scene that turns a switch off asks first. */
   private _runScene(key: string): void {
-    const f = this._floor(), at = this._picked(), call = this._hass?.callService;
+    const f = this._floor(),
+      at = this._picked(),
+      call = this._hass?.callService;
     if (!f || at === null || !call) return;
     const [kind, id = ""] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
-    const send = (c: { domain: string; service: string; data: Record<string, unknown> }) => this._hass?.callService?.(c.domain, c.service, c.data);
+    const send = (c: { domain: string; service: string; data: Record<string, unknown> }) =>
+      this._hass?.callService?.(c.domain, c.service, c.data);
     if (kind === "ha") {
       if (!roomScenes(f, at, this._hass).ha.some((s) => s.entity === id)) return;
       send({ domain: "scene", service: "turn_on", data: { entity_id: id } });
@@ -2302,7 +2811,11 @@ export class FloorplanStudioCard extends LitElement {
     } else if (kind === "custom") {
       const scene = customScene(f, at, id);
       if (!scene) return;
-      if (sceneNeedsConfirm(scene) && this._sceneAsk !== key) { this._sceneAsk = key; this.requestUpdate(); return; }
+      if (sceneNeedsConfirm(scene) && this._sceneAsk !== key) {
+        this._sceneAsk = key;
+        this.requestUpdate();
+        return;
+      }
       for (const c of customCalls(scene)) send(c);
     }
     this._sceneAsk = null;
@@ -2338,10 +2851,25 @@ export class FloorplanStudioCard extends LitElement {
       ${active}
       <div class="fp-active-group-label">Devices</div>
       <div class="fp-room-devices">
-        ${s.devices.length || s.sensors.length
-          ? groupByCategory([...s.devices.map((r) => ({ type: r.type, tpl: this._roomDeviceRow(r) })), ...s.sensors.map((r) => ({ type: (r.kind === "temps" ? "temp" : r.kind) as DeviceType, tpl: this._roomSensorRow(r) }))])
-              .map((g) => this._catGroup("r", g.id, g.label, g.items.length, g.items.map((i) => i.tpl)))
-          : html`<p class="fp-active-empty">${scope.noDevices}</p>`}
+        ${
+          s.devices.length || s.sensors.length
+            ? groupByCategory([
+                ...s.devices.map((r) => ({ type: r.type, tpl: this._roomDeviceRow(r) })),
+                ...s.sensors.map((r) => ({
+                  type: (r.kind === "temps" ? "temp" : r.kind) as DeviceType,
+                  tpl: this._roomSensorRow(r),
+                })),
+              ]).map((g) =>
+                this._catGroup(
+                  "r",
+                  g.id,
+                  g.label,
+                  g.items.length,
+                  g.items.map((i) => i.tpl),
+                ),
+              )
+            : html`<p class="fp-active-empty">${scope.noDevices}</p>`
+        }
       </div>
     </div>`;
   }
@@ -2358,10 +2886,16 @@ export class FloorplanStudioCard extends LitElement {
     if (!this._activeListVisible() || !this._layout) return null;
     const state = this._stateForRender();
     const opts = { plugWatts: plugThreshold(this._config.plug_watts), powerLinks: this._powerLinks() };
-    const at = this._picked(), floor = this._floor();
+    const at = this._picked(),
+      floor = this._floor();
     const floorKey = this._pickedFloorKey();
     // S20.2: the panel's one subject is the picked room, else the selected floor, summed over its rooms by the same builder.
-    const summary = at !== null && floor ? roomSummary(floor, at, state, opts) : floorKey && floor ? floorSummary(floor, state, opts) : null;
+    const summary =
+      at !== null && floor
+        ? roomSummary(floor, at, state, opts)
+        : floorKey && floor
+          ? floorSummary(floor, state, opts)
+          : null;
     if (summary && at === null && floorKey && !summary.name) summary.name = floorKey;
     const scope = at === null && floorKey ? FLOOR_SCOPE : ROOM_SCOPE;
     let items = activeDevices(this._layout, state, opts);
@@ -2389,24 +2923,37 @@ export class FloorplanStudioCard extends LitElement {
       <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
         <span class="fp-active-title">Active</span>
         <span class="fp-active-count">${count}</span>
-        ${summary
-          ? nothing
-          : html`<button
+        ${
+          summary
+            ? nothing
+            : html`<button
           type="button"
           class="fp-active-collapse"
           aria-label=${this._activeCollapsed ? "Expand the active devices list" : "Collapse the active devices list"}
           aria-expanded=${this._activeCollapsed ? "false" : "true"}
           @click=${() => this._toggleActiveCollapsed()}
-        >${this._activeCollapsed ? "▸" : "▾"}</button>`}
+        >${this._activeCollapsed ? "▸" : "▾"}</button>`
+        }
       </div>
-      ${folded
-        ? null
-        : html`<div class="fp-active-body">
-            ${summary
-              ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
-                <div class="fp-filtered">${list}</div>`, scope)
-              : list}
-          </div>`}
+      ${
+        folded
+          ? null
+          : html`<div class="fp-active-body">
+            ${
+              summary
+                ? this._roomSection(
+                    summary,
+                    html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => {
+                      this._roomFilter = !this._roomFilter;
+                      this.requestUpdate();
+                    }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
+                <div class="fp-filtered">${list}</div>`,
+                    scope,
+                  )
+                : list
+            }
+          </div>`
+      }
     </div>`;
   }
 
@@ -2449,7 +2996,13 @@ export class FloorplanStudioCard extends LitElement {
       this._pendingView = null;
     }
     // While a turn runs the box follows the angle: it holds the anchored plan point at the centre, or is home.
-    const box = turn ? (turn.anchor ? this._boxFromAnchor(turn.anchor, fit) : home) : this._view ? clamp(this._view, fit) : home;
+    const box = turn
+      ? turn.anchor
+        ? this._boxFromAnchor(turn.anchor, fit)
+        : home
+      : this._view
+        ? clamp(this._view, fit)
+        : home;
     // Opus review of S9.6: "zoomed" (like `_zoomed()` below) means "not at home", not "narrower than home" — a
     // sideways pan at home's own width used to read as not-zoomed here, which left `touch-action` at `pan-y` (so
     // the page's own vertical scroll fought the pan) even while `_view` was already pinning a panned box.
@@ -2457,33 +3010,48 @@ export class FloorplanStudioCard extends LitElement {
     const svgClass = (this._view !== null ? "fp-zoomable fp-zoomed" : "fp-zoomable") + (turn ? " fp-turning" : "");
     // S12.3: 3D takes the plan's place once its module is loaded and WebGL works; until then, and if it cannot, the 2D plan is on show.
     const live3d = this._shows3d();
-    const body = live3d ? "" : renderFloor(f, {
-      scale: this._scale(fit),
-      state: this._stateForRender(),
-      now: Date.now(),
-      fade: this._config.fade,
-      plugWatts: plugThreshold(this._config.plug_watts),
-      plugHeat: this._plugHeat(),
-      powerLinks: this._powerLinks(),
-      roomGlow: this._config.room_glow,
-      theme: this._theme(),
-      dark: this._haDark(),
-      rotate,
-      night: this._night(),
-      view,
-      tilt: this._tilt(),
-      walls: this._walls(),
-      labels: this._labels(),
-      showNames: this._names(),
-      around: floorsAroundKey(this._layout!, this._floorKey()!),
-      selectedRoom: this._picked() ?? undefined,
-      colors: this._layout!.colors, // S19.E3: the studio's per-type colours, as the editor draws them
-    });
+    const body = live3d
+      ? ""
+      : renderFloor(f, {
+          scale: this._scale(fit),
+          state: this._stateForRender(),
+          now: Date.now(),
+          fade: this._config.fade,
+          plugWatts: plugThreshold(this._config.plug_watts),
+          plugHeat: this._plugHeat(),
+          powerLinks: this._powerLinks(),
+          roomGlow: this._config.room_glow,
+          theme: this._theme(),
+          dark: this._haDark(),
+          rotate,
+          night: this._night(),
+          view,
+          tilt: this._tilt(),
+          walls: this._walls(),
+          labels: this._labels(),
+          showNames: this._names(),
+          around: floorsAroundKey(this._layout!, this._floorKey()!),
+          selectedRoom: this._picked() ?? undefined,
+          colors: this._layout!.colors, // S19.E3: the studio's per-type colours, as the editor draws them
+        });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
-    const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
-    const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
+    const stage = live3d
+      ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors)
+          .map((v) => `;${v}`)
+          .join("")}"></div>`
+      : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}">${unsafeSVG(body)}</svg>`;
+    const note =
+      this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
+    const stack3d = live3d
+      ? this._kiosk()
+        ? null
+        : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => {
+            this._forgetCamera();
+            this._saveViewNow();
+            this.requestUpdate();
+          }}>${this._icon(UI_ICONS.reset)}</button></div>`
+      : undefined;
     return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
@@ -2538,8 +3106,16 @@ export class FloorplanStudioCard extends LitElement {
     const names = this._names();
     const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider
     return html`${this._viewSelect(current)}${in3d ? this._wallsSelect() : current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
-      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
-      <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => { this._pickedNames = !names; this._saveViewNow(); this.requestUpdate(); }}>Aa</button>`;
+      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => {
+        this._pickedLabels = !labels;
+        this._saveViewNow();
+        this.requestUpdate();
+      }}>${this._icon(UI_ICONS.labels)}</button>
+      <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => {
+        this._pickedNames = !names;
+        this._saveViewNow();
+        this.requestUpdate();
+      }}>Aa</button>`;
   }
 
   /** The two rotate buttons, next to the zoom buttons: a control of their own (`rotate_switch`), so a card with
@@ -2569,15 +3145,34 @@ export class FloorplanStudioCard extends LitElement {
 
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
   private _modified(): boolean {
-    return this._turn !== null || this._view !== null || this._pendingView !== null || this._camMoved
-      || [this._pickedView, this._pickedTilt, this._pickedWalls, this._pickedTheme, this._pickedLabels, this._pickedNames, this._pickedRot].some((v) => v !== null);
+    return (
+      this._turn !== null ||
+      this._view !== null ||
+      this._pendingView !== null ||
+      this._camMoved ||
+      [
+        this._pickedView,
+        this._pickedTilt,
+        this._pickedWalls,
+        this._pickedTheme,
+        this._pickedLabels,
+        this._pickedNames,
+        this._pickedRot,
+      ].some((v) => v !== null)
+    );
   }
 
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
     this._fallback3d = null;
-    this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = null;
+    this._pickedView =
+      this._pickedTilt =
+      this._pickedWalls =
+      this._pickedTheme =
+      this._pickedLabels =
+      this._pickedNames =
+        null;
     this._pendingView = null;
     this._view = null;
     this._forgetCamera();
@@ -2595,7 +3190,8 @@ export class FloorplanStudioCard extends LitElement {
   private _forgetCamera(): void {
     this._view3d?.reset();
     this._camMoved = false;
-    const key = this._floorKey(), fv = key ? this._floorViews.get(key) : undefined;
+    const key = this._floorKey(),
+      fv = key ? this._floorViews.get(key) : undefined;
     if (key && fv) {
       delete fv.cam;
       if (!Object.keys(fv).length) this._floorViews.delete(key);
@@ -2636,7 +3232,9 @@ export class FloorplanStudioCard extends LitElement {
    * the card. */
   private _iconSize(): number {
     const v = this._config.icon_size;
-    return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
+    return typeof v === "number" && Number.isFinite(v)
+      ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v))
+      : DEFAULT_ICON_SIZE;
   }
 
   /** S9.2: the `scale` passed to `renderFloor`. Icons, names, values and radar dots are drawn at `24 * (1/scale)`
@@ -2679,7 +3277,9 @@ export class FloorplanStudioCard extends LitElement {
    * the same reasoning as `_center`'s comment for why this defaults silently rather than throwing. */
   private _zoomLevel(): number {
     const v = this._config.zoom_level;
-    return typeof v === "number" && Number.isFinite(v) ? Math.min(MAX_ZOOM, Math.max(ZOOM_LEVEL_MIN, v)) : DEFAULT_ZOOM_LEVEL;
+    return typeof v === "number" && Number.isFinite(v)
+      ? Math.min(MAX_ZOOM, Math.max(ZOOM_LEVEL_MIN, v))
+      : DEFAULT_ZOOM_LEVEL;
   }
 
   /** S9.6: the card's "home" view — the whole floor (`fit`) unless `center`/`zoom_level` pin it to part of the
@@ -2712,7 +3312,8 @@ export class FloorplanStudioCard extends LitElement {
    * state `_current`/`_zoomed` already read), so a pinch or pan that lands back exactly on home does not pin an
    * equivalent-but-distinct box that would, say, disable the fit button. */
   private _setView(v: View): void {
-    const fit = this._fit, home = this._home();
+    const fit = this._fit,
+      home = this._home();
     if (!fit || !home) return;
     if (this._turn) return; // the plan is moving: a gesture would be applied to a box that is already leaving
     const c = clamp(v, fit);
@@ -2790,7 +3391,11 @@ export class FloorplanStudioCard extends LitElement {
       return [v.x + ((cx - r.left) / r.width) * v.w, v.y + ((cy - r.top) / r.height) * v.h];
     };
     const capture = (id: number) => {
-      try { svg.setPointerCapture(id); } catch { /* the pointer is already gone */ }
+      try {
+        svg.setPointerCapture(id);
+      } catch {
+        /* the pointer is already gone */
+      }
     };
 
     const onDown = (e: PointerEvent) => {
@@ -2827,7 +3432,9 @@ export class FloorplanStudioCard extends LitElement {
         this._setView(panBy(v, (-(e.clientX - p.x) / r.width) * v.w, (-(e.clientY - p.y) / r.height) * v.h));
       } else if (ptrs.size === 2) {
         const o = [...ptrs].find(([id]) => id !== e.pointerId)![1];
-        this._setView(pinch(v, toPlan(v, p.x, p.y), toPlan(v, o.x, o.y), toPlan(v, e.clientX, e.clientY), toPlan(v, o.x, o.y)));
+        this._setView(
+          pinch(v, toPlan(v, p.x, p.y), toPlan(v, o.x, o.y), toPlan(v, e.clientX, e.clientY), toPlan(v, o.x, o.y)),
+        );
       }
       p.x = e.clientX;
       p.y = e.clientY;
@@ -2849,7 +3456,11 @@ export class FloorplanStudioCard extends LitElement {
         return;
       }
       const now = performance.now();
-      if (lastTap && now - lastTap.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX) {
+      if (
+        lastTap &&
+        now - lastTap.t < DOUBLE_TAP_MS &&
+        Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < DOUBLE_TAP_PX
+      ) {
         this._restorePick(lastTap.before); // a double tap is a zoom, and leaves the room pick as it found it (DECISIONS, S11.3)
         lastTap = null;
         if (this._zoomMode() === false) return; // a double tap zooms; pan alone stays on when zoom is off
@@ -2860,7 +3471,12 @@ export class FloorplanStudioCard extends LitElement {
         else this._setView(zoomAt(home, 2, ...toPlan(home, e.clientX, e.clientY)));
         return;
       }
-      lastTap = { t: now, x: e.clientX, y: e.clientY, before: { pick: this._pickedRoom, floor: this._pickedFloor, filter: this._roomFilter } };
+      lastTap = {
+        t: now,
+        x: e.clientX,
+        y: e.clientY,
+        before: { pick: this._pickedRoom, floor: this._pickedFloor, filter: this._roomFilter },
+      };
       this._tapRoom(e);
     };
 
@@ -2958,7 +3574,9 @@ export class FloorplanStudioCard extends LitElement {
     const c = this._chooserDialog;
     if (!c) return null;
     return html`
-      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown} @click=${(e: Event) => { if (e.target === e.currentTarget) this._closeChooserDialog(); }}>
+      <div class="fp-dialog-backdrop" @keydown=${this._onDialogKeydown} @click=${(e: Event) => {
+        if (e.target === e.currentTarget) this._closeChooserDialog();
+      }}>
         <div class="fp-dialog fp-chooser-dialog" role="dialog" aria-modal="true" aria-labelledby="fp-chooser-dialog-title">
           <p id="fp-chooser-dialog-title">${c.title}</p>
           <div class="fp-chooser-list">

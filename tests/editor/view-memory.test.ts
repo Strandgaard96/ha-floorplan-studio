@@ -9,22 +9,43 @@ const fresh = () => structuredClone(demo) as unknown as Layout;
 
 describe("parseViewMemory: storage is untrusted", () => {
   it("keeps good fields and drops bad ones on their own", () => {
-    const m = parseViewMemory({ v: 1, floor: "first", labels: false, rotation: 100, zooms: [["ground", { zoom: 2, focus: [10, 20] }]] });
-    expect(m).toEqual({ floor: "first", labels: false, rotation: 90, zooms: [["ground", { zoom: 2, focus: [10, 20] }]] });
+    const m = parseViewMemory({
+      v: 1,
+      floor: "first",
+      labels: false,
+      rotation: 100,
+      zooms: [["ground", { zoom: 2, focus: [10, 20] }]],
+    });
+    expect(m).toEqual({
+      floor: "first",
+      labels: false,
+      rotation: 90,
+      zooms: [["ground", { zoom: 2, focus: [10, 20] }]],
+    });
     const bad = parseViewMemory({ floor: 5, labels: "no", rotation: "90", zooms: "all" });
     expect(bad).toEqual({});
   });
   it("never throws and returns nothing for junk", () => {
-    for (const raw of [null, undefined, 5, "not json", "[1]", "{", [], "null", { zooms: [[1, 2]] }]) expect(() => parseViewMemory(raw), String(raw)).not.toThrow();
+    for (const raw of [null, undefined, 5, "not json", "[1]", "{", [], "null", { zooms: [[1, 2]] }])
+      expect(() => parseViewMemory(raw), String(raw)).not.toThrow();
     expect(parseViewMemory("not json")).toEqual({});
-    expect(parseViewMemory("{\"mode\":\"2.5d\"}")).toEqual({}); // S12.1: the editor has no 2.5D; more in view-memory-flat.test.ts
+    expect(parseViewMemory('{"mode":"2.5d"}')).toEqual({}); // S12.1: the editor has no 2.5D; more in view-memory-flat.test.ts
   });
   it("clamps zoom, bounds the focus, drops a zoom with a bad focus, caps the count", () => {
-    const m = parseViewMemory({ zooms: [["a", { zoom: 99, focus: [1e12, -1e12] }], ["b", { zoom: 2, focus: [NaN, 0] }], ["c", { zoom: 2 }], ["d", { zoom: 0.01, focus: [0, 0] }]] });
+    const m = parseViewMemory({
+      zooms: [
+        ["a", { zoom: 99, focus: [1e12, -1e12] }],
+        ["b", { zoom: 2, focus: [NaN, 0] }],
+        ["c", { zoom: 2 }],
+        ["d", { zoom: 0.01, focus: [0, 0] }],
+      ],
+    });
     expect(m.zooms?.map(([k]) => k)).toEqual(["a", "d"]);
     expect(m.zooms![0]![1]).toEqual({ zoom: 8, focus: [1e6, -1e6] });
     expect(m.zooms![1]![1].zoom).toBe(0.4);
-    const many = parseViewMemory({ zooms: Array.from({ length: 500 }, (_, i) => [`f${i}`, { zoom: 2, focus: [0, 0] }]) });
+    const many = parseViewMemory({
+      zooms: Array.from({ length: 500 }, (_, i) => [`f${i}`, { zoom: 2, focus: [0, 0] }]),
+    });
     expect(many.zooms!.length).toBe(50);
   });
   it("a floor named __proto__ is just a name", () => {
@@ -48,8 +69,12 @@ describe("read and write", () => {
     expect(localStorage.getItem(VIEW_MEMORY_KEY)).toBeNull();
   });
   it("blocked storage is silent: false from write, nothing from read", () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
     expect(writeViewMemory({ rotation: 45 })).toBe(false);
     expect(readViewMemory()).toEqual({});
     vi.restoreAllMocks();
@@ -100,7 +125,8 @@ describe("EditorState: export and import of the view", () => {
     expect(b.labels).toBe(false);
     expect(b.viewRot).toBe(135);
     expect(b.floor).toBe("first");
-    const v = b.views.first!, w = a.views.first!;
+    const v = b.views.first!,
+      w = a.views.first!;
     expect(v.w).toBeCloseTo(w.w, 6);
     expect(v.x + v.w / 2).toBeCloseTo(w.x + w.w / 2, 6);
     expect(v.y + v.h / 2).toBeCloseTo(w.y + w.h / 2, 6);
@@ -114,7 +140,13 @@ describe("EditorState: export and import of the view", () => {
   it("a floor the layout does not have is ignored, not an error, and a bad floor name keeps the current floor", () => {
     const st = new EditorState(fresh());
     const was = st.floor;
-    st.importView({ floor: "attic", zooms: [["attic", { zoom: 2, focus: [0, 0] }], ["__proto__", { zoom: 2, focus: [0, 0] }]] });
+    st.importView({
+      floor: "attic",
+      zooms: [
+        ["attic", { zoom: 2, focus: [0, 0] }],
+        ["__proto__", { zoom: 2, focus: [0, 0] }],
+      ],
+    });
     expect(st.floor).toBe(was);
     expect(Object.keys(st.views)).toEqual([]);
   });

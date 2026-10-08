@@ -1,4 +1,5 @@
 """floorplan_studio/load and floorplan_studio/version (any user), floorplan_studio/save (admin only)."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -28,7 +29,9 @@ def _store(hass: HomeAssistant) -> LayoutStore | None:
 async def ws_load(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     store = _store(hass)
     if store is None:
-        connection.send_error(msg["id"], "not_loaded", "Floorplan Studio is not set up. Add it under Settings, Devices & services.")
+        connection.send_error(
+            msg["id"], "not_loaded", "Floorplan Studio is not set up. Add it under Settings, Devices & services."
+        )
         return
     connection.send_result(msg["id"], {"layout": await store.async_load()})
 
@@ -39,7 +42,9 @@ async def ws_load(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
 async def ws_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
     store = _store(hass)
     if store is None:
-        connection.send_error(msg["id"], "not_loaded", "Floorplan Studio is not set up. Add it under Settings, Devices & services.")
+        connection.send_error(
+            msg["id"], "not_loaded", "Floorplan Studio is not set up. Add it under Settings, Devices & services."
+        )
         return
     try:
         await store.async_save(msg["layout"])

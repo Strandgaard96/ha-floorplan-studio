@@ -7,11 +7,37 @@ import { classOf, renderFloor, type StateOverlay } from "../../src/core/render";
 import { PLUG_ACTIVE_WATTS, findPowerSensor, plugThreshold, wattsOf } from "../../src/core/power";
 
 const ground = (demo as unknown as Layout).floors.ground;
-const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-03T10:00:00Z" });
-const plug = (extra: Partial<Device> = {}): Device => ({ id: "plug-1", type: "plug", entity: "switch.tv", name: "TV plug", x: 50, y: 50, ...extra }) as Device;
-const watts = (state: string, unit: string | undefined = "W") => st(state, unit === undefined ? {} : { unit_of_measurement: unit });
+const st = (state: string, attributes: Record<string, unknown> = {}) => ({
+  state,
+  attributes,
+  last_changed: "2026-10-03T10:00:00Z",
+});
+const plug = (extra: Partial<Device> = {}): Device =>
+  ({ id: "plug-1", type: "plug", entity: "switch.tv", name: "TV plug", x: 50, y: 50, ...extra }) as Device;
+const watts = (state: string, unit: string | undefined = "W") =>
+  st(state, unit === undefined ? {} : { unit_of_measurement: unit });
 const cls = (d: Device, state: StateOverlay, extra: object = {}) => classOf(d, { scale: 1, state, ...extra });
-const layoutOf = (devices: Device[]): Layout => ({ version: 2, unit: "cm", north: 0, catalog: [], floors: { f: { ...ground, rooms: [], doors: [], walls: [], openings: [], extras: [], furniture: [], stairs: [], unlinked: [], devices } } }) as unknown as Layout;
+const layoutOf = (devices: Device[]): Layout =>
+  ({
+    version: 2,
+    unit: "cm",
+    north: 0,
+    catalog: [],
+    floors: {
+      f: {
+        ...ground,
+        rooms: [],
+        doors: [],
+        walls: [],
+        openings: [],
+        extras: [],
+        furniture: [],
+        stairs: [],
+        unlinked: [],
+        devices,
+      },
+    },
+  }) as unknown as Layout;
 
 describe("wattsOf: a power reading in watts, or null", () => {
   it("reads W, kW (x1000), and a missing unit as W", () => {
@@ -20,7 +46,21 @@ describe("wattsOf: a power reading in watts, or null", () => {
     expect(wattsOf(watts("7", undefined))).toBe(7);
   });
   it("is null for another unit, a non-number, unavailable, unknown, empty, or nothing", () => {
-    for (const s of [watts("5", "mW"), watts("5", "A"), watts("5", "kWh"), watts("abc"), watts(""), watts("  "), watts("1e3"), watts("0x10"), watts("NaN"), watts("Infinity"), watts("unavailable"), watts("unknown"), undefined])
+    for (const s of [
+      watts("5", "mW"),
+      watts("5", "A"),
+      watts("5", "kWh"),
+      watts("abc"),
+      watts(""),
+      watts("  "),
+      watts("1e3"),
+      watts("0x10"),
+      watts("NaN"),
+      watts("Infinity"),
+      watts("unavailable"),
+      watts("unknown"),
+      undefined,
+    ])
       expect(wattsOf(s as never), JSON.stringify(s)).toBeNull();
   });
   it("survives junk attributes", () => {
@@ -32,7 +72,8 @@ describe("wattsOf: a power reading in watts, or null", () => {
 describe("plugThreshold: untrusted config", () => {
   it("is 2 W by default and for junk; a number >= 0 stands", () => {
     expect(PLUG_ACTIVE_WATTS).toBe(2);
-    for (const v of [undefined, null, "5", NaN, Infinity, -1, {}, [], true]) expect(plugThreshold(v), String(v)).toBe(2);
+    for (const v of [undefined, null, "5", NaN, Infinity, -1, {}, [], true])
+      expect(plugThreshold(v), String(v)).toBe(2);
     expect(plugThreshold(0)).toBe(0);
     expect(plugThreshold(10.5)).toBe(10.5);
   });
@@ -40,7 +81,8 @@ describe("plugThreshold: untrusted config", () => {
 
 describe("classOf for a plug: active only while it draws power", () => {
   const d = plug({ power: "sensor.tv_power" });
-  const run = (sw: string, p: ReturnType<typeof st> | undefined, extra: object = {}) => cls(d, { "switch.tv": st(sw), ...(p ? { "sensor.tv_power": p } : {}) }, extra);
+  const run = (sw: string, p: ReturnType<typeof st> | undefined, extra: object = {}) =>
+    cls(d, { "switch.tv": st(sw), ...(p ? { "sensor.tv_power": p } : {}) }, extra);
 
   it("switch on: 1.99 W is off, exactly 2 W is on, 2.01 W is on", () => {
     expect(run("on", watts("1.99"))).toBe("off");
@@ -61,7 +103,8 @@ describe("classOf for a plug: active only while it draws power", () => {
     expect(run("unknown", watts("500"))).toBe("off");
   });
   it("switch on, power unknown, unavailable, junk, another unit or not in the overlay: still on (a flaky sensor must not hide a plug)", () => {
-    for (const p of [watts("unavailable"), watts("unknown"), watts("lots"), watts("50", "A"), undefined]) expect(run("on", p), JSON.stringify(p)).toBe("on");
+    for (const p of [watts("unavailable"), watts("unknown"), watts("lots"), watts("50", "A"), undefined])
+      expect(run("on", p), JSON.stringify(p)).toBe("on");
   });
   it("no power sensor at all: today's rule, on when the switch is on", () => {
     expect(cls(plug(), { "switch.tv": st("on") })).toBe("on");
@@ -90,31 +133,59 @@ describe("the Active list follows the same rule", () => {
   const d = plug({ power: "sensor.tv_power" });
   it("a plug idling at 0.5 W is not listed; at 35 W it is; with no sensor it is listed when on", () => {
     expect(activeDevices(layoutOf([d]), { "switch.tv": st("on"), "sensor.tv_power": watts("0.5") })).toEqual([]);
-    expect(activeDevices(layoutOf([d]), { "switch.tv": st("on"), "sensor.tv_power": watts("35") }).map((a) => a.entity)).toEqual(["switch.tv"]);
+    expect(
+      activeDevices(layoutOf([d]), { "switch.tv": st("on"), "sensor.tv_power": watts("35") }).map((a) => a.entity),
+    ).toEqual(["switch.tv"]);
     expect(activeDevices(layoutOf([plug()]), { "switch.tv": st("on") }).map((a) => a.entity)).toEqual(["switch.tv"]);
   });
   it("takes the threshold and runtime links from its options", () => {
     const state = { "switch.tv": st("on"), "sensor.auto": watts("5") };
-    expect(activeDevices(layoutOf([plug()]), state, { powerLinks: { "switch.tv": "sensor.auto" } }).map((a) => a.entity)).toEqual(["switch.tv"]);
-    expect(activeDevices(layoutOf([plug()]), state, { powerLinks: { "switch.tv": "sensor.auto" }, plugWatts: 6 })).toEqual([]);
+    expect(
+      activeDevices(layoutOf([plug()]), state, { powerLinks: { "switch.tv": "sensor.auto" } }).map((a) => a.entity),
+    ).toEqual(["switch.tv"]);
+    expect(
+      activeDevices(layoutOf([plug()]), state, { powerLinks: { "switch.tv": "sensor.auto" }, plugWatts: 6 }),
+    ).toEqual([]);
   });
 });
 
 describe("renderFloor: class, tooltip and room ring", () => {
   const draw = (devices: Device[], state: StateOverlay, extra: Partial<typeof ground> = {}) =>
-    renderFloor({ ...ground, rooms: [], devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [], ...extra } as typeof ground, { scale: 0.5, state });
+    renderFloor(
+      {
+        ...ground,
+        rooms: [],
+        devices,
+        doors: [],
+        walls: [],
+        openings: [],
+        furniture: [],
+        stairs: [],
+        extras: [],
+        ...extra,
+      } as typeof ground,
+      { scale: 0.5, state },
+    );
 
   it("the icon wears on at 2 W and not at 1.9 W", () => {
     const d = plug({ power: "sensor.p" });
-    expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("1.9") })).toMatch(/<g data-x="0" class="dev dev-plug off"/);
-    expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("2") })).toMatch(/<g data-x="0" class="dev dev-plug on"/);
+    expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("1.9") })).toMatch(
+      /<g data-x="0" class="dev dev-plug off"/,
+    );
+    expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("2") })).toMatch(
+      /<g data-x="0" class="dev dev-plug on"/,
+    );
   });
   it("the tooltip shows live watts when known, none when not", () => {
     const d = plug({ power: "sensor.p" });
-    expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("14") })).toContain("<title>plug: TV plug, 14 W</title>");
+    expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("14") })).toContain(
+      "<title>plug: TV plug, 14 W</title>",
+    );
     expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("14.26") })).toContain("plug: TV plug, 14.3 W");
     expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("0.0125", "kW") })).toContain("plug: TV plug, 12.5 W");
-    expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("unavailable") })).toContain("<title>plug: TV plug</title>");
+    expect(draw([d], { "switch.tv": st("on"), "sensor.p": watts("unavailable") })).toContain(
+      "<title>plug: TV plug</title>",
+    );
     expect(draw([plug()], { "switch.tv": st("on") })).toContain("<title>plug: TV plug</title>");
   });
   it("the tooltip stays escaped", () => {
@@ -137,14 +208,28 @@ describe("findPowerSensor: exactly one sibling, or nothing", () => {
   const sw = { id: "switch.tv", domain: "switch", dev: "d1" };
   const pw = (id: string, extra: object = {}) => ({ id, domain: "sensor", dc: "power", dev: "d1", ...extra });
   it("one sibling power sensor is the link", () => {
-    expect(findPowerSensor([sw, pw("sensor.tv_power"), { id: "sensor.tv_energy", domain: "sensor", dc: "energy", dev: "d1" }], "switch.tv")).toBe("sensor.tv_power");
+    expect(
+      findPowerSensor(
+        [sw, pw("sensor.tv_power"), { id: "sensor.tv_energy", domain: "sensor", dc: "energy", dev: "d1" }],
+        "switch.tv",
+      ),
+    ).toBe("sensor.tv_power");
   });
   it("none, or two, is no link", () => {
     expect(findPowerSensor([sw], "switch.tv")).toBeUndefined();
     expect(findPowerSensor([sw, pw("sensor.a"), pw("sensor.b")], "switch.tv")).toBeUndefined();
   });
   it("diagnostic and config entities, other devices, other domains and other classes are not candidates", () => {
-    const rows = [sw, pw("sensor.diag", { cat: "diagnostic" }), pw("sensor.cfg", { cat: "config" }), pw("sensor.other_dev", { dev: "d2" }), pw("sensor.nodev", { dev: undefined }), pw("binary_sensor.x", { domain: "binary_sensor" }), pw("sensor.volt", { dc: "voltage" }), pw("sensor.nodc", { dc: undefined })];
+    const rows = [
+      sw,
+      pw("sensor.diag", { cat: "diagnostic" }),
+      pw("sensor.cfg", { cat: "config" }),
+      pw("sensor.other_dev", { dev: "d2" }),
+      pw("sensor.nodev", { dev: undefined }),
+      pw("binary_sensor.x", { domain: "binary_sensor" }),
+      pw("sensor.volt", { dc: "voltage" }),
+      pw("sensor.nodc", { dc: undefined }),
+    ];
     expect(findPowerSensor(rows, "switch.tv")).toBeUndefined();
     expect(findPowerSensor([...rows, pw("sensor.real")], "switch.tv")).toBe("sensor.real");
   });

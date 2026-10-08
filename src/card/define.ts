@@ -19,13 +19,18 @@ export function defineElement(name: string, ctor: CustomElementConstructor, vers
   let id: ReturnType<typeof setInterval> | undefined;
   const define = () => {
     // The page can be gone before the watch ends (a test environment torn down, a frame detached): stop, do not throw.
-    if (typeof window === "undefined") { clearInterval(id); return; }
+    if (typeof window === "undefined") {
+      clearInterval(id);
+      return;
+    }
     const reg = window.customElements;
     const owner = reg.get(name);
     if (owner) {
       if (owner !== ctor && !warned) {
         warned = true;
-        console.warn(`Floorplan Studio ${version}: <${name}> is already defined by another script, so this one is not used. Remove the older copy under Settings > Dashboards > Resources (or from /local), then hard-refresh.`);
+        console.warn(
+          `Floorplan Studio ${version}: <${name}> is already defined by another script, so this one is not used. Remove the older copy under Settings > Dashboards > Resources (or from /local), then hard-refresh.`,
+        );
       }
       return;
     }

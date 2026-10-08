@@ -8,9 +8,23 @@ const token = process.env.HA_TOKEN;
 test.skip(!url || !token, "set HA_URL and HA_TOKEN to run against a real Home Assistant");
 
 test("the panel loads the saved plan, a saved edit survives a page reload", async ({ page }) => {
-  await page.addInitScript(({ url, token }) => {
-    localStorage.setItem("hassTokens", JSON.stringify({ access_token: token, token_type: "Bearer", expires_in: 1e9, hassUrl: url, clientId: url + "/", expires: Date.now() + 1e12, refresh_token: "" }));
-  }, { url: url!, token: token! });
+  await page.addInitScript(
+    ({ url, token }) => {
+      localStorage.setItem(
+        "hassTokens",
+        JSON.stringify({
+          access_token: token,
+          token_type: "Bearer",
+          expires_in: 1e9,
+          hassUrl: url,
+          clientId: url + "/",
+          expires: Date.now() + 1e12,
+          refresh_token: "",
+        }),
+      );
+    },
+    { url: url!, token: token! },
+  );
   await page.goto(`${url}/floorplan-studio`);
   const editor = page.locator("floorplan-studio-panel floorplan-studio-editor");
   await expect(editor).toBeVisible({ timeout: 30_000 });

@@ -47,7 +47,9 @@ function edges(pts: Pt[]): { a: Pt; b: Pt; i: number }[] {
 
 /** Projection of p on segment a-b: t along the segment (unclamped), and the foot point. */
 function project(p: Pt, a: Pt, b: Pt): { t: number; q: Pt } {
-  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy || 1;
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1],
+    l2 = dx * dx + dy * dy || 1;
   const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2;
   return { t, q: [a[0] + t * dx, a[1] + t * dy] };
 }
@@ -58,7 +60,12 @@ function project(p: Pt, a: Pt, b: Pt): { t: number; q: Pt } {
  * `zones: true` includes them, for picking an edge with the pointer. `walls: true` also offers the free walls
  * (`poly` is "w", `i` the wall's index; a wall of no length is skipped).
  */
-export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boolean; walls?: boolean } = {}): { d: number; q: Pt; u: Pt; poly: string; i: number } | null {
+export function nearestEdge(
+  f: Floor,
+  p: Pt,
+  maxd: number,
+  opts: { zones?: boolean; walls?: boolean } = {},
+): { d: number; q: Pt; u: Pt; poly: string; i: number } | null {
   let best: { d: number; q: Pt; u: Pt; poly: string; i: number } | null = null;
   let bestZone = false;
   const seg = (a: Pt, b: Pt, poly: string, i: number, zone = false) => {
@@ -75,7 +82,10 @@ export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boole
     if (P.id[0] === "s" || (isZone(P) && !opts.zones)) continue;
     for (const { a, b, i } of edges(P.pts)) seg(a, b, P.id, i, isZone(P));
   }
-  if (opts.walls) f.walls.forEach((w, i) => { if (dist(w.a, w.b) > 0) seg(w.a, w.b, "w", i); });
+  if (opts.walls)
+    f.walls.forEach((w, i) => {
+      if (dist(w.a, w.b) > 0) seg(w.a, w.b, "w", i);
+    });
   const r = best as { d: number; q: Pt; u: Pt; poly: string; i: number } | null;
   return r && r.d <= maxd ? r : null;
 }
@@ -84,7 +94,9 @@ export function nearestEdge(f: Floor, p: Pt, maxd: number, opts: { zones?: boole
 export function edgesNear(f: Floor, p: Pt, dir: Pt, maxd: number): { poly: string; i: number }[] {
   const out: { poly: string; i: number }[] = [];
   const check = (a: Pt, b: Pt, poly: string, i: number) => {
-    const edx = b[0] - a[0], edy = b[1] - a[1], elen = Math.hypot(edx, edy);
+    const edx = b[0] - a[0],
+      edy = b[1] - a[1],
+      elen = Math.hypot(edx, edy);
     if (elen === 0 || Math.abs(dir[0] * (edy / elen) - dir[1] * (edx / elen)) > 0.05) return; // no length, or not parallel
     const { t, q } = project(p, a, b);
     if (dist(p, t <= 0 ? a : t >= 1 ? b : q) <= maxd) out.push({ poly, i });
@@ -109,9 +121,12 @@ export function edgeKindsNear(f: Floor, p: Pt, dir: Pt, maxd: number): EdgeKind[
   const [ux, uy] = dir;
   const out: EdgeKind[] = [];
   const check = (a: Pt, b: Pt, kind: EdgeKind) => {
-    const edx = b[0] - a[0], edy = b[1] - a[1], elen = Math.hypot(edx, edy);
+    const edx = b[0] - a[0],
+      edy = b[1] - a[1],
+      elen = Math.hypot(edx, edy);
     if (elen === 0) return;
-    const eux = edx / elen, euy = edy / elen;
+    const eux = edx / elen,
+      euy = edy / elen;
     if (Math.abs(ux * euy - uy * eux) > 0.05) return; // not parallel to the door
     const { t, q } = project(p, a, b);
     const c: Pt = t <= 0 ? a : t >= 1 ? b : q;
@@ -121,11 +136,18 @@ export function edgeKindsNear(f: Floor, p: Pt, dir: Pt, maxd: number): EdgeKind[
     if (P.id[0] === "s" || isZone(P)) continue;
     edges(P.pts).forEach(({ a, b, i }) => check(a, b, edgeKindAt(f, P.id, i)));
   }
-  f.walls.forEach((w) => { if (dist(w.a, w.b) > 0) check(w.a, w.b, w.kind); });
+  f.walls.forEach((w) => {
+    if (dist(w.a, w.b) > 0) check(w.a, w.b, w.kind);
+  });
   return out;
 }
 
-export interface SnapOpts { threshold: number; grid: number | 0; exclude: Pt[]; neighbours: Pt[] }
+export interface SnapOpts {
+  threshold: number;
+  grid: number | 0;
+  exclude: Pt[];
+  neighbours: Pt[];
+}
 
 const same = (a: Pt, b: Pt) => a[0] === b[0] && a[1] === b[1];
 
@@ -136,8 +158,7 @@ export function snapPoint(f: Floor, p: Pt, o: SnapOpts): Pt {
 
   let corner: Pt | null = null;
   for (const P of polys(f).filter((x) => !apart(x)))
-    for (const q of P.pts)
-      if (!skip(q) && dist(q, p) < th && (!corner || dist(q, p) < dist(corner, p))) corner = q;
+    for (const q of P.pts) if (!skip(q) && dist(q, p) < th && (!corner || dist(q, p) < dist(corner, p))) corner = q;
   if (corner) return [corner[0], corner[1]];
 
   let tee: { d: number; pt: Pt } | null = null;
@@ -244,11 +265,13 @@ export function movePoints(f: Floor, from: Pt, to: Pt, detach: boolean, only?: {
 export function edgeRooms(f: Floor, poly: string, i: number): { room: Room; i: number }[] {
   const P = polys(f).find((x) => x.id === poly);
   if (!P || isZone(P)) return [];
-  const a = P.pts[i], b = P.pts[(i + 1) % P.pts.length];
+  const a = P.pts[i],
+    b = P.pts[(i + 1) % P.pts.length];
   const out: { room: Room; i: number }[] = [];
   for (const room of f.rooms.filter((r) => r.kind !== "zone"))
     edges(room.pts).forEach(({ a: c, b: d, i: j }) => {
-      if ((dist(a, c) <= TOUCH && dist(b, d) <= TOUCH) || (dist(a, d) <= TOUCH && dist(b, c) <= TOUCH)) out.push({ room, i: j });
+      if ((dist(a, c) <= TOUCH && dist(b, d) <= TOUCH) || (dist(a, d) <= TOUCH && dist(b, c) <= TOUCH))
+        out.push({ room, i: j });
     });
   return out;
 }
@@ -262,8 +285,14 @@ export function setEdgeKind(f: Floor, poly: string, i: number, kind: EdgeKind): 
   const g = structuredClone(f);
   const hits = edgeRooms(g, poly, i);
   let changed = false;
-  if (poly === "o") { ensureOwk(g)[i] = kind; changed = true; }
-  for (const h of hits) { h.room.wk[h.i] = kind; changed = true; }
+  if (poly === "o") {
+    ensureOwk(g)[i] = kind;
+    changed = true;
+  }
+  for (const h of hits) {
+    h.room.wk[h.i] = kind;
+    changed = true;
+  }
   return changed ? g : f;
 }
 
@@ -279,7 +308,9 @@ export function setEdgeKind(f: Floor, poly: string, i: number, kind: EdgeKind): 
 export function deleteEdge(f: Floor, poly: string, i: number): Floor {
   const P = polys(f).find((x) => x.id === poly);
   if (!P || isZone(P)) return f;
-  const a = P.pts[i], b = P.pts[(i + 1) % P.pts.length], L = dist(a, b);
+  const a = P.pts[i],
+    b = P.pts[(i + 1) % P.pts.length],
+    L = dist(a, b);
   if (!L) return f;
   const along = (p: Pt) => ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L;
   const off = (p: Pt) => Math.abs((p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0])) / L;
@@ -287,16 +318,28 @@ export function deleteEdge(f: Floor, poly: string, i: number): Floor {
   let hit = false;
   // Cuts `pts`/`wk` at the segment's ends (like `stitch`) and marks every piece that lies on it "none".
   const clear = (pts: Pt[], wk: EdgeKind[]) => {
-    for (let j = 0; j < pts.length; ) {
-      const c = pts[j], d = pts[(j + 1) % pts.length];
-      const ac = along(c), ad = along(d), lo = Math.min(ac, ad), hi = Math.max(ac, ad);
-      if (off(c) > TOUCH || off(d) > TOUCH || Math.min(hi, L) - Math.max(lo, 0) <= TOUCH) { j++; continue; }
-      const cuts = [a, b].filter((p) => along(p) > lo + TOUCH && along(p) < hi - TOUCH).sort((p, q) => (ac <= ad ? along(p) - along(q) : along(q) - along(p)));
+    for (let j = 0; j < pts.length;) {
+      const c = pts[j],
+        d = pts[(j + 1) % pts.length];
+      const ac = along(c),
+        ad = along(d),
+        lo = Math.min(ac, ad),
+        hi = Math.max(ac, ad);
+      if (off(c) > TOUCH || off(d) > TOUCH || Math.min(hi, L) - Math.max(lo, 0) <= TOUCH) {
+        j++;
+        continue;
+      }
+      const cuts = [a, b]
+        .filter((p) => along(p) > lo + TOUCH && along(p) < hi - TOUCH)
+        .sort((p, q) => (ac <= ad ? along(p) - along(q) : along(q) - along(p)));
       pts.splice(j + 1, 0, ...cuts.map((p): Pt => [p[0], p[1]]));
       wk.splice(j + 1, 0, ...cuts.map(() => wk[j]));
       for (let k = 0; k <= cuts.length; k++) {
         const m = (along(pts[j + k]) + along(pts[(j + k + 1) % pts.length])) / 2;
-        if (m > 0 && m < L) { wk[j + k] = "none"; hit = true; }
+        if (m > 0 && m < L) {
+          wk[j + k] = "none";
+          hit = true;
+        }
       }
       j += cuts.length + 1;
     }
@@ -311,7 +354,11 @@ export function onEdge(f: Floor, a: Pt, b: Pt): { doors: number[]; openings: num
   const L = dist(a, b) || 1;
   const along = (p: Pt) => ((p[0] - a[0]) * (b[0] - a[0]) + (p[1] - a[1]) * (b[1] - a[1])) / L;
   const off = (p: Pt) => Math.abs((p[0] - a[0]) * (b[1] - a[1]) - (p[1] - a[1]) * (b[0] - a[0])) / L;
-  const on = (o: { a: Pt; b: Pt }) => off(o.a) <= TOUCH && off(o.b) <= TOUCH && Math.max(along(o.a), along(o.b)) > 0 && Math.min(along(o.a), along(o.b)) < L;
+  const on = (o: { a: Pt; b: Pt }) =>
+    off(o.a) <= TOUCH &&
+    off(o.b) <= TOUCH &&
+    Math.max(along(o.a), along(o.b)) > 0 &&
+    Math.min(along(o.a), along(o.b)) < L;
   const pick = (list: { a: Pt; b: Pt }[]) => list.flatMap((o, i) => (on(o) ? [i] : []));
   return { doors: pick(f.doors), openings: pick(f.openings) };
 }
@@ -324,7 +371,9 @@ export function mergeCorners(f: Floor, tol: number): Floor {
   const g = structuredClone(f);
   const list = [
     { pts: g.outline, outline: true, wk: ensureOwk(g) as EdgeKind[] | undefined },
-    ...g.rooms.filter((r) => r.kind !== "garden" && r.kind !== "zone" && !r.free).map((r) => ({ pts: r.pts, outline: false, wk: r.wk as EdgeKind[] | undefined })),
+    ...g.rooms
+      .filter((r) => r.kind !== "garden" && r.kind !== "zone" && !r.free)
+      .map((r) => ({ pts: r.pts, outline: false, wk: r.wk as EdgeKind[] | undefined })),
     ...g.stairs.map((s) => ({ pts: s.pts, outline: false, wk: undefined as EdgeKind[] | undefined })),
   ];
   const all = list.flatMap((P) => P.pts.map((q) => ({ q, outline: P.outline })));
@@ -336,11 +385,17 @@ export function mergeCorners(f: Floor, tol: number): Floor {
     const o = grp.find((x) => x.outline);
     const t: Pt = o
       ? [o.q[0], o.q[1]]
-      : [Math.round(grp.reduce((s, x) => s + x.q[0], 0) / grp.length), Math.round(grp.reduce((s, x) => s + x.q[1], 0) / grp.length)];
-    grp.forEach((x) => { x.q[0] = t[0]; x.q[1] = t[1]; });
+      : [
+          Math.round(grp.reduce((s, x) => s + x.q[0], 0) / grp.length),
+          Math.round(grp.reduce((s, x) => s + x.q[1], 0) / grp.length),
+        ];
+    grp.forEach((x) => {
+      x.q[0] = t[0];
+      x.q[1] = t[1];
+    });
   }
   for (const P of list) {
-    for (let i = 0; P.pts.length > 3 && i < P.pts.length; ) {
+    for (let i = 0; P.pts.length > 3 && i < P.pts.length;) {
       if (same(P.pts[i], P.pts[(i + 1) % P.pts.length])) {
         P.pts.splice(i, 1);
         P.wk?.splice(i, 1);
@@ -352,19 +407,30 @@ export function mergeCorners(f: Floor, tol: number): Floor {
 
 /** True when a corner of polygon `poly` lies within 2 cm of a corner of another polygon that is not free. */
 export function snapped(f: Floor, poly: string): boolean {
-  const all = polys(f), P = all.find((x) => x.id === poly);
+  const all = polys(f),
+    P = all.find((x) => x.id === poly);
   if (!P) return false;
   return all.some((O) => O.id !== poly && !isFree(O) && O.pts.some((q) => P.pts.some((p) => dist(p, q) <= TOUCH)));
 }
 
 /** Polygon `poly` turned by `deg` (clockwise on screen) about the centre of its bounding box, corners rounded to 1 cm. Unknown id: `f` itself. */
 export function rotatePoly(f: Floor, poly: string, deg: number): Floor {
-  const g = structuredClone(f), P = polys(g).find((x) => x.id === poly);
+  const g = structuredClone(f),
+    P = polys(g).find((x) => x.id === poly);
   if (!P) return f;
-  const xs = P.pts.map((p) => p[0]), ys = P.pts.map((p) => p[1]);
-  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2;
-  const r = (deg * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
-  P.pts.forEach((p, i) => { P.pts[i] = [Math.round(cx + (p[0] - cx) * cos - (p[1] - cy) * sin) + 0, Math.round(cy + (p[0] - cx) * sin + (p[1] - cy) * cos) + 0]; }); // + 0 turns -0 into 0
+  const xs = P.pts.map((p) => p[0]),
+    ys = P.pts.map((p) => p[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2,
+    cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const r = (deg * Math.PI) / 180,
+    cos = Math.cos(r),
+    sin = Math.sin(r);
+  P.pts.forEach((p, i) => {
+    P.pts[i] = [
+      Math.round(cx + (p[0] - cx) * cos - (p[1] - cy) * sin) + 0,
+      Math.round(cy + (p[0] - cx) * sin + (p[1] - cy) * cos) + 0,
+    ];
+  }); // + 0 turns -0 into 0
   return g;
 }
 
@@ -375,7 +441,9 @@ export function stairSteps(t: Pick<Stairs, "pts" | "shape" | "dia" | "inner">): 
   let run = 0;
   if (t.shape === "round" && fin(t.dia) && t.dia > 0) run = (Math.PI * (t.dia + (fin(t.inner) ? t.inner : 0))) / 2;
   else if (Array.isArray(t.pts) && t.pts.some(Array.isArray)) {
-    const q = t.pts.filter(Array.isArray), xs = q.map((p) => p[0]), ys = q.map((p) => p[1]);
+    const q = t.pts.filter(Array.isArray),
+      xs = q.map((p) => p[0]),
+      ys = q.map((p) => p[1]);
     run = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
   }
   return Math.max(2, Math.min(40, Math.round((fin(run) ? run : 0) / TREAD)));

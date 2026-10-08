@@ -2,13 +2,20 @@ import { describe, it, expect } from "vitest";
 import { glowAt, GLOW_REACH, facing, glowGrid, outwardSign, type RoomShape } from "../../src/card/three/light";
 
 // Pure maths of the wall glow (3D lamp light on the walls of its own room). Frame: the plan's, cm. No three.js here.
-const sq = (x: number, y: number, w: number, h: number) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+const sq = (x: number, y: number, w: number, h: number) => [
+  [x, y],
+  [x + w, y],
+  [x + w, y + h],
+  [x, y + h],
+];
 const living = sq(0, 0, 500, 400);
 
 describe("glowAt: how much of the lamp's light reaches a point of a wall", () => {
   it("is brightest at the lamp, falls with the distance, and is nothing at the reach and beyond", () => {
     expect(GLOW_REACH).toBe(300);
-    const near = glowAt(50, 50), mid = glowAt(150, 150), far = glowAt(280, 280);
+    const near = glowAt(50, 50),
+      mid = glowAt(150, 150),
+      far = glowAt(280, 280);
     expect(near).toBeGreaterThan(mid);
     expect(mid).toBeGreaterThan(far);
     expect(far).toBeGreaterThan(0);
@@ -20,14 +27,29 @@ describe("glowAt: how much of the lamp's light reaches a point of a wall", () =>
     expect(glowAt(200, 190)).toBeGreaterThan(glowAt(200, 20));
   });
   it("never throws and never gives NaN on junk", () => {
-    for (const v of [NaN, Infinity, -5, undefined as unknown as number]) { const g = glowAt(v, v); expect(Number.isFinite(g)).toBe(true); expect(g).toBeGreaterThanOrEqual(0); }
+    for (const v of [NaN, Infinity, -5, undefined as unknown as number]) {
+      const g = glowAt(v, v);
+      expect(Number.isFinite(g)).toBe(true);
+      expect(g).toBeGreaterThanOrEqual(0);
+    }
   });
 });
 
 describe("facing: the side of a wall face that looks into the lamp's room", () => {
   const lamp: [number, number] = [250, 200];
   // A wall slab is a ring; each edge of it is a face, and the ring's winding says which way is out (outwardSign).
-  const shared = [[495, 0], [505, 0], [505, 400], [495, 400]], north = [[0, -5], [500, -5], [500, 5], [0, 5]];
+  const shared = [
+      [495, 0],
+      [505, 0],
+      [505, 400],
+      [495, 400],
+    ],
+    north = [
+      [0, -5],
+      [500, -5],
+      [500, 5],
+      [0, 5],
+    ];
   it("gives the inward normal of the room's own face, and nothing for the other side of the same wall", () => {
     // a wall centred on x=500, 10 cm thick: its west face (x=495) looks into the living room, its east face (x=505) into the kitchen
     const s = outwardSign(shared);
@@ -39,7 +61,8 @@ describe("facing: the side of a wall face that looks into the lamp's room", () =
     expect(facing([0, -5], [500, -5], n, living, lamp)).toBeNull();
   });
   it("is the same whichever way the ring is wound", () => {
-    const rev = [...shared].reverse(), s = outwardSign(rev);
+    const rev = [...shared].reverse(),
+      s = outwardSign(rev);
     expect(s).toBe(-outwardSign(shared));
     expect(facing([495, 0], [495, 400], s, living, lamp)?.n).toEqual([-1, 0]);
   });
@@ -58,7 +81,8 @@ describe("facing: which stretch of a face is lit (the lamp's own room, not the w
   const A: RoomShape = { index: 0, base: sq(0, 0, 500, 400), top: 250, area: 200000 };
   const C: RoomShape = { index: 1, base: sq(500, 0, 500, 400), top: 250, area: 200000 };
   // The outline's south edge, one 1000 cm face shared by both rooms, wound so that (dy, -dx) points out: the inner face looks north, up the plan (y down).
-  const south = (lamp: [number, number], room: number, rooms = [A, C]) => facing([1000, 395], [0, 395], -1, rooms[room].base, lamp, rooms, room);
+  const south = (lamp: [number, number], room: number, rooms = [A, C]) =>
+    facing([1000, 395], [0, 395], -1, rooms[room].base, lamp, rooms, room);
   const spanOf = (r: ReturnType<typeof facing>) => r?.spans.map(([u0, u1]) => [Math.round(u0), Math.round(u1)]);
   it("a lamp in C lights only C's stretch of the outline face: x 500..1000, nothing of A's 0..500", () => {
     const r = south([600, 200], 1);
@@ -71,7 +95,10 @@ describe("facing: which stretch of a face is lit (the lamp's own room, not the w
   });
   it("the spans are the part of the face the old midpoint test got wrong: the old rule lit x 407..793 for a lamp at x=600, 93 cm of it inside A", () => {
     const r = south([600, 200], 1)!;
-    for (const [u0, u1] of r.spans) { expect(1000 - u0).toBeGreaterThanOrEqual(500); expect(1000 - u1).toBeGreaterThanOrEqual(500); }
+    for (const [u0, u1] of r.spans) {
+      expect(1000 - u0).toBeGreaterThanOrEqual(500);
+      expect(1000 - u1).toBeGreaterThanOrEqual(500);
+    }
   });
   it("a face wholly in the lamp's room is one span, wholly in another room none", () => {
     expect(spanOf(facing([500, 5], [0, 5], 1, A.base, [250, 200], [A, C], 0))).toEqual([[0, 500]]);
@@ -111,7 +138,15 @@ describe("glowGrid with a span", () => {
 
 describe("glowGrid: the glow of one wall face", () => {
   const lamp: [number, number] = [250, 200];
-  const grid = (a: [number, number], b: [number, number], n: [number, number], z0: number, z1: number, at = lamp, lampZ = 230) => glowGrid(a, b, n, z0, z1, at, lampZ, GLOW_REACH, 0.8);
+  const grid = (
+    a: [number, number],
+    b: [number, number],
+    n: [number, number],
+    z0: number,
+    z1: number,
+    at = lamp,
+    lampZ = 230,
+  ) => glowGrid(a, b, n, z0, z1, at, lampZ, GLOW_REACH, 0.8);
   it("lights the part of the face within reach, brightest near the foot of the lamp, and lies a little off the face", () => {
     // the west face of the wall at x=495 faces a lamp 245 cm away: reach 300 leaves a patch of the face
     const g = grid([495, 0], [495, 400], [-1, 0], 0, 250)!;
@@ -124,10 +159,14 @@ describe("glowGrid: the glow of one wall face", () => {
     expect(g.pos[best * 3 + 1]).toBeGreaterThan(150); // and up near its height (three y is up)
     for (let i = 0; i < n; i++) expect(g.pos[i * 3]).toBeCloseTo(494.2, 5); // lifted off the face along its normal
     // far ends of the 400 cm face are out of reach: nothing is drawn at y = 0 or y = 400
-    for (let i = 0; i < n; i++) { expect(g.pos[i * 3 + 2]).toBeGreaterThan(0); expect(g.pos[i * 3 + 2]).toBeLessThan(400); }
+    for (let i = 0; i < n; i++) {
+      expect(g.pos[i * 3 + 2]).toBeGreaterThan(0);
+      expect(g.pos[i * 3 + 2]).toBeLessThan(400);
+    }
   });
   it("is clipped to the drawn height: a lowered wall (80 cm) gets no vertex above 80 and the glow is the lower part of the same field", () => {
-    const tall = grid([495, 0], [495, 400], [-1, 0], 0, 250)!, low = grid([495, 0], [495, 400], [-1, 0], 0, 80)!;
+    const tall = grid([495, 0], [495, 400], [-1, 0], 0, 250)!,
+      low = grid([495, 0], [495, 400], [-1, 0], 0, 80)!;
     for (let i = 0; i < low.pos.length / 3; i++) expect(low.pos[i * 3 + 1]).toBeLessThanOrEqual(80);
     expect(Math.max(...low.k)).toBeLessThan(Math.max(...tall.k)); // the lamp is at 230: the low strip is far from its brightest spot
   });

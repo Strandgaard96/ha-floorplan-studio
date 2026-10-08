@@ -6,27 +6,34 @@ import { validate, MAX_TRACE_BYTES, MAX_LAYOUT_BYTES, type Layout } from "../../
 
 const EDITOR = "floorplan-studio-editor";
 const IMG = `${EDITOR} svg image.trace`;
-const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
+const layoutOf = (page: Page) =>
+  page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 
 async function menu(page: Page, name: string) {
   await page.locator(`details.menu > summary:text-is("${name}")`).click();
 }
 /** A PNG drawn in the page: left half red, right half blue, or random noise (which no codec can shrink much). */
 async function png(page: Page, w: number, h: number, noise = false): Promise<Buffer> {
-  const b64 = await page.evaluate(([w, h, noise]) => {
-    const c = document.createElement("canvas");
-    c.width = w as number; c.height = h as number;
-    const g = c.getContext("2d")!;
-    if (noise) {
-      const d = g.createImageData(c.width, c.height);
-      for (let i = 0; i < d.data.length; i++) d.data[i] = i % 4 === 3 ? 255 : (Math.random() * 256) | 0;
-      g.putImageData(d, 0, 0);
-    } else {
-      g.fillStyle = "#e00"; g.fillRect(0, 0, c.width / 2, c.height);
-      g.fillStyle = "#00e"; g.fillRect(c.width / 2, 0, c.width / 2, c.height);
-    }
-    return c.toDataURL("image/png").split(",")[1];
-  }, [w, h, noise] as const);
+  const b64 = await page.evaluate(
+    ([w, h, noise]) => {
+      const c = document.createElement("canvas");
+      c.width = w as number;
+      c.height = h as number;
+      const g = c.getContext("2d")!;
+      if (noise) {
+        const d = g.createImageData(c.width, c.height);
+        for (let i = 0; i < d.data.length; i++) d.data[i] = i % 4 === 3 ? 255 : (Math.random() * 256) | 0;
+        g.putImageData(d, 0, 0);
+      } else {
+        g.fillStyle = "#e00";
+        g.fillRect(0, 0, c.width / 2, c.height);
+        g.fillStyle = "#00e";
+        g.fillRect(c.width / 2, 0, c.width / 2, c.height);
+      }
+      return c.toDataURL("image/png").split(",")[1];
+    },
+    [w, h, noise] as const,
+  );
   return Buffer.from(b64, "base64");
 }
 async function openTrace(page: Page) {
@@ -41,9 +48,17 @@ async function load(page: Page, buf: Buffer, name = "scan.png", mimeType = "imag
   if (wait) await expect(page.locator(IMG)).toHaveCount(1, { timeout: 15000 });
 }
 /** The natural size of the stored image, decoded by the browser. */
-const natural = (page: Page, src: string) => page.evaluate((s) => new Promise<[number, number]>((ok, no) => {
-  const i = new Image(); i.onload = () => ok([i.naturalWidth, i.naturalHeight]); i.onerror = () => no(new Error("bad image")); i.src = s;
-}), src);
+const natural = (page: Page, src: string) =>
+  page.evaluate(
+    (s) =>
+      new Promise<[number, number]>((ok, no) => {
+        const i = new Image();
+        i.onload = () => ok([i.naturalWidth, i.naturalHeight]);
+        i.onerror = () => no(new Error("bad image"));
+        i.src = s;
+      }),
+    src,
+  );
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -67,7 +82,13 @@ test("S7.11: Load a 20x10 PNG: the image is drawn first, at 2:1, and the layout 
   expect(validate(await layoutOf(page)).ok).toBe(true);
   expect(await natural(page, t.src)).toEqual([20, 10]); // small images are not scaled up
   // First in the plan: every room is painted over it.
-  const first = await page.evaluate((tag) => (document.querySelector(tag) as any).renderRoot.querySelector("svg g[data-theme] > :first-child, svg g[data-theme] > g.plan-turn > :first-child")?.getAttribute("class"), EDITOR);
+  const first = await page.evaluate(
+    (tag) =>
+      (document.querySelector(tag) as any).renderRoot
+        .querySelector("svg g[data-theme] > :first-child, svg g[data-theme] > g.plan-turn > :first-child")
+        ?.getAttribute("class"),
+    EDITOR,
+  );
   expect(first).toBe("trace");
   const box = (await page.locator(IMG).boundingBox())!;
   expect(box.width / box.height).toBeCloseTo(2, 1); // height follows the aspect ratio
@@ -123,8 +144,16 @@ test("S7.11: Show off hides the image and the layout keeps the trace; Show on br
   await expect(page.locator(IMG)).toHaveCount(1);
 });
 
-test("S7.11 CSS pair: while a trace is shown, room fills are see-through, so a traced room does not hide the scan", async ({ page }) => {
-  const roomOpacity = () => page.evaluate((tag) => getComputedStyle((document.querySelector(tag) as any).renderRoot.querySelector("svg polygon[data-r]")).fillOpacity, EDITOR);
+test("S7.11 CSS pair: while a trace is shown, room fills are see-through, so a traced room does not hide the scan", async ({
+  page,
+}) => {
+  const roomOpacity = () =>
+    page.evaluate(
+      (tag) =>
+        getComputedStyle((document.querySelector(tag) as any).renderRoot.querySelector("svg polygon[data-r]"))
+          .fillOpacity,
+      EDITOR,
+    );
   expect(await roomOpacity()).toBe("1");
   await load(page, await png(page, 20, 10));
   expect(await roomOpacity()).toBe("0.4");
@@ -189,7 +218,7 @@ test("S7.11: a 3000 px PNG of noise becomes a JPEG of 2000 px, under the 4 MB li
 
 test("S7.11: a file that is not an image changes nothing and says why", async ({ page }) => {
   const before = await layoutOf(page);
-  await load(page, Buffer.from("\"><script>alert(1)</script>"), "scan.png", "image/png", false);
+  await load(page, Buffer.from('"><script>alert(1)</script>'), "scan.png", "image/png", false);
   await expect(page.locator("#status")).toContainText("not an image");
   expect(await layoutOf(page)).toEqual(before);
   await expect(page.locator(IMG)).toHaveCount(0);
@@ -217,12 +246,15 @@ test("S7.11: the Trace panel's own hint wraps fully visible, not clipped", async
 test("Save refuses a plan whose JSON is over the save limit and names the traced floors", async ({ page }) => {
   const big = "data:image/png;base64," + "A".repeat(MAX_LAYOUT_BYTES); // valid by TRACE_SRC, under the per-trace cap only if the cap allows; the sum is what matters
   expect(MAX_LAYOUT_BYTES).toBeLessThan(MAX_TRACE_BYTES); // otherwise this test would need two floors
-  await page.evaluate(([tag, src]) => {
-    const el = document.querySelector(tag) as any;
-    const l = JSON.parse(JSON.stringify(el.layout));
-    l.floors.ground.trace = { src, x: 0, y: 0, w: 800, rot: 0, alpha: 0.5, on: true };
-    el.layout = l;
-  }, [EDITOR, big] as const);
+  await page.evaluate(
+    ([tag, src]) => {
+      const el = document.querySelector(tag) as any;
+      const l = JSON.parse(JSON.stringify(el.layout));
+      l.floors.ground.trace = { src, x: 0, y: 0, w: 800, rot: 0, alpha: 0.5, on: true };
+      el.layout = l;
+    },
+    [EDITOR, big] as const,
+  );
   await expect(page.locator(IMG)).toHaveCount(1);
   await menu(page, "File");
   await page.locator("#save").click();
@@ -236,13 +268,24 @@ test("Save refuses a plan whose JSON is over the save limit and names the traced
 test("when the autosave has no room for the trace image, the status says so", async ({ page }) => {
   await page.addInitScript(() => {
     const real = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (k: string, v: string) { if (v.includes("data:image")) throw new DOMException("quota", "QuotaExceededError"); return real.call(this, k, v); };
+    Storage.prototype.setItem = function (k: string, v: string) {
+      if (v.includes("data:image")) throw new DOMException("quota", "QuotaExceededError");
+      return real.call(this, k, v);
+    };
   });
   await page.goto("/standalone.html");
   await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
   await load(page, await png(page, 20, 10));
   await expect(page.locator("#status")).toContainText("no room for the trace image");
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("floorplan-studio:layout") ?? localStorage.getItem(Object.keys(localStorage).find((k) => (localStorage.getItem(k) ?? "").includes('"floors"')) ?? "") ?? "null"));
+  const stored = await page.evaluate(() =>
+    JSON.parse(
+      localStorage.getItem("floorplan-studio:layout") ??
+        localStorage.getItem(
+          Object.keys(localStorage).find((k) => (localStorage.getItem(k) ?? "").includes('"floors"')) ?? "",
+        ) ??
+        "null",
+    ),
+  );
   expect(stored?.floors?.ground && "trace" in stored.floors.ground).toBe(false); // the plan itself is still autosaved, without the image
 });

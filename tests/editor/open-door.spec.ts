@@ -5,7 +5,8 @@ import type { Layout } from "../../src/core/schema";
 // action goes through page.mouse at real coordinates (CLAUDE.md finding 3). Nothing is drawn for it unless selected.
 
 const EDITOR = "floorplan-studio-editor";
-const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
+const layoutOf = (page: Page) =>
+  page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const doors = async (page: Page) => (await layoutOf(page)).floors.ground.doors;
 const len = (o: { a: number[]; b: number[] }) => Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]);
 const hit = (page: Page, i: number) => page.locator(`${EDITOR} svg line.door-hit[data-d="${i}"]`);
@@ -28,7 +29,9 @@ const deselect = async (page: Page) => {
   await page.mouse.click(2, 2);
 };
 
-test("Add, Openings, Open doorway places a 90 cm door of kind open, selected, with a door's defaults, in one undo step", async ({ page }) => {
+test("Add, Openings, Open doorway places a 90 cm door of kind open, selected, with a door's defaults, in one undo step", async ({
+  page,
+}) => {
   const before = (await doors(page)).length;
   await addOpen(page);
   const d = await doors(page);
@@ -42,7 +45,9 @@ test("Add, Openings, Open doorway places a 90 cm door of kind open, selected, wi
   expect(await doors(page)).toHaveLength(before);
 });
 
-test("it draws nothing unless selected: a line while selected, none once deselected, the hit area stays", async ({ page }) => {
+test("it draws nothing unless selected: a line while selected, none once deselected, the hit area stays", async ({
+  page,
+}) => {
   await addOpen(page);
   const i = (await doors(page)).length - 1;
   await expect(drawn(page, i)).toHaveClass(/sel/);

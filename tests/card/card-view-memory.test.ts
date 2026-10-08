@@ -19,10 +19,18 @@ const deg = () => lastOpts().rotate?.deg ?? 0;
 
 /** jsdom has no matchMedia: `reduce` says whether the user asked for reduced motion. */
 function mockMotion(reduce: boolean) {
-  window.matchMedia = ((q: string) => ({ matches: reduce && q.includes("prefers-reduced-motion"), media: q, addEventListener() {}, removeEventListener() {} })) as never;
+  window.matchMedia = ((q: string) => ({
+    matches: reduce && q.includes("prefers-reduced-motion"),
+    media: q,
+    addEventListener() {},
+    removeEventListener() {},
+  })) as never;
 }
 
-async function mount(config: Partial<FloorplanStudioCardConfig> = {}, layout: Layout = structuredClone(L)): Promise<FloorplanStudioCard> {
+async function mount(
+  config: Partial<FloorplanStudioCardConfig> = {},
+  layout: Layout = structuredClone(L),
+): Promise<FloorplanStudioCard> {
   const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
   document.body.appendChild(el);
   el.setConfig({ layout, floor: "ground", ...config } as FloorplanStudioCardConfig);
@@ -35,7 +43,8 @@ const click = async (el: FloorplanStudioCard, label: string) => {
   btn(el, label)!.click();
   await el.updateComplete;
 };
-const vb = (el: FloorplanStudioCard) => q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number) as [number, number, number, number];
+const vb = (el: FloorplanStudioCard) =>
+  q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number) as [number, number, number, number];
 const themeSelect = (el: FloorplanStudioCard) => q<HTMLSelectElement>(el, 'select[aria-label="Theme"]');
 const viewSelect = (el: FloorplanStudioCard) => q<HTMLSelectElement>(el, 'select[aria-label="View"]');
 const choose = async (el: FloorplanStudioCard, s: HTMLSelectElement, value: string) => {
@@ -44,7 +53,10 @@ const choose = async (el: FloorplanStudioCard, s: HTMLSelectElement, value: stri
   await el.updateComplete;
 };
 const stored = () => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:"));
-const fakeClock = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
+const fakeClock = () =>
+  vi.useFakeTimers({
+    toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"],
+  });
 const advance = async (el: FloorplanStudioCard, ms: number) => {
   await vi.advanceTimersByTimeAsync(ms);
   await el.updateComplete;
@@ -67,7 +79,8 @@ describe("rotate buttons and the config rotation", () => {
     // Layout changed (card-stack): the buttons are the studio's vertical stack, the look controls stay in the toolbar.
     const group = btn(el, "Zoom in")!.closest(".fp-stack");
     expect(group).not.toBeNull();
-    for (const l of ["Zoom out", "Fit", "Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l)!.closest(".fp-stack"), l).toBe(group);
+    for (const l of ["Zoom out", "Fit", "Rotate left", "Rotate right", "Reset view"])
+      expect(btn(el, l)!.closest(".fp-stack"), l).toBe(group);
     expect(themeSelect(el)!.closest(".fp-zoom")).not.toBeNull();
     expect(themeSelect(el)!.closest(".fp-stack")).toBeNull();
   });
@@ -75,7 +88,8 @@ describe("rotate buttons and the config rotation", () => {
   it("kiosk and rotate_switch: false hide them with the View select; view_switch: false hides the select but not the pair (Diego, 0.12.22)", async () => {
     for (const cfg of [{ kiosk: true }, { rotate_switch: false, view_switch: false }]) {
       const el = await mount(cfg);
-      for (const l of ["Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l), `${l} ${JSON.stringify(cfg)}`).toBeNull();
+      for (const l of ["Rotate left", "Rotate right", "Reset view"])
+        expect(btn(el, l), `${l} ${JSON.stringify(cfg)}`).toBeNull();
       expect(themeSelect(el)).toBeNull();
       el.remove();
     }
@@ -85,7 +99,18 @@ describe("rotate buttons and the config rotation", () => {
   });
 
   it("config rotation is the starting angle: junk is 0, anything else a multiple of 45 in 0..315", async () => {
-    for (const [v, want] of [[undefined, 0], ["x", 0], [NaN, 0], [null, 0], [{}, 0], [90, 90], [100, 90], [-45, 315], [405, 45], [23, 45]] as const) {
+    for (const [v, want] of [
+      [undefined, 0],
+      ["x", 0],
+      [NaN, 0],
+      [null, 0],
+      [{}, 0],
+      [90, 90],
+      [100, 90],
+      [-45, 315],
+      [405, 45],
+      [23, 45],
+    ] as const) {
       const el = await mount({ rotation: v as never });
       expect(deg(), String(v)).toBe(want);
       el.remove();
@@ -336,7 +361,14 @@ describe("the card remembers its view", () => {
     await choose(seed, themeSelect(seed)!, "light");
     const [key] = stored()[0]!;
     seed.remove();
-    for (const raw of ["{", "null", "[]", '{"rotation":"x","theme":"neon","view":"9d","tilt":"a","zoom":2,"focus":"no"}', '{"theme":"midnight","rotation":999999}', "\u0000"]) {
+    for (const raw of [
+      "{",
+      "null",
+      "[]",
+      '{"rotation":"x","theme":"neon","view":"9d","tilt":"a","zoom":2,"focus":"no"}',
+      '{"theme":"midnight","rotation":999999}',
+      "\u0000",
+    ]) {
       localStorage.setItem(key, raw);
       const el = await mount();
       expect((THEMES as readonly string[]).includes(lastOpts().theme!)).toBe(true);
@@ -388,9 +420,15 @@ describe("the card remembers its view", () => {
   });
 
   it("storage that throws (private mode, blocked) leaves a working card", async () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
-    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
     const el = await mount();
     await click(el, "Rotate right");
     await choose(el, themeSelect(el)!, "light");
@@ -482,7 +520,9 @@ describe("Reset view", () => {
       await advance(el, 32);
       seen.push(deg());
     }
-    expect(Math.min(...seen.map((d) => ((d % 360) + 360) % 360).filter((d) => d > 200))).toBeGreaterThanOrEqual(315 - 1e-9);
+    expect(Math.min(...seen.map((d) => ((d % 360) + 360) % 360).filter((d) => d > 200))).toBeGreaterThanOrEqual(
+      315 - 1e-9,
+    );
     expect(((seen.at(-1)! % 360) + 360) % 360).toBe(0);
   });
 
@@ -507,13 +547,17 @@ describe("Reset view", () => {
 });
 
 describe("the view is remembered per floor (S14.4)", () => {
-  const chip = (el: FloorplanStudioCard, title: string) => [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")].find((b) => b.textContent === title)!;
+  const chip = (el: FloorplanStudioCard, title: string) =>
+    [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-floors button")].find((b) => b.textContent === title)!;
   const goTo = async (el: FloorplanStudioCard, title: string) => {
     chip(el, title).click();
     await el.updateComplete;
   };
-  const close = (a: number[], b: number[]) => { for (let i = 0; i < 4; i++) expect(a[i]!).toBeCloseTo(b[i]!, 3); };
-  const entry = () => stored().map(([, v]) => JSON.parse(v) as { floors?: [string, Record<string, unknown>][]; floor?: string });
+  const close = (a: number[], b: number[]) => {
+    for (let i = 0; i < 4; i++) expect(a[i]!).toBeCloseTo(b[i]!, 3);
+  };
+  const entry = () =>
+    stored().map(([, v]) => JSON.parse(v) as { floors?: [string, Record<string, unknown>][]; floor?: string });
   const floorEntry = (key: string) => entry()[0]?.floors?.find(([k]) => k === key)?.[1];
 
   it("a floor comes back zoomed and turned as it was left; the other floor is not touched by it", async () => {
@@ -560,9 +604,15 @@ describe("the view is remembered per floor (S14.4)", () => {
   });
 
   it("works with storage blocked: the floors still remember within the page, and nothing throws", async () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
-    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
     const el = await mount({ floor: "all" });
     await click(el, "Zoom in");
     await click(el, "Rotate right");
@@ -625,7 +675,10 @@ describe("the view is remembered per floor (S14.4)", () => {
     const [k, raw] = stored()[0]!;
     const cam = { az: 0.7, polar: 0.9, zoom: 0.6, dx: 12, dz: -8 };
     const o = JSON.parse(raw);
-    localStorage.setItem(k, JSON.stringify({ ...o, floors: o.floors.map(([f, v]: [string, object]) => [f, { ...v, cam }]) }));
+    localStorage.setItem(
+      k,
+      JSON.stringify({ ...o, floors: o.floors.map(([f, v]: [string, object]) => [f, { ...v, cam }]) }),
+    );
     const b = await mount({ floor: "all" });
     await click(b, "Rotate right"); // a 2D save
     await click(b, "Zoom in");
@@ -635,7 +688,17 @@ describe("the view is remembered per floor (S14.4)", () => {
   it("junk in a floor's stored entry is dropped for that floor only", async () => {
     await click(await mount({ floor: "all" }), "Rotate right");
     const [k] = stored()[0]!;
-    localStorage.setItem(k, JSON.stringify({ v: 1, floors: [["ground", { zoom: "x", rotation: 90 }], ["first", { rotation: 135, cam: 5 }], ["__proto__", { rotation: 45 }]] }));
+    localStorage.setItem(
+      k,
+      JSON.stringify({
+        v: 1,
+        floors: [
+          ["ground", { zoom: "x", rotation: 90 }],
+          ["first", { rotation: 135, cam: 5 }],
+          ["__proto__", { rotation: 45 }],
+        ],
+      }),
+    );
     document.body.innerHTML = "";
     const el = await mount({ floor: "all" });
     expect(deg()).toBe(90);

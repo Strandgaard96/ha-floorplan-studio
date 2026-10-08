@@ -24,7 +24,7 @@ describe("view memory has no 2.5D", () => {
       const m = parseViewMemory({ mode: junk, tilt: junk, walls: junk });
       expect(m, JSON.stringify(junk)).toEqual({});
     }
-    for (const raw of [{ mode: 5, tilt: "x" }, { mode: null, tilt: null }, [{ mode: "2.5d" }], "[\"2.5d\"]"]) {
+    for (const raw of [{ mode: 5, tilt: "x" }, { mode: null, tilt: null }, [{ mode: "2.5d" }], '["2.5d"]']) {
       expect(() => parseViewMemory(raw), JSON.stringify(raw)).not.toThrow();
       expect(parseViewMemory(raw)).toEqual({});
     }
@@ -38,17 +38,20 @@ describe("view memory has no 2.5D", () => {
   it("the state has no view mode, tilt or walls to remember or to import", () => {
     const st = new EditorState(fresh());
     expect(Object.keys(st.exportView()).sort()).toEqual(["floor", "labels"]);
-    for (const k of ["viewMode", "tilt", "walls", "preview", "setViewMode", "setTilt", "setWalls"]) expect(k in st, k).toBe(false);
+    for (const k of ["viewMode", "tilt", "walls", "preview", "setViewMode", "setTilt", "setWalls"])
+      expect(k in st, k).toBe(false);
   });
 
   it("importing an old 2.5d entry, or junk, gives the same view as the entry without those fields", () => {
     for (const memory of [OLD, { mode: 5, tilt: "x", walls: [], rotation: 45 }, { mode: "2.5d", floor: "ground" }]) {
       const rest = { ...(memory as Record<string, unknown>) };
       for (const k of ["mode", "tilt", "walls"]) delete rest[k];
-      const a = new EditorState(fresh()), b = new EditorState(fresh());
+      const a = new EditorState(fresh()),
+        b = new EditorState(fresh());
       expect(() => a.importView(memory as never), JSON.stringify(memory)).not.toThrow();
       b.importView(rest as never);
-      a.fit(); b.fit();
+      a.fit();
+      b.fit();
       expect(a.view).toEqual(b.view);
       const flat = viewBoxFor(a.f, 80, a.rotation); // the flat fit, whatever the entry said
       expect([a.view.w, a.view.h]).toEqual([flat.w, flat.h]);

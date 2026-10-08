@@ -1,0 +1,74 @@
+# Fast checks on staged files: lint, format and typecheck for both halves of
+# the repo, plus secrets and workflow linting (actionlint). Install once with `task hooks`;
+# run everything with `task check`. The tools themselves are pinned by
+# package-lock.json and uv.lock, so a hook and CI run the same version.
+# Tests are not here (vitest takes ~20 s, Playwright minutes): `task check`
+# and CI run them.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=2000"] # docs/img/demo.gif is ~1.6 MB
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: end-of-file-fixer
+        exclude: ^docs/schema\.md$ # generated; a test compares it byte for byte
+      - id: trailing-whitespace
+        args: ["--markdown-linebreak-ext=md"]
+      - id: mixed-line-ending
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: local
+    hooks:
+      # Python: versions come from uv.lock.
+      - id: ruff
+        name: ruff (lint, autofix)
+        entry: uv run --locked ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff (format)
+        entry: uv run --locked ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ty
+        name: ty (Python type check)
+        entry: uv run --locked ty check
+        language: system
+        types_or: [python, pyi]
+        pass_filenames: false
+
+      # TypeScript / JavaScript: versions come from package-lock.json.
+      - id: oxlint
+        name: oxlint
+        # Rules live in .oxlintrc.json; no CLI overrides, so hook == CI.
+        entry: npx --no-install oxlint --fix
+        language: system
+        types_or: [ts, javascript]
+      - id: oxfmt
+        name: oxfmt (format)
+        # Ignores live in .oxfmtrc.json.
+        entry: npx --no-install oxfmt --no-error-on-unmatched-pattern
+        language: system
+        types_or: [ts, javascript]
+      - id: tsc
+        name: tsc (TypeScript type check)
+        # Whole project: a change in one file can break the types of another.
+        entry: npm run --silent typecheck
+        language: system
+        types_or: [ts, javascript]
+        pass_filenames: false

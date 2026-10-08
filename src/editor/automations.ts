@@ -4,14 +4,23 @@
  * automation, not several. Nothing here touches `hass`: the panel confirms, then hands the result to `createAutomation`.
  */
 
-export interface AutomationConfig { alias: string; trigger: unknown[]; condition?: unknown[]; action: unknown[] }
+export interface AutomationConfig {
+  alias: string;
+  trigger: unknown[];
+  condition?: unknown[];
+  action: unknown[];
+}
 
 const turnOn = (entity_id: string | string[]) => ({ service: "homeassistant.turn_on", target: { entity_id } });
 const turnOff = (entity_id: string | string[]) => ({ service: "homeassistant.turn_off", target: { entity_id } });
-const chooseOnOff = (entity_id: string | string[]): AutomationConfig["action"] => [{ choose: [
-  { conditions: [{ condition: "trigger", id: "on" }], sequence: [turnOn(entity_id)] },
-  { conditions: [{ condition: "trigger", id: "off" }], sequence: [turnOff(entity_id)] },
-] }];
+const chooseOnOff = (entity_id: string | string[]): AutomationConfig["action"] => [
+  {
+    choose: [
+      { conditions: [{ condition: "trigger", id: "on" }], sequence: [turnOn(entity_id)] },
+      { conditions: [{ condition: "trigger", id: "off" }], sequence: [turnOff(entity_id)] },
+    ],
+  },
+];
 
 /** A switch's on/off state drives `homeassistant.turn_on`/`turn_off` on every target. */
 export function switchControls(switchEntity: string, targets: string[]): AutomationConfig {

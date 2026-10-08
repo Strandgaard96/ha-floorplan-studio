@@ -14,5 +14,7 @@ describe("banner", () => {
     expect(bannerLevel("Created area X in Home Assistant, but the room is gone.")).toBe("warning");
     expect(bannerLevel("Saved")).toBe("info");
   });
-  it("lasts 20 seconds", () => { expect(BANNER_MS).toBe(20000); });
+  it("lasts 20 seconds", () => {
+    expect(BANNER_MS).toBe(20000);
+  });
 });

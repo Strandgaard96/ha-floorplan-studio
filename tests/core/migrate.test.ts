@@ -25,7 +25,15 @@ describe("migrate", () => {
 
   it("assigns ids as <kind>-<floor>-<n>", () => {
     const m = migrate(v1);
-    expect(m.floors.ground.rooms.map((r) => r.id)).toEqual(["room-ground-1", "room-ground-2", "room-ground-3", "room-ground-4", "room-ground-5", "room-ground-6", "room-ground-7"]);
+    expect(m.floors.ground.rooms.map((r) => r.id)).toEqual([
+      "room-ground-1",
+      "room-ground-2",
+      "room-ground-3",
+      "room-ground-4",
+      "room-ground-5",
+      "room-ground-6",
+      "room-ground-7",
+    ]);
     expect(m.floors.first.doors[0].id).toBe("door-first-1");
   });
 
@@ -38,10 +46,38 @@ describe("migrate", () => {
   });
 
   it("fills missing arrays and builds a catalog from placed devices", () => {
-    const m = migrate({ unit: "cm", north: 0, floors: { g: { title: "G", outline: [[0, 0], [10, 0], [10, 10]], rooms: [{ name: "Hall Way", kind: "room", pts: [[0, 0], [10, 0], [10, 10]], w: [true, true, true] }], devices: [{ id: "l1", type: "light", entity: "light.a", name: "A", x: 6, y: 2 }] } } });
+    const m = migrate({
+      unit: "cm",
+      north: 0,
+      floors: {
+        g: {
+          title: "G",
+          outline: [
+            [0, 0],
+            [10, 0],
+            [10, 10],
+          ],
+          rooms: [
+            {
+              name: "Hall Way",
+              kind: "room",
+              pts: [
+                [0, 0],
+                [10, 0],
+                [10, 10],
+              ],
+              w: [true, true, true],
+            },
+          ],
+          devices: [{ id: "l1", type: "light", entity: "light.a", name: "A", x: 6, y: 2 }],
+        },
+      },
+    });
     expect(m.floors.g.furniture).toEqual([]);
     expect(m.floors.g.rooms[0].area).toBe("hall-way");
-    expect(m.catalog).toEqual([{ id: "l1", floor: "g", room: "Hall Way", type: "light", name: "A", entity: "light.a" }]);
+    expect(m.catalog).toEqual([
+      { id: "l1", floor: "g", room: "Hall Way", type: "light", name: "A", entity: "light.a" },
+    ]);
   });
 
   describe("owk (S1.52)", () => {
@@ -96,8 +132,12 @@ describe("migrate", () => {
     expect(migrate({ version: "1", floors: {} }).version).toBe(2);
   });
 
-  it("fills missing arrays and ids in a v2 layout, and accepts version \"2\"", () => {
-    const m = migrate({ version: "2", north: 0, floors: { g: { title: "G", outline: [], rooms: [{ name: "Hall", kind: "room", pts: [], w: [] }] } } });
+  it('fills missing arrays and ids in a v2 layout, and accepts version "2"', () => {
+    const m = migrate({
+      version: "2",
+      north: 0,
+      floors: { g: { title: "G", outline: [], rooms: [{ name: "Hall", kind: "room", pts: [], w: [] }] } },
+    });
     expect(m.floors.g.walls).toEqual([]);
     expect(m.floors.g.devices).toEqual([]);
     expect(m.floors.g.rooms[0].id).toBe("room-g-1");
@@ -130,12 +170,18 @@ describe("migrate", () => {
     const m1 = migrate(l);
     expect(m1.floors.ground.devices.find((d) => d.id === "light-living")).toMatchObject({ bound: "switch.keep_me" });
     l.version = 2;
-    expect(migrate(l).floors.ground.devices.find((d) => d.id === "light-living")).toMatchObject({ bound: "switch.keep_me" });
+    expect(migrate(l).floors.ground.devices.find((d) => d.id === "light-living")).toMatchObject({
+      bound: "switch.keep_me",
+    });
   });
 
   it("does not treat a water room's empty area or a zone's dotted flags as missing", () => {
     const l: any = structuredClone(demo);
-    const pts = [[10, 10], [60, 10], [60, 60]];
+    const pts = [
+      [10, 10],
+      [60, 10],
+      [60, 60],
+    ];
     l.floors.ground.rooms.push(
       { id: "z1", name: "Nook", area: "nook", kind: "zone", pts, w: [false, false, false] },
       { id: "w1", name: "Pond", area: "", kind: "water", pts, w: [false, false, false] },
@@ -156,12 +202,29 @@ describe("migrate", () => {
 describe("wall kind migration", () => {
   it("defaults a wall with no kind to wall, in v1 and v2, and keeps a kind that is set", () => {
     for (const version of [1, 2]) {
-      const m = migrate({ version, north: 0, floors: { g: { title: "G", outline: [], walls: [{ id: "a", a: [0, 0], b: [1, 0] }, { id: "b", a: [0, 0], b: [1, 0], kind: "fence" }] } } });
+      const m = migrate({
+        version,
+        north: 0,
+        floors: {
+          g: {
+            title: "G",
+            outline: [],
+            walls: [
+              { id: "a", a: [0, 0], b: [1, 0] },
+              { id: "b", a: [0, 0], b: [1, 0], kind: "fence" },
+            ],
+          },
+        },
+      });
       expect(m.floors.g.walls.map((w) => w.kind)).toEqual(["wall", "fence"]);
     }
   });
   it("leaves an unknown kind for validate to reject", () => {
-    const m = migrate({ version: 2, north: 0, floors: { g: { walls: [{ id: "a", a: [0, 0], b: [1, 0], kind: "garden" }] } } });
+    const m = migrate({
+      version: 2,
+      north: 0,
+      floors: { g: { walls: [{ id: "a", a: [0, 0], b: [1, 0], kind: "garden" }] } },
+    });
     expect(m.floors.g.walls[0].kind).toBe("garden" as any);
   });
 });
@@ -184,13 +247,40 @@ describe("an older or hand-written layout still loads (review S1.5 round 2, find
   // every optional field missing at once: names, labels, areas, ids, kinds
   const bare = (version: number): any => ({
     version,
-    floors: { g: {
-      outline: [[0, 0], [100, 0], [100, 100], [0, 100]],
-      rooms: [{ pts: [[0, 0], [100, 0], [100, 100], [0, 100]], kind: "room", w: [true, true, true, true] }],
-      stairs: [{ pts: [[10, 10], [40, 10], [40, 40], [10, 40]] }],
-      extras: [{ a: [0, 50], b: [50, 50] }],
-      devices: [{ type: "light", x: 50, y: 50, entity: "light.a" }],
-    } },
+    floors: {
+      g: {
+        outline: [
+          [0, 0],
+          [100, 0],
+          [100, 100],
+          [0, 100],
+        ],
+        rooms: [
+          {
+            pts: [
+              [0, 0],
+              [100, 0],
+              [100, 100],
+              [0, 100],
+            ],
+            kind: "room",
+            w: [true, true, true, true],
+          },
+        ],
+        stairs: [
+          {
+            pts: [
+              [10, 10],
+              [40, 10],
+              [40, 40],
+              [10, 40],
+            ],
+          },
+        ],
+        extras: [{ a: [0, 50], b: [50, 50] }],
+        devices: [{ type: "light", x: 50, y: 50, entity: "light.a" }],
+      },
+    },
   });
   for (const v of [1, 2])
     it(`v${v}: stairs and extras with no name migrate to a layout that validates`, () => {
@@ -201,7 +291,8 @@ describe("an older or hand-written layout still loads (review S1.5 round 2, find
     });
   it("keeps a name that is there", () => {
     const l = bare(2);
-    l.floors.g.stairs[0].name = "Main"; l.floors.g.extras[0].name = "Fence";
+    l.floors.g.stairs[0].name = "Main";
+    l.floors.g.extras[0].name = "Fence";
     const f = migrate(l).floors.g as any;
     expect([f.stairs[0].name, f.extras[0].name]).toEqual(["Main", "Fence"]);
   });
@@ -209,8 +300,26 @@ describe("an older or hand-written layout still loads (review S1.5 round 2, find
 
 describe("outdoor is renamed garden (S1.14)", () => {
   const withKinds = (version: number, kinds: string[]) => ({
-    version, north: 0,
-    floors: { g: { title: "G", outline: [], rooms: kinds.map((kind, i) => ({ id: `r${i}`, name: "R", area: "r", kind, pts: [[0, 0], [1, 0], [1, 1]], w: [true, true, true] })) } },
+    version,
+    north: 0,
+    floors: {
+      g: {
+        title: "G",
+        outline: [],
+        rooms: kinds.map((kind, i) => ({
+          id: `r${i}`,
+          name: "R",
+          area: "r",
+          kind,
+          pts: [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+          ],
+          w: [true, true, true],
+        })),
+      },
+    },
   });
   for (const v of [1, 2])
     it(`v${v}: outdoor becomes garden, other kinds stay, and a second migrate changes nothing`, () => {
@@ -228,7 +337,34 @@ describe("outdoor is renamed garden (S1.14)", () => {
 });
 
 describe("room edge kinds wk (S1.17)", () => {
-  const rooms = (version: number, r: any) => ({ version, north: 0, floors: { g: { title: "G", outline: [[0, 0], [1, 0], [1, 1]], rooms: [{ id: "r0", name: "R", area: "r", kind: "room", pts: [[0, 0], [1, 0], [1, 1]], ...r }] } } });
+  const rooms = (version: number, r: any) => ({
+    version,
+    north: 0,
+    floors: {
+      g: {
+        title: "G",
+        outline: [
+          [0, 0],
+          [1, 0],
+          [1, 1],
+        ],
+        rooms: [
+          {
+            id: "r0",
+            name: "R",
+            area: "r",
+            kind: "room",
+            pts: [
+              [0, 0],
+              [1, 0],
+              [1, 1],
+            ],
+            ...r,
+          },
+        ],
+      },
+    },
+  });
   for (const v of [1, 2])
     it(`v${v}: w [true, false, true] becomes wk [wall, boundary, wall], w is gone, and a second migrate changes nothing`, () => {
       const once = migrate(rooms(v, { w: [true, false, true] }));
@@ -268,7 +404,30 @@ describe("room free (S1.24)", () => {
 });
 
 describe("stairs get a shape, steps and rot (S1.25)", () => {
-  const bare = (t: any) => ({ version: 2, floors: { g: { outline: [[0, 0], [100, 0], [100, 100], [0, 100]], stairs: [{ pts: [[10, 10], [40, 10], [40, 40], [10, 40]], ...t }] } } });
+  const bare = (t: any) => ({
+    version: 2,
+    floors: {
+      g: {
+        outline: [
+          [0, 0],
+          [100, 0],
+          [100, 100],
+          [0, 100],
+        ],
+        stairs: [
+          {
+            pts: [
+              [10, 10],
+              [40, 10],
+              [40, 40],
+              [10, 40],
+            ],
+            ...t,
+          },
+        ],
+      },
+    },
+  });
   const stairsOf = (x: any) => (migrate(x).floors.g as any).stairs[0];
   it("fills straight, a derived step count and 0 on stairs that have none", () => {
     const t = stairsOf(bare({}));
@@ -276,7 +435,13 @@ describe("stairs get a shape, steps and rot (S1.25)", () => {
     expect("dia" in t || "inner" in t).toBe(false);
   });
   it("keeps what is there and gives a round stair without inner an inner of 0", () => {
-    expect(stairsOf(bare({ shape: "round", dia: 200, steps: 9, rot: 30 }))).toMatchObject({ shape: "round", dia: 200, inner: 0, steps: 8, rot: 30 }); // 9 is ignored
+    expect(stairsOf(bare({ shape: "round", dia: 200, steps: 9, rot: 30 }))).toMatchObject({
+      shape: "round",
+      dia: 200,
+      inner: 0,
+      steps: 8,
+      rot: 30,
+    }); // 9 is ignored
     expect(stairsOf(bare({ shape: "round", dia: 200, inner: 50 })).inner).toBe(50);
   });
   it("is idempotent and the result validates", () => {
@@ -289,7 +454,14 @@ describe("stairs get a shape, steps and rot (S1.25)", () => {
     expect(validate(migrate(bare({ steps: 3.5 }))).ok).toBe(true); // steps are derived, so a bad stored count is dropped
   });
   it("recomputes steps and ignores a stored mismatch (S1.44)", () => {
-    const big = { pts: [[0, 0], [100, 0], [100, 300], [0, 300]] };
+    const big = {
+      pts: [
+        [0, 0],
+        [100, 0],
+        [100, 300],
+        [0, 300],
+      ],
+    };
     expect(stairsOf(bare({ ...big, steps: 30 })).steps).toBe(8);
     expect(stairsOf(bare({ ...big, steps: 99 })).steps).toBe(8);
   });
@@ -370,7 +542,10 @@ describe("unlinked appliances (S4.25)", () => {
   });
   it("fills missing rot and scale on a hand-written entry, without touching values that are already there", () => {
     const l: any = structuredClone(v1);
-    l.floors.ground.unlinked = [{ id: "u1", type: "heater", x: 10, y: 10 }, { id: "u2", type: "ac", x: 20, y: 20, rot: 90, scale: 2 }];
+    l.floors.ground.unlinked = [
+      { id: "u1", type: "heater", x: 10, y: 10 },
+      { id: "u2", type: "ac", x: 20, y: 20, rot: 90, scale: 2 },
+    ];
     const m = migrate(l);
     expect(m.floors.ground.unlinked[0]).toMatchObject({ rot: 0, scale: 1 });
     expect(m.floors.ground.unlinked[1]).toMatchObject({ rot: 90, scale: 2 });

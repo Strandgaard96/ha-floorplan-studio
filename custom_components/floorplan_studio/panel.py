@@ -1,4 +1,5 @@
 """The sidebar entry (the editor as a custom panel) and the card script, both served from this folder's www/."""
+
 from __future__ import annotations
 
 import logging
@@ -69,7 +70,7 @@ async def async_register(hass: HomeAssistant, show_in_sidebar: bool = True) -> N
         www = Path(__file__).parent / "www"
         await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(www), cache_headers=False)])
         hass.data[_STATIC_DONE] = True
-    version = (await async_get_integration(hass, DOMAIN)).version
+    version = str((await async_get_integration(hass, DOMAIN)).version)
     if not await _add_resource(hass, _card_url(version)):  # YAML resources: the S8.3 re-define covers the race
         frontend.add_extra_js_url(hass, _card_url(version))
         hass.data[_CARD_URL] = _card_url(version)

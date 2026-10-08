@@ -5,7 +5,8 @@ import { test, expect, type Page } from "@playwright/test";
 // would pass while the real click did something else.
 
 const EDITOR = "floorplan-studio-editor";
-const layoutJson = (page: Page) => page.evaluate((tag) => JSON.stringify((document.querySelector(tag) as any).layout), EDITOR);
+const layoutJson = (page: Page) =>
+  page.evaluate((tag) => JSON.stringify((document.querySelector(tag) as any).layout), EDITOR);
 
 async function centreOf(page: Page, selector: string) {
   const box = (await page.locator(selector).first().boundingBox())!;
@@ -26,7 +27,9 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 });
 
-test("View > Show names and text: off removes every <text> from the plan, icons and clicks stay, it is no undo step", async ({ page }) => {
+test("View > Show names and text: off removes every <text> from the plan, icons and clicks stay, it is no undo step", async ({
+  page,
+}) => {
   const before = await layoutJson(page);
   await page.locator('details.menu > summary:text-is("View")').click();
   const t = page.locator("#labels");

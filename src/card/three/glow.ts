@@ -2,7 +2,15 @@
 // one additive mesh per lamp. Each wall face that looks into the lamp's room and lies within reach gets a patch of vertices carrying the
 // light at that point (light.ts `glowGrid`); a face of another room, the outside of an outer wall, a face turned away: none. The patch is
 // clipped to the height the wall is drawn at, so a lowered wall has only its low part. Nothing is imported from core (see palette.ts).
-import { AdditiveBlending, BufferAttribute, BufferGeometry, DoubleSide, Mesh, MeshBasicMaterial, type Scene } from "three";
+import {
+  AdditiveBlending,
+  BufferAttribute,
+  BufferGeometry,
+  DoubleSide,
+  Mesh,
+  MeshBasicMaterial,
+  type Scene,
+} from "three";
 import { facing, glowGrid, GLOW_REACH, MAX_POOLS, type Poly, type Rgb, type RoomShape } from "./light";
 
 /** cm off the face: clear of it for the depth buffer at the distances a house is seen from, as the pool is off the floor. */
@@ -12,13 +20,34 @@ const GLOW_GAIN = 0.8;
 
 type Pt = readonly [number, number];
 /** One face of a wall solid as drawn: an edge of its ring, which way the ring is wound (`outwardSign`), and the z range it is drawn over. */
-export interface GlowSide { a: Pt; b: Pt; s: 1 | -1; z0: number; z1: number }
-export interface GlowSpec { at: Pt; lampZ: number; base: Poly; rgb: Rgb; level: number; room: number; boost: number; /** S14.3: the lamp's effect size as a fraction (1 = 100 %); the wall light reaches `GLOW_REACH` times it. */ scale?: number }
+export interface GlowSide {
+  a: Pt;
+  b: Pt;
+  s: 1 | -1;
+  z0: number;
+  z1: number;
+}
+export interface GlowSpec {
+  at: Pt;
+  lampZ: number;
+  base: Poly;
+  rgb: Rgb;
+  level: number;
+  room: number;
+  boost: number;
+  /** S14.3: the lamp's effect size as a fraction (1 = 100 %); the wall light reaches `GLOW_REACH` times it. */ scale?: number;
+}
 
 export function createGlow(scene: Scene) {
   let muted = false;
   const slots = Array.from({ length: MAX_POOLS }, () => {
-    const mat = new MeshBasicMaterial({ vertexColors: true, blending: AdditiveBlending, transparent: true, depthWrite: false, side: DoubleSide });
+    const mat = new MeshBasicMaterial({
+      vertexColors: true,
+      blending: AdditiveBlending,
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
+    });
     const mesh = new Mesh(new BufferGeometry(), mat);
     mesh.visible = false;
     mesh.frustumCulled = false; // the geometry is replaced; a stale bounding sphere would cull a patch that is on screen
@@ -31,25 +60,51 @@ export function createGlow(scene: Scene) {
     set(specs: readonly GlowSpec[], sides: readonly GlowSide[], version: number, rooms: readonly RoomShape[] = []) {
       slots.forEach((slot, i) => {
         const p = specs[i];
-        if (!p) { slot.mesh.visible = false; slot.key = ""; slot.room = -1; slot.faces = []; return; }
-        const scale = p.scale ?? 1, reach = GLOW_REACH * scale, key = JSON.stringify([p.at, p.lampZ, p.room, p.rgb, p.level, p.boost, p.base, version, scale]);
+        if (!p) {
+          slot.mesh.visible = false;
+          slot.key = "";
+          slot.room = -1;
+          slot.faces = [];
+          return;
+        }
+        const scale = p.scale ?? 1,
+          reach = GLOW_REACH * scale,
+          key = JSON.stringify([p.at, p.lampZ, p.room, p.rgb, p.level, p.boost, p.base, version, scale]);
         slot.room = p.room;
-        if (key === slot.key) { slot.mesh.visible = slot.faces.length > 0 && !muted; return; }
+        if (key === slot.key) {
+          slot.mesh.visible = slot.faces.length > 0 && !muted;
+          return;
+        }
         slot.key = key;
-        const strength = 0.5 * Math.max(0, Math.min(1, p.level)) * p.boost * GLOW_GAIN, pos: number[] = [], col: number[] = [], index: number[] = [];
+        const strength = 0.5 * Math.max(0, Math.min(1, p.level)) * p.boost * GLOW_GAIN,
+          pos: number[] = [],
+          col: number[] = [],
+          index: number[] = [];
         slot.faces = [];
         slot.reach = reach;
         for (const f of sides) {
           const lit = facing(f.a as never, f.b as never, f.s, p.base, p.at as never, rooms, p.room);
           if (!lit) continue;
           for (const span of lit.spans) {
-            const g = glowGrid(f.a as never, f.b as never, lit.n, f.z0, f.z1, p.at as never, p.lampZ, reach, GLOW_LIFT, span);
+            const g = glowGrid(
+              f.a as never,
+              f.b as never,
+              lit.n,
+              f.z0,
+              f.z1,
+              p.at as never,
+              p.lampZ,
+              reach,
+              GLOW_LIFT,
+              span,
+            );
             if (!g) continue;
             const base = pos.length / 3;
             pos.push(...g.pos);
             for (const k of g.k) col.push(p.rgb[0] * strength * k, p.rgb[1] * strength * k, p.rgb[2] * strength * k);
             for (const j of g.index) index.push(base + j);
-            const len = Math.hypot(f.b[0] - f.a[0], f.b[1] - f.a[1]), at = (u: number): Pt => [f.a[0] + ((f.b[0] - f.a[0]) * u) / len, f.a[1] + ((f.b[1] - f.a[1]) * u) / len];
+            const len = Math.hypot(f.b[0] - f.a[0], f.b[1] - f.a[1]),
+              at = (u: number): Pt => [f.a[0] + ((f.b[0] - f.a[0]) * u) / len, f.a[1] + ((f.b[1] - f.a[1]) * u) / len];
             slot.faces.push({ a: at(span[0]), b: at(span[1]), z0: f.z0, z1: f.z1 });
           }
         }
@@ -63,9 +118,25 @@ export function createGlow(scene: Scene) {
       });
     },
     /** For the tests: hides the patches so a test can tell them from the pool light that also reaches the walls. */
-    mute(on: boolean) { muted = on; for (const s of slots) s.mesh.visible = s.faces.length > 0 && !on; },
+    mute(on: boolean) {
+      muted = on;
+      for (const s of slots) s.mesh.visible = s.faces.length > 0 && !on;
+    },
     /** For the tests: which room each slot lights, the stretches of faces it covers, and its vertices (x, up, plan y, flat). */
-    info: () => slots.map((s) => ({ room: s.room, visible: s.mesh.visible, reach: s.reach, faces: s.faces, pos: Array.from(s.mesh.geometry.getAttribute("position")?.array ?? []) })),
-    dispose() { for (const s of slots) { scene.remove(s.mesh); s.mesh.geometry.dispose(); s.mat.dispose(); } },
+    info: () =>
+      slots.map((s) => ({
+        room: s.room,
+        visible: s.mesh.visible,
+        reach: s.reach,
+        faces: s.faces,
+        pos: Array.from(s.mesh.geometry.getAttribute("position")?.array ?? []),
+      })),
+    dispose() {
+      for (const s of slots) {
+        scene.remove(s.mesh);
+        s.mesh.geometry.dispose();
+        s.mat.dispose();
+      }
+    },
   };
 }

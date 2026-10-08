@@ -9,13 +9,29 @@ import type { FloorplanStudioEditor } from "../../src/editor/editor-app";
 const L = demo as unknown as Layout;
 
 type State = { state: string; attributes: Record<string, unknown>; last_changed?: string };
-function stubHass(ws: (msg: { type: string; layout?: unknown }) => unknown, darkMode = false, states: Record<string, State> = {}, install: () => unknown = () => undefined) {
-  return { callWS: vi.fn(async (msg) => ws(msg)), callService: vi.fn(async () => install()), themes: { darkMode }, states };
+function stubHass(
+  ws: (msg: { type: string; layout?: unknown }) => unknown,
+  darkMode = false,
+  states: Record<string, State> = {},
+  install: () => unknown = () => undefined,
+) {
+  return {
+    callWS: vi.fn(async (msg) => ws(msg)),
+    callService: vi.fn(async () => install()),
+    themes: { darkMode },
+    states,
+  };
 }
 // What HACS publishes for this integration: entity `update.floorplan_studio_update`, release_url on the repository.
 const UPDATE = (state = "on", extra: Record<string, unknown> = {}): State => ({
   state,
-  attributes: { installed_version: "0.3.0", latest_version: "0.4.0", release_url: "https://github.com/vespassassina/ha-floorplan-studio/releases/v0.4.0", in_progress: false, ...extra },
+  attributes: {
+    installed_version: "0.3.0",
+    latest_version: "0.4.0",
+    release_url: "https://github.com/vespassassina/ha-floorplan-studio/releases/v0.4.0",
+    in_progress: false,
+    ...extra,
+  },
 });
 const banner = (el: FloorplanStudioPanel) => el.shadowRoot!.querySelector(".update") as HTMLElement | null;
 async function mount(hass: ReturnType<typeof stubHass>) {
@@ -25,8 +41,14 @@ async function mount(hass: ReturnType<typeof stubHass>) {
   await settle(el);
   return el;
 }
-const settle = async (el: FloorplanStudioPanel) => { for (let i = 0; i < 4; i++) { await el.updateComplete; await new Promise((r) => setTimeout(r, 0)); } };
-const editorOf = (el: FloorplanStudioPanel) => el.shadowRoot!.querySelector("floorplan-studio-editor") as FloorplanStudioEditor | null;
+const settle = async (el: FloorplanStudioPanel) => {
+  for (let i = 0; i < 4; i++) {
+    await el.updateComplete;
+    await new Promise((r) => setTimeout(r, 0));
+  }
+};
+const editorOf = (el: FloorplanStudioPanel) =>
+  el.shadowRoot!.querySelector("floorplan-studio-editor") as FloorplanStudioEditor | null;
 
 describe("<floorplan-studio-panel>", () => {
   it("asks Home Assistant for the saved layout once, and the editor shows it", async () => {
@@ -43,31 +65,54 @@ describe("<floorplan-studio-panel>", () => {
     // panel handing the stored layout down again would read as a fresh load: zoom reset, selection gone, edits reverted.
     const hass = stubHass(() => ({ layout: L }));
     const el = await mount(hass);
-    const st = (editorOf(el) as unknown as { st: { views: Record<string, unknown>; floor: string; edit(fn: (f: { title?: string }) => void): boolean; layout: Layout; hist: unknown[]; planLocked: boolean } }).st;
+    const st = (
+      editorOf(el) as unknown as {
+        st: {
+          views: Record<string, unknown>;
+          floor: string;
+          edit(fn: (f: { title?: string }) => void): boolean;
+          layout: Layout;
+          hist: unknown[];
+          planLocked: boolean;
+        };
+      }
+    ).st;
     st.planLocked = false; // a plan with rooms opens fixed; this test is about state surviving, so it edits the plan
     st.views[st.floor] = { x: 1, y: 2, w: 300, h: 200 };
-    st.edit((f) => { f.title = "Edited by hand"; });
+    st.edit((f) => {
+      f.title = "Edited by hand";
+    });
     const undo = st.hist.length;
-    for (let i = 0; i < 3; i++) { el.hass = { ...hass, states: { "sensor.x": { state: String(i), attributes: {} } } } as never; await settle(el); }
+    for (let i = 0; i < 3; i++) {
+      el.hass = { ...hass, states: { "sensor.x": { state: String(i), attributes: {} } } } as never;
+      await settle(el);
+    }
     expect(st.views[st.floor]).toEqual({ x: 1, y: 2, w: 300, h: 200 });
     expect(editorOf(el)!.layout.floors[st.floor].title).toBe("Edited by hand");
     expect(st.hist.length).toBe(undo);
   });
 
   it("File, Export bakes a live entity snapshot into the download when hass is connected (S6.7)", async () => {
-    const hass = stubHass((m) => {
-      if (m.type === "floorplan_studio/load") return { layout: L };
-      if (m.type === "config/area_registry/list") return [{ area_id: "living", name: "Living" }];
-      if (m.type === "config/entity_registry/list") return [{ entity_id: "light.lamp", area_id: "living" }];
-      throw new Error("no");
-    }, false, { "light.lamp": { state: "on", attributes: { friendly_name: "Lamp" } } });
+    const hass = stubHass(
+      (m) => {
+        if (m.type === "floorplan_studio/load") return { layout: L };
+        if (m.type === "config/area_registry/list") return [{ area_id: "living", name: "Living" }];
+        if (m.type === "config/entity_registry/list") return [{ entity_id: "light.lamp", area_id: "living" }];
+        throw new Error("no");
+      },
+      false,
+      { "light.lamp": { state: "on", attributes: { friendly_name: "Lamp" } } },
+    );
     const el = await mount(hass);
     await settle(el);
     const ed = editorOf(el)!;
     let blob: Blob | undefined;
     if (!URL.createObjectURL) (URL as unknown as { createObjectURL: unknown }).createObjectURL = () => "";
     if (!URL.revokeObjectURL) (URL as unknown as { revokeObjectURL: unknown }).revokeObjectURL = () => {};
-    const createSpy = vi.spyOn(URL, "createObjectURL").mockImplementation((b: Blob | MediaSource) => { blob = b as Blob; return "blob:mock"; });
+    const createSpy = vi.spyOn(URL, "createObjectURL").mockImplementation((b: Blob | MediaSource) => {
+      blob = b as Blob;
+      return "blob:mock";
+    });
     const revokeSpy = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     (ed as unknown as { exportJson(): void }).exportJson();
@@ -81,7 +126,12 @@ describe("<floorplan-studio-panel>", () => {
     const out = JSON.parse(text);
     expect(Array.isArray(out.available)).toBe(true);
     expect(out.available.find((e: { entity: string }) => e.entity === "light.lamp")).toMatchObject({
-      entity: "light.lamp", name: "Lamp", domain: "light", area: "living", areaName: "Living", placed: false,
+      entity: "light.lamp",
+      name: "Lamp",
+      domain: "light",
+      area: "living",
+      areaName: "Living",
+      placed: false,
     });
     createSpy.mockRestore();
     revokeSpy.mockRestore();
@@ -89,19 +139,24 @@ describe("<floorplan-studio-panel>", () => {
   });
 
   it("hands the editor what HA knows after the load, without re-loading the layout", async () => {
-    const hass = stubHass((m) => {
-      if (m.type === "floorplan_studio/load") return { layout: L };
-      if (m.type === "config/area_registry/list") return [{ area_id: "living", name: "Living" }];
-      if (m.type === "config/entity_registry/list") return [{ entity_id: "light.lamp", area_id: "living" }];
-      throw new Error("no");
-    }, false, { "light.lamp": { state: "on", attributes: { friendly_name: "Lamp" } } });
+    const hass = stubHass(
+      (m) => {
+        if (m.type === "floorplan_studio/load") return { layout: L };
+        if (m.type === "config/area_registry/list") return [{ area_id: "living", name: "Living" }];
+        if (m.type === "config/entity_registry/list") return [{ entity_id: "light.lamp", area_id: "living" }];
+        throw new Error("no");
+      },
+      false,
+      { "light.lamp": { state: "on", attributes: { friendly_name: "Lamp" } } },
+    );
     const el = await mount(hass);
     await settle(el);
     const ed = editorOf(el)!;
     expect(ed.ha?.entities.find((e) => e.id === "light.lamp")).toMatchObject({ name: "Lamp", area: "living" });
     const st = (ed as unknown as { st: { views: Record<string, unknown>; floor: string } }).st;
     st.views[st.floor] = { x: 1, y: 2, w: 300, h: 200 };
-    el.hass = { ...hass } as never; await settle(el);
+    el.hass = { ...hass } as never;
+    await settle(el);
     expect(st.views[st.floor]).toEqual({ x: 1, y: 2, w: 300, h: 200 }); // still the person's view
   });
 
@@ -125,7 +180,12 @@ describe("<floorplan-studio-panel>", () => {
   });
 
   it("a refused save says why, and does not claim it saved", async () => {
-    const el = await mount(stubHass((m) => { if (m.type === "floorplan_studio/save") throw { code: "unauthorized", message: "Unauthorized" }; return { layout: L }; }));
+    const el = await mount(
+      stubHass((m) => {
+        if (m.type === "floorplan_studio/save") throw { code: "unauthorized", message: "Unauthorized" };
+        return { layout: L };
+      }),
+    );
     const ed = editorOf(el)!;
     const done = vi.spyOn(ed, "saveDone");
     ed.dispatchEvent(new CustomEvent("save-request", { detail: L }));
@@ -135,7 +195,10 @@ describe("<floorplan-studio-panel>", () => {
 
   it("if the load fails, the panel says so and offers Retry instead of an editor that would overwrite the saved plan", async () => {
     let fail = true;
-    const hass = stubHass(() => { if (fail) throw { code: "not_loaded", message: "Floorplan Studio is not set up." }; return { layout: L }; });
+    const hass = stubHass(() => {
+      if (fail) throw { code: "not_loaded", message: "Floorplan Studio is not set up." };
+      return { layout: L };
+    });
     const el = await mount(hass);
     expect(editorOf(el)).toBeNull();
     expect(el.shadowRoot!.textContent).toContain("Floorplan Studio is not set up.");
@@ -152,11 +215,16 @@ describe("<floorplan-studio-panel>", () => {
 
   it("shows live device state on the plan: a device wears its .on class, and turning it off in HA fades it back", async () => {
     // demo/layout.json's ground floor devices[0] is light-living (entity light.demo_living), so data-x="0".
-    const hass = stubHass(() => ({ layout: L }), false, { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } });
+    const hass = stubHass(() => ({ layout: L }), false, {
+      "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() },
+    });
     const el = await mount(hass);
     const dev = () => editorOf(el)!.shadowRoot!.querySelector('g[data-x="0"]')!;
     expect(dev().getAttribute("class")).toMatch(/\bon\b/);
-    el.hass = { ...hass, states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } } as never;
+    el.hass = {
+      ...hass,
+      states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } },
+    } as never;
     await settle(el);
     expect(dev().getAttribute("class")).not.toMatch(/\bon\b/);
   });
@@ -171,7 +239,8 @@ describe("<floorplan-studio-panel>", () => {
   });
 
   describe("update banner", () => {
-    const withUpdate = (states: Record<string, State>, install?: () => unknown) => stubHass(() => ({ layout: L }), false, states, install);
+    const withUpdate = (states: Record<string, State>, install?: () => unknown) =>
+      stubHass(() => ({ layout: L }), false, states, install);
 
     it("shows nothing when HACS reports no update, or no entity exists (installed by hand)", async () => {
       expect(banner(await mount(withUpdate({})))).toBeNull();
@@ -187,12 +256,32 @@ describe("<floorplan-studio-panel>", () => {
     });
 
     it("finds the entity by its release URL when it was renamed, and ignores other integrations' updates", async () => {
-      const el = await mount(withUpdate({
-        "update.home_assistant_core_update": { state: "on", attributes: { installed_version: "1", latest_version: "2", release_url: "https://github.com/home-assistant/core/releases/2" } },
-        "update.my_renamed_thing": UPDATE(),
-      }));
+      const el = await mount(
+        withUpdate({
+          "update.home_assistant_core_update": {
+            state: "on",
+            attributes: {
+              installed_version: "1",
+              latest_version: "2",
+              release_url: "https://github.com/home-assistant/core/releases/2",
+            },
+          },
+          "update.my_renamed_thing": UPDATE(),
+        }),
+      );
       expect(banner(el)!.textContent).toContain("0.4.0");
-      const other = await mount(withUpdate({ "update.home_assistant_core_update": { state: "on", attributes: { installed_version: "1", latest_version: "2", release_url: "https://github.com/home-assistant/core/releases/2" } } }));
+      const other = await mount(
+        withUpdate({
+          "update.home_assistant_core_update": {
+            state: "on",
+            attributes: {
+              installed_version: "1",
+              latest_version: "2",
+              release_url: "https://github.com/home-assistant/core/releases/2",
+            },
+          },
+        }),
+      );
       expect(banner(other)).toBeNull();
     });
 
@@ -201,13 +290,19 @@ describe("<floorplan-studio-panel>", () => {
       const el = await mount(hass);
       (banner(el)!.querySelector("button") as HTMLButtonElement).click();
       await settle(el);
-      expect(hass.callService).toHaveBeenCalledWith("update", "install", { entity_id: "update.floorplan_studio_update" });
+      expect(hass.callService).toHaveBeenCalledWith("update", "install", {
+        entity_id: "update.floorplan_studio_update",
+      });
       expect(banner(el)!.textContent).toMatch(/restart/i);
       expect(banner(el)!.querySelector("button")).toBeNull(); // no second install
     });
 
     it("a failed install says why and keeps the button", async () => {
-      const el = await mount(withUpdate({ "update.floorplan_studio_update": UPDATE() }, () => { throw { message: "Download failed" }; }));
+      const el = await mount(
+        withUpdate({ "update.floorplan_studio_update": UPDATE() }, () => {
+          throw { message: "Download failed" };
+        }),
+      );
       (banner(el)!.querySelector("button") as HTMLButtonElement).click();
       await settle(el);
       expect(banner(el)!.textContent).toContain("Download failed");
@@ -228,7 +323,8 @@ describe("<floorplan-studio-panel>", () => {
   // P1 (0.16.3): an open page keeps the old panel after an update. The panel asks the integration which version is installed
   // (`floorplan_studio/version`, shape copied from websocket.py: `{ "version": "<x.y.z>" }`) and compares it with its own build.
   describe("a stale page", () => {
-    const asked = (installed: () => string) => stubHass((m) => (m.type === "floorplan_studio/version" ? { version: installed() } : { layout: L }));
+    const asked = (installed: () => string) =>
+      stubHass((m) => (m.type === "floorplan_studio/version" ? { version: installed() } : { layout: L }));
     const staleBox = (el: FloorplanStudioPanel) => el.shadowRoot!.querySelector(".stale") as HTMLElement | null;
     const mountBuilt = async (hass: ReturnType<typeof stubHass>, built: string) => {
       const el = new FloorplanStudioPanel();
@@ -240,12 +336,18 @@ describe("<floorplan-studio-panel>", () => {
     };
 
     it("shows nothing when the installed version is the one this page was built from", async () => {
-      const el = await mountBuilt(asked(() => "0.16.3"), "0.16.3");
+      const el = await mountBuilt(
+        asked(() => "0.16.3"),
+        "0.16.3",
+      );
       expect(staleBox(el)).toBeNull();
     });
 
     it("shows a Reload banner when another version is installed, and the button reloads the page", async () => {
-      const el = await mountBuilt(asked(() => "0.16.4"), "0.16.3");
+      const el = await mountBuilt(
+        asked(() => "0.16.4"),
+        "0.16.3",
+      );
       expect(staleBox(el)).not.toBeNull();
       expect(staleBox(el)!.textContent).toContain("0.16.4");
       expect(staleBox(el)!.textContent).toContain("0.16.3");
@@ -267,7 +369,10 @@ describe("<floorplan-studio-panel>", () => {
 
     it("asks again when the page becomes visible, so a tab left open through an update is caught", async () => {
       let installed = "0.16.3";
-      const el = await mountBuilt(asked(() => installed), "0.16.3");
+      const el = await mountBuilt(
+        asked(() => installed),
+        "0.16.3",
+      );
       expect(staleBox(el)).toBeNull();
       installed = "0.16.4";
       document.dispatchEvent(new Event("visibilitychange"));
@@ -276,9 +381,15 @@ describe("<floorplan-studio-panel>", () => {
     });
 
     it("a reply without a usable version, or a dev build, never claims the page is stale", async () => {
-      const none = await mountBuilt(stubHass(() => ({ layout: L })), "0.16.3");
+      const none = await mountBuilt(
+        stubHass(() => ({ layout: L })),
+        "0.16.3",
+      );
       expect(staleBox(none)).toBeNull();
-      const dev = await mountBuilt(asked(() => "0.16.4"), "dev");
+      const dev = await mountBuilt(
+        asked(() => "0.16.4"),
+        "dev",
+      );
       expect(staleBox(dev)).toBeNull();
     });
   });

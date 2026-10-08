@@ -1,7 +1,12 @@
 /** S7.4: the card's zoom and pan, as pure maths on a viewBox. No DOM here: the card turns pointer pixels into
  * plan units and writes the result into the `<svg viewBox>`. */
 
-export interface View { x: number; y: number; w: number; h: number }
+export interface View {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 export type Pt = [number, number];
 
 /** The deepest the card zooms in, relative to fit. */
@@ -43,7 +48,8 @@ export function clamp(view: View, fit: View): View {
   if (v.w > max) v = zoomAt(v, v.w / max, v.x + v.w / 2, v.y + v.h / 2);
   const min = fit.w / MAX_ZOOM;
   if (v.w < min) v = zoomAt(v, v.w / min, v.x + v.w / 2, v.y + v.h / 2);
-  const x = bound(v.x, v.w, fit.x, fit.w), y = bound(v.y, v.h, fit.y, fit.h);
+  const x = bound(v.x, v.w, fit.x, fit.w),
+    y = bound(v.y, v.h, fit.y, fit.h);
   return x === v.x && y === v.y ? v : { x, y, w: v.w, h: v.h };
 }
 
@@ -55,7 +61,8 @@ export function clamp(view: View, fit: View): View {
  * narrower than `fit` — so a centre with no zoom changes nothing, per the S9.6 spec. The result is always clamped
  * to `fit` (never off the plan) and keeps `fit`'s own aspect ratio, since only `w`/`h` are derived from it. */
 export function pinnedView(fit: View, center: Pt | null, zoomLevel: number): View {
-  const w = fit.w / zoomLevel, h = fit.h / zoomLevel;
+  const w = fit.w / zoomLevel,
+    h = fit.h / zoomLevel;
   const [cx, cy] = center ?? [fit.x + fit.w / 2, fit.y + fit.h / 2];
   return clamp({ x: cx - w / 2, y: cy - h / 2, w, h }, fit);
 }
@@ -63,7 +70,8 @@ export function pinnedView(fit: View, center: Pt | null, zoomLevel: number): Vie
 /** Whether two views are the same box, within a rounding-error tolerance relative to `fit`'s own size — the same
  * slack `clamp` itself uses so that zooming in and back out lands on a box that still reads as equal. */
 export function sameView(a: View, b: View, fit: View): boolean {
-  const ex = Math.max(1e-6, fit.w * 1e-6), ey = Math.max(1e-6, fit.h * 1e-6);
+  const ex = Math.max(1e-6, fit.w * 1e-6),
+    ey = Math.max(1e-6, fit.h * 1e-6);
   return Math.abs(a.x - b.x) < ex && Math.abs(a.y - b.y) < ey && Math.abs(a.w - b.w) < ex && Math.abs(a.h - b.h) < ey;
 }
 

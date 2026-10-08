@@ -159,8 +159,11 @@ this file, so the next agent does not repeat it.
 
 | Command | Does |
 |---|---|
-| `npm ci` | install |
-| `npm run lint` | eslint + tsc --noEmit |
+| `task setup` | install: `npm ci`, `uv sync`, Chromium, git hooks |
+| `task check` | every check below except Playwright, then all pre-commit hooks on all files |
+| `npm run typecheck` | tsc --noEmit |
+| `npm run lint` | oxlint (rules in `.oxlintrc.json`) |
+| `npm run format` / `format:check` | oxfmt (settings in `.oxfmtrc.json`) |
 | `npm test` / `npx vitest run` | vitest, unit (sets `NODE_OPTIONS=--no-experimental-webstorage`: Node 26 shadows jsdom's `localStorage`) |
 | `npx playwright test` | the editor and card end to end; `PW_PORT=<port>` beside another checkout (default 5273); `globalSetup` rebuilds `dist/` and `www/` |
 | `npm run shots` | builds, then renders the demo (card, all floors, three states, every theme, and the editor) to `shots/current/`; open `index.html` and look. `-- --accept` after you have looked, `-- --strict` to fail on any change |
@@ -169,4 +172,5 @@ this file, so the next agent does not repeat it.
 | `npm run demo-gif` | builds, then records the README GIF to `docs/img/demo.gif` (ffmpeg, under 3 MB) |
 | `npm run docs:schema` | regenerates `docs/schema.md` from the schema |
 | `npm run docs:check` | checks every link in `docs/*.md`, `README.md`, `CONTRIBUTING.md` |
-| `pytest` | integration tests. One-time: `uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -r requirements_test.txt`, then `.venv/bin/pytest` |
+| `uv run pytest` | integration tests (needs `npm run build` first for the www/ test) |
+| `uv run ruff check` / `ruff format` / `ty check` | Python lint, format, type check |

@@ -3,13 +3,27 @@ import { entitiesOfDevice, entitiesOfDoor, pieceDevice, playerOf } from "../core
 import type { Hass } from "./floorplan-studio-card";
 
 /** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. S9.4: a speaker is a media_player device like `media`, and gets the same decision for the same reason — `media_player.toggle` is play/pause or power, never a clean on/off, so guessing which one the user meant is worse than always opening more-info. */
-export const NO_TOGGLE: ReadonlySet<string> = new Set(["camera", "media", "speaker", "battery", "inverter", "server", "access_point", "person", "radar", "vacuum", "alarm", "temp"]);
+export const NO_TOGGLE: ReadonlySet<string> = new Set([
+  "camera",
+  "media",
+  "speaker",
+  "battery",
+  "inverter",
+  "server",
+  "access_point",
+  "person",
+  "radar",
+  "vacuum",
+  "alarm",
+  "temp",
+]);
 // S19.E4: `temp` is watched, never switched: the popup button follows the entity's domain, so a temp device on a climate or switch entity offered "Turn off".
 
 /** What a press on the plan can land on that is its own thing and never a room pick: a device icon, a door, an unlinked appliance, a linked furniture piece. */
 export const THINGS = "g[data-x], line[data-d], g[data-u], g[data-f][data-linked]";
 /** The letter of `THINGS`' attribute an element carries: `x` device, `d` door, `f` linked piece, else `u`. */
-export const thingKind = (el: Element): "x" | "d" | "u" | "f" => (el.hasAttribute("data-x") ? "x" : el.hasAttribute("data-d") ? "d" : el.hasAttribute("data-f") ? "f" : "u");
+export const thingKind = (el: Element): "x" | "d" | "u" | "f" =>
+  el.hasAttribute("data-x") ? "x" : el.hasAttribute("data-d") ? "d" : el.hasAttribute("data-f") ? "f" : "u";
 
 /** A pointer held this long or longer is a hold, opening more-info instead of toggling. */
 export const HOLD_MS = 500;
@@ -27,7 +41,10 @@ export interface DeviceActionsHost extends EventTarget {
 }
 
 /** What a tap on a plan icon, a door or an appliance lands on, for the popup (S14.2): the thing itself and its index on the shown floor. */
-export type TapTarget = { device: Device; index: number } | { door: Door; index: number } | { unlinked: Unlinked; index: number };
+export type TapTarget =
+  | { device: Device; index: number }
+  | { door: Door; index: number }
+  | { unlinked: Unlinked; index: number };
 
 /**
  * Wires tap and hold onto a rendered floor's `<svg>` (and the 3D view's host, and the Active panel's rows).
@@ -72,7 +89,8 @@ export function bindDeviceActions(
   let timer: ReturnType<typeof setTimeout> | null = null;
   let held = false;
   let tap: (() => void) | null = null;
-  let startX = 0, startY = 0;
+  let startX = 0,
+    startY = 0;
   /** Pointers currently down on the svg; more than one is a pinch, which is never a tap. */
   const down = new Set<number | undefined>();
   let multi = false;
@@ -122,7 +140,11 @@ export function bindDeviceActions(
     }
     startX = pe.clientX ?? 0;
     startY = pe.clientY ?? 0;
-    const target = opts?.resolve ? opts.resolve(pe) : (e.target as Element | null)?.closest('g[data-x], button[data-x], line[data-d], g[data-u], g[data-f][data-linked]');
+    const target = opts?.resolve
+      ? opts.resolve(pe)
+      : (e.target as Element | null)?.closest(
+          "g[data-x], button[data-x], line[data-d], g[data-u], g[data-f][data-linked]",
+        );
     if (!target) return;
     const at = { x: startX, y: startY };
     const popup = (t: TapTarget) => () => opts?.openPopup?.(t, at, target.tagName === "BUTTON" ? target : null);
@@ -152,7 +174,10 @@ export function bindDeviceActions(
       if (!u) return;
       const player = playerOf(u);
       // A speaker or TV with a media player stands in for it: a tap or a hold is the player's own more-info, no popup.
-      if (player) { arm(moreInfoOf(u.name ?? u.id, [player]), moreInfoOf(u.name ?? u.id, [player])); return; }
+      if (player) {
+        arm(moreInfoOf(u.name ?? u.id, [player]), moreInfoOf(u.name ?? u.id, [player]));
+        return;
+      }
       const ents = entitiesOfDevice(u);
       if (ents.length === 0) return; // nothing attached: nothing to say
       arm(popup({ unlinked: u, index: i }), moreInfoOf(u.name ?? u.id, ents));
@@ -169,7 +194,13 @@ export function bindDeviceActions(
     }
     const own = d.entity;
     // A media player has its own, better panel: a tap is its more-info, as for a speaker or TV placed as an appliance (Diego, 2026-10-07).
-    if (own?.startsWith("media_player.")) { arm(() => fireEvent(host, "hass-more-info", { entityId: own }), () => fireEvent(host, "hass-more-info", { entityId: own })); return; }
+    if (own?.startsWith("media_player.")) {
+      arm(
+        () => fireEvent(host, "hass-more-info", { entityId: own }),
+        () => fireEvent(host, "hass-more-info", { entityId: own }),
+      );
+      return;
+    }
     arm(popup({ device: d, index: i }), own ? () => fireEvent(host, "hass-more-info", { entityId: own }) : undefined);
   };
 
@@ -186,7 +217,8 @@ export function bindDeviceActions(
       reset();
       return;
     }
-    const wasHeld = held, act = tap;
+    const wasHeld = held,
+      act = tap;
     reset();
     if (!wasHeld && act) act();
   };

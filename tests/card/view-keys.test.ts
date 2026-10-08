@@ -6,9 +6,17 @@ type Answer = ReturnType<typeof viewKeyFor>;
 /** Dispatches a real KeyboardEvent from `target` and returns what `viewKeyFor` says about it. The answer is taken
  * while the event is in flight: `composedPath()` is empty once dispatch is over. `before` runs first, on the
  * document in the capture phase, like an earlier handler that took the key. */
-function press(target: Element, init: KeyboardEventInit, before?: (e: Event) => void): { answer: Answer; seenTarget: EventTarget | null } {
-  let answer: Answer = null, seenTarget: EventTarget | null = null;
-  const catcher = (e: Event) => { answer = viewKeyFor(e as KeyboardEvent); seenTarget = e.target; };
+function press(
+  target: Element,
+  init: KeyboardEventInit,
+  before?: (e: Event) => void,
+): { answer: Answer; seenTarget: EventTarget | null } {
+  let answer: Answer = null,
+    seenTarget: EventTarget | null = null;
+  const catcher = (e: Event) => {
+    answer = viewKeyFor(e as KeyboardEvent);
+    seenTarget = e.target;
+  };
   if (before) document.addEventListener("keydown", before, true);
   document.addEventListener("keydown", catcher);
   target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, composed: true, cancelable: true, ...init }));
@@ -27,7 +35,13 @@ const el = (html: string) => {
 describe("viewKeyOf", () => {
   it("maps the arrows to pan, plus and minus to zoom, the brackets to rotate, and Space to reset", () => {
     const k = (key: string) => viewKeyOf({ key, ctrlKey: false, metaKey: false });
-    expect([k("ArrowUp"), k("ArrowDown"), k("ArrowLeft"), k("ArrowRight"), k(" ")]).toEqual(["panUp", "panDown", "panLeft", "panRight", "reset"]);
+    expect([k("ArrowUp"), k("ArrowDown"), k("ArrowLeft"), k("ArrowRight"), k(" ")]).toEqual([
+      "panUp",
+      "panDown",
+      "panLeft",
+      "panRight",
+      "reset",
+    ]);
     expect([k("+"), k("="), k("-"), k("_")]).toEqual(["zoomIn", "zoomIn", "zoomOut", "zoomOut"]);
     expect([k("["), k("]")]).toEqual(["rotateLeft", "rotateRight"]);
     expect(k("a")).toBeNull();
@@ -41,7 +55,8 @@ describe("viewKeyOf", () => {
 });
 
 describe("isSaveChord", () => {
-  const s = (init: Partial<KeyboardEvent>) => isSaveChord({ key: "s", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...init });
+  const s = (init: Partial<KeyboardEvent>) =>
+    isSaveChord({ key: "s", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...init });
   it("is Cmd-S or Ctrl-S, either case, and nothing else", () => {
     expect(s({ metaKey: true })).toBe(true);
     expect(s({ ctrlKey: true })).toBe(true);
@@ -55,7 +70,15 @@ describe("isSaveChord", () => {
 
 describe("who keeps the keys", () => {
   it("text boxes, selects, textareas, range sliders and contenteditable keep every key", () => {
-    for (const h of ['<input type="text">', '<input type="number">', '<input type="range">', "<input>", "<select></select>", "<textarea></textarea>", '<div contenteditable="true"></div>']) {
+    for (const h of [
+      '<input type="text">',
+      '<input type="number">',
+      '<input type="range">',
+      "<input>",
+      "<select></select>",
+      "<textarea></textarea>",
+      '<div contenteditable="true"></div>',
+    ]) {
       const e = el(h);
       expect(takesTyping(e), h).toBe(true);
       expect(press(e, { key: "ArrowUp" }).answer, h).toBeNull();
@@ -69,7 +92,13 @@ describe("who keeps the keys", () => {
     }
   });
   it("Space stays with whatever it activates, so a focused button still clicks", () => {
-    for (const h of ["<button></button>", "<summary></summary>", '<a href="#x">x</a>', '<div role="button"></div>', '<input type="checkbox">']) {
+    for (const h of [
+      "<button></button>",
+      "<summary></summary>",
+      '<a href="#x">x</a>',
+      '<div role="button"></div>',
+      '<input type="checkbox">',
+    ]) {
       const e = el(h);
       expect(takesSpace(e), h).toBe(true);
       expect(press(e, { key: " " }).answer, h).toBeNull();

@@ -5,7 +5,17 @@ import type { DeviceType } from "./schema";
  * item 12). The order of `CATEGORIES` is the order on screen. Every `DeviceType` is placed in exactly one category by
  * `CATEGORY_OF`, a `Record`, so a new type fails to compile until someone decides where it goes (CLAUDE.md finding 17).
  */
-export type CategoryId = "lights" | "climate" | "security" | "media" | "power" | "covers" | "computing" | "sensors" | "people" | "other";
+export type CategoryId =
+  | "lights"
+  | "climate"
+  | "security"
+  | "media"
+  | "power"
+  | "covers"
+  | "computing"
+  | "sensors"
+  | "people"
+  | "other";
 
 export const CATEGORIES: readonly { id: CategoryId; label: string }[] = [
   { id: "lights", label: "Lights" },
@@ -22,18 +32,44 @@ export const CATEGORIES: readonly { id: CategoryId; label: string }[] = [
 
 export const CATEGORY_OF: Record<DeviceType, CategoryId> = {
   light: "lights",
-  heater: "climate", climate: "climate", ac: "climate", boiler: "climate",
-  camera: "security", siren: "security", alarm: "security", lock: "security", motion: "security", contact: "security", vibration: "security", radar: "security",
-  tv: "media", media: "media", speaker: "media",
-  switch: "power", plug: "power", battery: "power", inverter: "power", ups: "power",
+  heater: "climate",
+  climate: "climate",
+  ac: "climate",
+  boiler: "climate",
+  camera: "security",
+  siren: "security",
+  alarm: "security",
+  lock: "security",
+  motion: "security",
+  contact: "security",
+  vibration: "security",
+  radar: "security",
+  tv: "media",
+  media: "media",
+  speaker: "media",
+  switch: "power",
+  plug: "power",
+  battery: "power",
+  inverter: "power",
+  ups: "power",
   cover: "covers",
-  computer: "computing", server: "computing", access_point: "computing", printer: "computing",
-  temp: "sensors", humidity: "sensors",
+  computer: "computing",
+  server: "computing",
+  access_point: "computing",
+  printer: "computing",
+  temp: "sensors",
+  humidity: "sensors",
   person: "people",
-  vacuum: "other", car: "other", other: "other",
+  vacuum: "other",
+  car: "other",
+  other: "other",
 };
 
-export interface CategoryGroup<T> { id: CategoryId; label: string; items: T[] }
+export interface CategoryGroup<T> {
+  id: CategoryId;
+  label: string;
+  items: T[];
+}
 
 /** `items` in category order, each group keeping the input order, empty categories dropped. A type nobody placed (an
  *  untrusted layout) lands in "other" rather than throwing. */

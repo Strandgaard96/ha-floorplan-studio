@@ -9,15 +9,40 @@ import { doorStateOf } from "../../src/core/door-state";
 import { OPENING_FILL } from "../../src/core/solids";
 
 // The open doorway: a door that is only a hole in the wall (Diego, 2026-10-05: "to doors add as door type: open and do not draw the door").
-const R = OBLIQUE.rise, K = OBLIQUE.skew;
+const R = OBLIQUE.rise,
+  K = OBLIQUE.skew;
 const n = (v: number) => String(Math.round(v * 100) / 100);
 const P = (x: number, y: number, h: number) => `${n(x + h * K * R)},${n(y - h * R)}`;
-const box = (x0: number, x1: number, z0: number, z1: number) => `${P(x0, 0, z0)} ${P(x1, 0, z0)} ${P(x1, 0, z1)} ${P(x0, 0, z1)}`;
+const box = (x0: number, x1: number, z0: number, z1: number) =>
+  `${P(x0, 0, z0)} ${P(x1, 0, z0)} ${P(x1, 0, z1)} ${P(x0, 0, z1)}`;
 const floor = (o: Partial<Floor> = {}): Floor => ({
-  title: "T", outline: [[0, 0], [400, 0], [400, 300], [0, 300]], owk: ["external", "none", "none", "none"], rooms: [],
-  walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o,
+  title: "T",
+  outline: [
+    [0, 0],
+    [400, 0],
+    [400, 300],
+    [0, 300],
+  ],
+  owk: ["external", "none", "none", "none"],
+  rooms: [],
+  walls: [],
+  stairs: [],
+  doors: [],
+  openings: [],
+  extras: [],
+  devices: [],
+  furniture: [],
+  unlinked: [],
+  ...o,
 });
-const door = (kind: string, d: Record<string, unknown> = {}) => ({ id: "d", name: "D", kind, a: [100, 0], b: [190, 0], ...d });
+const door = (kind: string, d: Record<string, unknown> = {}) => ({
+  id: "d",
+  name: "D",
+  kind,
+  a: [100, 0],
+  b: [190, 0],
+  ...d,
+});
 const deep = (f: Floor, o: object = {}) => renderFloor(f, { scale: 1, view: "2.5d", ...o });
 const flat = (f: Floor, o: object = {}) => renderFloor(f, { scale: 1, ...o });
 const faces = (html: string) => [...html.matchAll(/<polygon class="ws[^"]*" points="([^"]*)"\/>/g)].map((m) => m[1]);
@@ -43,12 +68,27 @@ describe("open: the kind", () => {
   it("validates with sensors and a name, round-trips through migrate, and an unknown kind is still an error", () => {
     const l = structuredClone(demo) as unknown as Layout;
     const key = Object.keys(l.floors)[0];
-    l.floors[key].doors.push(door("open", { id: "open1", name: "Hall arch", sensors: ["binary_sensor.x"], vibration: ["binary_sensor.v"], locks: ["lock.l"], cover: "cover.c", height: 230 }) as never);
+    l.floors[key].doors.push(
+      door("open", {
+        id: "open1",
+        name: "Hall arch",
+        sensors: ["binary_sensor.x"],
+        vibration: ["binary_sensor.v"],
+        locks: ["lock.l"],
+        cover: "cover.c",
+        height: 230,
+      }) as never,
+    );
     expect(validate(l).ok).toBe(true);
     const m = migrate(JSON.parse(JSON.stringify(l)));
     expect(m.version).toBe(2);
     expect(validate(m).ok).toBe(true);
-    expect(m.floors[key].doors.at(-1)).toMatchObject({ kind: "open", name: "Hall arch", sensors: ["binary_sensor.x"], height: 230 });
+    expect(m.floors[key].doors.at(-1)).toMatchObject({
+      kind: "open",
+      name: "Hall arch",
+      sensors: ["binary_sensor.x"],
+      height: 230,
+    });
     const bad = structuredClone(l);
     bad.floors[key].doors.at(-1)!.kind = "opened" as never;
     expect(validate(bad).ok).toBe(false);
@@ -77,7 +117,8 @@ describe("open: 2D draws no door, still cuts the wall", () => {
     expect(withKind("open")).not.toMatch(/<title>/); // nothing is drawn, so nothing carries its name
   });
   it("the wall is cut: a mask hole at the doorway for open, none for a door", () => {
-    const a = withKind("open"), b = withKind("door");
+    const a = withKind("open"),
+      b = withKind("door");
     expect(a).toMatch(/<mask id="fp-open-mask-[^"]*"[^>]*>.*<line x1="100" y1="0" x2="190" y2="0" stroke="black"/);
     expect(a).toMatch(/<g mask="url\(#fp-open-mask-/);
     expect(b).not.toContain("<mask");
@@ -93,7 +134,9 @@ describe("open: 2D draws no door, still cuts the wall", () => {
     expect(w).not.toContain("<mask");
   });
   it("closed and unselected draws nothing; an open contact, vibration or an open cover draws a solid alert band: marked `band`, with no pulse line (S14.5)", () => {
-    const f = floor({ doors: [door("open", { sensors: ["binary_sensor.c"], vibration: ["binary_sensor.v"] })] as never });
+    const f = floor({
+      doors: [door("open", { sensors: ["binary_sensor.c"], vibration: ["binary_sensor.v"] })] as never,
+    });
     expect(visible(flat(f, { state: state("binary_sensor.c", "off") }))).toEqual([]);
     expect(flat(f, { state: state("binary_sensor.c", "off") })).not.toContain("door-alert");
     const open = flat(f, { state: state("binary_sensor.c", "on") });
@@ -130,7 +173,8 @@ describe("open: 2D draws no door, still cuts the wall", () => {
 
 describe("open: 2.5D is a hole through the wall with no infill", () => {
   it("a door is a gap with a leaf; an open door is the same hole with no leaf, no glass, no frame", () => {
-    const d = deep(floor({ doors: [door("door")] as never })), o = deep(floor({ doors: [door("open")] as never }));
+    const d = deep(floor({ doors: [door("door")] as never })),
+      o = deep(floor({ doors: [door("open")] as never }));
     for (const h of [d, o]) {
       expect(faces(h)).toContain(box(100, 190, 210, 250)); // the header
       expect(faces(h).some((q) => q === box(100, 190, 0, 210))).toBe(false); // nothing between sill and head
@@ -147,9 +191,13 @@ describe("open: 2.5D is a hole through the wall with no infill", () => {
   it("a live open contact fills the gap with the solid band (the former red frame); closed it does not, and a plain door keeps its frame", () => {
     const f = floor({ doors: [door("open", { sensors: ["binary_sensor.c"] })] as never });
     expect(deep(f, { state: state("binary_sensor.c", "off") })).not.toContain('class="opn');
-    expect(deep(f, { state: state("binary_sensor.c", "on") })).toContain(`<polygon class="opn open band" points="${box(100, 190, 0, 210)}"/>`);
+    expect(deep(f, { state: state("binary_sensor.c", "on") })).toContain(
+      `<polygon class="opn open band" points="${box(100, 190, 0, 210)}"/>`,
+    );
     const g = floor({ doors: [door("door", { sensors: ["binary_sensor.c"] })] as never });
-    expect(deep(g, { state: state("binary_sensor.c", "on") })).toContain(`<polygon class="opn open" points="${box(100, 190, 0, 210)}"/>`);
+    expect(deep(g, { state: state("binary_sensor.c", "on") })).toContain(
+      `<polygon class="opn open" points="${box(100, 190, 0, 210)}"/>`,
+    );
   });
   it("the stylesheet fills a band at full opacity, and the frame stays translucent", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.opn\.band\{[^}]*fill-opacity:1/);
@@ -159,20 +207,36 @@ describe("open: 2.5D is a hole through the wall with no infill", () => {
 describe("open: 3D scene", () => {
   it("cuts the wall to a header above 210 and fills the gap with one thin alert band, not a leaf, glass or panel (a door has its leaf)", () => {
     const prism = (s: any) => s.shape;
-    for (const [kind, tag] of [["open", "band"], ["door", "door-leaf"]] as const) {
+    for (const [kind, tag] of [
+      ["open", "band"],
+      ["door", "door-leaf"],
+    ] as const) {
       const sc = buildScene(floor({ doors: [door(kind)] as never }));
-      expect(sc.solids.filter((s) => s.kind === "opening").map((s) => s.tag), kind).toEqual([tag]);
-      const inside = sc.solids.filter((s) => s.kind === "wall").filter((s) => { const xs = prism(s).base.map((p: number[]) => p[0]); return Math.min(...xs) >= 100 && Math.max(...xs) <= 190; });
-      expect(inside.map((s) => [prism(s).z0, prism(s).z1]), kind).toEqual([[210, 250]]);
+      expect(
+        sc.solids.filter((s) => s.kind === "opening").map((s) => s.tag),
+        kind,
+      ).toEqual([tag]);
+      const inside = sc.solids
+        .filter((s) => s.kind === "wall")
+        .filter((s) => {
+          const xs = prism(s).base.map((p: number[]) => p[0]);
+          return Math.min(...xs) >= 100 && Math.max(...xs) <= 190;
+        });
+      expect(
+        inside.map((s) => [prism(s).z0, prism(s).z1]),
+        kind,
+      ).toEqual([[210, 250]]);
     }
   });
   it("the band lies in the gap: the opening's own range (own sill and height), the door's index, the alert paint role, a thin slab", () => {
     const sc = buildScene(floor({ doors: [door("open", { sill: 20, height: 150 })] as never }));
-    const b = sc.solids.find((s) => s.tag === "band")!, sh = b.shape as any;
+    const b = sc.solids.find((s) => s.tag === "band")!,
+      sh = b.shape as any;
     expect([sh.z0, sh.z1]).toEqual([20, 170]);
     expect(b.ref.index).toBe(0);
     expect(b.paint.role).toBe("door-band");
-    const ys = sh.base.map((p: number[]) => p[1]), xs = sh.base.map((p: number[]) => p[0]);
+    const ys = sh.base.map((p: number[]) => p[1]),
+      xs = sh.base.map((p: number[]) => p[0]);
     expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(4);
     expect([Math.min(...xs), Math.max(...xs)]).toEqual([100, 190]);
   });

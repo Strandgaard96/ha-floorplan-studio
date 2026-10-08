@@ -13,15 +13,29 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
-const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });
+const st = (state: string, attributes: Record<string, unknown> = {}) => ({
+  state,
+  attributes,
+  last_changed: "2026-10-04T09:30:15Z",
+});
 // Home Assistant's light attributes (core light/const.py): supported_color_modes, min/max_color_temp_kelvin, brightness 0-255,
 // color_temp_kelvin, hs_color [hue, saturation]. The kitchen light is a plain on/off one.
 const STATES = () => ({
-  "light.demo_living": st("on", { friendly_name: "Living light", supported_color_modes: ["color_temp", "hs"], brightness: 128, min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500, color_temp_kelvin: 3000, hs_color: [30, 60] }),
+  "light.demo_living": st("on", {
+    friendly_name: "Living light",
+    supported_color_modes: ["color_temp", "hs"],
+    brightness: 128,
+    min_color_temp_kelvin: 2200,
+    max_color_temp_kelvin: 6500,
+    color_temp_kelvin: 3000,
+    hs_color: [30, 60],
+  }),
   "light.demo_kitchen": st("on", { supported_color_modes: ["onoff"] }),
-  "switch.demo_hall": st("off"), "switch.demo_tv_plug": st("on"),
+  "switch.demo_hall": st("off"),
+  "switch.demo_tv_plug": st("on"),
   "sensor.demo_living_temperature": st("21.5", { unit_of_measurement: "°C" }),
-  "climate.demo_living": st("heat"), "camera.demo_hall": st("idle"),
+  "climate.demo_living": st("heat"),
+  "camera.demo_hall": st("idle"),
 });
 
 async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {}) {
@@ -29,16 +43,29 @@ async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await page.evaluate(([config, states]) => {
-    const w = window as unknown as { __calls: string[]; __info: string[] };
-    w.__calls = []; w.__info = [];
-    const el = document.getElementById("card") as unknown as HTMLElement & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-    el.addEventListener("hass-more-info", (e) => w.__info.push((e as CustomEvent).detail.entityId));
-    el.setConfig(config);
-    // callService(domain, service, data), as Home Assistant's hass has it (src/card/popup actions are the caller)
-    el.hass = { states, callService: (d: string, s: string, data: Record<string, unknown>) => { w.__calls.push(`${d}.${s} ${JSON.stringify(data)}`); } };
-    return el.updateComplete;
-  }, [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const);
+  await page.evaluate(
+    ([config, states]) => {
+      const w = window as unknown as { __calls: string[]; __info: string[] };
+      w.__calls = [];
+      w.__info = [];
+      const el = document.getElementById("card") as unknown as HTMLElement & {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
+      el.addEventListener("hass-more-info", (e) => w.__info.push((e as CustomEvent).detail.entityId));
+      el.setConfig(config);
+      // callService(domain, service, data), as Home Assistant's hass has it (src/card/popup actions are the caller)
+      el.hass = {
+        states,
+        callService: (d: string, s: string, data: Record<string, unknown>) => {
+          w.__calls.push(`${d}.${s} ${JSON.stringify(data)}`);
+        },
+      };
+      return el.updateComplete;
+    },
+    [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const,
+  );
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
@@ -49,18 +76,31 @@ async function iconPoint(page: Page, i: number) {
     const g = el.shadowRoot!.querySelector<SVGGElement>(`svg g[data-x="${i}"]`)!;
     const r = g.getBoundingClientRect();
     // a camera's box includes its view cone, so its centre can miss the icon: take the first point of a 7x7 scan that hits it
-    let x = r.x + r.width / 2, y = r.y + r.height / 2, top = el.shadowRoot!.elementFromPoint(x, y);
-    for (let a = 1; a < 8 && !top?.closest(`g[data-x="${i}"]`); a++) for (let b = 1; b < 8 && !top?.closest(`g[data-x="${i}"]`); b++) {
-      x = r.x + (r.width * a) / 8; y = r.y + (r.height * b) / 8; top = el.shadowRoot!.elementFromPoint(x, y);
-    }
-    return { x, y, top: top ? `${top.tagName}.${top.getAttribute("class") ?? ""}` : "none", hit: !!top?.closest(`g[data-x="${i}"]`) };
+    let x = r.x + r.width / 2,
+      y = r.y + r.height / 2,
+      top = el.shadowRoot!.elementFromPoint(x, y);
+    for (let a = 1; a < 8 && !top?.closest(`g[data-x="${i}"]`); a++)
+      for (let b = 1; b < 8 && !top?.closest(`g[data-x="${i}"]`); b++) {
+        x = r.x + (r.width * a) / 8;
+        y = r.y + (r.height * b) / 8;
+        top = el.shadowRoot!.elementFromPoint(x, y);
+      }
+    return {
+      x,
+      y,
+      top: top ? `${top.tagName}.${top.getAttribute("class") ?? ""}` : "none",
+      hit: !!top?.closest(`g[data-x="${i}"]`),
+    };
   }, i);
   expect(p.hit, `device ${i} is the top element at its centre (top: ${p.top})`).toBe(true);
   return p;
 }
-const tapIcon = async (page: Page, i: number) => { const p = await iconPoint(page, i); await page.mouse.click(p.x, p.y); return p; };
+const tapIcon = async (page: Page, i: number) => {
+  const p = await iconPoint(page, i);
+  await page.mouse.click(p.x, p.y);
+  return p;
+};
 // ground devices: 0 living light, 1 kitchen light, 2 hall switch, 3 TV plug, 4 temperature sensor, 6 camera
-
 
 // Kiosk leaves More info out, and a temperature sensor has no button of its own, so a kiosk popup can have no button at all. Focus then
 // stays outside it, and its own keydown never hears Escape. The card's window listener hears it only while the card owns the keys

@@ -1,18 +1,59 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import type { Floor, Pt, WallKind } from "../../src/core/schema";
-import { dist, polys, nearestEdge, snapPoint, stitch, insertPoint, removePoint, movePoints, edgeRooms, setEdgeKind, deleteEdge, mergeCorners, snapped, rotatePoly, onEdge } from "../../src/core/geometry";
+import {
+  dist,
+  polys,
+  nearestEdge,
+  snapPoint,
+  stitch,
+  insertPoint,
+  removePoint,
+  movePoints,
+  edgeRooms,
+  setEdgeKind,
+  deleteEdge,
+  mergeCorners,
+  snapped,
+  rotatePoly,
+  onEdge,
+} from "../../src/core/geometry";
 
 // Two rooms side by side sharing the edge x=100, inside a 200x100 outline.
-const rect = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-const room = (id: string, pts: Pt[]) => ({ id, name: id, area: id, label: "", kind: "room" as const, pts, wk: pts.map((): WallKind => "wall") });
+const rect = (x0: number, y0: number, x1: number, y1: number): Pt[] => [
+  [x0, y0],
+  [x1, y0],
+  [x1, y1],
+  [x0, y1],
+];
+const room = (id: string, pts: Pt[]) => ({
+  id,
+  name: id,
+  area: id,
+  label: "",
+  kind: "room" as const,
+  pts,
+  wk: pts.map((): WallKind => "wall"),
+});
 const floor = (): Floor => ({
   ...(structuredClone(demo.floors.ground) as unknown as Floor),
   outline: rect(0, 0, 200, 100),
   rooms: [room("a", rect(0, 0, 100, 100)), room("b", rect(100, 0, 200, 100))],
-  stairs: [], doors: [], walls: [], openings: [], extras: [], devices: [], furniture: [],
+  stairs: [],
+  doors: [],
+  walls: [],
+  openings: [],
+  extras: [],
+  devices: [],
+  furniture: [],
 });
-const opts = (o: Partial<Parameters<typeof snapPoint>[2]> = {}) => ({ threshold: 10, grid: 5, exclude: [] as Pt[], neighbours: [] as Pt[], ...o });
+const opts = (o: Partial<Parameters<typeof snapPoint>[2]> = {}) => ({
+  threshold: 10,
+  grid: 5,
+  exclude: [] as Pt[],
+  neighbours: [] as Pt[],
+  ...o,
+});
 
 describe("dist and polys", () => {
   it("measures distance", () => expect(dist([0, 0], [3, 4])).toBe(5));
@@ -43,7 +84,18 @@ describe("snapPoint", () => {
   });
   it("ignores corners and edges of the moved group", () => {
     const f = floor();
-    expect(snapPoint(f, [103, 4], opts({ exclude: [[100, 0], [100, 100]] }))).not.toEqual([100, 0]);
+    expect(
+      snapPoint(
+        f,
+        [103, 4],
+        opts({
+          exclude: [
+            [100, 0],
+            [100, 100],
+          ],
+        }),
+      ),
+    ).not.toEqual([100, 0]);
   });
   it("aligns to a neighbour on one axis, then grid on the other", () => {
     expect(snapPoint(floor(), [63, 47], opts({ neighbours: [[60, 30]] }))).toEqual([60, 45]);
@@ -60,9 +112,21 @@ describe("stitch, insertPoint, removePoint", () => {
   it("inserts a point on an edge the point lies on, exactly once, keeping wk", () => {
     const f = floor();
     f.rooms[0].wk = ["wall", "boundary", "wall", "wall"];
-    f.rooms.push(room("c", [[50, 100], [60, 130], [40, 130]]));
+    f.rooms.push(
+      room("c", [
+        [50, 100],
+        [60, 130],
+        [40, 130],
+      ]),
+    );
     const g = stitch(f, [50, 100]);
-    expect(g.rooms[0].pts).toEqual([[0, 0], [100, 0], [100, 100], [50, 100], [0, 100]]);
+    expect(g.rooms[0].pts).toEqual([
+      [0, 0],
+      [100, 0],
+      [100, 100],
+      [50, 100],
+      [0, 100],
+    ]);
     expect(g.rooms[0].wk).toEqual(["wall", "boundary", "wall", "wall", "wall"]);
     expect(g.rooms[2].pts).toHaveLength(3);
     expect(f.rooms[0].pts).toHaveLength(4);
@@ -81,12 +145,20 @@ describe("stitch, insertPoint, removePoint", () => {
     const f = floor();
     f.rooms[0].wk = ["fence", "wall", "boundary", "edge"]; // asymmetric: a uniform wk could not catch a shuffle
     const g = removePoint(f, "r0", 1);
-    expect(g.rooms[0].pts).toEqual([[0, 0], [100, 100], [0, 100]]);
+    expect(g.rooms[0].pts).toEqual([
+      [0, 0],
+      [100, 100],
+      [0, 100],
+    ]);
     expect(g.rooms[0].wk).toEqual(["fence", "boundary", "edge"]); // the removed point's own "wall" edge is gone, the rest keep their order
   });
   it("removePoint refuses to go below 3 points", () => {
     const f = floor();
-    f.rooms[0] = room("a", [[0, 0], [10, 0], [0, 10]]);
+    f.rooms[0] = room("a", [
+      [0, 0],
+      [10, 0],
+      [0, 10],
+    ]);
     expect(removePoint(f, "r0", 0)).toBe(f);
   });
   it("S1.52: insertPoint and removePoint on the outline keep owk in step, copying the split edge's kind", () => {
@@ -152,7 +224,13 @@ describe("mergeCorners", () => {
   });
   it("drops consecutive equal corners and their edge kinds", () => {
     const f = floor();
-    f.rooms[0].pts = [[0, 0], [100, 0], [105, 0], [100, 100], [0, 100]];
+    f.rooms[0].pts = [
+      [0, 0],
+      [100, 0],
+      [105, 0],
+      [100, 100],
+      [0, 100],
+    ];
     f.rooms[0].wk = ["wall", "fence", "wall", "wall", "wall"];
     const g = mergeCorners(f, 25);
     expect(g.rooms[0].pts.length).toBe(g.rooms[0].wk.length);
@@ -161,11 +239,22 @@ describe("mergeCorners", () => {
 });
 
 describe("zones do not take part in snapping, stitching or merging", () => {
-  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, wk: pts.map((): WallKind => "boundary") });
+  const zone = (id: string, pts: Pt[]) => ({
+    ...room(id, pts),
+    kind: "zone" as const,
+    wk: pts.map((): WallKind => "boundary"),
+  });
   // an off-grid zone inside room a, so a corner snap onto it would be visible
   const withZone = (): Floor => {
     const f = floor();
-    f.rooms.push(zone("z", [[37, 53], [77, 53], [77, 83], [37, 83]]));
+    f.rooms.push(
+      zone("z", [
+        [37, 53],
+        [77, 53],
+        [77, 83],
+        [37, 83],
+      ]),
+    );
     return f;
   };
 
@@ -188,7 +277,12 @@ describe("zones do not take part in snapping, stitching or merging", () => {
   });
   it("stitch does not insert a zone corner into a room edge or the outline", () => {
     const f = withZone();
-    f.rooms[2].pts = [[50, 100], [70, 100], [70, 90], [50, 90]]; // corner (50, 100) lies on the edge of room a and the outline? (a: y=100)
+    f.rooms[2].pts = [
+      [50, 100],
+      [70, 100],
+      [70, 90],
+      [50, 90],
+    ]; // corner (50, 100) lies on the edge of room a and the outline? (a: y=100)
     const g = stitch(f, [50, 100]);
     expect(g.rooms[0].pts).toHaveLength(4);
     expect(g.rooms[0].wk).toHaveLength(4);
@@ -196,19 +290,44 @@ describe("zones do not take part in snapping, stitching or merging", () => {
   });
   it("stitch still stitches a room corner that is not a zone corner", () => {
     const f = withZone();
-    f.rooms.push(room("c", [[50, 100], [60, 130], [40, 130]]));
+    f.rooms.push(
+      room("c", [
+        [50, 100],
+        [60, 130],
+        [40, 130],
+      ]),
+    );
     expect(stitch(f, [50, 100]).rooms[0].pts).toHaveLength(5);
   });
   it("mergeCorners leaves a zone corner 10 cm from a room corner where it is", () => {
     const f = floor();
-    f.rooms.push(zone("z", [[110, 10], [150, 10], [150, 50], [110, 50]]));
+    f.rooms.push(
+      zone("z", [
+        [110, 10],
+        [150, 10],
+        [150, 50],
+        [110, 50],
+      ]),
+    );
     const g = mergeCorners(f, 25);
-    expect(g.rooms[2].pts).toEqual([[110, 10], [150, 10], [150, 50], [110, 50]]);
+    expect(g.rooms[2].pts).toEqual([
+      [110, 10],
+      [150, 10],
+      [150, 50],
+      [110, 50],
+    ]);
     expect(g.rooms[1].pts[0]).toEqual([100, 0]);
   });
   it("movePoints with a zone corner named moves only the zone corner; a room corner never drags a zone corner", () => {
     const f = floor();
-    f.rooms.push(zone("z", [[100, 0], [150, 0], [150, 50], [100, 50]]));
+    f.rooms.push(
+      zone("z", [
+        [100, 0],
+        [150, 0],
+        [150, 50],
+        [100, 50],
+      ]),
+    );
     const a = movePoints(f, [100, 0], [110, 5], false, { poly: "r2", i: 0 });
     expect(a.rooms[2].pts[0]).toEqual([110, 5]);
     expect(a.rooms[0].pts[1]).toEqual([100, 0]);
@@ -221,7 +340,11 @@ describe("zones do not take part in snapping, stitching or merging", () => {
 });
 
 describe("a zone edge is never a wall (review S1.5, finding 1)", () => {
-  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, wk: pts.map((): WallKind => "boundary") });
+  const zone = (id: string, pts: Pt[]) => ({
+    ...room(id, pts),
+    kind: "zone" as const,
+    wk: pts.map((): WallKind => "boundary"),
+  });
   it("setEdgeKind on a zone polygon returns the floor unchanged", () => {
     const f = floor();
     f.rooms.push(zone("z", rect(20, 20, 60, 60)));
@@ -232,7 +355,8 @@ describe("a zone edge is never a wall (review S1.5, finding 1)", () => {
     for (const zoneFirst of [true, false]) {
       const f = floor();
       const z = zone("z", rect(100, 10, 140, 50)); // its left edge lies on the a / b edge x = 100
-      if (zoneFirst) f.rooms.unshift(z); else f.rooms.push(z);
+      if (zoneFirst) f.rooms.unshift(z);
+      else f.rooms.push(z);
       const hit = nearestEdge(f, [102, 30], 8, { zones: true })!;
       expect(hit.d).toBe(2);
       expect(polys(f).find((P) => P.id === hit.poly)!.room?.kind).toBe("room");
@@ -249,10 +373,21 @@ describe("a zone edge is never a wall (review S1.5, finding 1)", () => {
 });
 
 describe("movePoints without an owner never drags a zone corner (review S1.5, finding 2)", () => {
-  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, wk: pts.map((): WallKind => "boundary") });
+  const zone = (id: string, pts: Pt[]) => ({
+    ...room(id, pts),
+    kind: "zone" as const,
+    wk: pts.map((): WallKind => "boundary"),
+  });
   it("a zone corner on a room corner stays when the point is moved with no `only`", () => {
     const f = floor();
-    f.rooms.push(zone("z", [[100, 0], [150, 0], [150, 50], [100, 50]]));
+    f.rooms.push(
+      zone("z", [
+        [100, 0],
+        [150, 0],
+        [150, 50],
+        [100, 50],
+      ]),
+    );
     const g = movePoints(f, [100, 0], [110, 5], false);
     expect(g.rooms[0].pts[1]).toEqual([110, 5]);
     expect(g.rooms[1].pts[0]).toEqual([110, 5]);
@@ -262,8 +397,16 @@ describe("movePoints without an owner never drags a zone corner (review S1.5, fi
 });
 
 describe("nearestEdge and zones (review S1.5, finding 4)", () => {
-  const zone = (id: string, pts: Pt[]) => ({ ...room(id, pts), kind: "zone" as const, wk: pts.map((): WallKind => "boundary") });
-  const withZone = () => { const f = floor(); f.rooms.push(zone("z", rect(20, 20, 60, 60))); return f; };
+  const zone = (id: string, pts: Pt[]) => ({
+    ...room(id, pts),
+    kind: "zone" as const,
+    wk: pts.map((): WallKind => "boundary"),
+  });
+  const withZone = () => {
+    const f = floor();
+    f.rooms.push(zone("z", rect(20, 20, 60, 60)));
+    return f;
+  };
   it("skips a zone edge by default, so a door never attaches to it", () => {
     // 2 cm from the zone edge y=20, 20 cm from the room edge y=0
     const e = nearestEdge(withZone(), [40, 22], 1e9)!;
@@ -276,14 +419,19 @@ describe("nearestEdge and zones (review S1.5, finding 4)", () => {
   });
   it("a floor with only a zone has no host edge", () => {
     const f = floor();
-    f.outline = []; f.rooms = [zone("z", rect(20, 20, 60, 60))];
+    f.outline = [];
+    f.rooms = [zone("z", rect(20, 20, 60, 60))];
     expect(nearestEdge(f, [40, 22], 1e9)).toBeNull();
     expect(nearestEdge(f, [40, 22], 1e9, { zones: true })).not.toBeNull();
   });
 });
 
 describe("nearestEdge with free walls (review S1.5, finding 6)", () => {
-  const withWall = () => { const f = floor(); f.walls = [{ id: "w1", a: [20, 60], b: [80, 60], kind: "fence" }]; return f; };
+  const withWall = () => {
+    const f = floor();
+    f.walls = [{ id: "w1", a: [20, 60], b: [80, 60], kind: "fence" }];
+    return f;
+  };
   it("ignores free walls by default", () => {
     expect(nearestEdge(withWall(), [50, 58], 1e9)!.poly).not.toBe("w");
   });
@@ -296,7 +444,10 @@ describe("nearestEdge with free walls (review S1.5, finding 6)", () => {
   });
   it("clamps to the end of a wall and skips one of no length", () => {
     const f = floor();
-    f.walls = [{ id: "w1", a: [20, 60], b: [30, 60], kind: "wall" }, { id: "w2", a: [45, 60], b: [45, 60], kind: "wall" }];
+    f.walls = [
+      { id: "w1", a: [20, 60], b: [30, 60], kind: "wall" },
+      { id: "w2", a: [45, 60], b: [45, 60], kind: "wall" },
+    ];
     // room edges are 40+ cm away; the wall end (30, 60) is 15, and the zero-length wall sits right on the point
     const e = nearestEdge(f, [45, 60], 1e9, { walls: true })!;
     expect([e.poly, e.i, e.q, e.d]).toEqual(["w", 0, [30, 60], 15]);
@@ -316,7 +467,16 @@ describe("setEdgeKind (S1.17)", () => {
     const f = floor();
     expect(setEdgeKind(f, "r9", 0, "fence")).toBe(f);
     const z = floor();
-    z.rooms.push({ ...room("z", [[10, 10], [60, 10], [60, 60], [10, 60]]), kind: "zone" as const, wk: ["boundary", "boundary", "boundary", "boundary"] });
+    z.rooms.push({
+      ...room("z", [
+        [10, 10],
+        [60, 10],
+        [60, 60],
+        [10, 60],
+      ]),
+      kind: "zone" as const,
+      wk: ["boundary", "boundary", "boundary", "boundary"],
+    });
     expect(setEdgeKind(z, "r2", 0, "fence")).toBe(z);
     expect(z.rooms[2].wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
   });
@@ -330,7 +490,11 @@ describe("setEdgeKind (S1.17)", () => {
 });
 
 describe("free rooms (S1.24)", () => {
-  const freed = () => { const f = floor(); f.rooms[1].free = true; return f; };
+  const freed = () => {
+    const f = floor();
+    f.rooms[1].free = true;
+    return f;
+  };
   it("snapped: true for rooms that share a wall, false for a room clear of everything", () => {
     const f = floor();
     expect(snapped(f, "r0")).toBe(true);
@@ -352,7 +516,8 @@ describe("free rooms (S1.24)", () => {
   it("a free room is no snapPoint corner or T target", () => {
     const g = floor();
     g.outline = rect(-50, -50, 250, 150);
-    g.rooms[0].free = true; g.rooms[1].free = true;
+    g.rooms[0].free = true;
+    g.rooms[1].free = true;
     expect(snapPoint(g, [102, 2], opts({ grid: 0 }))).toEqual([102, 2]); // no corner (100,0) or edge to jump to
     expect(snapPoint(floor(), [102, 2], opts({ grid: 0 }))).toEqual([100, 0]); // with the rooms joined it does jump
   });
@@ -373,13 +538,23 @@ describe("free rooms (S1.24)", () => {
   it("rotatePoly by 90 on a square gives the square back, corners in the new order", () => {
     const f = floor();
     f.rooms[0].pts = rect(0, 0, 100, 100);
-    expect(rotatePoly(f, "r0", 90).rooms[0].pts).toEqual([[100, 0], [100, 100], [0, 100], [0, 0]]);
+    expect(rotatePoly(f, "r0", 90).rooms[0].pts).toEqual([
+      [100, 0],
+      [100, 100],
+      [0, 100],
+      [0, 0],
+    ]);
   });
   it("rotatePoly by 30 turns about the bounding-box centre and rounds to 1 cm; 360 is the identity", () => {
     const f = floor();
     f.rooms[0].pts = rect(0, 0, 100, 100);
     const g = rotatePoly(f, "r0", 30);
-    expect(g.rooms[0].pts).toEqual([[32, -18], [118, 32], [68, 118], [-18, 68]]);
+    expect(g.rooms[0].pts).toEqual([
+      [32, -18],
+      [118, 32],
+      [68, 118],
+      [-18, 68],
+    ]);
     expect(rotatePoly(f, "r0", 360).rooms[0].pts).toEqual(f.rooms[0].pts);
     expect(rotatePoly(f, "zz", 30)).toBe(f);
   });
@@ -395,7 +570,11 @@ describe("deleting an edge (S1.47)", () => {
   });
   it("onEdge finds a door and an opening on the line, not one off it or past its end", () => {
     const f = floor();
-    f.doors = [{ id: "d1", name: "", kind: "door", a: [100, 20], b: [100, 60] }, { id: "d2", name: "", kind: "door", a: [110, 20], b: [110, 60] }, { id: "d3", name: "", kind: "door", a: [100, 120], b: [100, 160] }] as never;
+    f.doors = [
+      { id: "d1", name: "", kind: "door", a: [100, 20], b: [100, 60] },
+      { id: "d2", name: "", kind: "door", a: [110, 20], b: [110, 60] },
+      { id: "d3", name: "", kind: "door", a: [100, 120], b: [100, 160] },
+    ] as never;
     f.openings = [{ id: "o1", a: [100, 70], b: [100, 90] }] as never;
     expect(onEdge(f, [100, 0], [100, 100])).toEqual({ doors: [0], openings: [0] });
   });
@@ -407,12 +586,24 @@ describe("deleting an edge (S1.47)", () => {
 
 describe("deleteEdge (S1.47 fix)", () => {
   // a and b sit on a long room c: c's top edge (0,100)-(200,100) is shared in halves.
-  const three = () => { const f = floor(); f.outline = rect(0, 0, 200, 200); f.rooms.push(room("c", rect(0, 100, 200, 200))); return f; };
-  const drawn = (f: Floor) => f.rooms.flatMap((r) => r.pts.map((p, i) => ({ r: r.id, a: p, b: r.pts[(i + 1) % r.pts.length], k: r.wk[i] }))).filter((e) => e.k !== "none");
-  const covers = (f: Floor, x: number) => drawn(f).filter((e) => e.a[1] === 100 && e.b[1] === 100 && Math.min(e.a[0], e.b[0]) <= x && Math.max(e.a[0], e.b[0]) >= x);
+  const three = () => {
+    const f = floor();
+    f.outline = rect(0, 0, 200, 200);
+    f.rooms.push(room("c", rect(0, 100, 200, 200)));
+    return f;
+  };
+  const drawn = (f: Floor) =>
+    f.rooms
+      .flatMap((r) => r.pts.map((p, i) => ({ r: r.id, a: p, b: r.pts[(i + 1) % r.pts.length], k: r.wk[i] })))
+      .filter((e) => e.k !== "none");
+  const covers = (f: Floor, x: number) =>
+    drawn(f).filter(
+      (e) => e.a[1] === 100 && e.b[1] === 100 && Math.min(e.a[0], e.b[0]) <= x && Math.max(e.a[0], e.b[0]) >= x,
+    );
 
   it("from the long edge: every half that lies on it stops being drawn, and the long edge stays one edge", () => {
-    const f = three(), g = deleteEdge(f, "r2", 0);
+    const f = three(),
+      g = deleteEdge(f, "r2", 0);
     expect(covers(g, 50)).toEqual([]);
     expect(covers(g, 150)).toEqual([]);
     expect(g.rooms[2].pts).toHaveLength(4);
@@ -424,7 +615,13 @@ describe("deleteEdge (S1.47 fix)", () => {
   it("from a half: the long edge is split and only the covered part goes", () => {
     const g = deleteEdge(three(), "r0", 2);
     expect(g.rooms[0].wk[2]).toBe("none");
-    expect(g.rooms[2].pts).toEqual([[0, 100], [100, 100], [200, 100], [200, 200], [0, 200]]);
+    expect(g.rooms[2].pts).toEqual([
+      [0, 100],
+      [100, 100],
+      [200, 100],
+      [200, 200],
+      [0, 200],
+    ]);
     expect(g.rooms[2].wk).toEqual(["none", "wall", "wall", "wall", "wall"]);
     expect(g.rooms[1].wk[2]).toBe("wall"); // b's own bottom edge is not on it
     expect(covers(g, 150).map((e) => e.r)).toEqual(["b", "c"]);
@@ -437,11 +634,21 @@ describe("deleteEdge (S1.47 fix)", () => {
     expect(g.rooms[0].wk[1]).toBe("none");
     expect(g.rooms[1].wk[3]).toBe("none");
     const z = three();
-    z.rooms.push({ ...room("z", [[10, 110], [60, 110], [60, 160], [10, 160]]), kind: "zone" as const, wk: ["boundary", "boundary", "boundary", "boundary"] });
+    z.rooms.push({
+      ...room("z", [
+        [10, 110],
+        [60, 110],
+        [60, 160],
+        [10, 160],
+      ]),
+      kind: "zone" as const,
+      wk: ["boundary", "boundary", "boundary", "boundary"],
+    });
     expect(deleteEdge(z, "r3", 0)).toBe(z);
   });
   it("the demo Hall edge takes Living and Kitchen halves with it", () => {
-    const d = structuredClone(demo.floors.ground) as unknown as Floor, g = deleteEdge(d, "r2", 0);
+    const d = structuredClone(demo.floors.ground) as unknown as Floor,
+      g = deleteEdge(d, "r2", 0);
     expect(g.rooms[2].wk[0]).toBe("none");
     expect(g.rooms[0].wk[2]).toBe("none");
     expect(g.rooms[1].wk[2]).toBe("none");

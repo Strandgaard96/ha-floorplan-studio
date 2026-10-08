@@ -15,7 +15,10 @@ describe("S14.6 device categories", () => {
     expect(new Set(CATEGORIES.map((c) => c.id)).size).toBe(CATEGORIES.length);
     for (const c of CATEGORIES) {
       expect(c.label.length).toBeGreaterThan(0);
-      expect(DEVICE_TYPES.some((t) => CATEGORY_OF[t] === c.id), c.id).toBe(true);
+      expect(
+        DEVICE_TYPES.some((t) => CATEGORY_OF[t] === c.id),
+        c.id,
+      ).toBe(true);
     }
   });
 
@@ -25,7 +28,12 @@ describe("S14.6 device categories", () => {
 
   it("groups in category order, not input order, keeps row order inside a group and drops empty categories", () => {
     const items = [
-      { type: "tv", n: 1 }, { type: "camera", n: 2 }, { type: "ac", n: 3 }, { type: "light", n: 4 }, { type: "heater", n: 5 }, { type: "light", n: 6 },
+      { type: "tv", n: 1 },
+      { type: "camera", n: 2 },
+      { type: "ac", n: 3 },
+      { type: "light", n: 4 },
+      { type: "heater", n: 5 },
+      { type: "light", n: 6 },
     ] as const;
     const g = groupByCategory([...items]);
     expect(g.map((x) => x.id)).toEqual(["lights", "climate", "security", "media"]);

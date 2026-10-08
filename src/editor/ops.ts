@@ -12,7 +12,10 @@ const round = (p: Pt): Pt => [Math.round(p[0]), Math.round(p[1])];
 
 export function looseEnds(f: Floor): LooseRef[] {
   const out: LooseRef[] = [];
-  for (const k of LOOSE) f[k].forEach((_, i) => { out.push({ k, i, end: "a" }, { k, i, end: "b" }); });
+  for (const k of LOOSE)
+    f[k].forEach((_, i) => {
+      out.push({ k, i, end: "a" }, { k, i, end: "b" });
+    });
   return out;
 }
 
@@ -20,7 +23,10 @@ export function looseEnds(f: Floor): LooseRef[] {
 export function pointsNear(f: Floor, p: Pt): Pt[] {
   const out: Pt[] = [];
   for (const P of polys(f)) for (const q of P.pts) if (dist(q, p) <= TOUCH) out.push(q);
-  for (const r of looseEnds(f)) { const q = f[r.k][r.i][r.end]; if (dist(q, p) <= TOUCH) out.push(q); }
+  for (const r of looseEnds(f)) {
+    const q = f[r.k][r.i][r.end];
+    if (dist(q, p) <= TOUCH) out.push(q);
+  }
   return out;
 }
 
@@ -46,7 +52,8 @@ export function movePointAll(f: Floor, from: Pt, to: Pt, detach = false, only?: 
 export function setSecondEnd(f: Floor, a: Pt, b: Pt, how: { length: number } | { axis: "h" | "v" }, end: PtRef): Floor {
   let q: Pt;
   if ("length" in how) {
-    const l = dist(a, b) || 1, n = how.length * 100;
+    const l = dist(a, b) || 1,
+      n = how.length * 100;
     q = [a[0] + ((b[0] - a[0]) / l) * n, a[1] + ((b[1] - a[1]) / l) * n];
   } else q = how.axis === "h" ? [b[0], a[1]] : [a[0], b[1]];
   return movePointAll(f, b, q, false, end);
@@ -54,8 +61,10 @@ export function setSecondEnd(f: Floor, a: Pt, b: Pt, how: { length: number } | {
 
 /** A segment a-b resized around its centre to `len` cm. */
 export function resizeSegment(a: Pt, b: Pt, len: number): { a: Pt; b: Pt } {
-  const c: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], l = dist(a, b) || 1;
-  const u: Pt = [(b[0] - a[0]) / l, (b[1] - a[1]) / l], n = len / 2;
+  const c: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+    l = dist(a, b) || 1;
+  const u: Pt = [(b[0] - a[0]) / l, (b[1] - a[1]) / l],
+    n = len / 2;
   return { a: round([c[0] - u[0] * n, c[1] - u[1] * n]), b: round([c[0] + u[0] * n, c[1] + u[1] * n]) };
 }
 
@@ -74,8 +83,16 @@ export const MAX_RING = 12;
  * passes that point counts: a chain converts only when it closes on its own first corner. (S1.48)
  */
 export function closedLoop(f: Floor, w: number, tol = 2, through?: Pt): { walls: number[]; pts: Pt[] } | null {
-  const W = f.walls, at = (p: Pt, q: Pt) => dist(p, q) <= tol;
-  const from = (i: number, end: Pt, seen: number[], pts: Pt[], goal: Pt, depth: number): { walls: number[]; pts: Pt[] } | null => {
+  const W = f.walls,
+    at = (p: Pt, q: Pt) => dist(p, q) <= tol;
+  const from = (
+    i: number,
+    end: Pt,
+    seen: number[],
+    pts: Pt[],
+    goal: Pt,
+    depth: number,
+  ): { walls: number[]; pts: Pt[] } | null => {
     if (seen.length >= 3 && at(end, goal) && (!through || pts.some((q) => at(q, through)))) return { walls: seen, pts };
     if (seen.length >= depth) return null;
     for (let j = 0; j < W.length; j++) {
@@ -101,8 +118,15 @@ export const gridRound = (n: number, grid: number) => (grid ? Math.round(n / gri
 
 /** A stairs polygon of 100 x 300 cm centred on c, corners on the grid (10 cm by default). */
 export function stairsAt(c: Pt, grid = 10): Omit<Stairs, "id"> {
-  const g = (n: number) => gridRound(n, grid), x = g(c[0] - 50), y = g(c[1] - 150);
-  const pts: Pt[] = [[x, y], [x + 100, y], [x + 100, y + 300], [x, y + 300]];
+  const g = (n: number) => gridRound(n, grid),
+    x = g(c[0] - 50),
+    y = g(c[1] - 150);
+  const pts: Pt[] = [
+    [x, y],
+    [x + 100, y],
+    [x + 100, y + 300],
+    [x, y + 300],
+  ];
   return { name: "Stairs", pts, shape: "straight", steps: stairSteps({ pts, shape: "straight" }), rot: 0 };
 }
 
@@ -112,13 +136,28 @@ export function roundStairs(c: Pt, dia: number, inner = Math.round(dia * 0.3)): 
     const a = (i * Math.PI) / 12;
     return [Math.round(c[0] + (dia / 2) * Math.cos(a)), Math.round(c[1] + (dia / 2) * Math.sin(a))];
   });
-  return { name: "Stairs", pts, shape: "round", steps: stairSteps({ pts, shape: "round", dia, inner }), rot: 0, dia, inner };
+  return {
+    name: "Stairs",
+    pts,
+    shape: "round",
+    steps: stairSteps({ pts, shape: "round", dia, inner }),
+    rot: 0,
+    dia,
+    inner,
+  };
 }
 
 /** A 200 x 200 cm square centred on c, corners on the grid: the default zone or water polygon. */
 export function squareAt(c: Pt, grid = 10): Pt[] {
-  const g = (n: number) => gridRound(n, grid), x = g(c[0] - 100), y = g(c[1] - 100);
-  return [[x, y], [x + 200, y], [x + 200, y + 200], [x, y + 200]];
+  const g = (n: number) => gridRound(n, grid),
+    x = g(c[0] - 100),
+    y = g(c[1] - 100);
+  return [
+    [x, y],
+    [x + 200, y],
+    [x + 200, y + 200],
+    [x, y + 200],
+  ];
 }
 
 /** Wall `i` becomes an opening with the same ends and a fresh id. `floor` is the floor key, for the id. Returns `f` itself when there is no such wall or it has no length. */
@@ -149,7 +188,8 @@ export function openingToWall(f: Floor, i: number, kind: WallKind, floor: string
  */
 export function spawnPoint(f: Floor, fallback: Pt, grid = 10): Pt {
   if (f.outline.length < 3) return fallback;
-  const pts = contentPoints(f), oys = f.outline.map((p) => p[1]);
+  const pts = contentPoints(f),
+    oys = f.outline.map((p) => p[1]);
   const xs = pts.map((p) => p[0]);
   const g = (n: number) => gridRound(n, grid);
   return [g(Math.max(...xs) + 150), g(Math.min(...oys))];
@@ -162,7 +202,12 @@ export function spawnPoint(f: Floor, fallback: Pt, grid = 10): Pt {
 export function roomMiddle(f: Floor, sel: { t: string; i?: number } | null, grid = 10): Pt | null {
   if (sel?.t !== "room" || typeof sel.i !== "number") return null;
   const pts = f.rooms[sel.i]?.pts;
-  if (!Array.isArray(pts) || pts.length < 3 || !pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))) return null;
+  if (
+    !Array.isArray(pts) ||
+    pts.length < 3 ||
+    !pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+  )
+    return null;
   const m = polyCentre(pts);
   return [gridRound(m[0], grid), gridRound(m[1], grid)];
 }
@@ -192,7 +237,8 @@ export function spawnInView(f: Floor, centre: Pt, grid = 10): Pt {
 export function snapRoomTo(f: Floor, i: number, radius: number): Floor {
   const room = f.rooms[i];
   if (!room || room.kind === "zone" || room.free) return f;
-  const own = room.pts, others = polys(f).filter((P) => P.id !== `r${i}` && P.room?.kind !== "zone" && !P.room?.free);
+  const own = room.pts,
+    others = polys(f).filter((P) => P.id !== `r${i}` && P.room?.kind !== "zone" && !P.room?.free);
   let best: { d: number; dx: number; dy: number } | null = null;
   for (const P of others)
     for (const q of P.pts)
@@ -213,22 +259,32 @@ export function snapRoomTo(f: Floor, i: number, radius: number): Floor {
  * direction used when `to` lands on the pivot itself, where no direction exists; it defaults to `to`.
  */
 export function pivotOnArc(pivot: Pt, to: Pt, radius: number, fallback: Pt = to): Pt {
-  let dx = to[0] - pivot[0], dy = to[1] - pivot[1];
+  let dx = to[0] - pivot[0],
+    dy = to[1] - pivot[1];
   let l = Math.hypot(dx, dy);
-  if (l === 0) { dx = fallback[0] - pivot[0]; dy = fallback[1] - pivot[1]; l = Math.hypot(dx, dy) || 1; }
+  if (l === 0) {
+    dx = fallback[0] - pivot[0];
+    dy = fallback[1] - pivot[1];
+    l = Math.hypot(dx, dy) || 1;
+  }
   return round([pivot[0] + (dx / l) * radius, pivot[1] + (dy / l) * radius]);
 }
 
 /** A segment turned by `deg` (clockwise on screen) about its midpoint, ends rounded to 1 cm. */
 export function rotateSegment(a: Pt, b: Pt, deg: number): { a: Pt; b: Pt } {
-  const c: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], r = (deg * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
-  const turn = (p: Pt): Pt => round([c[0] + (p[0] - c[0]) * cos - (p[1] - c[1]) * sin, c[1] + (p[0] - c[0]) * sin + (p[1] - c[1]) * cos]);
+  const c: Pt = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+    r = (deg * Math.PI) / 180,
+    cos = Math.cos(r),
+    sin = Math.sin(r);
+  const turn = (p: Pt): Pt =>
+    round([c[0] + (p[0] - c[0]) * cos - (p[1] - c[1]) * sin, c[1] + (p[0] - c[0]) * sin + (p[1] - c[1]) * cos]);
   return { a: turn(a), b: turn(b) };
 }
 
 export type Corner = "nw" | "ne" | "se" | "sw";
 /** Furniture bounds (S1.51): a piece of furniture is never smaller than 5 cm or bigger than 2000 cm on a side. */
-export const FURNITURE_MIN = 5, FURNITURE_MAX = 2000;
+export const FURNITURE_MIN = 5,
+  FURNITURE_MAX = 2000;
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -242,7 +298,9 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 export function scaleFurniture(m: Furniture, corner: Corner, to: Pt, opts: { shift?: boolean } = {}): Furniture {
   const sx = corner === "ne" || corner === "se" ? 1 : -1; // the dragged corner's side of the centre, in the piece's own frame
   const sy = corner === "se" || corner === "sw" ? 1 : -1;
-  const rad = (-m.rot * Math.PI) / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+  const rad = (-m.rot * Math.PI) / 180,
+    cos = Math.cos(rad),
+    sin = Math.sin(rad);
   const rel: Pt = [to[0] - m.x, to[1] - m.y];
   const local: Pt = [rel[0] * cos - rel[1] * sin, rel[0] * sin + rel[1] * cos]; // the pointer, in that frame
   const oppLocal: Pt = [-sx * (m.w / 2), -sy * (m.h / 2)]; // the held corner: fixed for the whole drag
@@ -256,7 +314,9 @@ export function scaleFurniture(m: Furniture, corner: Corner, to: Pt, opts: { shi
   // the dragged corner, clamped, still relative to the OLD centre: the new centre is the midpoint of the two corners
   const newCornerLocal: Pt = [oppLocal[0] + sx * w, oppLocal[1] + sy * h];
   const midLocal: Pt = [(oppLocal[0] + newCornerLocal[0]) / 2, (oppLocal[1] + newCornerLocal[1]) / 2];
-  const rad2 = (m.rot * Math.PI) / 180, cos2 = Math.cos(rad2), sin2 = Math.sin(rad2);
+  const rad2 = (m.rot * Math.PI) / 180,
+    cos2 = Math.cos(rad2),
+    sin2 = Math.sin(rad2);
   const dWorld: Pt = [midLocal[0] * cos2 - midLocal[1] * sin2, midLocal[0] * sin2 + midLocal[1] * cos2];
   return { ...m, x: round2(m.x + dWorld[0]), y: round2(m.y + dWorld[1]), w: round2(w), h: round2(h) };
 }
@@ -270,11 +330,13 @@ export type RoomSensorField = "temps" | "humidity" | "motion";
  */
 export function setRoomList(r: Room, field: RoomSensorField, next: string[]): void {
   const list = [...new Set(next)].slice(0, MAX_ROOM_SENSORS);
-  if (list.length) r[field] = list; else delete r[field];
+  if (list.length) r[field] = list;
+  else delete r[field];
 }
 
 /** S18.10: a piece shorter than this on screen, in px, is hard to press. */
-const SMALL_PX = 28, FURN_PAD_PX = 8;
+const SMALL_PX = 28,
+  FURN_PAD_PX = 8;
 const PADDED: ReadonlySet<string> = new Set(["tv", "speaker", "computer"]); // thin things the hand misses; a toilet or sink is not
 
 /**
@@ -286,8 +348,11 @@ export function furnitureNear(f: Floor, p: Pt, scale: number): number | null {
   for (let i = f.furniture.length - 1; i >= 0; i--) {
     const m = f.furniture[i];
     if (!PADDED.has(m.symbol) || Math.min(m.w, m.h) * scale >= SMALL_PX) continue;
-    const rad = (-m.rot * Math.PI) / 180, dx = p[0] - m.x, dy = p[1] - m.y;
-    const lx = dx * Math.cos(rad) - dy * Math.sin(rad), ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+    const rad = (-m.rot * Math.PI) / 180,
+      dx = p[0] - m.x,
+      dy = p[1] - m.y;
+    const lx = dx * Math.cos(rad) - dy * Math.sin(rad),
+      ly = dx * Math.sin(rad) + dy * Math.cos(rad);
     const half = (len: number) => Math.max(len / 2 + FURN_PAD_PX / scale, SMALL_PX / 2 / scale);
     if (Math.abs(lx) <= half(m.w) && Math.abs(ly) <= half(m.h)) return i;
   }

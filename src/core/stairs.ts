@@ -7,7 +7,10 @@ import type { Layout, StairDirection, Stairs } from "./schema";
 export const STAIR_DIRECTION_LABELS: Record<StairDirection, string> = { up: "Up", down: "Down", both: "Up and down" };
 
 /** Whether the house has a floor over this one and a floor under it. Floors stack in `floors` key order, lowest first. */
-export interface FloorsAround { above: boolean; below: boolean }
+export interface FloorsAround {
+  above: boolean;
+  below: boolean;
+}
 
 export function floorsAround(layout: Layout, floorIndex: number): FloorsAround {
   const floors = (layout as { floors?: unknown } | null)?.floors;
@@ -34,5 +37,8 @@ export const stairDirection = (layout: Layout, floorIndex: number, stair: Stairs
 /** `floorsAround` for a floor named by its key, which is what the card and the editor hold. An unknown key has no neighbours. */
 export const floorsAroundKey = (layout: Layout, floorKey: string): FloorsAround => {
   const floors = (layout as { floors?: unknown } | null)?.floors;
-  return floorsAround(layout, typeof floors === "object" && floors !== null ? Object.keys(floors).indexOf(floorKey) : -1);
+  return floorsAround(
+    layout,
+    typeof floors === "object" && floors !== null ? Object.keys(floors).indexOf(floorKey) : -1,
+  );
 };

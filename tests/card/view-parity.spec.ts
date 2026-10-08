@@ -18,7 +18,10 @@ const PARITY: Record<string, Decision> = {
   lens: { card: "deliberate", why: EDITING_AID },
   names: { card: "yes", has: 'button[aria-label="Device names"]' },
   labels: { card: "yes", has: 'button[aria-label="Labels"]' },
-  night: { card: "deliberate", why: "a preview of what the card already does: it goes dark after sunset by itself (`night`, `sun`)" },
+  night: {
+    card: "deliberate",
+    why: "a preview of what the card already does: it goes dark after sunset by itself (`night`, `sun`)",
+  },
   thSub: { card: "yes", has: 'select[aria-label="Theme"]' },
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
@@ -53,7 +56,10 @@ test("every view control of the editor has a decision for the card", async ({ pa
   });
   expect(ids.length).toBeGreaterThan(15); // the scrape found the menus at all
   const undecided = ids.filter((id) => !(id in PARITY));
-  expect(undecided, `New editor view control(s) with no card decision: add them to PARITY here and to docs/card.md ("Studio and card"): ${undecided.join(", ")}`).toEqual([]);
+  expect(
+    undecided,
+    `New editor view control(s) with no card decision: add them to PARITY here and to docs/card.md ("Studio and card"): ${undecided.join(", ")}`,
+  ).toEqual([]);
   for (const id of Object.keys(CARD_ONLY)) expect(ids, `#${id} is card only: the editor has no 2.5D`).not.toContain(id);
   const gone = Object.keys(PARITY).filter((id) => !ids.includes(id));
   expect(gone, `PARITY names editor controls that no longer exist: ${gone.join(", ")}`).toEqual([]);
@@ -65,7 +71,11 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
   await page.addScriptTag({ content: CARD_JS, type: "module" });
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
   await page.evaluate(async (layout) => {
-    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+    const el = document.getElementById("card") as unknown as {
+      setConfig(c: unknown): void;
+      hass: unknown;
+      updateComplete: Promise<unknown>;
+    };
     el.setConfig({ type: "custom:floorplan-studio-card", view: "2.5d", layout });
     el.hass = { states: {}, themes: { darkMode: false } };
     await el.updateComplete;
@@ -74,7 +84,8 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
     if (d.card !== "yes") continue;
     await expect(page.locator("floorplan-studio-card").locator(`css=${d.has}`), `${id}: ${d.has}`).toHaveCount(1);
   }
-  for (const [id, has] of Object.entries(CARD_ONLY)) await expect(page.locator("floorplan-studio-card").locator(`css=${has}`), `${id}: ${has}`).toHaveCount(1);
+  for (const [id, has] of Object.entries(CARD_ONLY))
+    await expect(page.locator("floorplan-studio-card").locator(`css=${has}`), `${id}: ${has}`).toHaveCount(1);
 });
 
 test("docs/card.md lists every control and its decision", () => {

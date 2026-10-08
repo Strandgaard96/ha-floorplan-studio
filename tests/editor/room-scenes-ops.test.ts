@@ -34,7 +34,14 @@ describe("roomSceneTargets: curtains and covers on the room's doors and windows 
 describe("roomSceneTargets: no thermostat in the designer (S18.4)", () => {
   it("leaves out a climate device the room holds; validate still accepts climate in an older scene", () => {
     const f = structuredClone(demo.floors.ground) as Floor;
-    f.devices.push({ id: "trv-1", type: "climate", entity: "climate.trv", name: "TRV", x: 100, y: 100 } as Floor["devices"][number]);
+    f.devices.push({
+      id: "trv-1",
+      type: "climate",
+      entity: "climate.trv",
+      name: "TRV",
+      x: 100,
+      y: 100,
+    } as Floor["devices"][number]);
     expect(roomSceneTargets(f, 0).map((x) => x.entity)).not.toContain("climate.trv");
   });
 });
@@ -44,7 +51,12 @@ describe("scene writers", () => {
   // tests; what they pinned that still matters is asserted below on `saveScene`, the one writer the panel calls.
   it("saveScene names and ids scenes uniquely, and stops at the cap", () => {
     const r = roomOf();
-    expect(saveScene(r, null, "A", [{ entity: "light.a", on: true }, { entity: "switch.b", on: true }])).toEqual({ ok: true, id: "scene-1" });
+    expect(
+      saveScene(r, null, "A", [
+        { entity: "light.a", on: true },
+        { entity: "switch.b", on: true },
+      ]),
+    ).toEqual({ ok: true, id: "scene-1" });
     expect(saveScene(r, null, "B", [{ entity: "light.b", on: true }])).toEqual({ ok: true, id: "scene-2" });
     removeScene(r, "scene-1");
     expect(saveScene(r, null, "C", [{ entity: "light.b", on: true }])).toEqual({ ok: true, id: "scene-3" }); // scene-2 is still there, so the next id is the first free one after it
@@ -71,7 +83,12 @@ describe("scene writers", () => {
     const r = l.floors.ground.rooms[0] as Room;
     for (const ents of [["light.demo_kitchen"], ["light.demo_living"], ["light.demo_living", "switch.demo_hall"]]) {
       for (const patch of [{ brightness: 500 }, { brightness: -3 }, { on: false }, { on: true, brightness: 40 }]) {
-        saveScene(r, null, `S${r.scenes?.length ?? 0}`, ents.map((entity) => ({ entity, ...{ on: true }, ...patch })) as never);
+        saveScene(
+          r,
+          null,
+          `S${r.scenes?.length ?? 0}`,
+          ents.map((entity) => ({ entity, ...{ on: true }, ...patch })) as never,
+        );
         expect(validate(l), JSON.stringify(validate(l))).toEqual({ ok: true, layout: expect.anything() });
       }
     }
@@ -81,8 +98,16 @@ describe("scene writers", () => {
   it("through EditorState.edit, one gesture is one undo step and a refused save is none", () => {
     const st = new EditorState(structuredClone(demo));
     st.floor = "ground";
-    expect(st.edit((f) => { saveScene(f.rooms[0], null, "Scene 1", [{ entity: "light.demo_living", on: true }]); })).toBe(true);
-    expect(st.edit((f) => { saveScene(f.rooms[0], null, "Scene 1", [{ entity: "light.demo_living", on: true }]); })).toBe(false); // the name is taken: nothing changes, no step
+    expect(
+      st.edit((f) => {
+        saveScene(f.rooms[0], null, "Scene 1", [{ entity: "light.demo_living", on: true }]);
+      }),
+    ).toBe(true);
+    expect(
+      st.edit((f) => {
+        saveScene(f.rooms[0], null, "Scene 1", [{ entity: "light.demo_living", on: true }]);
+      }),
+    ).toBe(false); // the name is taken: nothing changes, no step
     expect(st.undo()).toBe(true);
     expect(st.f.rooms[0].scenes).toBeUndefined();
   });
@@ -90,16 +115,27 @@ describe("scene writers", () => {
 
 // S17.3: the designer's Save.
 describe("saveScene: the designer's Save", () => {
-  const room = () => ({ id: "r", name: "R", scenes: [{ id: "scene-1", name: "Old", items: [{ entity: "light.a", on: true }] }] }) as never as Room;
+  const room = () =>
+    ({
+      id: "r",
+      name: "R",
+      scenes: [{ id: "scene-1", name: "Old", items: [{ entity: "light.a", on: true }] }],
+    }) as never as Room;
   it("refuses an empty name and no devices, with the reason, changing nothing", () => {
     const r = room();
-    expect(saveScene(r, null, "  ", [{ entity: "light.b", on: true }])).toEqual({ ok: false, reason: "Give the scene a name." });
+    expect(saveScene(r, null, "  ", [{ entity: "light.b", on: true }])).toEqual({
+      ok: false,
+      reason: "Give the scene a name.",
+    });
     expect(saveScene(r, null, "X", [{ entity: "lock.b", on: true }] as never)).toMatchObject({ ok: false });
     expect(r.scenes).toHaveLength(1);
   });
   it("adds a new scene, or replaces one in place, and refuses a taken name", () => {
     const r = room();
-    expect(saveScene(r, null, "Movie", [{ entity: "light.b", on: true, brightness: 30 }])).toEqual({ ok: true, id: "scene-2" });
+    expect(saveScene(r, null, "Movie", [{ entity: "light.b", on: true, brightness: 30 }])).toEqual({
+      ok: true,
+      id: "scene-2",
+    });
     expect(saveScene(r, "scene-1", "Old", [{ entity: "fan.x", on: true }])).toEqual({ ok: true, id: "scene-1" });
     expect(r.scenes![0].items).toEqual([{ entity: "fan.x", on: true }]);
     expect(saveScene(r, null, "Movie", [{ entity: "light.b", on: true }])).toMatchObject({ ok: false });

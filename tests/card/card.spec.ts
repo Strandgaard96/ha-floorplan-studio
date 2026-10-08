@@ -30,7 +30,11 @@ async function open(page: Page) {
 async function configure(page: Page, config: Record<string, unknown>, hass: Record<string, unknown>) {
   await page.evaluate(
     ([config, hass]) => {
-      const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+      const el = document.getElementById("card") as unknown as {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
       el.setConfig(config);
       el.hass = hass;
       return el.updateComplete;
@@ -46,8 +50,14 @@ function msgColor(page: Page) {
   });
 }
 
-test("S2.12: the default theme is blueprint, whatever the OS colour scheme and hass.themes.darkMode say", async ({ page }) => {
-  for (const [os, dark] of [["light", false], ["light", true], ["dark", false]] as const) {
+test("S2.12: the default theme is blueprint, whatever the OS colour scheme and hass.themes.darkMode say", async ({
+  page,
+}) => {
+  for (const [os, dark] of [
+    ["light", false],
+    ["light", true],
+    ["dark", false],
+  ] as const) {
     await page.emulateMedia({ colorScheme: os });
     await open(page);
     await configure(page, {}, { states: {}, themes: { darkMode: dark } });
@@ -65,7 +75,9 @@ test("S2.12: theme light gives the light ink under a dark OS and a dark hass", a
   await expect.poll(() => msgColor(page)).toBe(LIGHT_INK);
 });
 
-test("S2.12: theme ha takes Home Assistant's own colour when it defines one, and the plain light or dark set when it does not", async ({ page }) => {
+test("S2.12: theme ha takes Home Assistant's own colour when it defines one, and the plain light or dark set when it does not", async ({
+  page,
+}) => {
   await open(page);
   await configure(page, { theme: "ha" }, { states: {}, themes: { darkMode: false } });
   await expect.poll(() => msgColor(page)).toBe(LIGHT_INK); // no --primary-text-color on this page: fallback
@@ -85,7 +97,8 @@ test("S7.11: the card never draws a floor's trace image, even one that is on", a
   await open(page);
   const layout = structuredClone(demo);
   // A real 2x1 PNG, so a broken <image> is not the reason nothing shows.
-  const src = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGP4z8DAwPAfAAcAAf9+CLHQAAAAAElFTkSuQmCC";
+  const src =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGP4z8DAwPAfAAcAAf9+CLHQAAAAAElFTkSuQmCC";
   for (const f of Object.values<any>(layout.floors)) f.trace = { src, x: 0, y: 0, w: 800, rot: 0, alpha: 1, on: true };
   await configure(page, { layout }, { states: {} });
   const counts = await page.locator("floorplan-studio-card").evaluate((el) => ({
@@ -96,12 +109,22 @@ test("S7.11: the card never draws a floor's trace image, even one that is on", a
   expect(counts.images).toBe(0);
 });
 
-test("S2.2 review: a lit light's rgb_color resolves through the cascade to the icon's actual computed fill", async ({ page }) => {
+test("S2.2 review: a lit light's rgb_color resolves through the cascade to the icon's actual computed fill", async ({
+  page,
+}) => {
   await open(page);
   await configure(
     page,
     { layout: structuredClone(demo) },
-    { states: { "light.demo_kitchen": { state: "on", attributes: { rgb_color: [255, 0, 0] }, last_changed: new Date().toISOString() } } },
+    {
+      states: {
+        "light.demo_kitchen": {
+          state: "on",
+          attributes: { rgb_color: [255, 0, 0] },
+          last_changed: new Date().toISOString(),
+        },
+      },
+    },
   );
   const fill = await page.locator("floorplan-studio-card").evaluate((el) => {
     const g = el.shadowRoot!.querySelector('g[data-x="1"]')!;
@@ -111,7 +134,9 @@ test("S2.2 review: a lit light's rgb_color resolves through the cascade to the i
   expect(fill).toBe("rgb(255, 0, 0)");
 });
 
-test("S2.2 review: with no rgb_color the icon's computed fill falls back to --fp-on, not the rgb branch", async ({ page }) => {
+test("S2.2 review: with no rgb_color the icon's computed fill falls back to --fp-on, not the rgb branch", async ({
+  page,
+}) => {
   await open(page);
   await configure(
     page,
@@ -128,22 +153,42 @@ test("S2.2 review: with no rgb_color the icon's computed fill falls back to --fp
 
 // Opus review CSS pair (CLAUDE.md finding 10): `.heater` and `.heater.on` have the same specificity (one class vs
 // two), so which one wins is never in doubt from the source alone — read the built card's actual computed stroke.
-test("S2.5 CSS pair: the heater bar's stroke is idle grey off and the heater colour only while heating", async ({ page }) => {
+test("S2.5 CSS pair: the heater bar's stroke is idle grey off and the heater colour only while heating", async ({
+  page,
+}) => {
   await open(page);
   const heaterStroke = () =>
-    page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('line[data-xbar="7"]')!).stroke);
+    page
+      .locator("floorplan-studio-card")
+      .evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('line[data-xbar="7"]')!).stroke);
 
   await configure(
     page,
     { layout: structuredClone(demo) },
-    { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } } },
+    {
+      states: {
+        "climate.demo_living": {
+          state: "heat",
+          attributes: { hvac_action: "idle" },
+          last_changed: new Date().toISOString(),
+        },
+      },
+    },
   );
   expect(await heaterStroke()).toBe("rgb(43, 86, 151)"); // blueprint's --fp-idle, #2b5697
 
   await configure(
     page,
     { layout: structuredClone(demo) },
-    { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "heating" }, last_changed: new Date().toISOString() } } },
+    {
+      states: {
+        "climate.demo_living": {
+          state: "heat",
+          attributes: { hvac_action: "heating" },
+          last_changed: new Date().toISOString(),
+        },
+      },
+    },
   );
   expect(await heaterStroke()).toBe("rgb(255, 138, 31)"); // blueprint's --fp-heater collapses to the single accent, #ff8a1f
 });
@@ -152,13 +197,17 @@ test("S2.1 review: getCardSize accounts for layout.rotate in a real browser too"
   await open(page);
   const unturned = structuredClone(demo);
   await configure(page, { layout: unturned }, { states: {}, themes: { darkMode: false } });
-  const sizeAt0 = await page.locator("floorplan-studio-card").evaluate((el) => (el as unknown as { getCardSize(): number }).getCardSize());
+  const sizeAt0 = await page
+    .locator("floorplan-studio-card")
+    .evaluate((el) => (el as unknown as { getCardSize(): number }).getCardSize());
 
   await open(page);
   const turned = structuredClone(demo);
   (turned as { rotate: number }).rotate = 90;
   await configure(page, { layout: turned }, { states: {}, themes: { darkMode: false } });
-  const sizeAt90 = await page.locator("floorplan-studio-card").evaluate((el) => (el as unknown as { getCardSize(): number }).getCardSize());
+  const sizeAt90 = await page
+    .locator("floorplan-studio-card")
+    .evaluate((el) => (el as unknown as { getCardSize(): number }).getCardSize());
 
   expect(sizeAt90).not.toBe(sizeAt0);
 });
@@ -166,14 +215,27 @@ test("S2.1 review: getCardSize accounts for layout.rotate in a real browser too"
 // S2.6 CSS pair (CLAUDE.md finding 10): `.room:not([fill])` and `.room.glow:not([fill])` both set `fill`, and a
 // `[fill]` attribute has beaten a class rule here once before. Read the actual computed fill in Chromium, not the
 // class list, so a specificity mistake (equal specificity, source order the wrong way) would be caught here.
-test("S2.6 CSS pair: a room's fill is the glow tint only while room_glow is on and a light inside it is on", async ({ page }) => {
+test("S2.6 CSS pair: a room's fill is the glow tint only while room_glow is on and a light inside it is on", async ({
+  page,
+}) => {
   await open(page);
-  const livingFill = () => page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
+  const livingFill = () =>
+    page
+      .locator("floorplan-studio-card")
+      .evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
 
-  await configure(page, { layout: structuredClone(demo), theme: "light", room_glow: true }, { states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } });
+  await configure(
+    page,
+    { layout: structuredClone(demo), theme: "light", room_glow: true },
+    { states: { "light.demo_living": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } },
+  );
   expect(await livingFill()).toBe("rgb(214, 214, 210)"); // --fp-room-empty, the light is off
 
-  await configure(page, { layout: structuredClone(demo), theme: "light", room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  await configure(
+    page,
+    { layout: structuredClone(demo), theme: "light", room_glow: true },
+    { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } },
+  );
   // --fp-glow mixed 25% into the room's own --fp-room-empty, not read outright (S2.9 Opus review: the old rule read
   // --fp-glow directly and so replaced the room's colour instead of tinting it; fixed for room_glow and the
   // S1.37 "on" tint in the same pass). Chromium serialises a color-mix() computed value as color(srgb ...), not
@@ -181,16 +243,28 @@ test("S2.6 CSS pair: a room's fill is the glow tint only while room_glow is on a
   expect(await livingFill()).toBe("color(srgb 0.869608 0.85098 0.77451)");
 
   // room_glow: false (or absent): the same lit light gives no glow at all, even though the light itself is on.
-  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  await configure(
+    page,
+    { layout: structuredClone(demo), theme: "light" },
+    { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } },
+  );
   expect(await livingFill()).toBe("rgb(214, 214, 210)");
 });
 
-test("S2.6 CSS pair: a room's own colour (a [fill] attribute) is kept, glow or not — the user's choice wins", async ({ page }) => {
+test("S2.6 CSS pair: a room's own colour (a [fill] attribute) is kept, glow or not — the user's choice wins", async ({
+  page,
+}) => {
   await open(page);
   const coloured = structuredClone(demo);
   coloured.floors.ground.rooms[0].color = "#123456";
-  await configure(page, { layout: coloured, room_glow: true }, { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
-  const fill = await page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
+  await configure(
+    page,
+    { layout: coloured, room_glow: true },
+    { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } },
+  );
+  const fill = await page
+    .locator("floorplan-studio-card")
+    .evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg polygon[data-r="0"]')!).fill);
   expect(fill).toBe("rgb(18, 52, 86)");
 });
 
@@ -198,12 +272,18 @@ test("S2.6 CSS pair: a room's own colour (a [fill] attribute) is kept, glow or n
 // room, right along the same line — a same-width outline drawn on the room polygon itself is nearly invisible
 // underneath it (Opus review: rendered the demo pond and looked, a 4x crop showed only slivers of the ring in the
 // wall's dash gaps). render.ts now draws the ring a second time, after every wall line, so it is genuinely on top.
-test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the walls (on top of them), and does not block clicks on the room underneath it", async ({ page }) => {
+test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the walls (on top of them), and does not block clicks on the room underneath it", async ({
+  page,
+}) => {
   await open(page);
   const layout = structuredClone(demo);
   const pond = layout.floors.ground.rooms[6]; // "Garden pond", kind water, boundary walls all round it
   pond.entity = "switch.demo_pump";
-  await configure(page, { layout, theme: "light" }, { states: { "switch.demo_pump": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+  await configure(
+    page,
+    { layout, theme: "light" },
+    { states: { "switch.demo_pump": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } },
+  );
 
   const info = await page.locator("floorplan-studio-card").evaluate(() => {
     const svg = document.getElementById("card")!.shadowRoot!.querySelector("svg")!;
@@ -229,8 +309,17 @@ test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the w
 
 // S2.6: the floor switcher chip's readability, same check S1.40/S1.53 already run on the editor's own chips
 // (CLAUDE.md finding: never assert a colour from CSS text, read the real cascade).
-const lum = (rgb: number[]) => { const [r, g, b] = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-const ratio = (a: number[], b: number[]) => { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+const lum = (rgb: number[]) => {
+  const [r, g, b] = rgb.map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const ratio = (a: number[], b: number[]) => {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
 const rgbOf = (css: string) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number);
 
 // S2.7: a tap on a door with a cover must hit the real `<line data-d>` at its actual screen coordinates
@@ -241,11 +330,19 @@ const GARAGE_DOOR_INDEX = 2; // demo/layout.json: floors.ground.doors[2], "Garag
 
 /** Configures the card with a `callService` that records every call onto `window.__calls` in the page, since a
  * function cannot cross `page.evaluate`'s own serialization boundary — the calls are read back afterwards. */
-async function configureWithCallServiceSpy(page: Page, config: Record<string, unknown>, states: Record<string, unknown>) {
+async function configureWithCallServiceSpy(
+  page: Page,
+  config: Record<string, unknown>,
+  states: Record<string, unknown>,
+) {
   await page.evaluate(
     ([config, states]) => {
       (window as unknown as { __calls: unknown[] }).__calls = [];
-      const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+      const el = document.getElementById("card") as unknown as {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
       el.setConfig(config);
       el.hass = {
         states,
@@ -267,27 +364,43 @@ async function tapDoor(page: Page, index: number) {
 }
 
 /** S14.2: a tap opens the popup; its primary button is what asks (a cover) or calls (a light). */
-async function popupDo(page: Page) { await page.locator("floorplan-studio-card").locator("css=.fp-pop .fp-pop-do").click(); }
+async function popupDo(page: Page) {
+  await page.locator("floorplan-studio-card").locator("css=.fp-pop .fp-pop-do").click();
+}
 
-test("S2.7: a tap on the garage door's cover opens a real, visible dialog with Cancel focused by default", async ({ page }) => {
+test("S2.7: a tap on the garage door's cover opens a real, visible dialog with Cancel focused by default", async ({
+  page,
+}) => {
   await open(page);
-  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+  await configureWithCallServiceSpy(
+    page,
+    { layout: structuredClone(demo) },
+    { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } },
+  );
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
   await popupDo(page);
 
   const card = page.locator("floorplan-studio-card");
   await expect(card.locator("css=.fp-dialog p")).toHaveText("Open Garage door?");
-  const display = await card.evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display);
+  const display = await card.evaluate(
+    (el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display,
+  );
   expect(display).toBe("flex"); // really laid out and visible, not just present in the DOM
 
-  const activeIsCancel = await card.evaluate((el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-dialog button.cancel"));
+  const activeIsCancel = await card.evaluate(
+    (el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-dialog button.cancel"),
+  );
   expect(activeIsCancel).toBe(true); // Cancel is the default focused action, not Open
 });
 
 test("S2.7: Open calls cover.open_cover with the door's entity_id, and the dialog closes", async ({ page }) => {
   await open(page);
-  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+  await configureWithCallServiceSpy(
+    page,
+    { layout: structuredClone(demo) },
+    { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } },
+  );
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
   await popupDo(page);
@@ -300,7 +413,11 @@ test("S2.7: Open calls cover.open_cover with the door's entity_id, and the dialo
 
 test("S2.7: Cancel calls no service", async ({ page }) => {
   await open(page);
-  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+  await configureWithCallServiceSpy(
+    page,
+    { layout: structuredClone(demo) },
+    { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } },
+  );
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
   await popupDo(page);
@@ -310,9 +427,15 @@ test("S2.7: Cancel calls no service", async ({ page }) => {
   expect(calls).toEqual([]);
 });
 
-test("S2.7: a tap on an open cover opens a dialog reading \"Close Garage door?\" with a Close button, role=dialog, aria-modal=true, and aria-labelledby naming the question (Opus review)", async ({ page }) => {
+test('S2.7: a tap on an open cover opens a dialog reading "Close Garage door?" with a Close button, role=dialog, aria-modal=true, and aria-labelledby naming the question (Opus review)', async ({
+  page,
+}) => {
   await open(page);
-  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "open", attributes: {}, last_changed: new Date().toISOString() } });
+  await configureWithCallServiceSpy(
+    page,
+    { layout: structuredClone(demo) },
+    { "cover.demo_garage_door": { state: "open", attributes: {}, last_changed: new Date().toISOString() } },
+  );
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
   await popupDo(page);
@@ -337,19 +460,33 @@ test("S2.7: a tap on an open cover opens a dialog reading \"Close Garage door?\"
   expect(calls).toEqual([["cover", "close_cover", { entity_id: "cover.demo_garage_door" }]]);
 });
 
-test("S2.7 Break it: a second tap on the door while the dialog is open does not open a second dialog", async ({ page }) => {
+test("S2.7 Break it: a second tap on the door while the dialog is open does not open a second dialog", async ({
+  page,
+}) => {
   await open(page);
-  await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+  await configureWithCallServiceSpy(
+    page,
+    { layout: structuredClone(demo) },
+    { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } },
+  );
 
   await tapDoor(page, GARAGE_DOOR_INDEX);
   await popupDo(page);
   // the dialog is open: a tap on the door is behind its backdrop; a second press of the popup's own button (if it were
   // still there) or a door tap by script must not open a second dialog
-  await page.locator("floorplan-studio-card").evaluate((el) => el.shadowRoot!.querySelector<SVGElement>('line[data-d="2"]:not(.door-hit)')!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true, button: 0 })));
+  await page
+    .locator("floorplan-studio-card")
+    .evaluate((el) =>
+      el
+        .shadowRoot!.querySelector<SVGElement>('line[data-d="2"]:not(.door-hit)')!
+        .dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true, button: 0 })),
+    );
   await expect(page.locator("floorplan-studio-card").locator("css=.fp-dialog")).toHaveCount(1);
 });
 
-test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, at least 4.5:1 in both states", async ({ page }) => {
+test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, at least 4.5:1 in both states", async ({
+  page,
+}) => {
   await open(page);
   await configure(page, { layout: structuredClone(demo), floor: "all" }, { states: {} });
 
@@ -357,8 +494,14 @@ test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, 
   await expect(chips).toHaveCount(3);
   for (const tag of await chips.evaluateAll((els) => els.map((e) => e.tagName))) expect(tag).toBe("BUTTON");
 
-  const pairs = await chips.evaluateAll((els) => els.map((el) => { const s = getComputedStyle(el); return { pressed: el.getAttribute("aria-pressed"), bg: s.backgroundColor, fg: s.color }; }));
-  for (const { pressed, bg, fg } of pairs) expect(ratio(rgbOf(bg), rgbOf(fg)), `aria-pressed=${pressed}`).toBeGreaterThanOrEqual(4.5);
+  const pairs = await chips.evaluateAll((els) =>
+    els.map((el) => {
+      const s = getComputedStyle(el);
+      return { pressed: el.getAttribute("aria-pressed"), bg: s.backgroundColor, fg: s.color };
+    }),
+  );
+  for (const { pressed, bg, fg } of pairs)
+    expect(ratio(rgbOf(bg), rgbOf(fg)), `aria-pressed=${pressed}`).toBeGreaterThanOrEqual(4.5);
 
   // Tab reaches a chip and Enter activates it, like any other button (no custom keyboard handling needed).
   await chips.nth(1).focus();
@@ -369,11 +512,14 @@ test("S2.6: floor chips are real, keyboard-reachable buttons outside the <svg>, 
 // S8.12: the maintainer's report ("in the card i cannot switch floor") — no `floor` or `floors` configured at all,
 // the demo layout has three floors, so the switcher must appear on its own and a real page.mouse click on its
 // second chip (finding 3: the real top element, real coordinates) must actually switch the plan.
-test("S8.12: with no floor config and a multi-floor layout, a real click on the second chip switches floor", async ({ page }) => {
+test("S8.12: with no floor config and a multi-floor layout, a real click on the second chip switches floor", async ({
+  page,
+}) => {
   await open(page);
   await configure(page, { layout: structuredClone(demo) }, { states: {} });
 
-  const svgText = () => page.locator("floorplan-studio-card").evaluate((el) => el.shadowRoot!.querySelector("svg")!.textContent ?? "");
+  const svgText = () =>
+    page.locator("floorplan-studio-card").evaluate((el) => el.shadowRoot!.querySelector("svg")!.textContent ?? "");
   await expect.poll(svgText).toContain("Living"); // ground floor shown by default
   expect(await svgText()).not.toContain("Bedroom"); // first floor's own room, not on ground
 
@@ -392,14 +538,25 @@ test("S8.12: with no floor config and a multi-floor layout, a real click on the 
 
 // S2.10 CSS pair: the class names are asserted in render.test.ts; this reads the icon's computed fill in Chromium,
 // because `.dev-ac.cool.on` has to outrank the catch-all `.dev.on` (CLAUDE.md finding 10).
-test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating, idle grey otherwise", async ({ page }) => {
+test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating, idle grey otherwise", async ({
+  page,
+}) => {
   await open(page);
   const layout = structuredClone(demo);
   layout.floors.ground.devices.push({ id: "ac-test", type: "ac", entity: "climate.demo_ac", x: 300, y: 300 });
   const idx = layout.floors.ground.devices.length - 1;
   const fillFor = async (state: string, attributes: Record<string, unknown>) => {
-    await configure(page, { layout, theme: "light" }, { states: { "climate.demo_ac": { state, attributes, last_changed: new Date().toISOString() } } });
-    return page.locator("floorplan-studio-card").evaluate((el, i) => getComputedStyle(el.shadowRoot!.querySelector(`g[data-x="${i}"] path:not(.cone)`)!).fill, idx);
+    await configure(
+      page,
+      { layout, theme: "light" },
+      { states: { "climate.demo_ac": { state, attributes, last_changed: new Date().toISOString() } } },
+    );
+    return page
+      .locator("floorplan-studio-card")
+      .evaluate(
+        (el, i) => getComputedStyle(el.shadowRoot!.querySelector(`g[data-x="${i}"] path:not(.cone)`)!).fill,
+        idx,
+      );
   };
   expect(await fillFor("cool", { hvac_action: "cooling" })).toBe("rgb(44, 127, 184)");
   expect(await fillFor("heat", { hvac_action: "heating" })).toBe("rgb(232, 128, 26)");
@@ -409,22 +566,48 @@ test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating,
 });
 
 // S2.13: the four monitored types draw their own icon in the idle grey on the round disc, whatever the entity says.
-test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in idle grey on the disc", async ({ page }) => {
+test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in idle grey on the disc", async ({
+  page,
+}) => {
   await open(page);
   const layout = structuredClone(demo);
   const types = ["battery", "inverter", "server", "access_point"];
   const first = layout.floors.ground.devices.length;
-  types.forEach((t, i) => layout.floors.ground.devices.push({ id: `mon-${t}`, type: t, entity: `sensor.demo_${t}`, x: 500 + i * 60, y: 300 }));
-  await configure(page, { layout, theme: "light" }, { states: Object.fromEntries(types.map((t) => [`sensor.demo_${t}`, { state: "on", attributes: {}, last_changed: new Date().toISOString() }])) });
-  const got = await page.locator("floorplan-studio-card").evaluate((el, [f, n]) => {
-    const idle = getComputedStyle(el.shadowRoot!.querySelector("svg")!).getPropertyValue("--fp-idle").trim();
-    return { idle, items: Array.from({ length: n as number }, (_, k) => {
-      const g = el.shadowRoot!.querySelector(`g[data-x="${(f as number) + k}"]`)!;
-      return { d: g.querySelector("path")!.getAttribute("d")!.length, fill: getComputedStyle(g.querySelector("path")!).fill, halo: !!g.querySelector("circle.halo") };
-    }) };
-  }, [first, types.length]);
+  types.forEach((t, i) =>
+    layout.floors.ground.devices.push({ id: `mon-${t}`, type: t, entity: `sensor.demo_${t}`, x: 500 + i * 60, y: 300 }),
+  );
+  await configure(
+    page,
+    { layout, theme: "light" },
+    {
+      states: Object.fromEntries(
+        types.map((t) => [`sensor.demo_${t}`, { state: "on", attributes: {}, last_changed: new Date().toISOString() }]),
+      ),
+    },
+  );
+  const got = await page.locator("floorplan-studio-card").evaluate(
+    (el, [f, n]) => {
+      const idle = getComputedStyle(el.shadowRoot!.querySelector("svg")!).getPropertyValue("--fp-idle").trim();
+      return {
+        idle,
+        items: Array.from({ length: n as number }, (_, k) => {
+          const g = el.shadowRoot!.querySelector(`g[data-x="${(f as number) + k}"]`)!;
+          return {
+            d: g.querySelector("path")!.getAttribute("d")!.length,
+            fill: getComputedStyle(g.querySelector("path")!).fill,
+            halo: !!g.querySelector("circle.halo"),
+          };
+        }),
+      };
+    },
+    [first, types.length],
+  );
   const rgb = (h: string) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(", ")})`;
-  for (const it of got.items) { expect(it.d).toBeGreaterThan(20); expect(it.halo).toBe(true); expect(it.fill).toBe(rgb("#8b8578")); }
+  for (const it of got.items) {
+    expect(it.d).toBeGreaterThan(20);
+    expect(it.halo).toBe(true);
+    expect(it.fill).toBe(rgb("#8b8578"));
+  }
 });
 
 // S7.4: zoom and pan in the card. Every gesture goes through page.mouse / page.touchscreen / CDP touch at real
@@ -447,10 +630,14 @@ test.describe("S7.4 zoom and pan", () => {
     return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
   };
   const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
-  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  const states = () => ({
+    "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() },
+  });
   /** Plan point under a screen point, for the given viewBox and svg box. */
-  const toPlan = (vb: VB, b: { x: number; y: number; width: number; height: number }, sx: number, sy: number) =>
-    [vb.x + ((sx - b.x) / b.width) * vb.w, vb.y + ((sy - b.y) / b.height) * vb.h];
+  const toPlan = (vb: VB, b: { x: number; y: number; width: number; height: number }, sx: number, sy: number) => [
+    vb.x + ((sx - b.x) / b.width) * vb.w,
+    vb.y + ((sy - b.y) / b.height) * vb.h,
+  ];
 
   async function ctrlWheel(page: Page, x: number, y: number, dy: number) {
     await page.mouse.move(x, y);
@@ -459,12 +646,15 @@ test.describe("S7.4 zoom and pan", () => {
     await page.keyboard.up("Control");
   }
 
-  test("Ctrl+wheel zooms in about the pointer; a plain wheel leaves the plan alone so the dashboard can scroll", async ({ page }) => {
+  test("Ctrl+wheel zooms in about the pointer; a plain wheel leaves the plan alone so the dashboard can scroll", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
     const b = await svgBox(page);
-    const px = b.x + b.width * 0.3, py = b.y + b.height * 0.6; // off-centre, so a zoom about the centre would fail
+    const px = b.x + b.width * 0.3,
+      py = b.y + b.height * 0.6; // off-centre, so a zoom about the centre would fail
 
     await page.mouse.move(px, py);
     await page.mouse.wheel(0, -300);
@@ -482,7 +672,7 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await calls(page)).toEqual([]);
   });
 
-  test("zoom: \"wheel\" zooms on a plain wheel too", async ({ page }) => {
+  test('zoom: "wheel" zooms on a plain wheel too', async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), zoom: "wheel" }, states());
     const fit = await viewBox(page);
@@ -504,7 +694,9 @@ test.describe("S7.4 zoom and pan", () => {
     await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 0.4, 3);
   });
 
-  test("zoom buttons: + zooms in, - zooms out past fit, fit goes back; fit alone is disabled at fit", async ({ page }) => {
+  test("zoom buttons: + zooms in, - zooms out past fit, fit goes back; fit alone is disabled at fit", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
@@ -525,7 +717,9 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await calls(page)).toEqual([]);
   });
 
-  test("the View select sits clear of the zoom buttons, picks 2.5D in a real browser, and a real click on a light still toggles it", async ({ page }) => {
+  test("the View select sits clear of the zoom buttons, picks 2.5D in a real browser, and a real click on a light still toggles it", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const flat = await viewBox(page);
@@ -549,18 +743,22 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await viewBox(page)).toEqual(flat);
   });
 
-  test("the Tilt slider shows only in 2.5D, a real mouse drag across it redraws the walls and the box", async ({ page }) => {
+  test("the Tilt slider shows only in 2.5D, a real mouse drag across it redraws the walls and the box", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const slider = card(page).locator('css=.fp-zoom input[aria-label="Tilt"]');
     await expect(slider).toHaveCount(0);
     await card(page).locator('css=.fp-zoom select[aria-label="View"]').selectOption("2.5d");
     await expect(slider).toBeVisible();
-    const s = (await slider.boundingBox())!, sel = (await card(page).locator('css=.fp-zoom select[aria-label="View"]').boundingBox())!;
+    const s = (await slider.boundingBox())!,
+      sel = (await card(page).locator('css=.fp-zoom select[aria-label="View"]').boundingBox())!;
     expect(s.x).toBeGreaterThanOrEqual(sel.x + sel.width - 0.5); // beside the select, not over it
     expect(await slider.evaluate((el) => getComputedStyle(el).width)).toBe("72px"); // CSS pair: the rule reaches the pixel, not just the string
     const wall = () => card(page).locator("css=svg .ws").first().getAttribute("points");
-    const before = await wall(), boxBefore = await viewBox(page);
+    const before = await wall(),
+      boxBefore = await viewBox(page);
     // Real pointer: grab the thumb at its middle (0.5) and drag to the right end.
     const y = s.y + s.height / 2;
     await page.mouse.move(s.x + s.width / 2, y);
@@ -589,7 +787,9 @@ test.describe("S7.4 zoom and pan", () => {
     expect((await calls(page)).length).toBe(1);
   });
 
-  test("a 40 px drag that starts on a light pans the plan and does not toggle the light; a plain click still does", async ({ page }) => {
+  test("a 40 px drag that starts on a light pans the plan and does not toggle the light; a plain click still does", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
@@ -648,8 +848,11 @@ test.describe("S7.4 zoom and pan", () => {
     // Diego field report, 0.12.14: "make the card always draggable" — `zoom: false` turns off pinch, wheel and the
     // buttons, not the one-finger pan, so `touch-action` stays `pan-y` (the same value the zoomable card starts
     // at) instead of `auto`, and a plain drag still moves the plan.
-    expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe("pan-y");
-    const midX = b.x + b.width / 2, midY = b.y + b.height / 2;
+    expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe(
+      "pan-y",
+    );
+    const midX = b.x + b.width / 2,
+      midY = b.y + b.height / 2;
     await page.mouse.move(midX, midY);
     await page.mouse.down();
     await page.mouse.move(midX + 20, midY, { steps: 4 });
@@ -666,7 +869,8 @@ test.describe("S7.4 zoom and pan", () => {
   test("with zoom on the svg has touch-action: pan-y at fit and none once zoomed", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-    const touchAction = () => card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction);
+    const touchAction = () =>
+      card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction);
     expect(await touchAction()).toBe("pan-y");
     await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').click();
     await expect.poll(touchAction).toBe("none");
@@ -674,7 +878,7 @@ test.describe("S7.4 zoom and pan", () => {
     await expect.poll(touchAction).toBe("pan-y");
   });
 
-  test("Break it: a wheel over a floor chip leaves the viewBox alone, even with zoom: \"wheel\"", async ({ page }) => {
+  test('Break it: a wheel over a floor chip leaves the viewBox alone, even with zoom: "wheel"', async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all", zoom: "wheel" }, states());
     const fit = await viewBox(page);
@@ -690,7 +894,9 @@ test.describe("S7.4 zoom and pan", () => {
     await expect.poll(async () => (await viewBox(page)).w).toBeLessThan(fit.w);
   });
 
-  test("the zoom survives a hass update; a floor comes back at the zoom it was left with (S14.4); a changed config starts clean", async ({ page }) => {
+  test("the zoom survives a hass update; a floor comes back at the zoom it was left with (S14.4); a changed config starts clean", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo), floor: "all" }, states());
     const fit = await viewBox(page);
@@ -699,8 +905,14 @@ test.describe("S7.4 zoom and pan", () => {
     expect(z.w).toBeLessThan(fit.w);
 
     await page.evaluate(() => {
-      const el = document.getElementById("card") as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> };
-      el.hass = { ...el.hass, states: { "light.demo_kitchen": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } };
+      const el = document.getElementById("card") as unknown as {
+        hass: { states: Record<string, unknown> };
+        updateComplete: Promise<unknown>;
+      };
+      el.hass = {
+        ...el.hass,
+        states: { "light.demo_kitchen": { state: "on", attributes: {}, last_changed: new Date().toISOString() } },
+      };
       return el.updateComplete;
     });
     expect(await viewBox(page)).toEqual(z);
@@ -759,7 +971,9 @@ test.describe("S9.6 a card pinned to one room", () => {
     });
   const svgBox = async (page: Page) => (await card(page).locator("css=svg").first().boundingBox())!;
   const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
-  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  const states = () => ({
+    "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() },
+  });
 
   async function ctrlWheel(page: Page, x: number, y: number, dy: number) {
     await page.mouse.move(x, y);
@@ -774,7 +988,11 @@ test.describe("S9.6 a card pinned to one room", () => {
     const fit = await viewBox(page);
 
     await open(page);
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    await configureWithCallServiceSpy(
+      page,
+      { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 },
+      states(),
+    );
     const home = await viewBox(page);
     expect(home.w).toBeCloseTo(fit.w / 2, 3);
     expect(home.h).toBeCloseTo(fit.h / 2, 3);
@@ -807,7 +1025,11 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await viewBox(page)).toEqual(fit);
 
     await open(page);
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 1 }, states());
+    await configureWithCallServiceSpy(
+      page,
+      { layout: structuredClone(demo), center: [650, 200], zoom_level: 1 },
+      states(),
+    );
     expect(await viewBox(page)).toEqual(fit);
   });
 
@@ -816,7 +1038,14 @@ test.describe("S9.6 a card pinned to one room", () => {
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
 
-    for (const bad of [{ center: "650,200" }, { center: [650] }, { center: [Number.NaN, 200] }, { center: [650, Number.POSITIVE_INFINITY] }, { zoom_level: "2" }, { zoom_level: Number.NaN }]) {
+    for (const bad of [
+      { center: "650,200" },
+      { center: [650] },
+      { center: [Number.NaN, 200] },
+      { center: [650, Number.POSITIVE_INFINITY] },
+      { zoom_level: "2" },
+      { zoom_level: Number.NaN },
+    ]) {
       await open(page);
       await configureWithCallServiceSpy(page, { layout: structuredClone(demo), ...bad }, states());
       expect(await viewBox(page), JSON.stringify(bad)).toEqual(fit);
@@ -825,9 +1054,15 @@ test.describe("S9.6 a card pinned to one room", () => {
 
   // Renamed (Opus review, 2026-09-27): the body zooms IN (a negative wheel deltaY, per `onWheel`'s `k = exp(-dy *
   // 0.002)`), not out — the old title said the opposite of what this test does.
-  test("with zoom on, zooming in then Fit (and a double-tap reset) return to the pinned view, not the whole floor", async ({ page }) => {
+  test("with zoom on, zooming in then Fit (and a double-tap reset) return to the pinned view, not the whole floor", async ({
+    page,
+  }) => {
     await open(page);
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    await configureWithCallServiceSpy(
+      page,
+      { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 },
+      states(),
+    );
     const home = await viewBox(page);
     const b = await svgBox(page);
 
@@ -842,7 +1077,8 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await viewBox(page)).toEqual(home);
 
     // A double-tap resets the same way (S7.4's own reset path, `_fitView`, shared with the pinned "home").
-    const x = b.x + b.width - 10, y = b.y + b.height - 10; // bottom-right: the open Active panel (taller now, with scenes and category headers) covers the bottom-left
+    const x = b.x + b.width - 10,
+      y = b.y + b.height - 10; // bottom-right: the open Active panel (taller now, with scenes and category headers) covers the bottom-left
     await page.mouse.dblclick(x, y);
     await page.waitForTimeout(50);
     // The first double-tap, at fit already, zooms in 2x about the tap point instead of doing nothing.
@@ -851,9 +1087,15 @@ test.describe("S9.6 a card pinned to one room", () => {
     await expect.poll(() => viewBox(page)).toEqual(home);
   });
 
-  test("a real click on a device inside the pinned view still hits g[data-x] and toggles it; the Active panel still works", async ({ page }) => {
+  test("a real click on a device inside the pinned view still hits g[data-x] and toggles it; the Active panel still works", async ({
+    page,
+  }) => {
     await open(page);
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+    await configureWithCallServiceSpy(
+      page,
+      { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 },
+      states(),
+    );
     const light = card(page).locator('css=g[data-x="1"]'); // the kitchen light, right where the card is pinned
     const lb = (await light.boundingBox())!;
     // Finding 3: a real mouse click at real coordinates, not a dispatched event on an inner element.
@@ -865,14 +1107,24 @@ test.describe("S9.6 a card pinned to one room", () => {
     await expect(card(page).locator("css=.fp-active-row")).not.toHaveCount(0);
   });
 
-  test("the icon scale matches the whole-floor card at the same zoom: S9.2's scale still reads fit, not the pin", async ({ page }) => {
+  test("the icon scale matches the whole-floor card at the same zoom: S9.2's scale still reads fit, not the pin", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-    const plainScale = await card(page).evaluate((el) => el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"));
+    const plainScale = await card(page).evaluate((el) =>
+      el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"),
+    );
 
     await open(page);
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
-    const pinnedScale = await card(page).evaluate((el) => el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"));
+    await configureWithCallServiceSpy(
+      page,
+      { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 },
+      states(),
+    );
+    const pinnedScale = await card(page).evaluate((el) =>
+      el.shadowRoot!.querySelector('g[data-x="1"]')!.getAttribute("transform"),
+    );
     expect(pinnedScale).toBe(plainScale);
   });
 
@@ -882,11 +1134,16 @@ test.describe("S9.6 a card pinned to one room", () => {
   // button's own condition: "−" against the whole floor (`fit`), Fit against whether `_view` is set at all.
   test.describe("S9.6 review: the zoom buttons' own disabled state (Opus, 2026-09-27)", () => {
     const minusBtn = (page: Page) => card(page).locator('css=.fp-stack button[aria-label="Zoom out"]');
-    const fitBtn = (page: Page) => card(page).locator('css=.fp-stack button[aria-label="Fit"], .fp-stack button[aria-label="Home view"]');
+    const fitBtn = (page: Page) =>
+      card(page).locator('css=.fp-stack button[aria-label="Fit"], .fp-stack button[aria-label="Home view"]');
 
-    test("a pinned card at home has \"−\" enabled, and clicking it widens the viewBox", async ({ page }) => {
+    test('a pinned card at home has "−" enabled, and clicking it widens the viewBox', async ({ page }) => {
       await open(page);
-      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      await configureWithCallServiceSpy(
+        page,
+        { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 },
+        states(),
+      );
       const home = await viewBox(page);
       await expect(minusBtn(page)).toBeEnabled();
       await minusBtn(page).click();
@@ -896,12 +1153,17 @@ test.describe("S9.6 a card pinned to one room", () => {
 
     test("panning a pinned card enables Fit, and clicking it returns to the pinned viewBox", async ({ page }) => {
       await open(page);
-      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      await configureWithCallServiceSpy(
+        page,
+        { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 },
+        states(),
+      );
       const home = await viewBox(page);
       await expect(fitBtn(page)).toBeDisabled();
 
       const b = await svgBox(page);
-      const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+      const cx = b.x + b.width / 2,
+        cy = b.y + b.height / 2;
       // A real drag, well past TAP_SLOP_PX (6px), so this pans rather than tapping.
       await page.mouse.move(cx, cy);
       await page.mouse.down();
@@ -921,7 +1183,11 @@ test.describe("S9.6 a card pinned to one room", () => {
       await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
       const fit = await viewBox(page);
       await open(page);
-      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      await configureWithCallServiceSpy(
+        page,
+        { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 },
+        states(),
+      );
       const home = await viewBox(page);
       const b = await svgBox(page);
       // Zoom out (positive wheel deltaY) past home, towards the whole floor.
@@ -935,7 +1201,9 @@ test.describe("S9.6 a card pinned to one room", () => {
 
     // 0.12.14: "−" no longer disables at fit — MIN_ZOOM is further out than fit, so zooming out still has
     // somewhere to go. Fit stays disabled: an unpinned card already at fit has nothing to reset to.
-    test("an unpinned card at fit still has Fit disabled, but \"−\" is not: MIN_ZOOM is further out", async ({ page }) => {
+    test('an unpinned card at fit still has Fit disabled, but "−" is not: MIN_ZOOM is further out', async ({
+      page,
+    }) => {
       await open(page);
       await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
       await expect(minusBtn(page)).toBeEnabled();
@@ -943,9 +1211,13 @@ test.describe("S9.6 a card pinned to one room", () => {
       await expect(card(page).locator('css=.fp-stack button[aria-label="Home view"]')).toHaveCount(0);
     });
 
-    test("a pinned card's Fit button reads \"Home view\", not \"Fit\"", async ({ page }) => {
+    test('a pinned card\'s Fit button reads "Home view", not "Fit"', async ({ page }) => {
       await open(page);
-      await configureWithCallServiceSpy(page, { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 }, states());
+      await configureWithCallServiceSpy(
+        page,
+        { layout: structuredClone(demo), center: [650, 200], zoom_level: 2 },
+        states(),
+      );
       await expect(card(page).locator('css=.fp-stack button[aria-label="Home view"]')).toHaveCount(1);
       await expect(card(page).locator('css=.fp-stack button[aria-label="Fit"]')).toHaveCount(0);
     });
@@ -963,9 +1235,13 @@ test.describe("S7.4 touch", () => {
       return { x: x!, y: y!, w: w!, h: h! };
     });
   const svgBox = async (page: Page) => (await card(page).locator("css=svg").first().boundingBox())!;
-  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  const states = () => ({
+    "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() },
+  });
 
-  test("a double-tap on the plan zooms in 2x at fit, and a double-tap when zoomed goes back to fit", async ({ page }) => {
+  test("a double-tap on the plan zooms in 2x at fit, and a double-tap when zoomed goes back to fit", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
@@ -973,7 +1249,8 @@ test.describe("S7.4 touch", () => {
     // S8.12: the top-left corner is no longer clear of chrome on its own — with no floor config and the demo's
     // three floors, the default switcher (S8.12) now sits there. Bottom-left stays clear of it, of every device,
     // and of the zoom buttons (top-right).
-    const x = b.x + b.width - 10, y = b.y + b.height - 10; // bottom-right: the open Active panel (taller now, with scenes and category headers) covers the bottom-left
+    const x = b.x + b.width - 10,
+      y = b.y + b.height - 10; // bottom-right: the open Active panel (taller now, with scenes and category headers) covers the bottom-left
     await page.touchscreen.tap(x, y);
     await page.touchscreen.tap(x, y);
     await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 2, 3);
@@ -1008,11 +1285,19 @@ test.describe("S7.4 touch", () => {
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const fit = await viewBox(page);
     const b = await svgBox(page);
-    const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    const cx = b.x + b.width / 2,
+      cy = b.y + b.height / 2;
     const touch = await toucher(page);
     await touch("touchStart", [{ x: cx - 50, y: cy, id: 1 }]);
-    await touch("touchStart", [{ x: cx - 50, y: cy, id: 1 }, { x: cx + 50, y: cy, id: 2 }]);
-    for (let s = 1; s <= 5; s++) await touch("touchMove", [{ x: cx - 50 - s * 10, y: cy, id: 1 }, { x: cx + 50 + s * 10, y: cy, id: 2 }]);
+    await touch("touchStart", [
+      { x: cx - 50, y: cy, id: 1 },
+      { x: cx + 50, y: cy, id: 2 },
+    ]);
+    for (let s = 1; s <= 5; s++)
+      await touch("touchMove", [
+        { x: cx - 50 - s * 10, y: cy, id: 1 },
+        { x: cx + 50 + s * 10, y: cy, id: 2 },
+      ]);
     await touch("touchEnd", []);
     await expect.poll(async () => (await viewBox(page)).w).toBeCloseTo(fit.w / 2, 0);
     expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
@@ -1021,13 +1306,19 @@ test.describe("S7.4 touch", () => {
   // S7.15: the reason for pan-y at fit. A one-finger vertical swipe that starts on the plan scrolls the page, as it
   // would over any other card; the plan's view does not change. Zoomed in, the same swipe pans the plan and the page
   // stays put. The page is made tall enough to scroll first.
-  test("S7.15: a vertical swipe on the plan scrolls the page at fit and pans the plan once zoomed", async ({ page }) => {
+  test("S7.15: a vertical swipe on the plan scrolls the page at fit and pans the plan once zoomed", async ({
+    page,
+  }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-    await page.evaluate(() => { document.body.style.height = "4000px"; window.scrollTo(0, 0); });
+    await page.evaluate(() => {
+      document.body.style.height = "4000px";
+      window.scrollTo(0, 0);
+    });
     const fit = await viewBox(page);
     const b = await svgBox(page);
-    const x = b.x + b.width / 2, y0 = b.y + b.height - 40;
+    const x = b.x + b.width / 2,
+      y0 = b.y + b.height - 40;
     const touch = await toucher(page);
     const swipeUp = async () => {
       await touch("touchStart", [{ x, y: y0, id: 1 }]);
@@ -1061,12 +1352,17 @@ test.describe("S7.4 touch", () => {
     await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').tap();
     const z = await viewBox(page);
     const b = await svgBox(page);
-    const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    const cx = b.x + b.width / 2,
+      cy = b.y + b.height / 2;
     const out = { x: b.x / 2, y: cy, id: 1 }; // in the page's left margin, outside the card
     const touch = await toucher(page);
     await touch("touchStart", [out]);
     await touch("touchStart", [out, { x: cx, y: cy, id: 2 }]);
-    for (let s = 1; s <= 5; s++) await touch("touchMove", [{ ...out, y: out.y + s * 10 }, { x: cx + s * 12, y: cy - s * 12, id: 2 }]);
+    for (let s = 1; s <= 5; s++)
+      await touch("touchMove", [
+        { ...out, y: out.y + s * 10 },
+        { x: cx + s * 12, y: cy - s * 12, id: 2 },
+      ]);
     await touch("touchEnd", []);
     await page.waitForTimeout(50);
     expect(await viewBox(page)).toEqual(z);
@@ -1074,13 +1370,16 @@ test.describe("S7.4 touch", () => {
 });
 
 // S7.6: night from the sun. `night: "auto"` (the default) reads `sun.sun`, or the entity `sun` names; `on` and `off` force it.
-test("S7.6: sun.sun below the horizon sets night, above clears it; on and off force it; sun overrides the entity; unavailable is day", async ({ page }) => {
+test("S7.6: sun.sun below the horizon sets night, above clears it; on and off force it; sun overrides the entity; unavailable is day", async ({
+  page,
+}) => {
   await open(page);
   const s = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
-  const night = () => page.locator("floorplan-studio-card").evaluate((el) => {
-    const g = el.shadowRoot!.querySelector("svg g.night");
-    return { on: !!g, overlays: el.shadowRoot!.querySelectorAll("svg polygon.room-night").length };
-  });
+  const night = () =>
+    page.locator("floorplan-studio-card").evaluate((el) => {
+      const g = el.shadowRoot!.querySelector("svg g.night");
+      return { on: !!g, overlays: el.shadowRoot!.querySelectorAll("svg polygon.room-night").length };
+    });
   const cases: [string, Record<string, unknown>, Record<string, unknown>, boolean][] = [
     ["default, below", {}, { "sun.sun": s("below_horizon") }, true],
     ["default, above", {}, { "sun.sun": s("above_horizon") }, false],
@@ -1090,8 +1389,18 @@ test("S7.6: sun.sun below the horizon sets night, above clears it; on and off fo
     ["off, below", { night: "off" }, { "sun.sun": s("below_horizon") }, false],
     ["on, above", { night: "on" }, { "sun.sun": s("above_horizon") }, true],
     ["on, no sun", { night: "on" }, {}, true],
-    ["sun override below", { sun: "sensor.x" }, { "sensor.x": s("below_horizon"), "sun.sun": s("above_horizon") }, true],
-    ["sun override above", { sun: "sensor.x" }, { "sensor.x": s("above_horizon"), "sun.sun": s("below_horizon") }, false],
+    [
+      "sun override below",
+      { sun: "sensor.x" },
+      { "sensor.x": s("below_horizon"), "sun.sun": s("above_horizon") },
+      true,
+    ],
+    [
+      "sun override above",
+      { sun: "sensor.x" },
+      { "sensor.x": s("above_horizon"), "sun.sun": s("below_horizon") },
+      false,
+    ],
     ["sun override on", { sun: "binary_sensor.dark" }, { "binary_sensor.dark": s("on") }, true],
     ["unknown night value is auto", { night: "yes" }, { "sun.sun": s("above_horizon") }, false],
   ];
@@ -1104,13 +1413,19 @@ test("S7.6: sun.sun below the horizon sets night, above clears it; on and off fo
 test("S7.6: the sun flipping on a live card toggles night without a new config", async ({ page }) => {
   await open(page);
   const s = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
-  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "sun.sun": s("above_horizon") } });
-  const setSun = (state: string) => page.evaluate((st) => {
-    const el = document.getElementById("card") as unknown as { hass: unknown; updateComplete: Promise<unknown> };
-    el.hass = { states: { "sun.sun": { state: st, attributes: {}, last_changed: new Date().toISOString() } } };
-    return el.updateComplete;
-  }, state);
-  const has = () => page.locator("floorplan-studio-card").evaluate((el) => !!el.shadowRoot!.querySelector("svg g.night"));
+  await configure(
+    page,
+    { layout: structuredClone(demo), theme: "light" },
+    { states: { "sun.sun": s("above_horizon") } },
+  );
+  const setSun = (state: string) =>
+    page.evaluate((st) => {
+      const el = document.getElementById("card") as unknown as { hass: unknown; updateComplete: Promise<unknown> };
+      el.hass = { states: { "sun.sun": { state: st, attributes: {}, last_changed: new Date().toISOString() } } };
+      return el.updateComplete;
+    }, state);
+  const has = () =>
+    page.locator("floorplan-studio-card").evaluate((el) => !!el.shadowRoot!.querySelector("svg g.night"));
   expect(await has()).toBe(false);
   await setSun("below_horizon");
   expect(await has()).toBe(true);
@@ -1118,11 +1433,21 @@ test("S7.6: the sun flipping on a live card toggles night without a new config",
   expect(await has()).toBe(false);
 });
 
-test("S7.6 CSS pair: at night an unlit room is covered by --fp-night, a lit one is clear, in the card", async ({ page }) => {
+test("S7.6 CSS pair: at night an unlit room is covered by --fp-night, a lit one is clear, in the card", async ({
+  page,
+}) => {
   await open(page);
   const s = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
-  await configure(page, { layout: structuredClone(demo), theme: "light", night: "on" }, { states: { "light.demo_kitchen": s("on") } });
-  const fills = await page.locator("floorplan-studio-card").evaluate((el) => [0, 1].map((i) => getComputedStyle(el.shadowRoot!.querySelector(`svg polygon[data-night="${i}"]`)!).fill));
+  await configure(
+    page,
+    { layout: structuredClone(demo), theme: "light", night: "on" },
+    { states: { "light.demo_kitchen": s("on") } },
+  );
+  const fills = await page
+    .locator("floorplan-studio-card")
+    .evaluate((el) =>
+      [0, 1].map((i) => getComputedStyle(el.shadowRoot!.querySelector(`svg polygon[data-night="${i}"]`)!).fill),
+    );
   expect(fills).toEqual(["rgba(4, 10, 30, 0.45)", "none"]);
 });
 
@@ -1131,15 +1456,23 @@ test("S7.6 CSS pair: at night an unlit room is covered by --fp-night, a lit one 
 test.describe("S7.5 kiosk mode", () => {
   test.use({ viewport: { width: 700, height: 900 } });
   const card = (page: Page) => page.locator("floorplan-studio-card");
-  const states = () => ({ "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  const states = () => ({
+    "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() },
+  });
 
   /** Configures the card and records every `hass-more-info` fired on it onto `window.__moreInfo`. */
   async function configureRecordingMoreInfo(page: Page, config: Record<string, unknown>) {
     await page.evaluate(
       ([config, states]) => {
         (window as unknown as { __moreInfo: unknown[] }).__moreInfo = [];
-        const el = document.getElementById("card") as unknown as EventTarget & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-        el.addEventListener("hass-more-info", (e) => (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail));
+        const el = document.getElementById("card") as unknown as EventTarget & {
+          setConfig(c: unknown): void;
+          hass: unknown;
+          updateComplete: Promise<unknown>;
+        };
+        el.addEventListener("hass-more-info", (e) =>
+          (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail),
+        );
         el.setConfig(config);
         el.hass = { states };
         return el.updateComplete;
@@ -1151,7 +1484,11 @@ test.describe("S7.5 kiosk mode", () => {
 
   test(".fp-floors and the zoom buttons are absent under kiosk, and present without it", async ({ page }) => {
     await open(page);
-    await configure(page, { layout: structuredClone(demo), floors: ["ground", "first"], kiosk: true }, { states: states() });
+    await configure(
+      page,
+      { layout: structuredClone(demo), floors: ["ground", "first"], kiosk: true },
+      { states: states() },
+    );
     await expect(card(page).locator("css=.fp-floors")).toHaveCount(0);
     await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
 
@@ -1160,7 +1497,9 @@ test.describe("S7.5 kiosk mode", () => {
     await expect(card(page).locator("css=.fp-zoom")).toHaveCount(1);
   });
 
-  test("a hold of HOLD_MS + 100 on a light fires no hass-more-info under kiosk, and does otherwise", async ({ page }) => {
+  test("a hold of HOLD_MS + 100 on a light fires no hass-more-info under kiosk, and does otherwise", async ({
+    page,
+  }) => {
     const HOLD_MS = 500;
     await open(page);
     await configureRecordingMoreInfo(page, { layout: structuredClone(demo), kiosk: true });
@@ -1198,28 +1537,46 @@ test.describe("S7.5 kiosk mode", () => {
     expect(calls).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
   });
 
-  test("with floors: [first, ground] and kiosk: true the first listed floor shows and there is no switcher", async ({ page }) => {
+  test("with floors: [first, ground] and kiosk: true the first listed floor shows and there is no switcher", async ({
+    page,
+  }) => {
     await open(page);
-    await configure(page, { layout: structuredClone(demo), floors: ["first", "ground"], kiosk: true }, { states: states() });
+    await configure(
+      page,
+      { layout: structuredClone(demo), floors: ["first", "ground"], kiosk: true },
+      { states: states() },
+    );
     await expect(card(page).locator("css=.fp-floors")).toHaveCount(0);
     const rooms = await card(page).locator("css=svg [data-r]").count();
     expect(rooms).toBe(demo.floors.first.rooms.length);
   });
 
-  test("kiosk: \"yes\" (a string) is refused by setConfig with a message naming the key", async ({ page }) => {
+  test('kiosk: "yes" (a string) is refused by setConfig with a message naming the key', async ({ page }) => {
     await open(page);
     const threw = await page.evaluate(() => {
       const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void };
-      try { el.setConfig({ kiosk: "yes" }); return null; } catch (e) { return String(e); }
+      try {
+        el.setConfig({ kiosk: "yes" });
+        return null;
+      } catch (e) {
+        return String(e);
+      }
     });
     expect(threw).toMatch(/kiosk/);
   });
 
-  test("zoom: \"yes\" (an unknown string, left over from S7.4) is refused by setConfig with a message naming the key", async ({ page }) => {
+  test('zoom: "yes" (an unknown string, left over from S7.4) is refused by setConfig with a message naming the key', async ({
+    page,
+  }) => {
     await open(page);
     const threw = await page.evaluate(() => {
       const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void };
-      try { el.setConfig({ zoom: "yes" }); return null; } catch (e) { return String(e); }
+      try {
+        el.setConfig({ zoom: "yes" });
+        return null;
+      } catch (e) {
+        return String(e);
+      }
     });
     expect(threw).toMatch(/zoom/);
   });
@@ -1234,7 +1591,14 @@ test.describe("S7.5 kiosk mode", () => {
 // S7.8: a person is placed like any device, moves to the room its room sensor names, and a tap opens more-info.
 function personLayout() {
   const layout = structuredClone(demo);
-  layout.floors.ground.devices.push({ id: "person-test", type: "person", entity: "person.test", x: 200, y: 520, room: "sensor.test_room" });
+  layout.floors.ground.devices.push({
+    id: "person-test",
+    type: "person",
+    entity: "person.test",
+    x: 200,
+    y: 520,
+    room: "sensor.test_room",
+  });
   return { layout, idx: layout.floors.ground.devices.length - 1 };
 }
 const live = (state: string) => ({ state, attributes: {}, last_changed: new Date().toISOString() });
@@ -1245,25 +1609,39 @@ test("S7.8: a real tap on a person opens more-info for the person and calls no s
   await configureWithCallServiceSpy(page, { layout }, { "person.test": live("home") });
   await page.evaluate(() => {
     (window as unknown as { __more: unknown[] }).__more = [];
-    document.getElementById("card")!.addEventListener("hass-more-info", (e) => (window as unknown as { __more: unknown[] }).__more.push((e as CustomEvent).detail));
+    document
+      .getElementById("card")!
+      .addEventListener("hass-more-info", (e) =>
+        (window as unknown as { __more: unknown[] }).__more.push((e as CustomEvent).detail),
+      );
   });
   const g = page.locator("floorplan-studio-card").locator(`css=g[data-x="${idx}"]`);
   await g.scrollIntoViewIfNeeded();
   const box = (await g.boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click(); // a person has More info only
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __more: unknown[] }).__more)).toEqual([{ entityId: "person.test" }]);
+  await expect
+    .poll(() => page.evaluate(() => (window as unknown as { __more: unknown[] }).__more))
+    .toEqual([{ entityId: "person.test" }]);
   expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
 });
 
-test("S7.8: when the room sensor changes, the person glides to the new room: a real CSS transition runs on transform", async ({ page }) => {
+test("S7.8: when the room sensor changes, the person glides to the new room: a real CSS transition runs on transform", async ({
+  page,
+}) => {
   await open(page);
   const { layout, idx } = personLayout();
   await configure(page, { layout }, { states: { "person.test": live("home"), "sensor.test_room": live("Living") } });
   const moved = await page.locator("floorplan-studio-card").evaluate(async (el, i) => {
     const card = el as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> };
     const before = el.shadowRoot!.querySelector(`g[data-x="${i}"]`)!.getBoundingClientRect();
-    card.hass = { ...card.hass, states: { ...card.hass.states, "sensor.test_room": { state: "Kitchen", attributes: {}, last_changed: new Date().toISOString() } } };
+    card.hass = {
+      ...card.hass,
+      states: {
+        ...card.hass.states,
+        "sensor.test_room": { state: "Kitchen", attributes: {}, last_changed: new Date().toISOString() },
+      },
+    };
     await card.updateComplete;
     const g = el.shadowRoot!.querySelector(`g[data-x="${i}"]`)!;
     const anims = g.getAnimations().map((a) => (a as CSSTransition).transitionProperty);
@@ -1281,7 +1659,13 @@ test("S7.8: under prefers-reduced-motion the person jumps, no transition", async
   await configure(page, { layout }, { states: { "person.test": live("home"), "sensor.test_room": live("Living") } });
   const anims = await page.locator("floorplan-studio-card").evaluate(async (el, i) => {
     const card = el as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> };
-    card.hass = { ...card.hass, states: { ...card.hass.states, "sensor.test_room": { state: "Kitchen", attributes: {}, last_changed: new Date().toISOString() } } };
+    card.hass = {
+      ...card.hass,
+      states: {
+        ...card.hass.states,
+        "sensor.test_room": { state: "Kitchen", attributes: {}, last_changed: new Date().toISOString() },
+      },
+    };
     await card.updateComplete;
     return el.shadowRoot!.querySelector(`g[data-x="${i}"]`)!.getAnimations().length;
   }, idx);
@@ -1292,7 +1676,14 @@ test("S7.8: under prefers-reduced-motion the person jumps, no transition", async
 // presence and button state read for real in Chromium, never from markup or CSS text alone (finding 10).
 function vacuumLayout() {
   const layout = structuredClone(demo);
-  layout.floors.ground.devices.push({ id: "vacuum-test", type: "vacuum", entity: "vacuum.test", name: "Test vacuum", x: 200, y: 520 });
+  layout.floors.ground.devices.push({
+    id: "vacuum-test",
+    type: "vacuum",
+    entity: "vacuum.test",
+    name: "Test vacuum",
+    x: 200,
+    y: 520,
+  });
   return { layout, idx: layout.floors.ground.devices.length - 1 };
 }
 
@@ -1303,7 +1694,9 @@ async function tapVacuum(page: Page, idx: number) {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
-test("S7.10: a tap on a vacuum opens a real, visible dialog naming it, with Cancel focused by default", async ({ page }) => {
+test("S7.10: a tap on a vacuum opens a real, visible dialog naming it, with Cancel focused by default", async ({
+  page,
+}) => {
   await open(page);
   const { layout, idx } = vacuumLayout();
   await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live("docked") });
@@ -1312,20 +1705,30 @@ test("S7.10: a tap on a vacuum opens a real, visible dialog naming it, with Canc
 
   const card = page.locator("floorplan-studio-card");
   await expect(card.locator("css=.fp-vacuum-dialog p")).toHaveText("Test vacuum");
-  const display = await card.evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display);
+  const display = await card.evaluate(
+    (el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display,
+  );
   expect(display).toBe("flex");
-  const activeIsCancel = await card.evaluate((el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-vacuum-dialog button.cancel"));
+  const activeIsCancel = await card.evaluate(
+    (el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-vacuum-dialog button.cancel"),
+  );
   expect(activeIsCancel).toBe(true);
 
   const a11y = await card.evaluate((el) => {
     const dialog = el.shadowRoot!.querySelector(".fp-vacuum-dialog")!;
     const labelledBy = dialog.getAttribute("aria-labelledby")!;
-    return { role: dialog.getAttribute("role"), ariaModal: dialog.getAttribute("aria-modal"), labelText: el.shadowRoot!.getElementById(labelledBy)?.textContent };
+    return {
+      role: dialog.getAttribute("role"),
+      ariaModal: dialog.getAttribute("aria-modal"),
+      labelText: el.shadowRoot!.getElementById(labelledBy)?.textContent,
+    };
   });
   expect(a11y).toEqual({ role: "dialog", ariaModal: "true", labelText: "Test vacuum" });
 });
 
-test("S7.10: Return to dock calls vacuum.return_to_base with the entity_id, and the dialog closes", async ({ page }) => {
+test("S7.10: Return to dock calls vacuum.return_to_base with the entity_id, and the dialog closes", async ({
+  page,
+}) => {
   await open(page);
   const { layout, idx } = vacuumLayout();
   await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live("cleaning") });
@@ -1370,19 +1773,27 @@ test("S7.10: Cancel calls no service", async ({ page }) => {
   await expect(page.locator("floorplan-studio-card").locator("css=.fp-vacuum-dialog")).toHaveCount(0);
 });
 
-test("S7.10 Break it: unavailable or unknown shows the dialog with Start/Pause/Return to dock disabled, Cancel still enabled", async ({ page }) => {
+test("S7.10 Break it: unavailable or unknown shows the dialog with Start/Pause/Return to dock disabled, Cancel still enabled", async ({
+  page,
+}) => {
   for (const state of ["unavailable", "unknown"]) {
     await open(page);
     const { layout, idx } = vacuumLayout();
     await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live(state) });
     await tapVacuum(page, idx);
     const card = page.locator("floorplan-studio-card");
-    const disabled = await card.evaluate((el) => [...el.shadowRoot!.querySelectorAll(".fp-vacuum-dialog .fp-dialog-actions button")].map((b) => (b as HTMLButtonElement).disabled));
+    const disabled = await card.evaluate((el) =>
+      [...el.shadowRoot!.querySelectorAll(".fp-vacuum-dialog .fp-dialog-actions button")].map(
+        (b) => (b as HTMLButtonElement).disabled,
+      ),
+    );
     expect(disabled, state).toEqual([false, true, true, true]); // Cancel, Start, Pause, Return to dock
   }
 });
 
-test("S7.10 Break it: a second tap on the vacuum while the dialog is open does not open a second dialog", async ({ page }) => {
+test("S7.10 Break it: a second tap on the vacuum while the dialog is open does not open a second dialog", async ({
+  page,
+}) => {
   await open(page);
   const { layout, idx } = vacuumLayout();
   await configureWithCallServiceSpy(page, { layout }, { "vacuum.test": live("docked") });
@@ -1424,7 +1835,9 @@ test.describe("S8.2: the card fills a fixed-height container instead of cropping
     );
   }
 
-  test("in a container shorter than the plan's natural height, the plan's svg still fills the container height and never overflows it (S8.2)", async ({ page }) => {
+  test("in a container shorter than the plan's natural height, the plan's svg still fills the container height and never overflows it (S8.2)", async ({
+    page,
+  }) => {
     await open(page);
     await wrapFixed(page, 400, 300);
     await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
@@ -1434,7 +1847,9 @@ test.describe("S8.2: the card fills a fixed-height container instead of cropping
     expect(box.width).toBeLessThanOrEqual(wrapBox.width + 0.5);
   });
 
-  test("with no fixed height on its container, the plan still sizes by width and its own aspect ratio, unchanged (S8.2)", async ({ page }) => {
+  test("with no fixed height on its container, the plan still sizes by width and its own aspect ratio, unchanged (S8.2)", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
     const cardBox = (await card(page).boundingBox())!;
@@ -1450,16 +1865,22 @@ test.describe("S8.3: in HA's panel view the plan fits the screen", () => {
 
   // hui-panel-view gives the card no definite height, so `height:100%` fell back to width x aspect: on Diego's
   // 1454 px wide panel the plan drew 1951 px tall on a 902 px window, and "fit" looked zoomed in.
-  test("layout = panel caps the card at the viewport height below HA's header, and leaving it restores the natural height (S8.3)", async ({ page }) => {
+  test("layout = panel caps the card at the viewport height below HA's header, and leaving it restores the natural height (S8.3)", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1600, height: 400 });
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
     const before = await svgBox(page);
     expect(before.height).toBeGreaterThan(400 - 56); // the bug: taller than the screen
-    await card(page).evaluate((el) => { (el as unknown as { layout: string }).layout = "panel"; });
+    await card(page).evaluate((el) => {
+      (el as unknown as { layout: string }).layout = "panel";
+    });
     await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(400 - 56, 0);
     expect((await card(page).boundingBox())!.height).toBeCloseTo(400 - 56, 0);
-    await card(page).evaluate((el) => { (el as unknown as { layout: string }).layout = "grid"; });
+    await card(page).evaluate((el) => {
+      (el as unknown as { layout: string }).layout = "grid";
+    });
     await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(before.height, 0);
   });
 });
@@ -1483,7 +1904,11 @@ async function addSecondCard(page: Page) {
 async function configureId(page: Page, id: string, config: Record<string, unknown>, hass: Record<string, unknown>) {
   await page.evaluate(
     ([id, config, hass]) => {
-      const el = document.getElementById(id as string) as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+      const el = document.getElementById(id as string) as unknown as {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
       el.setConfig(config);
       el.hass = hass;
       return el.updateComplete;
@@ -1498,15 +1923,19 @@ function maskIdsIn(html: string): string[] {
   return [...html.matchAll(/<mask id="([^"]+)"/g)].map((m) => m[1]);
 }
 
-test("S8.11: two cards showing the same floor mint the same (content-derived) mask id, each safely scoped to its own shadow root", async ({ page }) => {
+test("S8.11: two cards showing the same floor mint the same (content-derived) mask id, each safely scoped to its own shadow root", async ({
+  page,
+}) => {
   await open(page);
   await addSecondCard(page);
   const layout = structuredClone(demo);
   await configure(page, { layout, floor: "first" }, { states: {} });
   await configureId(page, "card2", { layout, floor: "first" }, { states: {} });
 
-  const html1 = await svgHtml(page, "card"), html2 = await svgHtml(page, "card2");
-  const ids1 = maskIdsIn(html1), ids2 = maskIdsIn(html2);
+  const html1 = await svgHtml(page, "card"),
+    html2 = await svgHtml(page, "card2");
+  const ids1 = maskIdsIn(html1),
+    ids2 = maskIdsIn(html2);
   expect(ids1, "the first floor's one opening should produce exactly one mask").toHaveLength(1);
   expect(ids2).toEqual(ids1); // same content -> same deterministic id, in each card's own scope
   expect(html1).toContain(`mask="url(#${ids1[0]})"`);
@@ -1527,7 +1956,8 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
 // opening-ha-dark-4x.png, 2026-09-26): both defects below are fixed once, in src/core/render.ts, and CLAUDE.md
 // finding 8 says the editor and the card share one draw path — but the crops that found them were card
 // screenshots, so a card-side regression test guards the path that actually shipped the bug.
-const FIRST_OPENING_A: [number, number] = [600, 600], FIRST_OPENING_B: [number, number] = [700, 600];
+const FIRST_OPENING_A: [number, number] = [600, 600],
+  FIRST_OPENING_B: [number, number] = [700, 600];
 const OPENING_MID_X = (FIRST_OPENING_A[0] + FIRST_OPENING_B[0]) / 2; // 650
 const ROOM_FILL_LIGHT: [number, number, number] = [0x4a, 0x6f, 0xa5]; // Office's own colour, demo/layout.json
 const WALL_LIGHT: [number, number, number] = [0x1a, 0x19, 0x17]; // --fp-wall-external, light theme
@@ -1535,14 +1965,19 @@ function closeToRgb(px: [number, number, number, number], rgb: [number, number, 
   return Math.abs(px[0] - rgb[0]) <= 2 && Math.abs(px[1] - rgb[1]) <= 2 && Math.abs(px[2] - rgb[2]) <= 2;
 }
 async function cardScreenOf(page: Page, x: number, y: number) {
-  return page.locator("floorplan-studio-card").evaluate((el, [px, py]) => {
-    const svg = (el as any).shadowRoot.querySelector("svg") as SVGSVGElement;
-    const q = new DOMPoint(px as number, py as number).matrixTransform(svg.getScreenCTM()!);
-    return { x: q.x, y: q.y };
-  }, [x, y] as const);
+  return page.locator("floorplan-studio-card").evaluate(
+    (el, [px, py]) => {
+      const svg = (el as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+      const q = new DOMPoint(px as number, py as number).matrixTransform(svg.getScreenCTM()!);
+      return { x: q.x, y: q.y };
+    },
+    [x, y] as const,
+  );
 }
 
-test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a hole, 1.5cm outside a is still wall", async ({ page }) => {
+test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a hole, 1.5cm outside a is still wall", async ({
+  page,
+}) => {
   await open(page);
   await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
   const { decodePng, pixelAt } = await import("../core/util/png");
@@ -1554,7 +1989,10 @@ test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a h
   const outsidePx = pixelAt(png, outsideA.x, outsideA.y);
 
   expect(closeToRgb(insidePx, WALL_LIGHT), `1.5cm inside a (${insidePx}) must not be the wall colour`).toBe(false);
-  expect(closeToRgb(outsidePx, WALL_LIGHT), `1.5cm outside a (${outsidePx}) should still be the external wall colour`).toBe(true);
+  expect(
+    closeToRgb(outsidePx, WALL_LIGHT),
+    `1.5cm outside a (${outsidePx}) should still be the external wall colour`,
+  ).toBe(true);
 });
 
 // This must fail with the round cap restored: reverting src/core/render.ts's opening line back to
@@ -1571,15 +2009,49 @@ test("S8.11 fix 1 (card): the mask cut has square ends — 1.5cm inside a is a h
 // centreline — the boundary between a room and open air, where the far side is correctly blank, not room fill; not
 // a meaningful place to assert "room fill").
 const SEAM_LAYOUT = {
-  version: 2, unit: "cm", north: 0, rotate: 0,
+  version: 2,
+  unit: "cm",
+  north: 0,
+  rotate: 0,
   floors: {
     test: {
       title: "Seam test",
-      outline: [[0, 0], [600, 0], [600, 400], [0, 400]],
+      outline: [
+        [0, 0],
+        [600, 0],
+        [600, 400],
+        [0, 400],
+      ],
       owk: ["external", "external", "external", "external"],
       rooms: [
-        { id: "room-a", name: "Blue", label: "", kind: "room", color: "#4a6fa5", pts: [[0, 0], [300, 0], [300, 400], [0, 400]], wk: ["external", "wall", "external", "external"] },
-        { id: "room-b", name: "Green", label: "", kind: "room", color: "#2f8f3f", pts: [[300, 0], [600, 0], [600, 400], [300, 400]], wk: ["external", "external", "external", "wall"] },
+        {
+          id: "room-a",
+          name: "Blue",
+          label: "",
+          kind: "room",
+          color: "#4a6fa5",
+          pts: [
+            [0, 0],
+            [300, 0],
+            [300, 400],
+            [0, 400],
+          ],
+          wk: ["external", "wall", "external", "external"],
+        },
+        {
+          id: "room-b",
+          name: "Green",
+          label: "",
+          kind: "room",
+          color: "#2f8f3f",
+          pts: [
+            [300, 0],
+            [600, 0],
+            [600, 400],
+            [300, 400],
+          ],
+          wk: ["external", "external", "external", "wall"],
+        },
       ],
       openings: [{ id: "opening-internal", a: [300, 150], b: [300, 250] }],
     },
@@ -1587,7 +2059,9 @@ const SEAM_LAYOUT = {
 };
 const GREEN_FILL: [number, number, number] = [0x2f, 0x8f, 0x3f]; // room-b's own colour, SEAM_LAYOUT above
 
-test("S8.11 review (card): the internal opening's centre, between two differently-coloured rooms, is a real room fill — not white, not a blend", async ({ page }) => {
+test("S8.11 review (card): the internal opening's centre, between two differently-coloured rooms, is a real room fill — not white, not a blend", async ({
+  page,
+}) => {
   await open(page);
   await configure(page, { layout: SEAM_LAYOUT, floor: "test", theme: "light" }, { states: {} });
   const { decodePng, pixelAt } = await import("../core/util/png");
@@ -1596,7 +2070,10 @@ test("S8.11 review (card): the internal opening's centre, between two differentl
   const png = decodePng(await page.screenshot({ fullPage: true }));
   const centrePx = pixelAt(png, centre.x, centre.y);
 
-  expect(closeToRgb(centrePx, GREEN_FILL), `opening centre (${centrePx}) should be a real room fill, not background or a blend`).toBe(true);
+  expect(
+    closeToRgb(centrePx, GREEN_FILL),
+    `opening centre (${centrePx}) should be a real room fill, not background or a blend`,
+  ).toBe(true);
 });
 
 // This must fail with the opening removed (`openings: []` on the same layout): with no hole to cut, this exact
@@ -1609,7 +2086,9 @@ test("S8.11 review (card): the internal opening's centre, between two differentl
 // accidental rectangle. Two independent reproductions: a zoomed-in viewBox that excludes 0,0 (mirrors "zoom in twice
 // in the card" from the field report), and a floor whose own content is offset far from 0,0 (mirrors "a floor offset
 // by ±5000"). Both are plain wall-colour checks, not sub-pixel colour blends, so they do not depend on antialiasing.
-function shiftPt(p: [number, number], dx: number, dy: number): [number, number] { return [p[0] + dx, p[1] + dy]; }
+function shiftPt(p: [number, number], dx: number, dy: number): [number, number] {
+  return [p[0] + dx, p[1] + dy];
+}
 /** Deep-shifts every coordinate a first floor built like the demo's actually carries (outline, rooms, openings). Any
  * field this floor does not use (devices, walls, stairs, trace) is left as `[]`/absent, on purpose: a minimal
  * reproduction, not a copy of the demo. */
@@ -1621,7 +2100,9 @@ function shiftFirstFloor(floor: any, dx: number, dy: number) {
   return f;
 }
 
-test("S8.11 fix (blocker, card): a wall far from the origin, seen through a zoomed viewBox that excludes 0,0, is still wall colour", async ({ page }) => {
+test("S8.11 fix (blocker, card): a wall far from the origin, seen through a zoomed viewBox that excludes 0,0, is still wall colour", async ({
+  page,
+}) => {
   await open(page);
   await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
   const { decodePng, pixelAt } = await import("../core/util/png");
@@ -1636,7 +2117,10 @@ test("S8.11 fix (blocker, card): a wall far from the origin, seen through a zoom
   const zoomedWall = await cardScreenOf(page, 500, 600);
   const png = decodePng(await page.screenshot({ fullPage: true }));
   const px = pixelAt(png, zoomedWall.x, zoomedWall.y);
-  expect(closeToRgb(px, WALL_LIGHT), `wall at (500,600), viewed through a viewBox excluding 0,0 (${px}) should still be the external wall colour`).toBe(true);
+  expect(
+    closeToRgb(px, WALL_LIGHT),
+    `wall at (500,600), viewed through a viewBox excluding 0,0 (${px}) should still be the external wall colour`,
+  ).toBe(true);
 });
 
 // This must fail with `<mask>`'s own x/y/width/height removed: the mask's default region (-10%/120% of the
@@ -1654,7 +2138,10 @@ test("S8.11 fix (blocker, card): a floor offset by +5000 still shows its walls",
   const shiftedWall = await cardScreenOf(page, 5000 + 500, 5000 + 600);
   const png = decodePng(await page.screenshot({ fullPage: true }));
   const px = pixelAt(png, shiftedWall.x, shiftedWall.y);
-  expect(closeToRgb(px, WALL_LIGHT), `wall at (5500,5600) on a floor offset by +5000 (${px}) should still be the external wall colour`).toBe(true);
+  expect(
+    closeToRgb(px, WALL_LIGHT),
+    `wall at (5500,5600) on a floor offset by +5000 (${px}) should still be the external wall colour`,
+  ).toBe(true);
 });
 
 // This must fail the same way: the floor's own fit viewBox sits around (4940,4940), nowhere near the mask's
@@ -1668,7 +2155,9 @@ test("S8.11 fix (blocker, card): a floor offset by +5000 still shows its walls",
 // the other: a faint line along the hole (found zoomed in, same as the mask-region blocker above; the demo card's
 // own default fit is coarse enough — about 1.3 device px per cm — that this single-row artifact happens not to
 // land on a sampled pixel there, so the test zooms in, as the field report did, to make it land reliably).
-test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's own halo edge, so no faint blended line survives along the hole", async ({ page }) => {
+test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's own halo edge, so no faint blended line survives along the hole", async ({
+  page,
+}) => {
   await open(page);
   await configure(page, { layout: demo, floor: "first", theme: "light" }, { states: {} });
   const { decodePng, pixelAt } = await import("../core/util/png");
@@ -1686,7 +2175,10 @@ test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's o
   const png = decodePng(await page.screenshot({ fullPage: true }));
   const px = pixelAt(png, seamPoint.x, seamPoint.y);
 
-  expect(closeToRgb(px, ROOM_FILL_LIGHT), `the old halo/cut coincidence row (${px}) should be plain room fill, not a blended halo line`).toBe(true);
+  expect(
+    closeToRgb(px, ROOM_FILL_LIGHT),
+    `the old halo/cut coincidence row (${px}) should be plain room fill, not a blended halo line`,
+  ).toBe(true);
 });
 
 // This must fail with the cut narrowed back to wallWidthAt(...) + 2 (its old width, exactly the halo's own width):
@@ -1697,11 +2189,16 @@ test("S8.11 fix (halo seam, card): the cut no longer coincides with the wall's o
 // line) draws in the configured colour instead of the default contact red. Untrusted config (CLAUDE.md finding 1):
 // a value that is not a plain #rrggbb hex is ignored rather than thrown on, and the CSS custom property is left
 // unset so the theme's own default (var(--fp-dev-contact)) still applies.
-test("S9.1: open_color sets --fp-open-door on the host from a valid #rrggbb hex, and is ignored otherwise", async ({ page }) => {
+test("S9.1: open_color sets --fp-open-door on the host from a valid #rrggbb hex, and is ignored otherwise", async ({
+  page,
+}) => {
   await open(page);
   // The host's own inline style, not getComputedStyle: --fp-open-door is always defined (the theme's own default,
   // var(--fp-dev-contact)), so a computed read can never tell "unset" from "set to the same colour as the default".
-  const openDoorVar = () => page.locator("floorplan-studio-card").evaluate((el) => (el as HTMLElement).style.getPropertyValue("--fp-open-door").trim());
+  const openDoorVar = () =>
+    page
+      .locator("floorplan-studio-card")
+      .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--fp-open-door").trim());
 
   await configure(page, { layout: structuredClone(demo) }, { states: {} });
   expect(await openDoorVar(), "no open_color: unset, falls back to the theme default").toBe("");
@@ -1728,8 +2225,22 @@ function bigLayout() {
   const layout = structuredClone(demo);
   const o = 2000 - 120; // pad is 60 cm on every edge, so this outline gives a view box exactly 2000 cm square
   layout.floors.big = {
-    title: "Big", outline: [[0, 0], [o, 0], [o, o], [0, o]], owk: ["wall", "wall", "wall", "wall"],
-    rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
+    title: "Big",
+    outline: [
+      [0, 0],
+      [o, 0],
+      [o, o],
+      [0, o],
+    ],
+    owk: ["wall", "wall", "wall", "wall"],
+    rooms: [],
+    walls: [],
+    stairs: [],
+    doors: [],
+    openings: [],
+    extras: [],
+    furniture: [],
+    unlinked: [],
     devices: [{ id: "light-big", type: "light", entity: "light.demo_big", x: o / 2, y: o / 2 }],
   };
   return layout;
@@ -1738,7 +2249,11 @@ function bigLayout() {
 test("S9.2: a real click still hits the icon on a 2000 cm plan, drawn at 2x", async ({ page }) => {
   await open(page);
   const layout = bigLayout();
-  await configureWithCallServiceSpy(page, { layout, floor: "big" }, { "light.demo_big": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  await configureWithCallServiceSpy(
+    page,
+    { layout, floor: "big" },
+    { "light.demo_big": { state: "off", attributes: {}, last_changed: new Date().toISOString() } },
+  );
   const g = page.locator("floorplan-studio-card").locator('css=g[data-x="0"]');
   const box = (await g.boundingBox())!;
   // 24 units at scale 0.5 (k = 1/scale = 2) is 48 plan units; at fit (2000 cm view box) that is a sizeable,
@@ -1761,12 +2276,22 @@ test.describe("S9.5: the active-devices panel", () => {
   });
 
   /** Same recording pattern as the kiosk section above: a page-global array of every `hass-more-info` detail. */
-  async function configureRecordingMoreInfo(page: Page, config: Record<string, unknown>, hass: Record<string, unknown>) {
+  async function configureRecordingMoreInfo(
+    page: Page,
+    config: Record<string, unknown>,
+    hass: Record<string, unknown>,
+  ) {
     await page.evaluate(
       ([config, hass]) => {
         (window as unknown as { __moreInfo: unknown[] }).__moreInfo = [];
-        const el = document.getElementById("card") as unknown as EventTarget & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-        el.addEventListener("hass-more-info", (e) => (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail));
+        const el = document.getElementById("card") as unknown as EventTarget & {
+          setConfig(c: unknown): void;
+          hass: unknown;
+          updateComplete: Promise<unknown>;
+        };
+        el.addEventListener("hass-more-info", (e) =>
+          (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail),
+        );
         el.setConfig(config);
         el.hass = hass;
         return el.updateComplete;
@@ -1794,7 +2319,9 @@ test.describe("S9.5: the active-devices panel", () => {
   // reads by (`.fp-active{color:var(--fp-ink)}`), which is picked precisely so it is never the same shade as the
   // background it sits on. Reading the resolved `fill`, not just asserting the source string, is what makes this
   // a real Chromium check and not a text match blind to which rule actually won (CLAUDE.md finding 10 itself).
-  test("S9.5 CSS pair: a camera row's icon resolves to --fp-ink (legible on --fp-room), not --fp-dev-camera", async ({ page }) => {
+  test("S9.5 CSS pair: a camera row's icon resolves to --fp-ink (legible on --fp-room), not --fp-dev-camera", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });
     const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
@@ -1806,9 +2333,19 @@ test.describe("S9.5: the active-devices panel", () => {
   // placed anywhere as its own device icon; when it triggers it must still show up on this panel, under the
   // door's own name, and tapping it must open its own more-info, same as any other row (real page.mouse click,
   // CLAUDE.md finding 3).
-  test("S10.3: a door's own contact sensor joins the active panel under the door's name, and its row opens its more-info", async ({ page }) => {
+  test("S10.3: a door's own contact sensor joins the active panel under the door's name, and its row opens its more-info", async ({
+    page,
+  }) => {
     await open(page);
-    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: { "binary_sensor.demo_front_door": { state: "on", attributes: {}, last_changed: new Date().toISOString() } } });
+    await configureRecordingMoreInfo(
+      page,
+      { layout: structuredClone(demo) },
+      {
+        states: {
+          "binary_sensor.demo_front_door": { state: "on", attributes: {}, last_changed: new Date().toISOString() },
+        },
+      },
+    );
     const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Front door" });
     await expect(row).toHaveCount(1);
     const box = (await row.boundingBox())!;
@@ -1817,10 +2354,22 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_front_door" }]);
   });
 
-  test("S10.3: the door's contact sensor row disappears once the sensor goes off, same as any other active row", async ({ page }) => {
+  test("S10.3: the door's contact sensor row disappears once the sensor goes off, same as any other active row", async ({
+    page,
+  }) => {
     await open(page);
-    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: { "binary_sensor.demo_front_door": { state: "off", attributes: {}, last_changed: new Date().toISOString() } } });
-    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Front door" })).toHaveCount(0);
+    await configureRecordingMoreInfo(
+      page,
+      { layout: structuredClone(demo) },
+      {
+        states: {
+          "binary_sensor.demo_front_door": { state: "off", attributes: {}, last_changed: new Date().toISOString() },
+        },
+      },
+    );
+    await expect(
+      page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Front door" }),
+    ).toHaveCount(0);
   });
 
   test("a real drag on the header moves the panel and clamps it inside the card, both corners", async ({ page }) => {
@@ -1851,9 +2400,15 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(panelBox2.y).toBeGreaterThanOrEqual(cardBox.y - 0.5);
   });
 
-  test("a drag over a device does not toggle it; a plain click on the plan still reaches a device once the panel is out of the way", async ({ page }) => {
+  test("a drag over a device does not toggle it; a plain click on the plan still reaches a device once the panel is out of the way", async ({
+    page,
+  }) => {
     await open(page);
-    await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, { "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+    await configureWithCallServiceSpy(
+      page,
+      { layout: structuredClone(demo) },
+      { "light.demo_kitchen": { state: "off", attributes: {}, last_changed: new Date().toISOString() } },
+    );
     const card = page.locator("floorplan-studio-card");
     const cardBox = (await card.boundingBox())!;
     const kitchenLight = card.locator('css=g[data-x="1"]');
@@ -1911,7 +2466,9 @@ test.describe("S9.5: the active-devices panel", () => {
   // narrower width, or re-expanding a panel that was dragged low while collapsed (its own shorter height at drag
   // time). The fix re-derives the on-screen position from a stored *fraction* of the free width/height on every
   // render and on a host resize, so it is inside the card by construction, whatever the current geometry is.
-  test("Opus review finding 3: a position saved at 1000px stays fully inside the card after a reload at 380px", async ({ page }) => {
+  test("Opus review finding 3: a position saved at 1000px stays fully inside the card after a reload at 380px", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1000, height: 700 });
     await open(page);
     const config = { layout: structuredClone(demo) };
@@ -1924,7 +2481,9 @@ test.describe("S9.5: the active-devices panel", () => {
     await page.mouse.down();
     await page.mouse.move(cardBox.x + cardBox.width + 400, cardBox.y + cardBox.height + 400, { steps: 6 });
     await page.mouse.up();
-    await expect.poll(async () => (await card.locator("css=.fp-active").boundingBox())!.x).toBeGreaterThan(cardBox.x + cardBox.width / 2);
+    await expect
+      .poll(async () => (await card.locator("css=.fp-active").boundingBox())!.x)
+      .toBeGreaterThan(cardBox.x + cardBox.width / 2);
 
     await page.setViewportSize({ width: 380, height: 700 });
     await page.reload();
@@ -1939,7 +2498,9 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(narrowCardBox.y + narrowCardBox.height + 0.5);
   });
 
-  test("Opus review finding 4: collapse, drag to the bottom, expand — the panel does not hang below the card", async ({ page }) => {
+  test("Opus review finding 4: collapse, drag to the bottom, expand — the panel does not hang below the card", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1000, height: 700 });
     await open(page);
     const config = { layout: structuredClone(demo) };
@@ -1962,7 +2523,9 @@ test.describe("S9.5: the active-devices panel", () => {
 
   // Opus review finding 5 (phone-width default, an assumption Diego may overrule — see docs/DECISIONS.md): with
   // nothing stored yet, a card narrower than 500px starts collapsed; a wider one starts open as always.
-  test("Opus review finding 5: a narrow card with nothing stored starts collapsed; a wide one starts open", async ({ page }) => {
+  test("Opus review finding 5: a narrow card with nothing stored starts collapsed; a wide one starts open", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 380, height: 700 });
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });
@@ -1979,7 +2542,9 @@ test.describe("S9.5: the active-devices panel", () => {
   // 2026-10-02: the list covered the plan on narrow cards. Folded by default under 480px (it was 500px, and only
   // with nothing stored, so a panel that had merely been dragged once stayed open on a phone); the width is followed
   // until the user folds or unfolds it by hand, and from then on the choice is theirs.
-  test("under 480px the list starts folded and over 480px it starts open, at the line and not at the old 500", async ({ page }) => {
+  test("under 480px the list starts folded and over 480px it starts open, at the line and not at the old 500", async ({
+    page,
+  }) => {
     const body = () => page.locator("floorplan-studio-card").locator("css=.fp-active-body");
     await page.setViewportSize({ width: 500, height: 700 }); // the page body's 8px margins make the card 484
     await open(page);
@@ -1991,7 +2556,9 @@ test.describe("S9.5: the active-devices panel", () => {
     await expect(body()).toHaveCount(1);
   });
 
-  test("a panel that was only dragged, never folded by hand, still starts folded on a narrow card", async ({ page }) => {
+  test("a panel that was only dragged, never folded by hand, still starts folded on a narrow card", async ({
+    page,
+  }) => {
     const config = { layout: structuredClone(demo) };
     await open(page);
     await configure(page, config, { states: states() });
@@ -2009,7 +2576,9 @@ test.describe("S9.5: the active-devices panel", () => {
     await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
   });
 
-  test("once the user unfolds it on a narrow card, or folds it on a wide one, widening or narrowing the card leaves it alone", async ({ page }) => {
+  test("once the user unfolds it on a narrow card, or folds it on a wide one, widening or narrowing the card leaves it alone", async ({
+    page,
+  }) => {
     const card = page.locator("floorplan-studio-card");
     await page.setViewportSize({ width: 400, height: 700 });
     await open(page);
@@ -2030,7 +2599,9 @@ test.describe("S9.5: the active-devices panel", () => {
   });
 
   // Opus review finding 13: the panel must not be able to cover the floor chips and steal their clicks.
-  test("Opus review finding 13: a real click on a floor chip works even with the panel dragged onto it", async ({ page }) => {
+  test("Opus review finding 13: a real click on a floor chip works even with the panel dragged onto it", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });
     const card = page.locator("floorplan-studio-card");
@@ -2055,15 +2626,31 @@ test.describe("S9.5: the active-devices panel", () => {
 // no layout edit needed; a heater's two TRVs and a door's second attachment (vibration) are added by cloning the
 // demo, the same pattern every other test in this file already uses.
 test.describe("S10.4: a device or door naming more than one entity opens a chooser dialog on tap or hold", () => {
-  const states = () => ({ "binary_sensor.demo_office_radar_occupancy": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });
+  const states = () => ({
+    "binary_sensor.demo_office_radar_occupancy": {
+      state: "off",
+      attributes: {},
+      last_changed: new Date().toISOString(),
+    },
+  });
 
   /** Same recording pattern as S9.5/S10.3 above: a page-global array of every `hass-more-info` detail. */
-  async function configureRecordingMoreInfo(page: Page, config: Record<string, unknown>, hass: Record<string, unknown>) {
+  async function configureRecordingMoreInfo(
+    page: Page,
+    config: Record<string, unknown>,
+    hass: Record<string, unknown>,
+  ) {
     await page.evaluate(
       ([config, hass]) => {
         (window as unknown as { __moreInfo: unknown[] }).__moreInfo = [];
-        const el = document.getElementById("card") as unknown as EventTarget & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-        el.addEventListener("hass-more-info", (e) => (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail));
+        const el = document.getElementById("card") as unknown as EventTarget & {
+          setConfig(c: unknown): void;
+          hass: unknown;
+          updateComplete: Promise<unknown>;
+        };
+        el.addEventListener("hass-more-info", (e) =>
+          (window as unknown as { __moreInfo: unknown[] }).__moreInfo.push((e as CustomEvent).detail),
+        );
         el.setConfig(config);
         el.hass = hass;
         return el.updateComplete;
@@ -2085,7 +2672,9 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
   const RADAR_IDX = 5; // demo/layout.json: floors.first.devices[5], "Office radar", one target (x, y)
 
-  test("a tap on the office radar opens a chooser naming it, with all three entities listed, Cancel focused by default", async ({ page }) => {
+  test("a tap on the office radar opens a chooser naming it, with all three entities listed, Cancel focused by default", async ({
+    page,
+  }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
 
@@ -2093,7 +2682,9 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Office radar");
-    const display = await card.evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display);
+    const display = await card.evaluate(
+      (el) => getComputedStyle(el.shadowRoot!.querySelector(".fp-dialog-backdrop")!).display,
+    );
     expect(display).toBe("flex"); // really laid out and visible, not just present in the DOM
 
     const rows = card.locator("css=.fp-chooser-list button .name");
@@ -2103,50 +2694,93 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
       "sensor.demo_office_radar_target_1_y",
     ]);
 
-    const activeIsCancel = await card.evaluate((el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-chooser-dialog button.cancel"));
+    const activeIsCancel = await card.evaluate(
+      (el) => el.shadowRoot!.activeElement === el.shadowRoot!.querySelector(".fp-chooser-dialog button.cancel"),
+    );
     expect(activeIsCancel).toBe(true);
 
     const a11y = await card.evaluate((el) => {
       const dialog = el.shadowRoot!.querySelector(".fp-chooser-dialog")!;
       const labelledBy = dialog.getAttribute("aria-labelledby")!;
-      return { role: dialog.getAttribute("role"), ariaModal: dialog.getAttribute("aria-modal"), labelText: el.shadowRoot!.getElementById(labelledBy)?.textContent };
+      return {
+        role: dialog.getAttribute("role"),
+        ariaModal: dialog.getAttribute("aria-modal"),
+        labelText: el.shadowRoot!.getElementById(labelledBy)?.textContent,
+      };
     });
     expect(a11y).toEqual({ role: "dialog", ariaModal: "true", labelText: "Office radar" });
   });
 
-  test("a row's own friendly_name is used when hass has one for that entity, the entity id otherwise", async ({ page }) => {
+  test("a row's own friendly_name is used when hass has one for that entity, the entity id otherwise", async ({
+    page,
+  }) => {
     await open(page);
-    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, {
-      states: { "sensor.demo_office_radar_target_1_x": { state: "1.2", attributes: { friendly_name: "Office target 1 X" }, last_changed: new Date().toISOString() } },
-    });
+    await configureRecordingMoreInfo(
+      page,
+      { layout: structuredClone(demo), floor: "first" },
+      {
+        states: {
+          "sensor.demo_office_radar_target_1_x": {
+            state: "1.2",
+            attributes: { friendly_name: "Office target 1 X" },
+            last_changed: new Date().toISOString(),
+          },
+        },
+      },
+    );
     await tapDevice(page, RADAR_IDX);
     const rows = page.locator("floorplan-studio-card").locator("css=.fp-chooser-list button .name");
     await expect(rows).toHaveText(["Office radar", "Office target 1 X", "sensor.demo_office_radar_target_1_y"]);
   });
 
-  test("a row reads like a row: catalog name when hass has no friendly_name, the state with its unit, and dialog button styling", async ({ page }) => {
+  test("a row reads like a row: catalog name when hass has no friendly_name, the state with its unit, and dialog button styling", async ({
+    page,
+  }) => {
     await open(page);
-    await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, {
-      states: {
-        // the stub's shape copies hass.states, the side that sends it (finding 21): state string, attributes, last_changed
-        "binary_sensor.demo_office_radar_occupancy": { state: "on", attributes: {}, last_changed: new Date().toISOString() },
-        "sensor.demo_office_radar_target_1_x": { state: "1.2", attributes: { friendly_name: "Office target 1 X", unit_of_measurement: "m" }, last_changed: new Date().toISOString() },
+    await configureRecordingMoreInfo(
+      page,
+      { layout: structuredClone(demo), floor: "first" },
+      {
+        states: {
+          // the stub's shape copies hass.states, the side that sends it (finding 21): state string, attributes, last_changed
+          "binary_sensor.demo_office_radar_occupancy": {
+            state: "on",
+            attributes: {},
+            last_changed: new Date().toISOString(),
+          },
+          "sensor.demo_office_radar_target_1_x": {
+            state: "1.2",
+            attributes: { friendly_name: "Office target 1 X", unit_of_measurement: "m" },
+            last_changed: new Date().toISOString(),
+          },
+        },
       },
-    });
+    );
     await tapDevice(page, RADAR_IDX);
     const card = page.locator("floorplan-studio-card");
     // demo/layout.json catalogues the occupancy entity as "Office radar"; target_1_y has no state and no catalog name
-    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["Office radar", "Office target 1 X", "sensor.demo_office_radar_target_1_y"]);
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText([
+      "Office radar",
+      "Office target 1 X",
+      "sensor.demo_office_radar_target_1_y",
+    ]);
     await expect(card.locator("css=.fp-chooser-list button .state")).toHaveText(["on", "1.2 m", ""]);
     const look = await card.evaluate((el) => {
       const row = getComputedStyle(el.shadowRoot!.querySelector(".fp-chooser-list button")!);
       const cancel = getComputedStyle(el.shadowRoot!.querySelector(".fp-chooser-dialog button.cancel")!);
-      return { bg: row.backgroundColor === cancel.backgroundColor, border: row.borderTopColor === cancel.borderTopColor, radius: row.borderTopLeftRadius, font: row.fontSize === cancel.fontSize };
+      return {
+        bg: row.backgroundColor === cancel.backgroundColor,
+        border: row.borderTopColor === cancel.borderTopColor,
+        radius: row.borderTopLeftRadius,
+        font: row.fontSize === cancel.fontSize,
+      };
     });
     expect(look).toEqual({ bg: true, border: true, radius: "6px", font: true });
   });
 
-  test("clicking a row closes the dialog and fires hass-more-info for that row's own entity, not the device's main one", async ({ page }) => {
+  test("clicking a row closes the dialog and fires hass-more-info for that row's own entity, not the device's main one", async ({
+    page,
+  }) => {
     await open(page);
     await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
     await tapDevice(page, RADAR_IDX);
@@ -2181,7 +2815,9 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
   });
 
-  test("clicking the backdrop, outside the dialog box, closes the chooser — the one dialog with this extra close (a deliberate deviation from the cover/vacuum dialogs, which only close on Escape or their own Cancel)", async ({ page }) => {
+  test("clicking the backdrop, outside the dialog box, closes the chooser — the one dialog with this extra close (a deliberate deviation from the cover/vacuum dialogs, which only close on Escape or their own Cancel)", async ({
+    page,
+  }) => {
     await open(page);
     await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
     await tapDevice(page, RADAR_IDX);
@@ -2202,7 +2838,9 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
   // icon underneath it, and closes the dialog rather than opening a duplicate — one dialog is still never open twice,
   // just by a different, correct mechanism. A third tap, now that the backdrop is gone, reaches the icon again and
   // opens a fresh, correctly populated dialog: the guard in `_openChooserDialog` did not leave stale state behind.
-  test("Break it: a second tap at the radar's own spot lands on the backdrop and closes the dialog rather than opening a duplicate; a third tap opens a fresh one", async ({ page }) => {
+  test("Break it: a second tap at the radar's own spot lands on the backdrop and closes the dialog rather than opening a duplicate; a third tap opens a fresh one", async ({
+    page,
+  }) => {
     await open(page);
     await configureRecordingMoreInfo(page, { layout: structuredClone(demo), floor: "first" }, { states: states() });
     const spot = await tapDevice(page, RADAR_IDX); // popup, then More info: the chooser is open
@@ -2226,13 +2864,25 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
   // is exactly the gesture that used to guess which of the heater's several entities was meant, so the chooser now
   // lives there instead; a hold opens more-info for the heater's own entity, the same thing a hold always did
   // before S10.4 existed.
-  test("a heater with two TRVs: a plain tap opens the chooser naming it, listing the heater then both TRVs, and calls no toggle service", async ({ page }) => {
+  test("a heater with two TRVs: a plain tap opens the chooser naming it, listing the heater then both TRVs, and calls no toggle service", async ({
+    page,
+  }) => {
     await open(page);
     const layout = structuredClone(demo);
     const heater = layout.floors.ground.devices[7];
     expect(heater.type).toBe("heater"); // demo/layout.json: "Living radiator" — fails loudly if the fixture ever moves
     heater.trvs = ["climate.demo_trv_1", "climate.demo_trv_2"];
-    await configureWithCallServiceSpy(page, { layout }, { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } });
+    await configureWithCallServiceSpy(
+      page,
+      { layout },
+      {
+        "climate.demo_living": {
+          state: "heat",
+          attributes: { hvac_action: "idle" },
+          last_changed: new Date().toISOString(),
+        },
+      },
+    );
 
     await tapDevice(page, 7); // a plain click: the chooser, not a toggle
     const calls = await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls);
@@ -2240,15 +2890,33 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Living radiator");
-    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["Living radiator", "climate.demo_trv_1", "climate.demo_trv_2"]);
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText([
+      "Living radiator",
+      "climate.demo_trv_1",
+      "climate.demo_trv_2",
+    ]);
   });
 
-  test("a heater with two TRVs: a HOLD opens more-info for the heater's own entity, not the chooser", async ({ page }) => {
+  test("a heater with two TRVs: a HOLD opens more-info for the heater's own entity, not the chooser", async ({
+    page,
+  }) => {
     await open(page);
     const layout = structuredClone(demo);
     const heater = layout.floors.ground.devices[7];
     heater.trvs = ["climate.demo_trv_1", "climate.demo_trv_2"];
-    await configureRecordingMoreInfo(page, { layout }, { states: { "climate.demo_living": { state: "heat", attributes: { hvac_action: "idle" }, last_changed: new Date().toISOString() } } });
+    await configureRecordingMoreInfo(
+      page,
+      { layout },
+      {
+        states: {
+          "climate.demo_living": {
+            state: "heat",
+            attributes: { hvac_action: "idle" },
+            last_changed: new Date().toISOString(),
+          },
+        },
+      },
+    );
 
     const g = page.locator("floorplan-studio-card").locator('css=g[data-x="7"]');
     await g.scrollIntoViewIfNeeded();
@@ -2265,7 +2933,9 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     expect(calls).toEqual([]);
   });
 
-  test("a door with a contact sensor and a vibration sensor: a tap opens a chooser naming the door, not either sensor's own more-info", async ({ page }) => {
+  test("a door with a contact sensor and a vibration sensor: a tap opens a chooser naming the door, not either sensor's own more-info", async ({
+    page,
+  }) => {
     await open(page);
     const layout = structuredClone(demo);
     const door = layout.floors.ground.doors[0];
@@ -2278,18 +2948,27 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Front door");
-    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["binary_sensor.demo_front_door", "binary_sensor.demo_front_vibration"]);
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText([
+      "binary_sensor.demo_front_door",
+      "binary_sensor.demo_front_vibration",
+    ]);
 
     await card.locator("css=.fp-chooser-list button", { hasText: "binary_sensor.demo_front_vibration" }).click();
     expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_front_vibration" }]);
   });
 
-  test("a door with a cover is unaffected: its tap still opens the cover confirm dialog, never the chooser, whatever else is attached", async ({ page }) => {
+  test("a door with a cover is unaffected: its tap still opens the cover confirm dialog, never the chooser, whatever else is attached", async ({
+    page,
+  }) => {
     await open(page);
     const layout = structuredClone(demo);
     const garage = layout.floors.ground.doors[GARAGE_DOOR_INDEX];
     garage.vibration = ["binary_sensor.demo_garage_vibration"]; // a second attachment: the cover dialog still wins
-    await configureWithCallServiceSpy(page, { layout }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+    await configureWithCallServiceSpy(
+      page,
+      { layout },
+      { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } },
+    );
 
     await tapDoor(page, GARAGE_DOOR_INDEX);
     await popupDo(page);
@@ -2302,14 +2981,22 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
   // S10.3 review fix 2: the first S10.4 build returned before starting any hold timer on a cover door, so nothing
   // else that door named was reachable by gesture. A hold now opens the chooser instead, entitiesOfDoor listing
   // the cover entity itself (never reached through a plain tap, which always goes straight to the confirm dialog).
-  test("a door with a cover and a vibration sensor: a HOLD opens the chooser, whose rows include the cover entity, not the cover dialog", async ({ page }) => {
+  test("a door with a cover and a vibration sensor: a HOLD opens the chooser, whose rows include the cover entity, not the cover dialog", async ({
+    page,
+  }) => {
     await open(page);
     const layout = structuredClone(demo);
     const garage = layout.floors.ground.doors[GARAGE_DOOR_INDEX];
     garage.vibration = ["binary_sensor.demo_garage_vibration"];
-    await configureWithCallServiceSpy(page, { layout }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+    await configureWithCallServiceSpy(
+      page,
+      { layout },
+      { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } },
+    );
 
-    const line = page.locator("floorplan-studio-card").locator(`css=line[data-d="${GARAGE_DOOR_INDEX}"]:not(.door-hit)`);
+    const line = page
+      .locator("floorplan-studio-card")
+      .locator(`css=line[data-d="${GARAGE_DOOR_INDEX}"]:not(.door-hit)`);
     await line.scrollIntoViewIfNeeded();
     const box = (await line.boundingBox())!;
     const HOLD_MS = 500;
@@ -2319,7 +3006,10 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Garage door");
-    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["cover.demo_garage_door", "binary_sensor.demo_garage_vibration"]);
+    await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText([
+      "cover.demo_garage_door",
+      "binary_sensor.demo_garage_vibration",
+    ]);
     await expect(card.locator("css=.fp-dialog:not(.fp-chooser-dialog) p")).toHaveCount(0); // the cover confirm dialog never opened
 
     await page.mouse.up();
@@ -2327,14 +3017,22 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     await expect(card.locator("css=.fp-dialog:not(.fp-chooser-dialog) p")).toHaveCount(0);
   });
 
-  test("kiosk mode: a door with a cover starts no hold timer, so a hold does nothing and only a plain tap opens the cover dialog", async ({ page }) => {
+  test("kiosk mode: a door with a cover starts no hold timer, so a hold does nothing and only a plain tap opens the cover dialog", async ({
+    page,
+  }) => {
     await open(page);
     const layout = structuredClone(demo);
     const garage = layout.floors.ground.doors[GARAGE_DOOR_INDEX];
     garage.vibration = ["binary_sensor.demo_garage_vibration"];
-    await configureWithCallServiceSpy(page, { layout, kiosk: true }, { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } });
+    await configureWithCallServiceSpy(
+      page,
+      { layout, kiosk: true },
+      { "cover.demo_garage_door": { state: "closed", attributes: {}, last_changed: new Date().toISOString() } },
+    );
 
-    const line = page.locator("floorplan-studio-card").locator(`css=line[data-d="${GARAGE_DOOR_INDEX}"]:not(.door-hit)`);
+    const line = page
+      .locator("floorplan-studio-card")
+      .locator(`css=line[data-d="${GARAGE_DOOR_INDEX}"]:not(.door-hit)`);
     await line.scrollIntoViewIfNeeded();
     const box = (await line.boundingBox())!;
     const HOLD_MS = 500;
@@ -2355,7 +3053,13 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     function withUnlinked(attached?: string[]) {
       const layout = structuredClone(demo);
       layout.floors.ground.unlinked.push({
-        id: "u1", type: "boiler", name: "Spare boiler", x: 300, y: 300, rot: 0, scale: 1,
+        id: "u1",
+        type: "boiler",
+        name: "Spare boiler",
+        x: 300,
+        y: 300,
+        rot: 0,
+        scale: 1,
         ...(attached ? { attached } : {}),
       });
       return layout;
@@ -2371,7 +3075,11 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     test("two attached entities: a tap opens a chooser naming the unlinked item and listing both", async ({ page }) => {
       await open(page);
-      await configureRecordingMoreInfo(page, { layout: withUnlinked(["sensor.boiler_temp", "sensor.boiler_pressure"]) }, { states: {} });
+      await configureRecordingMoreInfo(
+        page,
+        { layout: withUnlinked(["sensor.boiler_temp", "sensor.boiler_pressure"]) },
+        { states: {} },
+      );
 
       await tapUnlinked(page);
       expect(await moreInfo(page)).toEqual([]); // the tap only opens the popup
@@ -2379,7 +3087,10 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
       const card = page.locator("floorplan-studio-card");
       await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText("Spare boiler");
-      await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText(["sensor.boiler_temp", "sensor.boiler_pressure"]);
+      await expect(card.locator("css=.fp-chooser-list button .name")).toHaveText([
+        "sensor.boiler_temp",
+        "sensor.boiler_pressure",
+      ]);
       expect(await moreInfo(page)).toEqual([]);
     });
 
@@ -2394,11 +3105,21 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
       await expect(page.locator("floorplan-studio-card").locator("css=.fp-chooser-dialog")).toHaveCount(0);
     });
 
-    test("a speaker linked to a media player: playing draws waves, and a real tap is the player's more-info with no popup", async ({ page }) => {
+    test("a speaker linked to a media player: playing draws waves, and a real tap is the player's more-info with no popup", async ({
+      page,
+    }) => {
       const layout = withUnlinked(["media_player.living"]);
       layout.floors.ground.unlinked[0].type = "speaker";
       await open(page);
-      await configureRecordingMoreInfo(page, { layout }, { states: { "media_player.living": { state: "playing", attributes: {}, last_changed: new Date().toISOString() } } });
+      await configureRecordingMoreInfo(
+        page,
+        { layout },
+        {
+          states: {
+            "media_player.living": { state: "playing", attributes: {}, last_changed: new Date().toISOString() },
+          },
+        },
+      );
       await expect(page.locator("floorplan-studio-card").locator('css=g[data-u="0"] .wave')).toHaveCount(2);
       // The waves animate, so the group's box never settles: tap the icon itself.
       const icon = page.locator("floorplan-studio-card").locator('css=g[data-u="0"] path:not(.wave)').first();
@@ -2407,7 +3128,15 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
       await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
       expect(await moreInfo(page)).toEqual([{ entityId: "media_player.living" }]);
       await expect(page.locator("floorplan-studio-card").locator("css=.fp-pop")).toHaveCount(0);
-      await configure(page, { layout }, { states: { "media_player.living": { state: "paused", attributes: {}, last_changed: new Date().toISOString() } } });
+      await configure(
+        page,
+        { layout },
+        {
+          states: {
+            "media_player.living": { state: "paused", attributes: {}, last_changed: new Date().toISOString() },
+          },
+        },
+      );
       await expect(page.locator("floorplan-studio-card").locator('css=g[data-u="0"] .wave')).toHaveCount(0);
     });
 
@@ -2424,7 +3153,9 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
     // CLAUDE.md finding 18: a presentation attribute loses to any author CSS rule. `.dev` carries no
     // pointer-events override of its own, so `g[data-u]`'s painted children (the halo, the icon path) already
     // receive pointer events the same way a device's `g[data-x]` does — read back for real, not assumed.
-    test("the icon's painted children accept pointer events (getComputedStyle, CLAUDE.md finding 10)", async ({ page }) => {
+    test("the icon's painted children accept pointer events (getComputedStyle, CLAUDE.md finding 10)", async ({
+      page,
+    }) => {
       await open(page);
       await configureRecordingMoreInfo(page, { layout: withUnlinked(["sensor.boiler_temp"]) }, { states: {} });
 
@@ -2442,14 +3173,28 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
   // untrusted (finding 1). lit-html's own text-node binding (`${...}` inside a text position, never `unsafeHTML`)
   // already escapes this, the same mechanism the existing cover dialog's door-name interpolation already relies on;
   // this proves it holds for the chooser's own bindings too, with the exact payload finding 2 asks for.
-  test("XSS: a hostile door name and a hostile entity friendly_name render as plain text, never as markup", async ({ page }) => {
+  test("XSS: a hostile door name and a hostile entity friendly_name render as plain text, never as markup", async ({
+    page,
+  }) => {
     await open(page);
     const layout = structuredClone(demo);
     const door = layout.floors.ground.doors[0];
     const payload = '"><script>window.__xss = true</script>';
     door.name = payload;
     door.vibration = ["binary_sensor.demo_front_vibration"];
-    await configure(page, { layout }, { states: { "binary_sensor.demo_front_vibration": { state: "off", attributes: { friendly_name: payload }, last_changed: new Date().toISOString() } } });
+    await configure(
+      page,
+      { layout },
+      {
+        states: {
+          "binary_sensor.demo_front_vibration": {
+            state: "off",
+            attributes: { friendly_name: payload },
+            last_changed: new Date().toISOString(),
+          },
+        },
+      },
+    );
 
     await tapDoor(page, 0);
     await expect(page.locator("floorplan-studio-card").locator("css=.fp-pop")).toHaveAttribute("aria-label", payload); // the popup's own name is text too
@@ -2457,7 +3202,9 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
     const card = page.locator("floorplan-studio-card");
     await expect(card.locator("css=.fp-chooser-dialog p")).toHaveText(payload);
-    await expect(card.locator("css=.fp-chooser-list button", { hasText: "binary_sensor.demo_front_vibration" })).toHaveCount(0); // the friendly_name replaced the id in the label
+    await expect(
+      card.locator("css=.fp-chooser-list button", { hasText: "binary_sensor.demo_front_vibration" }),
+    ).toHaveCount(0); // the friendly_name replaced the id in the label
     await expect(card.locator("css=.fp-chooser-list button .name").last()).toHaveText(payload);
     const ran = await page.evaluate(() => (window as unknown as { __xss?: boolean }).__xss);
     expect(ran).toBeUndefined(); // the payload never executed as a script
@@ -2468,17 +3215,31 @@ test.describe("S10.4: a device or door naming more than one entity opens a choos
 
 // Diego, 2026-10: a room with a triggered motion sensor gets one inner line in the sensor's colour. CSS pair (finding 10):
 // the real computed style, and a real click at the line's own spot reaching the room under it (finding 3, 18).
-test("CSS pair: the Hall's motion perimeter is the motion colour, unfilled, takes no click, and goes with the sensor", async ({ page }) => {
+test("CSS pair: the Hall's motion perimeter is the motion colour, unfilled, takes no click, and goes with the sensor", async ({
+  page,
+}) => {
   await open(page);
   const now = new Date().toISOString();
-  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "binary_sensor.demo_hall_motion": { state: "on", attributes: {}, last_changed: now } } });
-  const read = () => page.locator("floorplan-studio-card").evaluate((el) => {
-    const p = el.shadowRoot!.querySelector("svg polygon.motion-perimeter");
-    if (!p) return null;
-    const s = getComputedStyle(p);
-    const r = p.getBoundingClientRect();
-    return { stroke: s.stroke, fill: s.fill, pe: s.pointerEvents, want: getComputedStyle(p).getPropertyValue("--fp-dev-motion").trim(), x: r.x + r.width / 2, y: r.y + 2 };
-  });
+  await configure(
+    page,
+    { layout: structuredClone(demo), theme: "light" },
+    { states: { "binary_sensor.demo_hall_motion": { state: "on", attributes: {}, last_changed: now } } },
+  );
+  const read = () =>
+    page.locator("floorplan-studio-card").evaluate((el) => {
+      const p = el.shadowRoot!.querySelector("svg polygon.motion-perimeter");
+      if (!p) return null;
+      const s = getComputedStyle(p);
+      const r = p.getBoundingClientRect();
+      return {
+        stroke: s.stroke,
+        fill: s.fill,
+        pe: s.pointerEvents,
+        want: getComputedStyle(p).getPropertyValue("--fp-dev-motion").trim(),
+        x: r.x + r.width / 2,
+        y: r.y + 2,
+      };
+    });
   const on = (await read())!;
   expect(on).not.toBeNull();
   expect(on.fill).toBe("none");
@@ -2486,28 +3247,46 @@ test("CSS pair: the Hall's motion perimeter is the motion colour, unfilled, take
   expect(on.want).toMatch(/^#/);
   expect(on.stroke).toBe(`rgb(${[1, 3, 5].map((i) => parseInt(on.want.slice(i, i + 2), 16)).join(", ")})`);
   // Just gone off: the border fades with the icon (0.12.24), it does not vanish while the icon is still red.
-  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "binary_sensor.demo_hall_motion": { state: "off", attributes: {}, last_changed: now } } });
+  await configure(
+    page,
+    { layout: structuredClone(demo), theme: "light" },
+    { states: { "binary_sensor.demo_hall_motion": { state: "off", attributes: {}, last_changed: now } } },
+  );
   expect(await read()).not.toBeNull();
   // Off for longer than the fade: gone. A fresh page, because the card remembers when it last saw the sensor on.
   await open(page);
   const old = new Date(Date.now() - 3600_000).toISOString();
-  await configure(page, { layout: structuredClone(demo), theme: "light" }, { states: { "binary_sensor.demo_hall_motion": { state: "off", attributes: {}, last_changed: old } } });
+  await configure(
+    page,
+    { layout: structuredClone(demo), theme: "light" },
+    { states: { "binary_sensor.demo_hall_motion": { state: "off", attributes: {}, last_changed: old } } },
+  );
   expect(await read()).toBeNull();
 });
 
 // Diego, 2026-10: "do not show curtains as orange with open". CSS pair (finding 10): read the real computed fill.
-test("CSS pair: an open cover icon is drawn idle, the same as a closed one, never in the cover colour; a lit lamp still is coloured", async ({ page }) => {
+test("CSS pair: an open cover icon is drawn idle, the same as a closed one, never in the cover colour; a lit lamp still is coloured", async ({
+  page,
+}) => {
   await open(page);
   const layout = structuredClone(demo);
   const devices = layout.floors.ground.devices as unknown[];
   devices.push({ id: "curtain", type: "cover", entity: "cover.curtain", name: "Curtain", x: 300, y: 300 });
   const idx = devices.length - 1;
-  const fills = () => page.locator("floorplan-studio-card").evaluate((el, i) => {
-    const g = el.shadowRoot!.querySelector(`svg g[data-x="${i}"]`)!;
-    return { fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill, cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim() };
-  }, idx);
+  const fills = () =>
+    page.locator("floorplan-studio-card").evaluate((el, i) => {
+      const g = el.shadowRoot!.querySelector(`svg g[data-x="${i}"]`)!;
+      return {
+        fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill,
+        cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim(),
+      };
+    }, idx);
   const now = new Date().toISOString();
-  await configure(page, { layout }, { states: { "cover.curtain": { state: "closed", attributes: {}, last_changed: now } } });
+  await configure(
+    page,
+    { layout },
+    { states: { "cover.curtain": { state: "closed", attributes: {}, last_changed: now } } },
+  );
   const closed = await fills();
   for (const s of ["open", "opening", "closing"]) {
     await configure(page, { layout }, { states: { "cover.curtain": { state: s, attributes: {}, last_changed: now } } });
@@ -2516,12 +3295,27 @@ test("CSS pair: an open cover icon is drawn idle, the same as a closed one, neve
     expect(got.fill, s).not.toBe(got.cover); // the token is a hex; the colour test below turns it into rgb
   }
   const rgbOf = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
-  await configure(page, { layout }, { states: { "cover.curtain": { state: "open", attributes: {}, last_changed: now } } });
+  await configure(
+    page,
+    { layout },
+    { states: { "cover.curtain": { state: "open", attributes: {}, last_changed: now } } },
+  );
   const open_ = await fills();
   expect(open_.fill).not.toBe(rgbOf(open_.cover));
   // The control: the same page draws a lit light in colour, so "idle" above is the cover's doing, not a broken stylesheet.
-  await configure(page, { layout }, { states: { "cover.curtain": { state: "open", attributes: {}, last_changed: now }, "light.demo_kitchen": { state: "on", attributes: {}, last_changed: now } } });
-  const lamp = await page.locator("floorplan-studio-card").evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg g[data-x="1"] path:not(.halo)')!).fill);
+  await configure(
+    page,
+    { layout },
+    {
+      states: {
+        "cover.curtain": { state: "open", attributes: {}, last_changed: now },
+        "light.demo_kitchen": { state: "on", attributes: {}, last_changed: now },
+      },
+    },
+  );
+  const lamp = await page
+    .locator("floorplan-studio-card")
+    .evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector('svg g[data-x="1"] path:not(.halo)')!).fill);
   expect(lamp).not.toBe(closed.fill);
 });
 
@@ -2539,13 +3333,28 @@ test.describe("plug power", () => {
     Object.assign(d, extra);
     return layout;
   };
-  const plug = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => {
-    const g = el.shadowRoot!.querySelector("svg g.dev-plug")!;
-    return { cls: g.getAttribute("class")!.split(" "), title: g.querySelector("title")!.textContent, fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill };
-  });
-  const listed = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => [...el.shadowRoot!.querySelectorAll(".fp-active-row")].map((r) => r.textContent!.trim()).filter((t) => t.includes("TV plug")).length);
+  const plug = (page: Page) =>
+    page.locator("floorplan-studio-card").evaluate((el) => {
+      const g = el.shadowRoot!.querySelector("svg g.dev-plug")!;
+      return {
+        cls: g.getAttribute("class")!.split(" "),
+        title: g.querySelector("title")!.textContent,
+        fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill,
+      };
+    });
+  const listed = (page: Page) =>
+    page
+      .locator("floorplan-studio-card")
+      .evaluate(
+        (el) =>
+          [...el.shadowRoot!.querySelectorAll(".fp-active-row")]
+            .map((r) => r.textContent!.trim())
+            .filter((t) => t.includes("TV plug")).length,
+      );
 
-  test("the icon changes class at 1.9 W vs 2 W, with the same switch state; the Active list and tooltip follow", async ({ page }) => {
+  test("the icon changes class at 1.9 W vs 2 W, with the same switch state; the Active list and tooltip follow", async ({
+    page,
+  }) => {
     await open(page);
     const layout = plugLayout({ power: "sensor.tv_power" });
     await configure(page, { layout }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("1.9") } });
@@ -2561,11 +3370,23 @@ test.describe("plug power", () => {
     expect(busy.fill).not.toBe(idle.fill);
     expect(await listed(page)).toBe(1);
     // kW is scaled, and plug_watts moves the line.
-    await configure(page, { layout }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("0.0019", "kW") } });
+    await configure(
+      page,
+      { layout },
+      { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("0.0019", "kW") } },
+    );
     expect((await plug(page)).cls).toContain("off");
-    await configure(page, { layout, plug_watts: 50 }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("35") } });
+    await configure(
+      page,
+      { layout, plug_watts: 50 },
+      { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("35") } },
+    );
     expect((await plug(page)).cls).toContain("off");
-    await configure(page, { layout, plug_watts: "lots" }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("35") } });
+    await configure(
+      page,
+      { layout, plug_watts: "lots" },
+      { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("35") } },
+    );
     expect((await plug(page)).cls).toContain("on");
   });
 
@@ -2574,32 +3395,67 @@ test.describe("plug power", () => {
     await configure(page, { layout: plugLayout({}) }, { states: { "switch.demo_tv_plug": st("on") } });
     expect((await plug(page)).cls).toContain("on");
     const layout = plugLayout({ power: "sensor.tv_power" });
-    await configure(page, { layout }, { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("unavailable") } });
+    await configure(
+      page,
+      { layout },
+      { states: { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("unavailable") } },
+    );
     expect((await plug(page)).cls).toContain("on");
   });
 
-  test("runtime auto-link: the one power sensor of the plug's HA device; two, a diagnostic one or an explicit power change that", async ({ page }) => {
+  test("runtime auto-link: the one power sensor of the plug's HA device; two, a diagnostic one or an explicit power change that", async ({
+    page,
+  }) => {
     await open(page);
     const entities = {
       "switch.demo_tv_plug": { entity_id: "switch.demo_tv_plug", device_id: "dev1" },
       "sensor.tv_power": { entity_id: "sensor.tv_power", device_id: "dev1" },
       "sensor.tv_energy": { entity_id: "sensor.tv_energy", device_id: "dev1" },
     };
-    const states = { "switch.demo_tv_plug": st("on"), "sensor.tv_power": W("0.4"), "sensor.tv_energy": st("12", { unit_of_measurement: "kWh", device_class: "energy" }) };
+    const states = {
+      "switch.demo_tv_plug": st("on"),
+      "sensor.tv_power": W("0.4"),
+      "sensor.tv_energy": st("12", { unit_of_measurement: "kWh", device_class: "energy" }),
+    };
     const layout = plugLayout({});
     await configure(page, { layout }, { states, entities });
     expect((await plug(page)).cls).toContain("off"); // linked: 0.4 W
     // A second power sensor on the device: a guess, so no link and the plug is on as before.
-    await configure(page, { layout }, { states: { ...states, "sensor.tv_power_b": W("9") }, entities: { ...entities, "sensor.tv_power_b": { entity_id: "sensor.tv_power_b", device_id: "dev1" } } });
+    await configure(
+      page,
+      { layout },
+      {
+        states: { ...states, "sensor.tv_power_b": W("9") },
+        entities: { ...entities, "sensor.tv_power_b": { entity_id: "sensor.tv_power_b", device_id: "dev1" } },
+      },
+    );
     expect((await plug(page)).cls).toContain("on");
     // ... unless the second one is a diagnostic entity.
-    await configure(page, { layout }, { states: { ...states, "sensor.tv_power_b": W("9") }, entities: { ...entities, "sensor.tv_power_b": { entity_id: "sensor.tv_power_b", device_id: "dev1", entity_category: "diagnostic" } } });
+    await configure(
+      page,
+      { layout },
+      {
+        states: { ...states, "sensor.tv_power_b": W("9") },
+        entities: {
+          ...entities,
+          "sensor.tv_power_b": { entity_id: "sensor.tv_power_b", device_id: "dev1", entity_category: "diagnostic" },
+        },
+      },
+    );
     expect((await plug(page)).cls).toContain("off");
     // Another device's sensor is not a candidate.
-    await configure(page, { layout }, { states, entities: { ...entities, "sensor.tv_power": { entity_id: "sensor.tv_power", device_id: "dev2" } } });
+    await configure(
+      page,
+      { layout },
+      { states, entities: { ...entities, "sensor.tv_power": { entity_id: "sensor.tv_power", device_id: "dev2" } } },
+    );
     expect((await plug(page)).cls).toContain("on");
     // An explicit power wins over the link.
-    await configure(page, { layout: plugLayout({ power: "sensor.tv_power_b" }) }, { states: { ...states, "sensor.tv_power_b": W("9") }, entities });
+    await configure(
+      page,
+      { layout: plugLayout({ power: "sensor.tv_power_b" }) },
+      { states: { ...states, "sensor.tv_power_b": W("9") }, entities },
+    );
     expect((await plug(page)).cls).toContain("on");
   });
 });
@@ -2612,15 +3468,27 @@ test("CSS pair: an open garage cover is drawn in the cover colour, an open curta
   const devices = layout.floors.ground.devices as unknown[];
   devices.push({ id: "cover", type: "cover", entity: "cover.c", name: "Cover", x: 300, y: 300 });
   const idx = devices.length - 1;
-  const read = () => page.locator("floorplan-studio-card").evaluate((el, i) => {
-    const g = el.shadowRoot!.querySelector(`svg g[data-x="${i}"]`)!;
-    return { fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill, cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim() };
-  }, idx);
+  const read = () =>
+    page.locator("floorplan-studio-card").evaluate((el, i) => {
+      const g = el.shadowRoot!.querySelector(`svg g[data-x="${i}"]`)!;
+      return {
+        fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill,
+        cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim(),
+      };
+    }, idx);
   const rgbOf = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
   const now = new Date().toISOString();
-  await configure(page, { layout }, { states: { "cover.c": { state: "open", attributes: { device_class: "curtain" }, last_changed: now } } });
+  await configure(
+    page,
+    { layout },
+    { states: { "cover.c": { state: "open", attributes: { device_class: "curtain" }, last_changed: now } } },
+  );
   const curtain = await read();
-  await configure(page, { layout }, { states: { "cover.c": { state: "open", attributes: { device_class: "garage" }, last_changed: now } } });
+  await configure(
+    page,
+    { layout },
+    { states: { "cover.c": { state: "open", attributes: { device_class: "garage" }, last_changed: now } } },
+  );
   const garage = await read();
   expect(garage.fill).toBe(rgbOf(garage.cover));
   expect(curtain.fill).not.toBe(garage.fill);

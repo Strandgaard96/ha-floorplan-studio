@@ -11,12 +11,15 @@ const FILE = resolve("dist/editor.html");
 const URL_ = pathToFileURL(FILE).href;
 const EDITOR = "floorplan-studio-editor";
 const KEY = "floorplan-studio:layout";
-const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
+const layoutOf = (page: Page) =>
+  page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 
 /** Collects every request that is not local (file:, data:, blob:). */
 function watchNetwork(page: Page) {
   const remote: string[] = [];
-  page.on("request", (r) => { if (!/^(file|data|blob):/.test(r.url())) remote.push(r.url()); });
+  page.on("request", (r) => {
+    if (!/^(file|data|blob):/.test(r.url())) remote.push(r.url());
+  });
   return remote;
 }
 async function open(page: Page) {
@@ -24,7 +27,9 @@ async function open(page: Page) {
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
 }
 
-test.beforeEach(async ({ page }) => { await page.setViewportSize({ width: 1280, height: 800 }); });
+test.beforeEach(async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
 
 test("the build is one small file with nothing external", () => {
   expect(statSync(FILE).size).toBeLessThan(1_000_000);
@@ -98,7 +103,9 @@ test("break it: offline still loads", async ({ browser }) => {
 
 test("break it: localStorage that throws does not stop the editor", async ({ page }) => {
   await page.addInitScript(() => {
-    const boom = () => { throw new DOMException("blocked", "SecurityError"); };
+    const boom = () => {
+      throw new DOMException("blocked", "SecurityError");
+    };
     Object.defineProperty(window, "localStorage", { get: boom, configurable: true });
   });
   const errors: string[] = [];
@@ -120,7 +127,9 @@ test("break it: a file with rooms:5 shows errors and keeps the layout", async ({
   const before = await layoutOf(page);
   const bad = JSON.parse(readFileSync("demo/layout.json", "utf8"));
   bad.floors.ground.rooms = 5;
-  await page.locator("#file").setInputFiles({ name: "bad.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(bad)) });
+  await page
+    .locator("#file")
+    .setInputFiles({ name: "bad.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(bad)) });
   await expect(page.locator("#errors")).toBeVisible();
   await expect(page.locator("#errors li").first()).toContainText("rooms");
   expect(await layoutOf(page)).toEqual(before);

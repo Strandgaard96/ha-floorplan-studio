@@ -18,11 +18,14 @@ function run(layout: unknown, raw?: string) {
 }
 
 describe("validate-layout CLI", () => {
-  it.each(["prompts/examples/flat.json", "prompts/examples/two-floors.json", "demo/layout.json"])("%s prints ok and exits 0", (file) => {
-    const r = spawnSync("node", ["scripts/validate-layout.mjs", file], { encoding: "utf8" });
-    expect(r.stdout).toContain("ok");
-    expect(r.status).toBe(0);
-  });
+  it.each(["prompts/examples/flat.json", "prompts/examples/two-floors.json", "demo/layout.json"])(
+    "%s prints ok and exits 0",
+    (file) => {
+      const r = spawnSync("node", ["scripts/validate-layout.mjs", file], { encoding: "utf8" });
+      expect(r.stdout).toContain("ok");
+      expect(r.status).toBe(0);
+    },
+  );
 
   it("metres written as centimetres is caught, and says so", () => {
     const l = flat();
@@ -30,7 +33,10 @@ describe("validate-layout CLI", () => {
     const g = l.floors.ground;
     g.outline = g.outline.map(scale);
     g.rooms.forEach((r: any) => (r.pts = r.pts.map(scale)));
-    g.doors.forEach((d: any) => { d.a = scale(d.a); d.b = scale(d.b); });
+    g.doors.forEach((d: any) => {
+      d.a = scale(d.a);
+      d.b = scale(d.b);
+    });
     g.furniture = [];
     const r = run(l);
     expect(r.code).toBe(1);
@@ -39,7 +45,12 @@ describe("validate-layout CLI", () => {
 
   it("a room drawn outside the outline is caught by the CLI, not by the person", () => {
     const l = flat();
-    l.floors.ground.rooms[1].pts = [[400, 0], [900, 0], [900, 400], [400, 400]];
+    l.floors.ground.rooms[1].pts = [
+      [400, 0],
+      [900, 0],
+      [900, 400],
+      [400, 400],
+    ];
     const r = run(l);
     expect(r.code).toBe(1);
     expect(r.out).toMatch(/room-ground-2.*outside the outline/);
@@ -47,7 +58,20 @@ describe("validate-layout CLI", () => {
 
   it("an outdoor kind may sit outside the outline", () => {
     const l = flat();
-    l.floors.ground.rooms.push({ id: "room-ground-3", name: "Garden", area: "", label: "", kind: "garden", pts: [[600, 0], [800, 0], [800, 400], [600, 400]], wk: ["boundary", "boundary", "boundary", "boundary"] });
+    l.floors.ground.rooms.push({
+      id: "room-ground-3",
+      name: "Garden",
+      area: "",
+      label: "",
+      kind: "garden",
+      pts: [
+        [600, 0],
+        [800, 0],
+        [800, 400],
+        [600, 400],
+      ],
+      wk: ["boundary", "boundary", "boundary", "boundary"],
+    });
     expect(run(l).code).toBe(0);
   });
 

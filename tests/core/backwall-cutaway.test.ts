@@ -5,19 +5,43 @@ import type { Floor, Pt } from "../../src/core/schema";
 // A wall is cut by what it would cover, not by which room owns its edge: a back wall whose lift reaches over another
 // room's floor is drawn at the cutaway, a back wall with nothing behind it keeps the storey height.
 const n = (v: number) => String(Math.round(v * 100) / 100);
-const box = (x0: number, y0: number, x1: number, y1: number): Pt[] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-const room = (id: string, pts: Pt[], extra: object = {}) => ({ id, name: id, kind: "room", pts, wk: pts.map(() => "wall"), ...extra });
+const box = (x0: number, y0: number, x1: number, y1: number): Pt[] => [
+  [x0, y0],
+  [x1, y0],
+  [x1, y1],
+  [x0, y1],
+];
+const room = (id: string, pts: Pt[], extra: object = {}) => ({
+  id,
+  name: id,
+  kind: "room",
+  pts,
+  wk: pts.map(() => "wall"),
+  ...extra,
+});
 const floor = (rooms: object[], outline: Pt[] = box(0, 0, 400, 500)): Floor => ({
-  title: "T", outline, owk: outline.map(() => "external"), rooms: rooms as never,
-  walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+  title: "T",
+  outline,
+  owk: outline.map(() => "external"),
+  rooms: rooms as never,
+  walls: [],
+  stairs: [],
+  doors: [],
+  openings: [],
+  extras: [],
+  devices: [],
+  furniture: [],
+  unlinked: [],
 });
 const faces = (html: string) => [...html.matchAll(/<polygon class="ws[^"]*" points="([^"]*)"\/>/g)].map((m) => m[1]);
 /** The face of the wall a->b, as drawn at height h at this tilt, on an unturned plan. */
 function quad(a: Pt, b: Pt, h: number, tilt: number): string {
-  const o = obliqueFor(tilt), up = (p: Pt) => `${n(p[0] + h * o.rise * o.skew)},${n(p[1] - h * o.rise)}`;
+  const o = obliqueFor(tilt),
+    up = (p: Pt) => `${n(p[0] + h * o.rise * o.skew)},${n(p[1] - h * o.rise)}`;
   return `${a} ${b} ${up(b)} ${up(a)}`;
 }
-const face = (f: Floor, a: Pt, b: Pt, tilt: number) => faces(renderFloor(f, { scale: 1, view: "2.5d", tilt })).find((q) => q.startsWith(`${a} ${b} `));
+const face = (f: Floor, a: Pt, b: Pt, tilt: number) =>
+  faces(renderFloor(f, { scale: 1, view: "2.5d", tilt })).find((q) => q.startsWith(`${a} ${b} `));
 /** How tall the wall a->b is drawn, read back from its lifted corner. */
 const heightOf = (f: Floor, a: Pt, b: Pt, tilt: number) => {
   const q = face(f, a, b, tilt);
@@ -79,7 +103,14 @@ describe("back walls are cut by what they cover", () => {
 
   describe("an L-shaped room", () => {
     // Notch empty top-right: its edge (200,150)->(400,150) faces north into nothing, so it stays full.
-    const L: Pt[] = [[0, 0], [200, 0], [200, 150], [400, 150], [400, 300], [0, 300]];
+    const L: Pt[] = [
+      [0, 0],
+      [200, 0],
+      [200, 150],
+      [400, 150],
+      [400, 300],
+      [0, 300],
+    ];
     for (const tilt of TILTS) {
       it(`tilt ${tilt}: an inner back wall over empty ground keeps its height`, () => {
         expect(heightOf(floor([room("l", L)], L), [200, 150], [400, 150], tilt)).toBeCloseTo(250, 0);
@@ -96,7 +127,25 @@ describe("back walls are cut by what they cover", () => {
   });
 
   it("junk geometry does not throw", () => {
-    const junk = floor([room("a", box(0, 0, 400, 300)), { id: "b", name: "b", kind: "room", pts: [[NaN, 1], [5, 5]], wk: [] }, room("d", [[0, 0], [Infinity, 0], [5, 9]]), room("hall", box(100, 300, 300, 500))]);
+    const junk = floor([
+      room("a", box(0, 0, 400, 300)),
+      {
+        id: "b",
+        name: "b",
+        kind: "room",
+        pts: [
+          [NaN, 1],
+          [5, 5],
+        ],
+        wk: [],
+      },
+      room("d", [
+        [0, 0],
+        [Infinity, 0],
+        [5, 9],
+      ]),
+      room("hall", box(100, 300, 300, 500)),
+    ]);
     expect(() => renderFloor(junk, { scale: 1, view: "2.5d", tilt: 1 })).not.toThrow();
   });
 

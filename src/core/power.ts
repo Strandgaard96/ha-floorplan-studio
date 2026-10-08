@@ -8,7 +8,10 @@
 export const PLUG_ACTIVE_WATTS = 2;
 
 /** The shape of a state this file reads. Untrusted (finding 1): every field is checked before use. */
-interface Reading { state?: unknown; attributes?: unknown }
+interface Reading {
+  state?: unknown;
+  attributes?: unknown;
+}
 
 /** `plug_watts` from untrusted config: a finite number >= 0 stands, anything else is `PLUG_ACTIVE_WATTS`. */
 export function plugThreshold(v: unknown): number {
@@ -34,14 +37,23 @@ export function wattsOf(s: Reading | undefined): number | null {
 }
 
 /** A row of the entity list the auto-link searches: the editor's `HaData["entities"]`, or the card's `hass.entities`. */
-export interface PowerCandidate { id: string; domain: string; dc?: string; dev?: string; cat?: string | null }
+export interface PowerCandidate {
+  id: string;
+  domain: string;
+  dc?: string;
+  dev?: string;
+  cat?: string | null;
+}
 
 /**
  * The power sensor of the same HA device as `plugEntity`: a `sensor.*` with device class `power`, not a diagnostic
  * or config entity. Only when there is exactly one; two candidates (a plug with two outlets, say) are a guess, and
  * a wrong guess would paint a plug by another plug's draw, so the answer is then none and the user picks.
  */
-export function findPowerSensor(entities: readonly PowerCandidate[] | undefined, plugEntity: string): string | undefined {
+export function findPowerSensor(
+  entities: readonly PowerCandidate[] | undefined,
+  plugEntity: string,
+): string | undefined {
   if (!Array.isArray(entities)) return undefined;
   const rows = entities.filter((e): e is PowerCandidate => !!e && typeof e === "object" && typeof e.id === "string");
   const dev = rows.find((e) => e.id === plugEntity)?.dev;
@@ -56,7 +68,8 @@ export const HEAT_TO = 2000;
 
 /** `plug_heat` from untrusted config: two finite numbers with from < to stand, anything else is [0, 2000]. */
 export function heatRange(v: unknown): [number, number] {
-  if (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n)) && v[0] < v[1]) return [v[0], v[1]];
+  if (Array.isArray(v) && v.length === 2 && v.every((n) => typeof n === "number" && Number.isFinite(n)) && v[0] < v[1])
+    return [v[0], v[1]];
   return [HEAT_FROM, HEAT_TO];
 }
 

@@ -8,8 +8,12 @@ This is Diego's project, public and open to pull requests. Nothing lands on
 ```bash
 git clone https://github.com/vespassassina/ha-floorplan-studio.git
 cd ha-floorplan-studio
-npm ci
+task setup   # npm ci, uv sync, Playwright's Chromium, git hooks
 ```
+
+Needs Node 24, [uv](https://docs.astral.sh/uv/) and [Task](https://taskfile.dev).
+The git hooks lint, format and typecheck every commit (oxlint, oxfmt, tsc;
+ruff, ty). `task check` runs every check and the unit tests in one go.
 
 ## Before you write code
 
@@ -23,7 +27,8 @@ npm ci
 ## Commands
 
 ```bash
-npm run lint         # eslint . && tsc --noEmit
+task check           # typecheck, lint, format check, unit and Python tests
+task fix             # apply every autofix and formatter
 npm test             # vitest, unit tests over src/core, src/editor, src/card
 npm run build        # dist/: floorplan-studio-card.js, floorplan-studio-panel.js, editor.html
 npx playwright test  # the editor, end to end; PW_PORT=<port> to run beside another checkout

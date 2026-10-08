@@ -8,11 +8,18 @@ import { HEAT_FROM, HEAT_TO, heatRange, powerHeat } from "../../src/core/power";
 // the one source the plan (2D, 2.5D) and the 3D overlay both read; the stylesheet turns it into a colour.
 
 const ground = (demo as unknown as Layout).floors.ground;
-const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-03T10:00:00Z" });
+const st = (state: string, attributes: Record<string, unknown> = {}) => ({
+  state,
+  attributes,
+  last_changed: "2026-10-03T10:00:00Z",
+});
 const W = (n: string, unit = "W") => st(n, { unit_of_measurement: unit });
-const plug = (extra: Partial<Device> = {}): Device => ({ id: "p", type: "plug", entity: "switch.p", name: "P", x: 50, y: 50, power: "sensor.p", ...extra }) as Device;
+const plug = (extra: Partial<Device> = {}): Device =>
+  ({ id: "p", type: "plug", entity: "switch.p", name: "P", x: 50, y: 50, power: "sensor.p", ...extra }) as Device;
 const heatOf = (d: Device, state: StateOverlay, o: object = { plugHeat: [0, 2000] }) => {
-  const style = deviceMarkup(ground, d, { scale: 1, state, ...o }, 0, [50, 50]).style.find((s) => s.startsWith("--fp-heat:"));
+  const style = deviceMarkup(ground, d, { scale: 1, state, ...o }, 0, [50, 50]).style.find((s) =>
+    s.startsWith("--fp-heat:"),
+  );
   return style ? Number(style.slice("--fp-heat:".length)) : null;
 };
 
@@ -53,7 +60,9 @@ describe("a plug's --fp-heat on the plan", () => {
   });
   it("an own power sensor and a runtime link both work", () => {
     const s = { "switch.p": st("on"), "sensor.link": W("1000") };
-    expect(heatOf(plug({ power: undefined }), s, { plugHeat: [0, 2000], powerLinks: { "switch.p": "sensor.link" } })).toBe(0.5);
+    expect(
+      heatOf(plug({ power: undefined }), s, { plugHeat: [0, 2000], powerLinks: { "switch.p": "sensor.link" } }),
+    ).toBe(0.5);
   });
   it("no sensor, an unreadable one, a plug that is off, or no option: no --fp-heat at all (today's markup)", () => {
     expect(heatOf(plug({ power: undefined }), { "switch.p": st("on") })).toBeNull();
@@ -67,7 +76,14 @@ describe("a plug's --fp-heat on the plan", () => {
   });
   it("only a plug has heat: every device type is a decision (iterates DEVICE_TYPES)", () => {
     for (const t of DEVICE_TYPES) {
-      const d = { id: "x", type: t, entity: "x.y", x: 1, y: 1, ...(t === "plug" ? { power: "sensor.p" } : {}) } as Device;
+      const d = {
+        id: "x",
+        type: t,
+        entity: "x.y",
+        x: 1,
+        y: 1,
+        ...(t === "plug" ? { power: "sensor.p" } : {}),
+      } as Device;
       const h = heatOf(d, { "x.y": st("on"), "sensor.p": W("1000") });
       expect(h, t).toBe(t === "plug" ? 0.5 : null);
     }
@@ -75,7 +91,12 @@ describe("a plug's --fp-heat on the plan", () => {
   it("renderFloor writes it on the plug's group, in 2D and 2.5D, and the tooltip carries the watts (colour is not the only signal)", () => {
     const f = { ...structuredClone(ground), devices: [plug()] } as never;
     for (const view of ["2d", "2.5d"] as const) {
-      const svg = renderFloor(f, { scale: 1, view, state: { "switch.p": st("on"), "sensor.p": W("1500") }, plugHeat: [0, 2000] });
+      const svg = renderFloor(f, {
+        scale: 1,
+        view,
+        state: { "switch.p": st("on"), "sensor.p": W("1500") },
+        plugHeat: [0, 2000],
+      });
       expect(svg, view).toMatch(/<g data-x="0" class="dev dev-plug on"[^>]*style="--fp-heat:0\.75"/);
       expect(svg, view).toContain("1500 W");
     }

@@ -8,9 +8,20 @@ import { demo, open, configure, canvas, cam, drawn, card } from "./helpers-3d";
 const CFG = { layout: structuredClone(demo), floor: "all", view: "3d", active_list: false };
 const chip = (page: Page, title: string) => card(page).locator(`css=.fp-floors button`, { hasText: title });
 
-async function still(page: Page) { // the camera has stopped moving (the framing settles when the view gets its size)
+async function still(page: Page) {
+  // the camera has stopped moving (the framing settles when the view gets its size)
   let prev = "";
-  await expect.poll(async () => { const now = JSON.stringify(await cam(page)); const same = now === prev; prev = now; return same; }, { intervals: [250], timeout: 10000 }).toBe(true);
+  await expect
+    .poll(
+      async () => {
+        const now = JSON.stringify(await cam(page));
+        const same = now === prev;
+        prev = now;
+        return same;
+      },
+      { intervals: [250], timeout: 10000 },
+    )
+    .toBe(true);
 }
 async function boot(page: Page, cfg: Record<string, unknown> = CFG) {
   await page.setViewportSize({ width: 1100, height: 800 });
@@ -48,13 +59,26 @@ const same = (a: Cam, b: Cam) => {
   expect(a.az).toBeCloseTo(b.az, 3);
   expect(a.polar).toBeCloseTo(b.polar, 3);
   expect(a.dist).toBeCloseTo(b.dist, 0);
-  const [ax, az] = a.target.split(",").map(Number), [bx, bz] = b.target.split(",").map(Number);
+  const [ax, az] = a.target.split(",").map(Number),
+    [bx, bz] = b.target.split(",").map(Number);
   expect(ax).toBeCloseTo(bx!, 0);
   expect(az).toBeCloseTo(bz!, 0);
 };
-const differs = (a: Cam, b: Cam) => Math.abs(a.az - b.az) > 0.05 || Math.abs(a.polar - b.polar) > 0.05 || Math.abs(a.dist - b.dist) > 5 || a.target !== b.target;
-const stored = (page: Page) => page.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:")).map(([, v]) => JSON.parse(v) as { floors?: [string, { cam?: unknown }][] }));
-const hasCam = (page: Page, floor: string) => expect.poll(async () => !!(await stored(page))[0]?.floors?.find(([k]) => k === floor)?.[1].cam, { timeout: 5000 }).toBe(true);
+const differs = (a: Cam, b: Cam) =>
+  Math.abs(a.az - b.az) > 0.05 ||
+  Math.abs(a.polar - b.polar) > 0.05 ||
+  Math.abs(a.dist - b.dist) > 5 ||
+  a.target !== b.target;
+const stored = (page: Page) =>
+  page.evaluate(() =>
+    Object.entries(localStorage)
+      .filter(([k]) => k.startsWith("fp-view:"))
+      .map(([, v]) => JSON.parse(v) as { floors?: [string, { cam?: unknown }][] }),
+  );
+const hasCam = (page: Page, floor: string) =>
+  expect
+    .poll(async () => !!(await stored(page))[0]?.floors?.find(([k]) => k === floor)?.[1].cam, { timeout: 5000 })
+    .toBe(true);
 
 test.describe("3D view memory per floor (S14.4)", () => {
   test("each floor comes back with the camera it was left with", async ({ page }) => {
@@ -103,7 +127,9 @@ test.describe("3D view memory per floor (S14.4)", () => {
     same(await cam(page), ground);
   });
 
-  test("Reset camera sends the floor back to the first view and forgets it; the other floor keeps its own", async ({ page }) => {
+  test("Reset camera sends the floor back to the first view and forgets it; the other floor keeps its own", async ({
+    page,
+  }) => {
     await boot(page);
     const start = await cam(page);
     await move(page, 130, 45, -300);
@@ -129,7 +155,9 @@ test.describe("3D view memory per floor (S14.4)", () => {
 
   test("with storage blocked the floors still remember in the page, and the card draws", async ({ page }) => {
     await page.addInitScript(() => {
-      const refuse = () => { throw new DOMException("blocked", "SecurityError"); };
+      const refuse = () => {
+        throw new DOMException("blocked", "SecurityError");
+      };
       Object.defineProperty(window, "localStorage", { get: refuse, configurable: true });
     });
     await boot(page);

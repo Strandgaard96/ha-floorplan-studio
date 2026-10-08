@@ -13,29 +13,46 @@ interface Hook {
   pick(x: number, y: number): unknown;
   look(az: number, polar: number): void;
 }
-const hook = <T, A = undefined>(page: Page, fn: (h: Hook, a: A) => T, arg?: A) => page.evaluate(`(${fn.toString()})(window.__fp3d, ${JSON.stringify(arg ?? null)})`) as Promise<Awaited<T>>;
+const hook = <T, A = undefined>(page: Page, fn: (h: Hook, a: A) => T, arg?: A) =>
+  page.evaluate(`(${fn.toString()})(window.__fp3d, ${JSON.stringify(arg ?? null)})`) as Promise<Awaited<T>>;
 const iso = (agoS = 0) => new Date(Date.now() - agoS * 1000).toISOString();
 const st = (state: string, last = iso(600)) => ({ state, attributes: {}, last_changed: last });
-const QUIET = () => ({ "light.demo_living": st("off"), "light.demo_kitchen": st("off"), "light.demo_bedroom": st("off"), "binary_sensor.demo_hall_motion": st("off") });
+const QUIET = () => ({
+  "light.demo_living": st("off"),
+  "light.demo_kitchen": st("off"),
+  "light.demo_bedroom": st("off"),
+  "binary_sensor.demo_hall_motion": st("off"),
+});
 
 async function boot(page: Page, floor: string, states: Record<string, unknown> = QUIET()) {
   await serve(page);
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await page.evaluate(([config, states]) => {
-    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-    el.setConfig(config);
-    el.hass = { states, callService: () => undefined };
-    return el.updateComplete;
-  }, [{ layout: structuredClone(demo), floor, view: "3d", active_list: false }, states] as const);
+  await page.evaluate(
+    ([config, states]) => {
+      const el = document.getElementById("card") as unknown as {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
+      el.setConfig(config);
+      el.hass = { states, callService: () => undefined };
+      return el.updateComplete;
+    },
+    [{ layout: structuredClone(demo), floor, view: "3d", active_list: false }, states] as const,
+  );
   await drawn(page);
 }
 /** Selects a floor the way the card does when the user taps a floor tab (its config key), and waits for the frame after. */
 async function select(page: Page, floor: string) {
   const n = (await cam(page)).drawn;
   await page.evaluate(async (floor) => {
-    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; _config: Record<string, unknown>; updateComplete: Promise<unknown> };
+    const el = document.getElementById("card") as unknown as {
+      setConfig(c: unknown): void;
+      _config: Record<string, unknown>;
+      updateComplete: Promise<unknown>;
+    };
     el.setConfig({ ...el._config, floor });
     await el.updateComplete;
   }, floor);
@@ -43,7 +60,9 @@ async function select(page: Page, floor: string) {
 }
 
 test.describe("3D view: floors (S12.6)", () => {
-  test("one floor at a time: only the selected floor is drawn, whichever it is, and nothing is dimmed or stacked", async ({ page }) => {
+  test("one floor at a time: only the selected floor is drawn, whichever it is, and nothing is dimmed or stacked", async ({
+    page,
+  }) => {
     // 3D fixes: Diego saw the stacked floors drift out of line on his layout, so the card draws the selected floor alone.
     // Demo: ground walls are 250 cm and its slab 25 cm; every floor is built at z 0, so the extent is the same for each.
     const check = async (floor: string) => {
@@ -54,10 +73,15 @@ test.describe("3D view: floors (S12.6)", () => {
     };
     await boot(page, "ground");
     await check("ground");
-    for (const floor of ["first", "test", "ground"]) { await select(page, floor); await check(floor); }
+    for (const floor of ["first", "test", "ground"]) {
+      await select(page, floor);
+      await check(floor);
+    }
   });
 
-  test("a tap where a lower floor's garden would be picks nothing; a tap on the selected floor still does", async ({ page }) => {
+  test("a tap where a lower floor's garden would be picks nothing; a tap on the selected floor still does", async ({
+    page,
+  }) => {
     await boot(page, "first");
     await hook(page, (h) => h.look(0.6, 0.9));
     await expect.poll(async () => (await cam(page)).az).toBeCloseTo(0.6, 2);
@@ -99,12 +123,19 @@ test.describe("3D view: floors (S12.6)", () => {
     expect(after.polar).toBeCloseTo(before.polar, 3);
     expect(after.dist).toBeCloseTo(fresh.dist, 0); // the distance frames the new floor, as a fresh view of it would
     // twice round to warm every cache, then twenty more
-    const cycle = async () => { for (const k of ["test", "ground", "first"]) await select(page, k); };
-    await cycle(); await cycle();
+    const cycle = async () => {
+      for (const k of ["test", "ground", "first"]) await select(page, k);
+    };
+    await cycle();
+    await cycle();
     const base = { m: await hook(page, (h) => h.memory()), c: (await hook(page, (h) => h.live())).children };
     for (let i = 0; i < 7; i++) await cycle(); // 21 switches
     expect(await hook(page, (h) => h.memory())).toEqual(base.m);
     expect((await hook(page, (h) => h.live())).children).toBe(base.c);
-    expect(await page.evaluate(() => (customElements.get("floorplan-studio-card") as unknown as { liveRenderers: number }).liveRenderers)).toBe(1);
+    expect(
+      await page.evaluate(
+        () => (customElements.get("floorplan-studio-card") as unknown as { liveRenderers: number }).liveRenderers,
+      ),
+    ).toBe(1);
   });
 });

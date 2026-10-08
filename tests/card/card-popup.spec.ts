@@ -12,15 +12,29 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
-const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T09:30:15Z" });
+const st = (state: string, attributes: Record<string, unknown> = {}) => ({
+  state,
+  attributes,
+  last_changed: "2026-10-04T09:30:15Z",
+});
 // Home Assistant's light attributes (core light/const.py): supported_color_modes, min/max_color_temp_kelvin, brightness 0-255,
 // color_temp_kelvin, hs_color [hue, saturation]. The kitchen light is a plain on/off one.
 const STATES = () => ({
-  "light.demo_living": st("on", { friendly_name: "Living light", supported_color_modes: ["color_temp", "hs"], brightness: 128, min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500, color_temp_kelvin: 3000, hs_color: [30, 60] }),
+  "light.demo_living": st("on", {
+    friendly_name: "Living light",
+    supported_color_modes: ["color_temp", "hs"],
+    brightness: 128,
+    min_color_temp_kelvin: 2200,
+    max_color_temp_kelvin: 6500,
+    color_temp_kelvin: 3000,
+    hs_color: [30, 60],
+  }),
   "light.demo_kitchen": st("on", { supported_color_modes: ["onoff"] }),
-  "switch.demo_hall": st("off"), "switch.demo_tv_plug": st("on"),
+  "switch.demo_hall": st("off"),
+  "switch.demo_tv_plug": st("on"),
   "sensor.demo_living_temperature": st("21.5", { unit_of_measurement: "°C" }),
-  "climate.demo_living": st("heat"), "camera.demo_hall": st("idle"),
+  "climate.demo_living": st("heat"),
+  "camera.demo_hall": st("idle"),
 });
 
 async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {}) {
@@ -28,16 +42,29 @@ async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await page.evaluate(([config, states]) => {
-    const w = window as unknown as { __calls: string[]; __info: string[] };
-    w.__calls = []; w.__info = [];
-    const el = document.getElementById("card") as unknown as HTMLElement & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-    el.addEventListener("hass-more-info", (e) => w.__info.push((e as CustomEvent).detail.entityId));
-    el.setConfig(config);
-    // callService(domain, service, data), as Home Assistant's hass has it (src/card/popup actions are the caller)
-    el.hass = { states, callService: (d: string, s: string, data: Record<string, unknown>) => { w.__calls.push(`${d}.${s} ${JSON.stringify(data)}`); } };
-    return el.updateComplete;
-  }, [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const);
+  await page.evaluate(
+    ([config, states]) => {
+      const w = window as unknown as { __calls: string[]; __info: string[] };
+      w.__calls = [];
+      w.__info = [];
+      const el = document.getElementById("card") as unknown as HTMLElement & {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
+      el.addEventListener("hass-more-info", (e) => w.__info.push((e as CustomEvent).detail.entityId));
+      el.setConfig(config);
+      // callService(domain, service, data), as Home Assistant's hass has it (src/card/popup actions are the caller)
+      el.hass = {
+        states,
+        callService: (d: string, s: string, data: Record<string, unknown>) => {
+          w.__calls.push(`${d}.${s} ${JSON.stringify(data)}`);
+        },
+      };
+      return el.updateComplete;
+    },
+    [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const,
+  );
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
@@ -50,20 +77,36 @@ async function iconPoint(page: Page, i: number) {
     const g = el.shadowRoot!.querySelector<SVGGElement>(`svg g[data-x="${i}"]`)!;
     const r = g.getBoundingClientRect();
     // a camera's box includes its view cone, so its centre can miss the icon: take the first point of a 7x7 scan that hits it
-    let x = r.x + r.width / 2, y = r.y + r.height / 2, top = el.shadowRoot!.elementFromPoint(x, y);
-    for (let a = 1; a < 8 && !top?.closest(`g[data-x="${i}"]`); a++) for (let b = 1; b < 8 && !top?.closest(`g[data-x="${i}"]`); b++) {
-      x = r.x + (r.width * a) / 8; y = r.y + (r.height * b) / 8; top = el.shadowRoot!.elementFromPoint(x, y);
-    }
-    return { x, y, top: top ? `${top.tagName}.${top.getAttribute("class") ?? ""}` : "none", hit: !!top?.closest(`g[data-x="${i}"]`) };
+    let x = r.x + r.width / 2,
+      y = r.y + r.height / 2,
+      top = el.shadowRoot!.elementFromPoint(x, y);
+    for (let a = 1; a < 8 && !top?.closest(`g[data-x="${i}"]`); a++)
+      for (let b = 1; b < 8 && !top?.closest(`g[data-x="${i}"]`); b++) {
+        x = r.x + (r.width * a) / 8;
+        y = r.y + (r.height * b) / 8;
+        top = el.shadowRoot!.elementFromPoint(x, y);
+      }
+    return {
+      x,
+      y,
+      top: top ? `${top.tagName}.${top.getAttribute("class") ?? ""}` : "none",
+      hit: !!top?.closest(`g[data-x="${i}"]`),
+    };
   }, i);
   expect(p.hit, `device ${i} is the top element at its centre (top: ${p.top})`).toBe(true);
   return p;
 }
-const tapIcon = async (page: Page, i: number) => { const p = await iconPoint(page, i); await page.mouse.click(p.x, p.y); return p; };
+const tapIcon = async (page: Page, i: number) => {
+  const p = await iconPoint(page, i);
+  await page.mouse.click(p.x, p.y);
+  return p;
+};
 // ground devices: 0 living light, 1 kitchen light, 2 hall switch, 3 TV plug, 4 temperature sensor, 6 camera
 
 test.describe("2D popup", () => {
-  test("a real tap opens a named dialog with the state and a 44 px button, and makes no call; focus is on the button", async ({ page }) => {
+  test("a real tap opens a named dialog with the state and a 44 px button, and makes no call; focus is on the button", async ({
+    page,
+  }) => {
     await boot(page);
     await tapIcon(page, 0);
     await expect(pop(page)).toBeVisible();
@@ -74,7 +117,11 @@ test.describe("2D popup", () => {
     await expect(b).toHaveText("Turn off");
     expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await expect(pop(page).locator("css=.fp-pop-more")).toHaveText("More info");
-    expect(await card(page).evaluate((el) => (el.shadowRoot!.activeElement as HTMLElement | null)?.classList.contains("fp-pop-do"))).toBe(true);
+    expect(
+      await card(page).evaluate((el) =>
+        (el.shadowRoot!.activeElement as HTMLElement | null)?.classList.contains("fp-pop-do"),
+      ),
+    ).toBe(true);
     expect(await calls(page)).toEqual([]);
     expect(await infos(page)).toEqual([]);
   });
@@ -87,7 +134,9 @@ test.describe("2D popup", () => {
     await expect(pop(page)).toHaveCount(0);
   });
 
-  test("a plug's OFF asks first: the button becomes Confirm turn off, Cancel makes no call, Confirm makes one", async ({ page }) => {
+  test("a plug's OFF asks first: the button becomes Confirm turn off, Cancel makes no call, Confirm makes one", async ({
+    page,
+  }) => {
     await boot(page);
     await tapIcon(page, 3);
     await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Turn off");
@@ -171,7 +220,8 @@ test.describe("2D popup: closing and placement", () => {
       await boot(page, width, { active_list: false });
       await tapIcon(page, 6); // the camera, 20 cm from the left and 580 from the top
       await expect(pop(page)).toBeVisible();
-      const c = (await card(page).boundingBox())!, b = (await pop(page).boundingBox())!;
+      const c = (await card(page).boundingBox())!,
+        b = (await pop(page).boundingBox())!;
       expect(b.x).toBeGreaterThanOrEqual(c.x);
       expect(b.y).toBeGreaterThanOrEqual(c.y);
       expect(b.x + b.width).toBeLessThanOrEqual(c.x + c.width + 0.5);
@@ -190,7 +240,9 @@ test.describe("2D popup: closing and placement", () => {
 });
 
 test.describe("2D popup: light controls", () => {
-  test("a colour light has brightness, temperature and hue sliders; one release is exactly one light.turn_on", async ({ page }) => {
+  test("a colour light has brightness, temperature and hue sliders; one release is exactly one light.turn_on", async ({
+    page,
+  }) => {
     await boot(page);
     await tapIcon(page, 0);
     const sliders = pop(page).locator("css=input[type=range]");
@@ -213,7 +265,9 @@ test.describe("2D popup: light controls", () => {
     expect(Object.keys(data).sort()).toEqual(["brightness_pct", "entity_id"]);
   });
 
-  test("the temperature slider sends kelvin within the light's own range; the hue slider keeps the saturation", async ({ page }) => {
+  test("the temperature slider sends kelvin within the light's own range; the hue slider keeps the saturation", async ({
+    page,
+  }) => {
     await boot(page);
     await tapIcon(page, 0);
     const temp = pop(page).locator('css=input[aria-label="Colour temperature"]');
@@ -257,7 +311,9 @@ test.describe("2D hover tooltip", () => {
     await page.mouse.up();
   });
 
-  test("a sensor's tooltip uses the plan's number rule: 21.5 °C, and a popup open hides the tooltip", async ({ page }) => {
+  test("a sensor's tooltip uses the plan's number rule: 21.5 °C, and a popup open hides the tooltip", async ({
+    page,
+  }) => {
     await boot(page);
     const p = await iconPoint(page, 4);
     await page.mouse.move(p.x - 30, p.y - 30);

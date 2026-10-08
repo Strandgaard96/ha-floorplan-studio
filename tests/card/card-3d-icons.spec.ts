@@ -4,7 +4,9 @@ import { demo, serve, ORIGIN, drawn } from "./helpers-3d";
 // 3D fixes: device icons floated over the walls. Every icon anchor stays at most ICON_MARGIN (25 cm) under the top of the floor's
 // walls, and a low device keeps its own height. Real card, the demo's ground floor (walls 250 cm) plus a TV mounted high.
 
-interface Hook { anchors(): { index: number; type: string; z: number }[] }
+interface Hook {
+  anchors(): { index: number; type: string; z: number }[];
+}
 const anchors = (page: Page) => page.evaluate(`window.__fp3d.anchors()`) as Promise<ReturnType<Hook["anchors"]>>;
 
 test("every icon anchor is under the wall top; a low device keeps its height", async ({ page }) => {
@@ -16,12 +18,19 @@ test("every icon anchor is under the wall top; a low device keeps its height", a
   await page.setViewportSize({ width: 1100, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await page.evaluate((config) => {
-    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-    el.setConfig(config);
-    el.hass = { states: {}, callService: () => undefined };
-    return el.updateComplete;
-  }, { layout, floor: "ground", view: "3d", active_list: false });
+  await page.evaluate(
+    (config) => {
+      const el = document.getElementById("card") as unknown as {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
+      el.setConfig(config);
+      el.hass = { states: {}, callService: () => undefined };
+      return el.updateComplete;
+    },
+    { layout, floor: "ground", view: "3d", active_list: false },
+  );
   await drawn(page);
   const a = await anchors(page);
   const byType = (t: string) => a.filter((x) => x.type === t);

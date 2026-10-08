@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { FURNITURE_SYMBOLS, validate, furnitureBottom, furnitureTop, furnitureHeight, FURNITURE_Z, FURNITURE } from "../../src/core";
+import {
+  FURNITURE_SYMBOLS,
+  validate,
+  furnitureBottom,
+  furnitureTop,
+  furnitureHeight,
+  FURNITURE_Z,
+  FURNITURE,
+} from "../../src/core";
 import { furnitureSolid } from "../../src/core/solids";
 
 // Diego, 2026-10-07: a TV hangs 100 cm over the floor, a speaker stands at 100 cm, both editable. `z` is the bottom of
@@ -29,8 +37,27 @@ describe("furniture bottom", () => {
     for (const s of FURNITURE_SYMBOLS) expect(FURNITURE[s], s).toBeTruthy();
   });
   it("validate accepts z 0..1000 and refuses junk", () => {
-    const base = (z: unknown) => ({ version: 2, floors: { ground: { name: "G", outline: [], rooms: [], walls: [], doors: [], windows: [], devices: [], furniture: [piece({ z })], stairs: [], unlinked: [] } } });
-    const errs = (z: unknown) => { const r = validate(base(z) as any); return r.ok ? [] : r.errors.filter((e) => /\bz\b/.test(e)); };
+    const base = (z: unknown) => ({
+      version: 2,
+      floors: {
+        ground: {
+          name: "G",
+          outline: [],
+          rooms: [],
+          walls: [],
+          doors: [],
+          windows: [],
+          devices: [],
+          furniture: [piece({ z })],
+          stairs: [],
+          unlinked: [],
+        },
+      },
+    });
+    const errs = (z: unknown) => {
+      const r = validate(base(z) as any);
+      return r.ok ? [] : r.errors.filter((e) => /\bz\b/.test(e));
+    };
     expect(errs(100)).toEqual([]);
     expect(errs(0)).toEqual([]);
     for (const j of [-1, 1001, "a", NaN]) expect(errs(j).length, String(j)).toBe(1);

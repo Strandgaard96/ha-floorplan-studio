@@ -10,7 +10,12 @@ import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/c
 
 const L = demo as unknown as Layout;
 function mockMotion() {
-  window.matchMedia = ((q: string) => ({ matches: q.includes("prefers-reduced-motion"), media: q, addEventListener() {}, removeEventListener() {} })) as never;
+  window.matchMedia = ((q: string) => ({
+    matches: q.includes("prefers-reduced-motion"),
+    media: q,
+    addEventListener() {},
+    removeEventListener() {},
+  })) as never;
 }
 async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<FloorplanStudioCard> {
   const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
@@ -20,11 +25,23 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   return el;
 }
 const q = <T extends Element>(el: FloorplanStudioCard, sel: string) => el.shadowRoot!.querySelector<T>(sel);
-const click = async (el: FloorplanStudioCard, sel: string) => { q<HTMLButtonElement>(el, sel)!.click(); await el.updateComplete; };
-const stored = () => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:")).map(([, v]) => JSON.parse(v) as Record<string, unknown>);
-const fakeClock = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
+const click = async (el: FloorplanStudioCard, sel: string) => {
+  q<HTMLButtonElement>(el, sel)!.click();
+  await el.updateComplete;
+};
+const stored = () =>
+  Object.entries(localStorage)
+    .filter(([k]) => k.startsWith("fp-view:"))
+    .map(([, v]) => JSON.parse(v) as Record<string, unknown>);
+const fakeClock = () =>
+  vi.useFakeTimers({
+    toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"],
+  });
 
-beforeEach(() => { localStorage.clear(); mockMotion(); });
+beforeEach(() => {
+  localStorage.clear();
+  mockMotion();
+});
 afterEach(() => {
   document.body.innerHTML = "";
   vi.restoreAllMocks(); // spies first, then the clock (CLAUDE.md finding 15)
@@ -60,7 +77,8 @@ describe("the floor is remembered", () => {
   it("parseStoredView keeps a floor string and drops junk", () => {
     const ok = () => true;
     expect(parseStoredView({ floor: "first" }, ok, THEMES).floor).toBe("first");
-    for (const bad of [5, null, "", ["a"], {}, "x".repeat(201)]) expect(parseStoredView({ floor: bad }, ok, THEMES).floor, JSON.stringify(bad)).toBeUndefined();
+    for (const bad of [5, null, "", ["a"], {}, "x".repeat(201)])
+      expect(parseStoredView({ floor: bad }, ok, THEMES).floor, JSON.stringify(bad)).toBeUndefined();
   });
 });
 
@@ -128,8 +146,12 @@ describe("the stored view wins over the config, and Reset view gives the config 
   });
 
   it("storage that throws (private mode) is silent: the card works from its config", async () => {
-    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
     const el = await mount({ floor: "ground" });
     await click(el, 'button[aria-label="Rotate right"]');
     expect(q(el, "svg")).not.toBeNull();

@@ -1,4 +1,30 @@
-import { FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import {
+  FURNITURE,
+  MAX_ROOM_SENSORS,
+  DEVICE_TYPES,
+  furnitureForEntity,
+  FLOOR_COLOURS,
+  inside,
+  roomAt,
+  MAX_PALETTE,
+  TEXTURE_IDS,
+  THEMES,
+  contentPoints,
+  findPowerSensor,
+  haFloorIdsForPlanFloor,
+  migrate,
+  placeableDevicesInArea,
+  placedEntities,
+  planPivot,
+  rotateAbout,
+  stairSteps,
+  switchChoicesForLight,
+  typeForEntity,
+  unplacedCatalog,
+  unplacedHaEntities,
+  validate,
+  viewBoxFor,
+} from "../core";
 import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
@@ -19,14 +45,20 @@ function readGrid(): Grid {
     const raw = localStorage.getItem(GRID_KEY);
     const n = raw === null || raw === "" ? NaN : Number(raw);
     return (GRID_VALUES as readonly number[]).includes(n) ? (n as Grid) : DEFAULT_GRID;
-  } catch { return DEFAULT_GRID; }
+  } catch {
+    return DEFAULT_GRID;
+  }
 }
 
 /** localStorage key for the measure grid toggle. A viewer preference, not part of the layout, never an undo step. */
 export const MEASURE_KEY = "floorplan-studio:measure";
 /** The stored choice, or true when there is none, it is not "false", or storage is blocked. */
 function readMeasure(): boolean {
-  try { return localStorage.getItem(MEASURE_KEY) !== "false"; } catch { return true; }
+  try {
+    return localStorage.getItem(MEASURE_KEY) !== "false";
+  } catch {
+    return true;
+  }
 }
 
 /** localStorage key for the theme choice (S1.53). A viewer preference, not part of the layout, never an undo step. */
@@ -39,24 +71,39 @@ function readTheme(): ThemeChoice {
   try {
     const raw = localStorage.getItem(THEME_KEY);
     return (THEME_VALUES as readonly string[]).includes(raw ?? "") ? (raw as ThemeChoice) : DEFAULT_THEME;
-  } catch { return DEFAULT_THEME; }
+  } catch {
+    return DEFAULT_THEME;
+  }
 }
 
 /** localStorage key for the Help panel's open/closed state (S5.5). A viewer preference, not part of the layout, never an undo step. */
 export const HELP_KEY = "floorplan-studio:help";
 /** The stored choice, or closed when there is none or storage is blocked. */
 function readHelp(): boolean {
-  try { return localStorage.getItem(HELP_KEY) === "true"; } catch { return false; }
+  try {
+    return localStorage.getItem(HELP_KEY) === "true";
+  } catch {
+    return false;
+  }
 }
 
 /** localStorage key for View, Preview night (S7.6). A viewer preference, not part of the layout, never an undo step. */
 export const NIGHT_KEY = "floorplan-studio:night";
 /** The stored choice, or day when there is none or storage is blocked. */
 function readNight(): boolean {
-  try { return localStorage.getItem(NIGHT_KEY) === "true"; } catch { return false; }
+  try {
+    return localStorage.getItem(NIGHT_KEY) === "true";
+  } catch {
+    return false;
+  }
 }
 
-export interface View { x: number; y: number; w: number; h: number }
+export interface View {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 /** A point that is not a polygon corner: the end of a wall, an opening or an extra. */
 export type LooseRef = { k: "walls" | "openings" | "extras"; i: number; end: "a" | "b" };
 export type PtRef = { poly: string; j: number } | LooseRef;
@@ -69,7 +116,19 @@ export type Sel =
   | { t: "devs"; is: number[] };
 
 export function emptyLayout(): Layout {
-  const floor: Floor = { title: "Ground", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
+  const floor: Floor = {
+    title: "Ground",
+    outline: [],
+    rooms: [],
+    walls: [],
+    stairs: [],
+    doors: [],
+    openings: [],
+    extras: [],
+    devices: [],
+    furniture: [],
+    unlinked: [],
+  };
   return { version: 2, unit: "cm", north: 0, rotate: 0, floors: { ground: floor }, catalog: [] };
 }
 
@@ -103,7 +162,8 @@ export function restoreLayout(): Layout | null {
 }
 
 /** The room list a device of `type` moves into (S11.2): temperature, humidity and motion devices only. */
-const roomFieldOf = (type: DeviceType | undefined): RoomSensorField | undefined => (type === "temp" ? "temps" : type === "humidity" ? "humidity" : type === "motion" ? "motion" : undefined);
+const roomFieldOf = (type: DeviceType | undefined): RoomSensorField | undefined =>
+  type === "temp" ? "temps" : type === "humidity" ? "humidity" : type === "motion" ? "motion" : undefined;
 
 export function polyPts(f: Floor, poly: string): Pt[] | undefined {
   if (poly === "o") return f.outline;
@@ -119,11 +179,16 @@ export function ptOf(f: Floor, ref: PtRef): Pt | null {
 const MAX_HISTORY = 100;
 
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
-export const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+export const slug = (t: string) =>
+  t
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 /** A floors object with no prototype, so a floor called `__proto__` or `constructor` is just a key. */
 function floorsOf(entries: [string, Floor][]): Record<string, Floor> {
   const o: Record<string, Floor> = Object.create(null);
-  for (const [k, v] of entries) Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true });
+  for (const [k, v] of entries)
+    Object.defineProperty(o, k, { value: v, enumerable: true, writable: true, configurable: true });
   return o;
 }
 
@@ -134,14 +199,19 @@ export class EditorState {
   ha: HaData | undefined = undefined;
   floor: string;
   private _sel: Sel = null;
-  get sel(): Sel { return this._sel; }
+  get sel(): Sel {
+    return this._sel;
+  }
   /** Opus review finding 3: selecting anything but the device `pendingMotion` was picked for clears the draft for
    *  good (not merely hides it) — reselecting that same light later starts the Motion pick fresh. */
   set sel(s: Sel) {
     this._sel = s;
     if (this.pendingMotionValue) {
       const stillSameDevice = s?.t === "dev" && this.f.devices[s.i]?.id === this.pendingMotionDevId;
-      if (!stillSameDevice) { this.pendingMotionValue = ""; this.pendingMotionDevId = null; }
+      if (!stillSameDevice) {
+        this.pendingMotionValue = "";
+        this.pendingMotionDevId = null;
+      }
     }
   }
   views: Record<string, View> = {};
@@ -174,7 +244,7 @@ export class EditorState {
   set pendingMotion(v: string) {
     this.pendingMotionValue = v;
     const sel = this.sel;
-    this.pendingMotionDevId = v && sel?.t === "dev" ? this.f.devices[sel.i]?.id ?? null : null;
+    this.pendingMotionDevId = v && sel?.t === "dev" ? (this.f.devices[sel.i]?.id ?? null) : null;
   }
   pendingMotionMinutes = "5";
   /** Snap grid in cm; 0 is none. Kept in localStorage, not in the layout. */
@@ -190,7 +260,9 @@ export class EditorState {
   night: boolean = readNight();
   /** Whether the plan draws names and values. View state: no undo step, never in the layout. */
   labels = true;
-  setLabels(on: boolean): void { this.labels = on !== false; }
+  setLabels(on: boolean): void {
+    this.labels = on !== false;
+  }
   /** id of the door drawn open in the preview */
   openDoor: string | null = null;
   /** S8.10: which room-box collapsible groups (the panel's "Home Assistant" device list) are open — keyed
@@ -200,13 +272,30 @@ export class EditorState {
    *  instance in place. Kept for the session, never the layout or undo history. */
   haGroups = new Set<string>();
   /** S17.1: which panel sections the user folded (`room:scenes`, ...). Kept in the browser, per editor, never in the layout. */
-  folded = new Set<string>(((): string[] => { try { const v = JSON.parse(localStorage.getItem("floorplan-studio:folds") ?? "[]"); return Array.isArray(v) ? v.filter((k) => typeof k === "string") : []; } catch { return []; } })());
+  folded = new Set<string>(
+    ((): string[] => {
+      try {
+        const v = JSON.parse(localStorage.getItem("floorplan-studio:folds") ?? "[]");
+        return Array.isArray(v) ? v.filter((k) => typeof k === "string") : [];
+      } catch {
+        return [];
+      }
+    })(),
+  );
   setFolded(key: string, fold: boolean): void {
     if (this.folded.has(key) === fold) return;
-    if (fold) this.folded.add(key); else this.folded.delete(key);
-    try { localStorage.setItem("floorplan-studio:folds", JSON.stringify([...this.folded])); } catch { /* private window: the fold lasts for the session */ }
+    if (fold) this.folded.add(key);
+    else this.folded.delete(key);
+    try {
+      localStorage.setItem("floorplan-studio:folds", JSON.stringify([...this.folded]));
+    } catch {
+      /* private window: the fold lasts for the session */
+    }
   }
-  setHaGroup(key: string, open: boolean): void { if (open) this.haGroups.add(key); else this.haGroups.delete(key); }
+  setHaGroup(key: string, open: boolean): void {
+    if (open) this.haGroups.add(key);
+    else this.haGroups.delete(key);
+  }
   /** The floor panel is asking "Delete floor ...?". Any change of floor, undo or press on the plan cancels it. */
   /** The direction the rotation buttons turn: 1 clockwise, -1 counter-clockwise. Kept for the session. */
   turnDir: 1 | -1 = 1;
@@ -221,22 +310,41 @@ export class EditorState {
     this.floor = floor && hasOwn(layout.floors, floor) ? floor : Object.keys(layout.floors)[0];
   }
 
-  get f(): Floor { return this.layout.floors[this.floor]; }
-  get canUndo() { return this.hist.length > 0; }
-  get canRedo() { return this.fut.length > 0; }
+  get f(): Floor {
+    return this.layout.floors[this.floor];
+  }
+  get canUndo() {
+    return this.hist.length > 0;
+  }
+  get canRedo() {
+    return this.fut.length > 0;
+  }
 
   /** Replace the whole layout. A host that sets it starts fresh; Open and Reset keep the history so Undo works. */
   setLayout(layout: Layout, floor?: string, keepHistory = false) {
     if (keepHistory) this.snapshot();
     this.layout = layout;
-    this.floor = floor && hasOwn(layout.floors, floor) ? floor : hasOwn(layout.floors, this.floor) ? this.floor : Object.keys(layout.floors)[0];
-    this.sel = null; this.views = {}; this.openDoor = null; this.confirmDelete = false;
-    if (!keepHistory) { this.hist = []; this.fut = []; }
+    this.floor =
+      floor && hasOwn(layout.floors, floor)
+        ? floor
+        : hasOwn(layout.floors, this.floor)
+          ? this.floor
+          : Object.keys(layout.floors)[0];
+    this.sel = null;
+    this.views = {};
+    this.openDoor = null;
+    this.confirmDelete = false;
+    if (!keepHistory) {
+      this.hist = [];
+      this.fut = [];
+    }
   }
 
   setFloor(name: string) {
     if (!hasOwn(this.layout.floors, name)) return;
-    this.floor = name; this.sel = null; this.confirmDelete = false;
+    this.floor = name;
+    this.sel = null;
+    this.confirmDelete = false;
   }
 
   // ---- floors: whole-layout snapshots, one undo step each, nothing recorded when refused ----
@@ -248,9 +356,19 @@ export class EditorState {
    */
   planLocked = false;
   planBlocked = false;
-  private planOpen(): boolean { this.planBlocked = this.planLocked; return !this.planLocked; }
+  private planOpen(): boolean {
+    this.planBlocked = this.planLocked;
+    return !this.planLocked;
+  }
   /** The floor with its devices and objects (heater, TV...) taken out: what a plan lock holds still. Walls, rooms, doors, windows, areas, stairs and furniture are the plan. */
-  private static plan(f: Floor): string { return JSON.stringify({ ...f, devices: [], unlinked: [], rooms: f.rooms.map((r) => ({ ...r, scenes: undefined, haScenes: undefined })) }); } // scenes are what a room offers, not its shape: a fixed plan still takes them (2026-10-07)
+  private static plan(f: Floor): string {
+    return JSON.stringify({
+      ...f,
+      devices: [],
+      unlinked: [],
+      rooms: f.rooms.map((r) => ({ ...r, scenes: undefined, haScenes: undefined })),
+    });
+  } // scenes are what a room offers, not its shape: a fixed plan still takes them (2026-10-07)
 
   /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {
@@ -261,11 +379,26 @@ export class EditorState {
     for (let n = 2; hasOwn(this.layout.floors, key); n++) key = `${base}-${n}`;
     this.snapshot();
     const first = Object.values(this.layout.floors)[0];
-    const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
+    const nf: Floor = {
+      title: t,
+      outline: structuredClone(first?.outline ?? []),
+      rooms: [],
+      walls: [],
+      stairs: [],
+      doors: [],
+      openings: [],
+      extras: [],
+      devices: [],
+      furniture: [],
+      unlinked: [],
+    };
     if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
     Object.defineProperty(this.layout.floors, key, { value: nf, enumerable: true, writable: true, configurable: true });
-    this.floor = key; this.sel = null; this.openDoor = null; this.confirmDelete = false;
+    this.floor = key;
+    this.sel = null;
+    this.openDoor = null;
+    this.confirmDelete = false;
     return key;
   }
 
@@ -273,7 +406,8 @@ export class EditorState {
   addStairsEverywhere(t: Omit<Stairs, "id">): void {
     if (!this.planOpen()) return;
     this.snapshot();
-    for (const [key, fl] of Object.entries(this.layout.floors)) fl.stairs.push({ ...structuredClone(t), id: newId(fl, key, "stairs") });
+    for (const [key, fl] of Object.entries(this.layout.floors))
+      fl.stairs.push({ ...structuredClone(t), id: newId(fl, key, "stairs") });
     this.sel = { t: "stairs", i: this.f.stairs.length - 1 };
     this.confirmDelete = false;
   }
@@ -289,19 +423,26 @@ export class EditorState {
 
   /** Removes a floor and its content. False for the last floor or an unknown key. The catalog is left alone. The selection moves to the next floor, else the previous. */
   deleteFloor(key: string): boolean {
-    const ks = Object.keys(this.layout.floors), i = ks.indexOf(key);
+    const ks = Object.keys(this.layout.floors),
+      i = ks.indexOf(key);
     if (i < 0 || ks.length < 2 || !this.planOpen()) return false;
     this.snapshot();
     this.layout.floors = floorsOf(ks.filter((k) => k !== key).map((k) => [k, this.layout.floors[k]]));
     delete this.views[key];
     this.confirmDelete = false;
-    if (this.floor === key) { this.floor = ks[i + 1] ?? ks[i - 1]; this.sel = null; this.openDoor = null; }
+    if (this.floor === key) {
+      this.floor = ks[i + 1] ?? ks[i - 1];
+      this.sel = null;
+      this.openDoor = null;
+    }
     return true;
   }
 
   /** Moves a floor `delta` places in the key order (-1 earlier, +1 later). False when that would leave the list or nothing moves. */
   moveFloor(key: string, delta: number): boolean {
-    const ks = Object.keys(this.layout.floors), i = ks.indexOf(key), j = i + delta;
+    const ks = Object.keys(this.layout.floors),
+      i = ks.indexOf(key),
+      j = i + delta;
     if (i < 0 || !Number.isInteger(delta) || delta === 0 || j < 0 || j >= ks.length || !this.planOpen()) return false;
     this.snapshot();
     ks.splice(i, 1);
@@ -321,7 +462,10 @@ export class EditorState {
     const g = structuredClone(this.f);
     const next = fn(g) ?? g;
     for (const t of next.stairs) t.steps = stairSteps(t); // steps follow the run (S1.44)
-    if (this.planLocked) { this.planBlocked = EditorState.plan(next) !== EditorState.plan(this.f); if (this.planBlocked) return false; } else this.planBlocked = false;
+    if (this.planLocked) {
+      this.planBlocked = EditorState.plan(next) !== EditorState.plan(this.f);
+      if (this.planBlocked) return false;
+    } else this.planBlocked = false;
     // Deep compare by serialising: cheap at this size, and it makes a no-op edit leave no undo step.
     if (JSON.stringify(next) === JSON.stringify(this.f)) return false;
     this.snapshot();
@@ -347,15 +491,20 @@ export class EditorState {
     return true;
   }
 
-  undo() { return this.step(this.hist, this.fut); }
-  redo() { return this.step(this.fut, this.hist); }
+  undo() {
+    return this.step(this.hist, this.fut);
+  }
+  redo() {
+    return this.step(this.fut, this.hist);
+  }
   private step(from: string[], to: string[]): boolean {
     const s = from.pop();
     if (s === undefined) return false;
     to.push(this.pack(this.layout));
     this.layout = this.unpack(s);
     if (!hasOwn(this.layout.floors, this.floor)) this.floor = Object.keys(this.layout.floors)[0];
-    this.sel = null; this.confirmDelete = false;
+    this.sel = null;
+    this.confirmDelete = false;
     return true;
   }
 
@@ -366,7 +515,9 @@ export class EditorState {
   turning: number | null = null;
 
   /** The angle the plan is drawn at: the layout's own `rotate` plus the user's turn (or the frame of one in flight). */
-  get turnDeg(): number { return (this.layout.rotate ?? 0) + (this.turning ?? this.viewRot); }
+  get turnDeg(): number {
+    return (this.layout.rotate ?? 0) + (this.turning ?? this.viewRot);
+  }
 
   /** The plan's rotation as renderFloor takes it: none at 0. */
   get rotation(): { deg: number; pivot: Pt } | undefined {
@@ -387,7 +538,9 @@ export class EditorState {
       if (!f || !(v.w > 0)) continue;
       const fit = viewBoxFor(f, 80, rot);
       const focus: Pt = [v.x + v.w / 2, v.y + v.h / 2];
-      const centre = rot ? rotateAbout([fit.x + fit.w / 2, fit.y + fit.h / 2], -rot.deg, rot.pivot) : ([fit.x + fit.w / 2, fit.y + fit.h / 2] as Pt);
+      const centre = rot
+        ? rotateAbout([fit.x + fit.w / 2, fit.y + fit.h / 2], -rot.deg, rot.pivot)
+        : ([fit.x + fit.w / 2, fit.y + fit.h / 2] as Pt);
       const zoom = fit.w / v.w;
       if (Math.abs(zoom - 1) < 1e-3 && Math.hypot(focus[0] - centre[0], focus[1] - centre[1]) < 1) continue; // shown whole
       zooms.push([key, { zoom, focus }]);
@@ -401,7 +554,10 @@ export class EditorState {
   importView(m: ViewMemory): void {
     if (m.labels !== undefined) this.labels = m.labels !== false;
     if (m.rotation !== undefined) this.viewRot = normaliseRotation(m.rotation);
-    if (m.floor !== undefined && hasOwn(this.layout.floors, m.floor)) { this.floor = m.floor; this.sel = null; }
+    if (m.floor !== undefined && hasOwn(this.layout.floors, m.floor)) {
+      this.floor = m.floor;
+      this.sel = null;
+    }
     this.views = {};
     for (const [key, z] of m.zooms ?? []) {
       if (!hasOwn(this.layout.floors, key)) continue;
@@ -409,32 +565,50 @@ export class EditorState {
       const rot = this.rotation;
       const fit = viewBoxFor(f, 80, rot);
       const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z.zoom));
-      const w = fit.w / zoom, h = fit.h / zoom;
-      Object.defineProperty(this.views, key, { value: { x: z.focus[0] - w / 2, y: z.focus[1] - h / 2, w, h }, enumerable: true, writable: true, configurable: true });
+      const w = fit.w / zoom,
+        h = fit.h / zoom;
+      Object.defineProperty(this.views, key, {
+        value: { x: z.focus[0] - w / 2, y: z.focus[1] - h / 2, w, h },
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
   }
 
   /** A view is stored in plan coordinates: its centre is the plan point in the middle of the screen, w and h are what the screen shows. Rotating the plan therefore needs no change to it. */
   fit() {
-    const b = viewBoxFor(this.f, 80, this.rotation), r = this.rotation;
+    const b = viewBoxFor(this.f, 80, this.rotation),
+      r = this.rotation;
     const c = r ? rotateAbout([b.x + b.w / 2, b.y + b.h / 2], -r.deg, r.pivot) : ([b.x + b.w / 2, b.y + b.h / 2] as Pt);
     this.views[this.floor] = { x: c[0] - b.w / 2, y: c[1] - b.h / 2, w: b.w, h: b.h };
   }
 
   /** Zoom and pan back to the whole floor: everything on it (`contentPoints`), not only the outline, with an 80 cm margin. Writes nothing to the layout; no undo step. */
   recenter() {
-    const r = this.rotation, pts = contentPoints(this.f);
-    if (!pts.length) { this.fit(); return; }
+    const r = this.rotation,
+      pts = contentPoints(this.f);
+    if (!pts.length) {
+      this.fit();
+      return;
+    }
     const shown = r ? pts.map((p) => rotateAbout(p, r.deg, r.pivot)) : pts;
-    const xs = shown.map((p) => p[0]), ys = shown.map((p) => p[1]), M = 80;
-    const b = { x: Math.min(...xs) - M, y: Math.min(...ys) - M, w: Math.max(...xs) - Math.min(...xs) + 2 * M, h: Math.max(...ys) - Math.min(...ys) + 2 * M };
+    const xs = shown.map((p) => p[0]),
+      ys = shown.map((p) => p[1]),
+      M = 80;
+    const b = {
+      x: Math.min(...xs) - M,
+      y: Math.min(...ys) - M,
+      w: Math.max(...xs) - Math.min(...xs) + 2 * M,
+      h: Math.max(...ys) - Math.min(...ys) + 2 * M,
+    };
     const c = r ? rotateAbout([b.x + b.w / 2, b.y + b.h / 2], -r.deg, r.pivot) : ([b.x + b.w / 2, b.y + b.h / 2] as Pt);
     this.views[this.floor] = { x: c[0] - b.w / 2, y: c[1] - b.h / 2, w: b.w, h: b.h };
   }
 
   /** Turns the whole plan to `deg` (a multiple of 45, taken modulo 360): one undo step, no step when it is already there. The views are dropped so each floor is fitted again. */
   setRotate(deg: number): boolean {
-    const n = ((Math.round(deg / 45) * 45) % 360 + 360) % 360;
+    const n = (((Math.round(deg / 45) * 45) % 360) + 360) % 360;
     if (n === (this.layout.rotate ?? 0) || !this.planOpen()) return false;
     this.snapshot();
     this.layout.rotate = n;
@@ -449,17 +623,25 @@ export class EditorState {
    * returns to the theme's default fill. Returns false, recording nothing, when the shape is missing, the value is
    * bad or nothing changes.
    */
-  paint(on: "rooms" | "stairs", i: number, paint: { color: string } | { texture: string; rot?: number; scale?: number } | null): boolean {
+  paint(
+    on: "rooms" | "stairs",
+    i: number,
+    paint: { color: string } | { texture: string; rot?: number; scale?: number } | null,
+  ): boolean {
     if (!this.planOpen()) return false;
     const next: Layout = structuredClone(this.layout);
     const shape = next.floors[this.floor][on][i];
     if (!shape) return false;
-    delete shape.color; delete shape.texture; delete shape.textureRot; delete shape.textureScale;
+    delete shape.color;
+    delete shape.texture;
+    delete shape.textureRot;
+    delete shape.textureScale;
     if (paint && "color" in paint) {
       const hex = paint.color.toLowerCase();
       if (!/^#[0-9a-f]{6}$/.test(hex)) return false;
       shape.color = hex;
-      if (!FLOOR_COLOURS.some((k) => k.hex === hex) && !(next.palette ?? []).includes(hex)) next.palette = [...(next.palette ?? []), hex].slice(-MAX_PALETTE);
+      if (!FLOOR_COLOURS.some((k) => k.hex === hex) && !(next.palette ?? []).includes(hex))
+        next.palette = [...(next.palette ?? []), hex].slice(-MAX_PALETTE);
     } else if (paint) {
       if (!TEXTURE_IDS.includes(paint.texture)) return false;
       shape.texture = paint.texture;
@@ -489,7 +671,11 @@ export class EditorState {
   lightFromSwitch(devIndex: number, entity: string, name: string): boolean {
     const sw = this.f.devices[devIndex];
     if (!sw || !this.canMakeLight(devIndex) || "a" in sw) return false;
-    if (Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === entity)) || this.layout.catalog.some((c) => c.entity === entity)) return false;
+    if (
+      Object.values(this.layout.floors).some((f) => f.devices.some((d) => d.entity === entity)) ||
+      this.layout.catalog.some((c) => c.entity === entity)
+    )
+      return false;
     const next = structuredClone(this.layout);
     const f = next.floors[this.floor];
     const id = newId(f, this.floor, "light", next);
@@ -525,7 +711,17 @@ export class EditorState {
     if (symbol) {
       // S18.11: a tv or speaker player is a piece that tracks it. The catalog entry keeps it re-placeable after a delete, as for a device.
       const id = newId(f, this.floor, "furniture", next);
-      f.furniture.push({ id, symbol, x: ctr[0], y: ctr[1], rot: 0, w: FURNITURE[symbol].w, h: FURNITURE[symbol].h, name: e.name, entity: e.id });
+      f.furniture.push({
+        id,
+        symbol,
+        x: ctr[0],
+        y: ctr[1],
+        rot: 0,
+        w: FURNITURE[symbol].w,
+        h: FURNITURE[symbol].h,
+        name: e.name,
+        entity: e.id,
+      });
       next.catalog.push({ id, floor: this.floor, room: room ?? "", type: symbol, name: e.name, entity: e.id });
       this.snapshot();
       this.layout = next;
@@ -549,7 +745,10 @@ export class EditorState {
   addFromArea(roomIndex: number, e: HaData["entities"][number], at?: Pt): boolean {
     const room = this.f.rooms[roomIndex];
     if (!room) return false;
-    const ctr: Pt = at ?? [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
+    const ctr: Pt = at ?? [
+      Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length),
+      Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length),
+    ];
     return this.addHaEntity(e, ctr, room.name);
   }
 
@@ -570,16 +769,20 @@ export class EditorState {
     const todo = only ? this.areaToPlace(roomIndex).filter((e) => only.has(e.id)) : this.areaToPlace(roomIndex); // S8.1: the popup's ticked rows
     if (!todo.length) return 0;
     const room = this.f.rooms[roomIndex];
-    const xs = room.pts.map((p) => p[0]), ys = room.pts.map((p) => p[1]);
+    const xs = room.pts.map((p) => p[0]),
+      ys = room.pts.map((p) => p[1]);
     const ctr: Pt = [xs.reduce((s, v) => s + v, 0) / xs.length, ys.reduce((s, v) => s + v, 0) / ys.length];
     const reach = Math.max(...xs.map((x) => Math.abs(x - ctr[0])), ...ys.map((y) => Math.abs(y - ctr[1])));
     const taken = this.f.devices.flatMap((d) => ("x" in d ? [[d.x, d.y] as Pt] : []));
     const cells = (step: number): Pt[] => {
-      const r = Math.ceil(reach / step), out: [number, Pt][] = [];
-      for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) {
-        const p: Pt = [Math.round(ctr[0] + i * step), Math.round(ctr[1] + j * step)];
-        if ((i || j) && inside(p, room.pts) && taken.every((t) => Math.hypot(t[0] - p[0], t[1] - p[1]) >= step * 0.7)) out.push([Math.hypot(i, j), p]);
-      }
+      const r = Math.ceil(reach / step),
+        out: [number, Pt][] = [];
+      for (let j = -r; j <= r; j++)
+        for (let i = -r; i <= r; i++) {
+          const p: Pt = [Math.round(ctr[0] + i * step), Math.round(ctr[1] + j * step)];
+          if ((i || j) && inside(p, room.pts) && taken.every((t) => Math.hypot(t[0] - p[0], t[1] - p[1]) >= step * 0.7))
+            out.push([Math.hypot(i, j), p]);
+        }
       return out.sort((a, b) => a[0] - b[0]).map((c) => c[1]); // stable: equal distances keep row order
     };
     let spots = cells(60);
@@ -598,9 +801,18 @@ export class EditorState {
       // would duplicate it a second time. Reuse only when no floor's device currently carries it; otherwise mint a
       // fresh id and update the catalog entry to match, in this same undo step.
       const claimed = existing && Object.values(next.floors).some((fl) => fl.devices.some((d) => d.id === existing.id));
-      const id = existing && !claimed ? existing.id : newId(f, this.floor, "device", next), type = existing?.type ?? typeForEntity(e, this.ha);
+      const id = existing && !claimed ? existing.id : newId(f, this.floor, "device", next),
+        type = existing?.type ?? typeForEntity(e, this.ha);
       if (existing && claimed) existing.id = id;
-      f.devices.push({ id, name: existing?.name ?? e.name, type, entity: e.id, x: at[0], y: at[1], ...this.powerFor(type, e.id) });
+      f.devices.push({
+        id,
+        name: existing?.name ?? e.name,
+        type,
+        entity: e.id,
+        x: at[0],
+        y: at[1],
+        ...this.powerFor(type, e.id),
+      });
       if (!existing) next.catalog.push({ id, floor: this.floor, room: room.name, type, name: e.name, entity: e.id });
     });
     this.snapshot();
@@ -617,18 +829,28 @@ export class EditorState {
   addEntity(e: HaData["entities"][number], fallback: Pt): boolean {
     const room = e.area ? this.f.rooms.find((r) => r.area === e.area) : undefined;
     if (!room) return this.addHaEntity(e, fallback);
-    const ctr: Pt = [Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length), Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length)];
+    const ctr: Pt = [
+      Math.round(room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length),
+      Math.round(room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length),
+    ];
     return this.addHaEntity(e, ctr, room.name);
   }
 
   /** Sets (`hex`) or removes (null) the colour of one device type in `layout.colors`: one undo step, none when nothing changes. `colors` is removed when it empties, so an untouched layout stays as it was. */
   setColour(type: DeviceType, hex: string | null): boolean {
     const cur = this.layout.colors ?? {};
-    if (hex === null ? !(type in cur) : !((DEVICE_TYPES as readonly string[]).includes(type) && /^#[0-9a-fA-F]{6}$/.test(hex) && cur[type] !== hex)) return false;
+    if (
+      hex === null
+        ? !(type in cur)
+        : !((DEVICE_TYPES as readonly string[]).includes(type) && /^#[0-9a-fA-F]{6}$/.test(hex) && cur[type] !== hex)
+    )
+      return false;
     this.snapshot();
     const next = { ...cur };
-    if (hex === null) delete next[type]; else next[type] = hex;
-    if (Object.keys(next).length) this.layout.colors = next; else delete this.layout.colors;
+    if (hex === null) delete next[type];
+    else next[type] = hex;
+    if (Object.keys(next).length) this.layout.colors = next;
+    else delete this.layout.colors;
     return true;
   }
   /** Removes every device colour: one undo step, none when there are none. */
@@ -644,7 +866,9 @@ export class EditorState {
   }
 
   /** Catalog entries not on the plan. A switch that only a light names (`bound`) is still on the list. */
-  unplaced(): CatalogEntry[] { return unplacedCatalog(this.layout); }
+  unplaced(): CatalogEntry[] {
+    return unplacedCatalog(this.layout);
+  }
 
   /** S8.7: `switchChoicesForLight` for the light at `devIndex` of the current floor, with the current floor and HA data already bound in. Empty for anything that is not a light. */
   switchChoicesForLight(devIndex: number): SwitchChoice[] {
@@ -672,17 +896,31 @@ export class EditorState {
     const floorIdOfArea = new Map((ha.areas ?? []).map((a) => [a.id, a.floor_id]));
     const floorAreas = new Set(this.f.rooms.map((r) => r.area).filter(Boolean));
     const lightArea = ha.entities.find((e) => e.id === d.entity)?.area;
-    const isMotion = (e: HaData["entities"][number]) => e.domain === "binary_sensor" && (e.dc === "motion" || e.dc === "occupancy" || e.dc === "presence");
+    const isMotion = (e: HaData["entities"][number]) =>
+      e.domain === "binary_sensor" && (e.dc === "motion" || e.dc === "occupancy" || e.dc === "presence");
     const onFloor = (e: HaData["entities"][number]) => {
       if (!e.area) return false;
-      if (floorIds.size) { const fid = floorIdOfArea.get(e.area); return !!fid && floorIds.has(fid); }
+      if (floorIds.size) {
+        const fid = floorIdOfArea.get(e.area);
+        return !!fid && floorIds.has(fid);
+      }
       return floorAreas.has(e.area); // no HA floor mapping for this plan floor: fall back to drawn rooms
     };
     const sensors = ha.entities.filter((e) => isMotion(e) && onFloor(e));
-    const groups = ha.entities.filter((e) =>
-      e.domain === "group" && Array.isArray(e.members) && e.members.length > 0 &&
-      e.members.every((m) => { const x = ha.entities.find((y) => y.id === m); return x && isMotion(x); }) &&
-      e.members.some((m) => { const x = ha.entities.find((y) => y.id === m); return x && onFloor(x); }));
+    const groups = ha.entities.filter(
+      (e) =>
+        e.domain === "group" &&
+        Array.isArray(e.members) &&
+        e.members.length > 0 &&
+        e.members.every((m) => {
+          const x = ha.entities.find((y) => y.id === m);
+          return x && isMotion(x);
+        }) &&
+        e.members.some((m) => {
+          const x = ha.entities.find((y) => y.id === m);
+          return x && onFloor(x);
+        }),
+    );
     return [...sensors, ...groups]
       .map((e) => ({ entity: e.id, name: e.name || e.id, area: e.area }))
       .sort((a, b) => Number(b.area === lightArea) - Number(a.area === lightArea)); // same area as the light first, else stable
@@ -699,7 +937,9 @@ export class EditorState {
     // Opus review, finding 6: a switch_as_x light is a switch HA wrapped as a light entity, not a light with a
     // switch of its own to find — linking it would try to bind a switch to itself in spirit. Skipped here, same as
     // the light panel's own Controlled by field never offers switch_as_x lights as anything but a light.
-    const switchAsX = new Set((this.ha?.entities ?? []).filter((e) => e.domain === "light" && e.platform === "switch_as_x").map((e) => e.id));
+    const switchAsX = new Set(
+      (this.ha?.entities ?? []).filter((e) => e.domain === "light" && e.platform === "switch_as_x").map((e) => e.id),
+    );
     const links: { i: number; entity: string }[] = [];
     f.devices.forEach((d, i) => {
       if (d.type !== "light" || d.bound || switchAsX.has(d.entity)) return;
@@ -723,8 +963,12 @@ export class EditorState {
     if (!r || (r[field]?.length ?? 0) >= MAX_ROOM_SENSORS) return [];
     const type: DeviceType = field === "temps" ? "temp" : field;
     const used = new Set<string>();
-    for (const fl of Object.values(this.layout.floors)) for (const o of fl.rooms) if (o.id !== r.id) for (const e of o[field] ?? []) used.add(e);
-    return [...this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity)), ...this.withPlanRoom(this.unattachedHaChoices(type).filter((c) => !used.has(c.entity)))];
+    for (const fl of Object.values(this.layout.floors))
+      for (const o of fl.rooms) if (o.id !== r.id) for (const e of o[field] ?? []) used.add(e);
+    return [
+      ...this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity)),
+      ...this.withPlanRoom(this.unattachedHaChoices(type).filter((c) => !used.has(c.entity))),
+    ];
   }
 
   /**
@@ -734,8 +978,12 @@ export class EditorState {
   private withPlanRoom(choices: CatalogEntry[]): CatalogEntry[] {
     const areaOf = new Map((this.ha?.entities ?? []).map((e) => [e.id, e.area]));
     const where = new Map<string, { floor: string; room: string }>();
-    for (const [key, fl] of Object.entries(this.layout.floors)) for (const r of fl.rooms) if (r.area && !where.has(r.area)) where.set(r.area, { floor: key, room: r.name });
-    return choices.map((c) => { const w = where.get(areaOf.get(c.entity) ?? ""); return w ? { ...c, ...w } : c; });
+    for (const [key, fl] of Object.entries(this.layout.floors))
+      for (const r of fl.rooms) if (r.area && !where.has(r.area)) where.set(r.area, { floor: key, room: r.name });
+    return choices.map((c) => {
+      const w = where.get(areaOf.get(c.entity) ?? "");
+      return w ? { ...c, ...w } : c;
+    });
   }
 
   /** The room device `i` belongs to on the current floor, or -1: `roomAt`, the rule the aura clip, the readout and the Sensors section share. */
@@ -757,7 +1005,11 @@ export class EditorState {
     if (room < 0) return { ok: false, reason: "It is not inside a room. Move it into one first." };
     const list = this.f.rooms[room][field] ?? [];
     if (list.includes(d.entity)) return { ok: false, reason: `Already on ${this.f.rooms[room].name || "this room"}.` };
-    if (list.length >= MAX_ROOM_SENSORS) return { ok: false, reason: `${this.f.rooms[room].name || "This room"} already has ${MAX_ROOM_SENSORS} of these. Remove one first.` };
+    if (list.length >= MAX_ROOM_SENSORS)
+      return {
+        ok: false,
+        reason: `${this.f.rooms[room].name || "This room"} already has ${MAX_ROOM_SENSORS} of these. Remove one first.`,
+      };
     return { ok: true, room, field };
   }
 
@@ -765,7 +1017,8 @@ export class EditorState {
   attachToRoom(i: number): boolean {
     const a = this.roomAttach(i);
     if (!a.ok) return false;
-    const entity = this.f.devices[i].entity, id = this.f.rooms[a.room].id;
+    const entity = this.f.devices[i].entity,
+      id = this.f.rooms[a.room].id;
     return this.attachEntity(entity, (f) => {
       const r = f.rooms.find((x) => x.id === id);
       if (r) setRoomList(r, a.field, [...(r[a.field] ?? []), entity]);
@@ -777,7 +1030,8 @@ export class EditorState {
     const d = this.f.devices[i];
     const field = roomFieldOf(d?.type);
     if (!d || !field || !d.entity) return null;
-    for (const fl of Object.values(this.layout.floors)) for (const r of fl.rooms) if (r[field]?.includes(d.entity)) return r.name || r.id;
+    for (const fl of Object.values(this.layout.floors))
+      for (const r of fl.rooms) if (r[field]?.includes(d.entity)) return r.name || r.id;
     return null;
   }
 
@@ -793,7 +1047,8 @@ export class EditorState {
   doorAttachChoices(doorId: string, field: "sensors" | "vibration" | "locks"): CatalogEntry[] {
     const type: DeviceType = field === "sensors" ? "contact" : field === "vibration" ? "vibration" : "lock";
     const used = new Set<string>();
-    for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId) for (const e of d[field] ?? []) used.add(e);
+    for (const f of Object.values(this.layout.floors))
+      for (const d of f.doors) if (d.id !== doorId) for (const e of d[field] ?? []) used.add(e);
     const catalogued = this.layout.catalog.filter((c) => c.type === type && !used.has(c.entity));
     return [...catalogued, ...this.unattachedHaChoices(type)];
   }
@@ -818,7 +1073,8 @@ export class EditorState {
    */
   coverChoices(doorId: string): CatalogEntry[] {
     const used = new Set<string>();
-    for (const f of Object.values(this.layout.floors)) for (const d of f.doors) if (d.id !== doorId && d.cover) used.add(d.cover);
+    for (const f of Object.values(this.layout.floors))
+      for (const d of f.doors) if (d.id !== doorId && d.cover) used.add(d.cover);
     return this.layout.catalog.filter((c) => c.type === "cover" && !used.has(c.entity));
   }
 
@@ -844,7 +1100,10 @@ export class EditorState {
     if (type !== "speaker" && type !== "tv") return this.layout.catalog;
     // A speaker or TV is linked to a media player: those come first, the ones the plan has not met yet included.
     const isPlayer = (c: CatalogEntry) => c.entity.startsWith("media_player.");
-    const players = [...this.layout.catalog.filter(isPlayer), ...this.unattachedHaChoices("media").filter((c) => !this.layout.catalog.some((k) => k.entity === c.entity))];
+    const players = [
+      ...this.layout.catalog.filter(isPlayer),
+      ...this.unattachedHaChoices("media").filter((c) => !this.layout.catalog.some((k) => k.entity === c.entity)),
+    ];
     return [...players, ...this.layout.catalog.filter((c) => !isPlayer(c))];
   }
 
@@ -860,13 +1119,25 @@ export class EditorState {
    * when `apply` wrote nothing (an empty entity, or a no-op); `pulled: true` when an icon was actually removed,
    * so the caller can tell the difference in its status line.
    */
-  attachEntity(entity: string, apply: (f: Floor) => void, keepDeviceId?: string): { changed: boolean; pulled: boolean } {
+  attachEntity(
+    entity: string,
+    apply: (f: Floor) => void,
+    keepDeviceId?: string,
+  ): { changed: boolean; pulled: boolean } {
     if (!entity) return { changed: false, pulled: false };
     const next = structuredClone(this.layout);
     apply(next.floors[this.floor]);
     if (!next.catalog.some((c) => c.entity === entity)) {
       const e = this.ha?.entities.find((x) => x.id === entity);
-      if (e) next.catalog.push({ id: e.id, floor: this.floor, room: "", type: typeForEntity(e, this.ha), name: e.name || e.id, entity: e.id });
+      if (e)
+        next.catalog.push({
+          id: e.id,
+          floor: this.floor,
+          room: "",
+          type: typeForEntity(e, this.ha),
+          name: e.name || e.id,
+          entity: e.id,
+        });
     }
     const selDevId = this.sel?.t === "dev" ? this.f.devices[this.sel.i]?.id : undefined;
     let pulled = false;
@@ -893,49 +1164,96 @@ export class EditorState {
   controlsChoices(devIndex: number): CatalogEntry[] {
     const d = this.f.devices[devIndex];
     if (!d) return [];
-    const placed: CatalogEntry[] = this.layout.catalog.filter((c) => (c.type === "light" || c.type === "switch" || c.type === "plug") && c.entity !== d.entity);
+    const placed: CatalogEntry[] = this.layout.catalog.filter(
+      (c) => (c.type === "light" || c.type === "switch" || c.type === "plug") && c.entity !== d.entity,
+    );
     const groups = (this.ha?.entities ?? []).filter((e) => e.domain === "group" && e.id !== d.entity);
-    return [...placed, ...groups.map((g): CatalogEntry => ({ id: g.id, floor: "", room: "", type: "light", name: g.name, entity: g.id }))];
+    return [
+      ...placed,
+      ...groups.map((g): CatalogEntry => ({
+        id: g.id,
+        floor: "",
+        room: "",
+        type: "light",
+        name: g.name,
+        entity: g.id,
+      })),
+    ];
   }
 
   /** Writes the autosave. Storage may be blocked or full; the edit then simply is not remembered. */
   setGrid(g: Grid) {
     if (!(GRID_VALUES as readonly number[]).includes(g)) return;
     this.snapGrid = g;
-    try { localStorage.setItem(GRID_KEY, String(g)); } catch { /* private mode: the choice lasts until reload */ }
+    try {
+      localStorage.setItem(GRID_KEY, String(g));
+    } catch {
+      /* private mode: the choice lasts until reload */
+    }
   }
   /** Toggles the measure grid. A viewer preference: no undo step, never written to the layout. */
   setMeasure(v: boolean) {
     this.measure = v;
-    try { localStorage.setItem(MEASURE_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
+    try {
+      localStorage.setItem(MEASURE_KEY, String(v));
+    } catch {
+      /* private mode: the choice lasts until reload */
+    }
   }
   /** Sets the theme choice (S1.53). A viewer preference: no undo step, never written to the layout. */
   setTheme(t: ThemeChoice) {
     if (!(THEME_VALUES as readonly string[]).includes(t)) return;
     this.theme = t;
-    try { localStorage.setItem(THEME_KEY, t); } catch { /* private mode: the choice lasts until reload */ }
+    try {
+      localStorage.setItem(THEME_KEY, t);
+    } catch {
+      /* private mode: the choice lasts until reload */
+    }
   }
   /** Opens or closes the Help panel (S5.5). A viewer preference: no undo step, never written to the layout. */
   setHelp(v: boolean) {
     this.helpOpen = v;
-    try { localStorage.setItem(HELP_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
+    try {
+      localStorage.setItem(HELP_KEY, String(v));
+    } catch {
+      /* private mode: the choice lasts until reload */
+    }
   }
   /** View, Preview night (S7.6). A viewer preference: no undo step, never written to the layout. */
   setNight(v: boolean) {
     this.night = v;
-    try { localStorage.setItem(NIGHT_KEY, String(v)); } catch { /* private mode: the choice lasts until reload */ }
+    try {
+      localStorage.setItem(NIGHT_KEY, String(v));
+    } catch {
+      /* private mode: the choice lasts until reload */
+    }
   }
   /** Writes the autosave. S7.11: a trace image can fill the few MB a browser gives a site; the plan is then saved
    *  without its images rather than not at all, and this returns false. Blocked storage also returns false. */
   persist(): boolean {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout)); return true; } catch { /* private mode, quota */ }
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout, (k, v) => (k === "trace" ? undefined : v))); } catch { /* blocked */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.layout));
+      return true;
+    } catch {
+      /* private mode, quota */
+    }
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(this.layout, (k, v) => (k === "trace" ? undefined : v)),
+      );
+    } catch {
+      /* blocked */
+    }
     return false;
   }
 
   /** S7.11: sets (or, with null, removes) the current floor's trace image: one undo step, none when nothing changes. */
   setTrace(t: Trace | null): boolean {
-    return this.edit((f) => { if (t) f.trace = { src: t.src, x: t.x, y: t.y, w: t.w, rot: t.rot, alpha: t.alpha, on: t.on }; else delete f.trace; });
+    return this.edit((f) => {
+      if (t) f.trace = { src: t.src, x: t.x, y: t.y, w: t.w, rot: t.rot, alpha: t.alpha, on: t.on };
+      else delete f.trace;
+    });
   }
 
   // S7.11: undo steps are whole-layout JSON, and a trace image is up to 4 MB. Each distinct image is kept once, here,
@@ -946,12 +1264,18 @@ export class EditorState {
     return JSON.stringify(l, (k, v) => {
       if (k !== "src" || typeof v !== "string" || !v.startsWith("data:")) return v;
       let t = this.srcToken.get(v);
-      if (!t) { t = `\u0000trace:${this.srcToken.size}`; this.srcToken.set(v, t); this.tokenSrc.set(t, v); }
+      if (!t) {
+        t = `\u0000trace:${this.srcToken.size}`;
+        this.srcToken.set(v, t);
+        this.tokenSrc.set(t, v);
+      }
       return t;
     });
   }
   private unpack(s: string): Layout {
-    return JSON.parse(s, (k, v) => (k === "src" && typeof v === "string" && this.tokenSrc.has(v) ? this.tokenSrc.get(v) : v)) as Layout;
+    return JSON.parse(s, (k, v) =>
+      k === "src" && typeof v === "string" && this.tokenSrc.has(v) ? this.tokenSrc.get(v) : v,
+    ) as Layout;
   }
 }
 
@@ -964,7 +1288,8 @@ export class EditorState {
  */
 export function newId(f: Floor, floor: string, prefix: string, layout?: Layout): string {
   const used = new Set<string>();
-  for (const list of [f.rooms, f.walls, f.stairs, f.doors, f.openings, f.extras, f.devices, f.furniture, f.unlinked]) for (const o of list) used.add(o.id);
+  for (const list of [f.rooms, f.walls, f.stairs, f.doors, f.openings, f.extras, f.devices, f.furniture, f.unlinked])
+    for (const o of list) used.add(o.id);
   if (layout) {
     for (const c of layout.catalog) used.add(c.id);
     for (const fl of Object.values(layout.floors)) for (const d of fl.devices) used.add(d.id);

@@ -1,10 +1,25 @@
 import { describe, it, expect } from "vitest";
-import { edgeGap, inPoly, liftFor, MAX_POOLS, pickLights, roomLifts, roomOfPoint, type RoomShape } from "../../src/card/three/light";
+import {
+  edgeGap,
+  inPoly,
+  liftFor,
+  MAX_POOLS,
+  pickLights,
+  roomLifts,
+  roomOfPoint,
+  type RoomShape,
+} from "../../src/card/three/light";
 import { insetBand, pulseAt } from "../../src/card/three/ring";
 import { MOTION_PULSE_S } from "../../src/core/render";
 
-const sq = (x: number, y: number, w: number, h: number) => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-const living: RoomShape = { index: 0, base: sq(0, 0, 500, 400), top: 1, area: 200000 }, kitchen: RoomShape = { index: 1, base: sq(500, 0, 300, 400), top: 1, area: 120000 };
+const sq = (x: number, y: number, w: number, h: number) => [
+  [x, y],
+  [x + w, y],
+  [x + w, y + h],
+  [x, y + h],
+];
+const living: RoomShape = { index: 0, base: sq(0, 0, 500, 400), top: 1, area: 200000 },
+  kitchen: RoomShape = { index: 1, base: sq(500, 0, 300, 400), top: 1, area: 120000 };
 const nested: RoomShape = { index: 2, base: sq(100, 100, 100, 100), top: 2, area: 10000 };
 
 describe("roomOfPoint", () => {
@@ -30,9 +45,15 @@ describe("roomOfPoint", () => {
 });
 
 describe("the lamp budget and the lift", () => {
-  const lamp = (x: number, room = 0) => ({ at: [x, 0] as [number, number], room, rgb: [1, 0.7, 0.3] as [number, number, number], level: 1 });
+  const lamp = (x: number, room = 0) => ({
+    at: [x, 0] as [number, number],
+    room,
+    rgb: [1, 0.7, 0.3] as [number, number, number],
+    level: 1,
+  });
   it("keeps the nearest lamps to the centre, in a fixed order", () => {
-    const many = Array.from({ length: 50 }, (_, i) => lamp(i * 10)), lamps = many.slice(0, 20);
+    const many = Array.from({ length: 50 }, (_, i) => lamp(i * 10)),
+      lamps = many.slice(0, 20);
     const kept = pickLights(many, [0, 0]);
     expect(MAX_POOLS).toBe(32); // Diego, 2026-10-06: a house with a dozen lit rooms must not leave rooms dark
     expect(kept).toHaveLength(32);
@@ -42,7 +63,9 @@ describe("the lamp budget and the lift", () => {
   });
   it("lifts a lit room brighter and toward the lamp, never darker, and a dim lamp less", () => {
     const [r, g, b] = liftFor([1, 0.7, 0.3], 1);
-    expect(r).toBeGreaterThan(g); expect(g).toBeGreaterThan(b); expect(b).toBeGreaterThan(1);
+    expect(r).toBeGreaterThan(g);
+    expect(g).toBeGreaterThan(b);
+    expect(b).toBeGreaterThan(1);
     expect(liftFor([1, 0.7, 0.3], 0.3)[0]).toBeLessThan(r);
     expect(liftFor([0, 0, 0], 1).every((c) => c > 1)).toBe(true);
     expect(liftFor([1, 1, 1], 0).every((c) => c === 1)).toBe(true);
@@ -58,30 +81,69 @@ describe("the lamp budget and the lift", () => {
 describe("insetBand", () => {
   const inside = (p: number[], poly: number[][]) => inPoly(poly, p[0], p[1]);
   it("is a band between inner and outer cm inside a rectangle: every corner is inside, none closer than inner or farther than outer", () => {
-    const poly = sq(0, 0, 500, 400), t = insetBand(poly, 8, 16);
+    const poly = sq(0, 0, 500, 400),
+      t = insetBand(poly, 8, 16);
     expect(t.length).toBe(4 * 12);
     for (let i = 0; i < t.length; i += 2) {
-      const p = [t[i], t[i + 1]], d = edgeGap(poly, p[0], p[1]);
+      const p = [t[i], t[i + 1]],
+        d = edgeGap(poly, p[0], p[1]);
       expect(inside(p, poly)).toBe(true);
-      expect(d).toBeGreaterThan(8 - 1e-6); expect(d).toBeLessThan(16 + 1e-6);
+      expect(d).toBeGreaterThan(8 - 1e-6);
+      expect(d).toBeLessThan(16 + 1e-6);
     }
     // area of the band: the rectangle inset by 8 minus the rectangle inset by 16
     let a = 0;
-    for (let i = 0; i < t.length; i += 6) a += Math.abs((t[i + 2] - t[i]) * (t[i + 5] - t[i + 1]) - (t[i + 4] - t[i]) * (t[i + 3] - t[i + 1])) / 2;
+    for (let i = 0; i < t.length; i += 6)
+      a += Math.abs((t[i + 2] - t[i]) * (t[i + 5] - t[i + 1]) - (t[i + 4] - t[i]) * (t[i + 3] - t[i + 1])) / 2;
     expect(Math.abs(a - (484 * 384 - 468 * 368))).toBeLessThan(100); // the exact band
   });
   it("does not care which way the polygon is wound", () => {
-    const poly = sq(0, 0, 200, 100), rev = [...poly].reverse();
-    for (const p of [poly, rev]) { const t = insetBand(p, 5, 10); for (let i = 0; i < t.length; i += 2) expect(inPoly(poly, t[i], t[i + 1])).toBe(true); }
+    const poly = sq(0, 0, 200, 100),
+      rev = [...poly].reverse();
+    for (const p of [poly, rev]) {
+      const t = insetBand(p, 5, 10);
+      for (let i = 0; i < t.length; i += 2) expect(inPoly(poly, t[i], t[i + 1])).toBe(true);
+    }
   });
   it("keeps an L shape's band inside it, at its reflex corner too", () => {
-    const L = [[0, 0], [300, 0], [300, 100], [100, 100], [100, 300], [0, 300]];
+    const L = [
+      [0, 0],
+      [300, 0],
+      [300, 100],
+      [100, 100],
+      [100, 300],
+      [0, 300],
+    ];
     const t = insetBand(L, 6, 14);
     expect(t.length).toBe(6 * 12);
     for (let i = 0; i < t.length; i += 2) expect(inPoly(L, t[i], t[i + 1])).toBe(true);
   });
   it("gives nothing for a polygon that cannot hold a band, and never throws", () => {
-    for (const bad of [[], [[0, 0], [1, 1]], [[0, 0], [1, 0], [2, 0]], [[0, 0], [NaN, 0], [1, 1]], null, 5, [[0, 0], [10, 0], [10, 10]].map(() => "x")]) expect(insetBand(bad as never, 5, 10)).toEqual([]);
+    for (const bad of [
+      [],
+      [
+        [0, 0],
+        [1, 1],
+      ],
+      [
+        [0, 0],
+        [1, 0],
+        [2, 0],
+      ],
+      [
+        [0, 0],
+        [NaN, 0],
+        [1, 1],
+      ],
+      null,
+      5,
+      [
+        [0, 0],
+        [10, 0],
+        [10, 10],
+      ].map(() => "x"),
+    ])
+      expect(insetBand(bad as never, 5, 10)).toEqual([]);
     expect(insetBand(sq(0, 0, 10, 10), 10, 5)).toEqual([]);
     expect(insetBand(sq(0, 0, 10, 10), -1, 5)).toEqual([]);
   });
