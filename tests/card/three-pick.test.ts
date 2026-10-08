@@ -8,15 +8,57 @@ import { wallBodies, lowerWalls, wallZ } from "../../src/card/three/cut";
 // A ray that goes straight down (0, 0, -1) from 1000 cm up at (x, y) is the simplest, and tilted ones follow.
 
 const house = (o: Partial<Floor> = {}): Floor => ({
-  title: "T", outline: [[0, 0], [600, 0], [600, 500], [0, 500]], owk: ["external", "external", "external", "external"],
-  rooms: [{ id: "a", name: "A", area: "", kind: "room", pts: [[0, 0], [300, 0], [300, 500], [0, 500]], wk: ["wall", "wall", "wall", "wall"] },
-          { id: "b", name: "B", area: "", kind: "room", pts: [[300, 0], [600, 0], [600, 500], [300, 500]], wk: ["wall", "wall", "wall", "wall"] }] as never,
-  walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o,
+  title: "T",
+  outline: [
+    [0, 0],
+    [600, 0],
+    [600, 500],
+    [0, 500],
+  ],
+  owk: ["external", "external", "external", "external"],
+  rooms: [
+    {
+      id: "a",
+      name: "A",
+      area: "",
+      kind: "room",
+      pts: [
+        [0, 0],
+        [300, 0],
+        [300, 500],
+        [0, 500],
+      ],
+      wk: ["wall", "wall", "wall", "wall"],
+    },
+    {
+      id: "b",
+      name: "B",
+      area: "",
+      kind: "room",
+      pts: [
+        [300, 0],
+        [600, 0],
+        [600, 500],
+        [300, 500],
+      ],
+      wk: ["wall", "wall", "wall", "wall"],
+    },
+  ] as never,
+  walls: [],
+  stairs: [],
+  doors: [],
+  openings: [],
+  extras: [],
+  devices: [],
+  furniture: [],
+  unlinked: [],
+  ...o,
 });
 const down = (x: number, y: number): Ray => ({ o: [x, y, 1000], d: [0, 0, -1] });
 /** A ray from `from` through `to`. */
 const through = (from: [number, number, number], to: [number, number, number]): Ray => {
-  const d = [to[0] - from[0], to[1] - from[1], to[2] - from[2]], l = Math.hypot(...d);
+  const d = [to[0] - from[0], to[1] - from[1], to[2] - from[2]],
+    l = Math.hypot(...d);
   return { o: from, d: [d[0] / l, d[1] / l, d[2] / l] };
 };
 const plain = (s: Solid): [number, number] | null => (s.shape.type === "prism" ? [s.shape.z0, s.shape.z1] : null);
@@ -40,7 +82,8 @@ describe("Picker: floors", () => {
 
 describe("Picker: walls that are lowered are looked over", () => {
   const sc = buildScene(house());
-  const p = new Picker(sc.solids), bodies = wallBodies(sc.solids);
+  const p = new Picker(sc.solids),
+    bodies = wallBodies(sc.solids);
   const cam: [number, number, number] = [150, 1800, 700];
   const lowered = lowerWalls(bodies, cam, "cut", new Set());
   const zOf = (s: Solid) => wallZ(s, lowered, 30);
@@ -57,11 +100,14 @@ describe("Picker: walls that are lowered are looked over", () => {
 });
 
 describe("Picker: devices", () => {
-  const f = house({ devices: [
-    { id: "l1", type: "light", x: 100, y: 250, entity: "light.one", z: 200 },
-    { id: "h1", type: "heater", x: 450, y: 250, entity: "climate.h", a: [400, 100], b: [500, 100] },
-  ] as never });
-  const sc = buildScene(f), p = new Picker(sc.solids);
+  const f = house({
+    devices: [
+      { id: "l1", type: "light", x: 100, y: 250, entity: "light.one", z: 200 },
+      { id: "h1", type: "heater", x: 450, y: 250, entity: "climate.h", a: [400, 100], b: [500, 100] },
+    ] as never,
+  });
+  const sc = buildScene(f),
+    p = new Picker(sc.solids);
   const point = sc.solids.find((s) => s.kind === "device" && s.shape.type === "point")!;
   const z = point.shape.type === "point" ? point.shape.z : 0;
   it("a ray through the marker's middle picks the device by its index", () => {
@@ -84,11 +130,19 @@ describe("Picker: devices", () => {
 
 describe("Picker: doors, furniture, appliances", () => {
   const f = house({
-    doors: [{ id: "d", a: [100, 500], b: [190, 500], kind: "door", name: "Door", sensors: ["binary_sensor.d"] }] as never,
-    furniture: [{ id: "t", symbol: "table", x: 100, y: 250, rot: 0, w: 80, h: 80 }, { id: "o", symbol: "table", x: 800, y: 250, rot: 0, w: 80, h: 80 }] as never,
-    unlinked: [{ id: "u", kind: "washer", x: 450, y: 300, rot: 0, w: 60, h: 60, name: "Washer", entities: ["sensor.w"] }] as never,
+    doors: [
+      { id: "d", a: [100, 500], b: [190, 500], kind: "door", name: "Door", sensors: ["binary_sensor.d"] },
+    ] as never,
+    furniture: [
+      { id: "t", symbol: "table", x: 100, y: 250, rot: 0, w: 80, h: 80 },
+      { id: "o", symbol: "table", x: 800, y: 250, rot: 0, w: 80, h: 80 },
+    ] as never,
+    unlinked: [
+      { id: "u", kind: "washer", x: 450, y: 300, rot: 0, w: 60, h: 60, name: "Washer", entities: ["sensor.w"] },
+    ] as never,
   });
-  const sc = buildScene(f), p = new Picker(sc.solids);
+  const sc = buildScene(f),
+    p = new Picker(sc.solids);
   it("a door's leaf or glass is the door, by its index", () => {
     expect(p.pick(through([145, 1500, 100], [145, 500, 100]), plain)).toEqual({ type: "door", index: 0 });
   });
@@ -103,12 +157,35 @@ describe("Picker: doors, furniture, appliances", () => {
 
 describe("Picker: a fill is looked through; hostile input", () => {
   it("a hatched fill room is not a pick: the ray goes on to the slab, which is a thing", () => {
-    const f = house({ rooms: [{ id: "x", name: "", area: "", kind: "fill", pts: [[0, 0], [600, 0], [600, 500], [0, 500]], wk: ["none", "none", "none", "none"] }] as never });
+    const f = house({
+      rooms: [
+        {
+          id: "x",
+          name: "",
+          area: "",
+          kind: "fill",
+          pts: [
+            [0, 0],
+            [600, 0],
+            [600, 500],
+            [0, 500],
+          ],
+          wk: ["none", "none", "none", "none"],
+        },
+      ] as never,
+    });
     expect(new Picker(buildScene(f).solids).pick(down(300, 250), plain)).toEqual({ type: "other" });
   });
   it("junk rays and no solids never throw and hit nothing", () => {
     const p = new Picker(buildScene(house()).solids);
-    for (const r of [{ o: [NaN, 0, 0], d: [0, 0, -1] }, { o: [0, 0, 100], d: [0, 0, 0] }, { o: [0, 0, 100], d: [Infinity, 0, 0] }, {} , null, { o: "x", d: 3 }]) {
+    for (const r of [
+      { o: [NaN, 0, 0], d: [0, 0, -1] },
+      { o: [0, 0, 100], d: [0, 0, 0] },
+      { o: [0, 0, 100], d: [Infinity, 0, 0] },
+      {},
+      null,
+      { o: "x", d: 3 },
+    ]) {
       expect(() => p.pick(r as never, plain)).not.toThrow();
       expect(p.pick(r as never, plain)).toBeNull();
     }
@@ -118,7 +195,17 @@ describe("Picker: a fill is looked through; hostile input", () => {
 });
 
 describe("Picker: 5000 furniture pieces (spec criterion 10)", () => {
-  const f = house({ furniture: Array.from({ length: 5000 }, (_, i) => ({ id: `f${i}`, symbol: "table", x: (i % 100) * 6, y: Math.floor(i / 100) * 10, rot: i % 360, w: 15, h: 15 })) as never });
+  const f = house({
+    furniture: Array.from({ length: 5000 }, (_, i) => ({
+      id: `f${i}`,
+      symbol: "table",
+      x: (i % 100) * 6,
+      y: Math.floor(i / 100) * 10,
+      rot: i % 360,
+      w: 15,
+      h: 15,
+    })) as never,
+  });
   const p = new Picker(buildScene(f).solids);
   it("a pick takes well under a tenth of a second, and finds the pieces", () => {
     const t0 = performance.now();
@@ -129,15 +216,27 @@ describe("Picker: 5000 furniture pieces (spec criterion 10)", () => {
 });
 
 describe("Picker: a room's own sensor and what hides a label (S12.5)", () => {
-  const two = (o: Partial<Floor> = {}) => house({ rooms: [{ ...(house().rooms[0] as object), temps: ["sensor.t"] }, house().rooms[1]] as never, devices: [{ id: "t", type: "temp", entity: "sensor.t", name: "T", x: 100, y: 250 }, { id: "u", type: "temp", entity: "sensor.u", name: "U", x: 450, y: 250 }] as never, ...o });
+  const two = (o: Partial<Floor> = {}) =>
+    house({
+      rooms: [{ ...(house().rooms[0] as object), temps: ["sensor.t"] }, house().rooms[1]] as never,
+      devices: [
+        { id: "t", type: "temp", entity: "sensor.t", name: "T", x: 100, y: 250 },
+        { id: "u", type: "temp", entity: "sensor.u", name: "U", x: 450, y: 250 },
+      ] as never,
+      ...o,
+    });
   it("a ray at the attached sensor's ball goes through to the room; the free sensor's ball is hit", () => {
-    const scene = buildScene(two()), p = new Picker(scene.solids);
+    const scene = buildScene(two()),
+      p = new Picker(scene.solids);
     const z = (scene.solids.find((s) => s.kind === "device" && s.ref.index === 0)!.shape as { z: number }).z;
     expect(p.pick({ o: [100, 250, z + 300], d: [0, 0, -1] }, plain)).toEqual({ type: "room", index: 0 });
     expect(p.pick({ o: [450, 250, z + 300], d: [0, 0, -1] }, plain)).toEqual({ type: "device", index: 1 });
   });
   it("a wall stands in the way of a ray, the floor and a table do not, and a ray that stops short of the wall is clear", () => {
-    const p = new Picker(buildScene(house({ furniture: [{ id: "f", symbol: "table", x: 100, y: 250, rot: 0, w: 120, h: 80 }] as never })).solids);
+    const p = new Picker(
+      buildScene(house({ furniture: [{ id: "f", symbol: "table", x: 100, y: 250, rot: 0, w: 120, h: 80 }] as never }))
+        .solids,
+    );
     const from = [-500, 250, 100] as [number, number, number];
     expect(p.blocked(through(from, [100, 250, 10]), 640, plain)).toBe(true); // through the west wall (x=0)
     expect(p.blocked(through(from, [-100, 250, 10]), 420, plain)).toBe(false); // stops before it
@@ -147,8 +246,14 @@ describe("Picker: a room's own sensor and what hides a label (S12.5)", () => {
     expect(p.blocked({ o: [NaN, 0, 0], d: [0, 0, -1] }, 10, plain)).toBe(false);
   });
   it("a lowered wall does not block", () => {
-    const sol = buildScene(house()).solids, p = new Picker(sol);
-    const low = (s: Solid): [number, number] | null => (s.shape.type !== "prism" ? null : s.kind === "wall" ? [s.shape.z0, Math.min(s.shape.z1, 30)] : [s.shape.z0, s.shape.z1]);
+    const sol = buildScene(house()).solids,
+      p = new Picker(sol);
+    const low = (s: Solid): [number, number] | null =>
+      s.shape.type !== "prism"
+        ? null
+        : s.kind === "wall"
+          ? [s.shape.z0, Math.min(s.shape.z1, 30)]
+          : [s.shape.z0, s.shape.z1];
     const ray = through([100, 900, 200], [100, 250, 100]);
     expect(p.blocked(ray, 720, plain)).toBe(true);
     expect(p.blocked(ray, 720, low)).toBe(false);

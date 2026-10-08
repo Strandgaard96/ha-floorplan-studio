@@ -2,14 +2,43 @@ import { describe, it, expect } from "vitest";
 import { OBLIQUE, renderFloor } from "../../src/core/render";
 import type { Floor } from "../../src/core/schema";
 
-const R = OBLIQUE.rise, K = OBLIQUE.skew;
+const R = OBLIQUE.rise,
+  K = OBLIQUE.skew;
 const n = (v: number) => String(Math.round(v * 100) / 100);
 /** Where plan (x, y) at height h is drawn on an unturned plan. */
 const P = (x: number, y: number, h: number) => `${n(x + h * K * R)},${n(y - h * R)}`;
 const floor = (o: Partial<Floor> = {}): Floor => ({
-  title: "T", outline: [[0, 0], [400, 0], [400, 300], [0, 300]], owk: ["external", "external", "external", "external"],
-  rooms: [{ id: "r0", name: "Room", kind: "room", pts: [[0, 0], [400, 0], [400, 300], [0, 300]], wk: ["wall", "wall", "wall", "wall"] } as never],
-  walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o,
+  title: "T",
+  outline: [
+    [0, 0],
+    [400, 0],
+    [400, 300],
+    [0, 300],
+  ],
+  owk: ["external", "external", "external", "external"],
+  rooms: [
+    {
+      id: "r0",
+      name: "Room",
+      kind: "room",
+      pts: [
+        [0, 0],
+        [400, 0],
+        [400, 300],
+        [0, 300],
+      ],
+      wk: ["wall", "wall", "wall", "wall"],
+    } as never,
+  ],
+  walls: [],
+  stairs: [],
+  doors: [],
+  openings: [],
+  extras: [],
+  devices: [],
+  furniture: [],
+  unlinked: [],
+  ...o,
 });
 const flat = (f: Floor) => renderFloor(f, { scale: 1 });
 const deep = (f: Floor) => renderFloor(f, { scale: 1, view: "2.5d" });
@@ -40,12 +69,15 @@ describe("2.5D walls", () => {
   });
 
   it("a wall lower than the cutaway is not raised to it", () => {
-    const f = floor({ owk: ["none", "none", "none", "none"] }); (f.rooms[0] as { height?: number }).height = 60;
+    const f = floor({ owk: ["none", "none", "none", "none"] });
+    (f.rooms[0] as { height?: number }).height = 60;
     expect(faces(deep(f))).toContain(`400,300 0,300 ${P(0, 300, 60)} ${P(400, 300, 60)}`);
   });
 
   it("draws farther walls first, so a near one covers it", () => {
-    const html = deep(floor()), back = html.indexOf(`points="0,0 400,0 `), front = html.indexOf(`points="400,300 0,300 `);
+    const html = deep(floor()),
+      back = html.indexOf(`points="0,0 400,0 `),
+      front = html.indexOf(`points="400,300 0,300 `);
     expect(back).toBeGreaterThan(-1);
     expect(front).toBeGreaterThan(back);
   });
@@ -53,8 +85,30 @@ describe("2.5D walls", () => {
   it("draws an edge two rooms share once", () => {
     const f = floor({
       rooms: [
-        { id: "a", name: "A", kind: "room", pts: [[0, 0], [200, 0], [200, 300], [0, 300]], wk: ["wall", "wall", "wall", "wall"] },
-        { id: "b", name: "B", kind: "room", pts: [[200, 0], [400, 0], [400, 300], [200, 300]], wk: ["wall", "wall", "wall", "wall"] },
+        {
+          id: "a",
+          name: "A",
+          kind: "room",
+          pts: [
+            [0, 0],
+            [200, 0],
+            [200, 300],
+            [0, 300],
+          ],
+          wk: ["wall", "wall", "wall", "wall"],
+        },
+        {
+          id: "b",
+          name: "B",
+          kind: "room",
+          pts: [
+            [200, 0],
+            [400, 0],
+            [400, 300],
+            [200, 300],
+          ],
+          wk: ["wall", "wall", "wall", "wall"],
+        },
       ] as never,
     });
     // The shared edge is x = 200 from y 0 to 300: a's edge 1 goes down, b's edge 3 goes up.
@@ -63,7 +117,8 @@ describe("2.5D walls", () => {
   });
 
   it("boundary, edge and none kinds stay flat, exactly as in 2d", () => {
-    const f = floor({ owk: ["none", "none", "none", "none"] }); f.rooms[0].wk = ["boundary", "edge", "none", "wall"];
+    const f = floor({ owk: ["none", "none", "none", "none"] });
+    f.rooms[0].wk = ["boundary", "edge", "none", "wall"];
     const html = deep(f);
     expect(html).toContain('class="e nw" data-e="r0:0"');
     expect(html).toContain('class="e edge" data-e="r0:1"');
@@ -72,9 +127,13 @@ describe("2.5D walls", () => {
   });
 
   it("a free wall: mostly horizontal is cut away, a vertical one keeps its height; a fence is 110", () => {
-    const f = floor({ walls: [
-      { id: "h", a: [50, 100], b: [250, 100], kind: "wall" }, { id: "v", a: [300, 50], b: [300, 250], kind: "wall" }, { id: "fe", a: [300, 280], b: [300, 290], kind: "fence" },
-    ] as never });
+    const f = floor({
+      walls: [
+        { id: "h", a: [50, 100], b: [250, 100], kind: "wall" },
+        { id: "v", a: [300, 50], b: [300, 250], kind: "wall" },
+        { id: "fe", a: [300, 280], b: [300, 290], kind: "fence" },
+      ] as never,
+    });
     const fc = faces(deep(f));
     expect(fc).toContain(`50,100 250,100 ${P(250, 100, 90)} ${P(50, 100, 90)}`);
     expect(fc).toContain(`300,50 300,250 ${P(300, 250, 250)} ${P(300, 50, 250)}`);

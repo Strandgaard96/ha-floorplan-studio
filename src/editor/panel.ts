@@ -26,12 +26,19 @@ function findUpdate(hass: PanelHass | undefined) {
     if (!id.startsWith("update.") || s.state !== "on") continue;
     const url = String(s.attributes.release_url ?? "");
     if (!url.includes(REPO)) continue;
-    return { id, installed: String(s.attributes.installed_version ?? "?"), latest: String(s.attributes.latest_version ?? "?"), url, busy: s.attributes.in_progress === true };
+    return {
+      id,
+      installed: String(s.attributes.installed_version ?? "?"),
+      latest: String(s.attributes.latest_version ?? "?"),
+      url,
+      busy: s.attributes.in_progress === true,
+    };
   }
   return null;
 }
 
-const errText = (e: unknown) => (e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e));
+const errText = (e: unknown) =>
+  e && typeof e === "object" && "message" in e ? String((e as { message: unknown }).message) : String(e);
 
 /**
  * <floorplan-studio-panel>: the editor inside Home Assistant.
@@ -75,18 +82,30 @@ export class FloorplanStudioPanel extends LitElement {
     this.stale = "";
   }
 
-  private onVisible = () => { if (document.visibilityState !== "hidden") void this.checkVersion(); };
-  connectedCallback() { super.connectedCallback(); document.addEventListener("visibilitychange", this.onVisible); }
-  disconnectedCallback() { document.removeEventListener("visibilitychange", this.onVisible); super.disconnectedCallback(); }
+  private onVisible = () => {
+    if (document.visibilityState !== "hidden") void this.checkVersion();
+  };
+  connectedCallback() {
+    super.connectedCallback();
+    document.addEventListener("visibilitychange", this.onVisible);
+  }
+  disconnectedCallback() {
+    document.removeEventListener("visibilitychange", this.onVisible);
+    super.disconnectedCallback();
+  }
   /** Asks the integration which version is installed. Any failure or odd reply says nothing: a guard must never be the thing that breaks the panel. */
   private async checkVersion() {
     if (!this.hass || this.built === "dev") return;
     try {
       const r = await this.hass.callWS<{ version?: unknown }>({ type: "floorplan_studio/version" });
       this.stale = typeof r?.version === "string" && r.version !== "" && r.version !== this.built ? r.version : "";
-    } catch { /* an older integration has no such command */ }
+    } catch {
+      /* an older integration has no such command */
+    }
   }
-  private reload() { location.reload(); }
+  private reload() {
+    location.reload();
+  }
 
   willUpdate(changed: Map<string, unknown>) {
     if (changed.has("hass") && this.hass && !this.started) {
@@ -112,24 +131,40 @@ export class FloorplanStudioPanel extends LitElement {
   }
 
   private async loadHa() {
-    try { this.ha = await haData(this.hass as never); } catch { this.ha = undefined; } // no data: the editor keeps its text fields
+    try {
+      this.ha = await haData(this.hass as never);
+    } catch {
+      this.ha = undefined;
+    } // no data: the editor keeps its text fields
     this.pushHa();
   }
   private pushHa() {
     const ed = this.renderRoot?.querySelector("floorplan-studio-editor") as FloorplanStudioEditor | null;
     if (ed && this.ha && ed.ha !== this.ha) ed.ha = this.ha;
-    if (ed && this.hass && !ed.writer) ed.writer = makeWriter({ callWS: (m) => this.hass!.callWS(m as never), callApi: (m, p, d) => (this.hass as never as { callApi: (...a: unknown[]) => Promise<never> }).callApi(m, p, d) }); // late-bound: hass is replaced on every state change
+    if (ed && this.hass && !ed.writer)
+      ed.writer = makeWriter({
+        callWS: (m) => this.hass!.callWS(m as never),
+        callApi: (m, p, d) => (this.hass as never as { callApi: (...a: unknown[]) => Promise<never> }).callApi(m, p, d),
+      }); // late-bound: hass is replaced on every state change
     // Live device state, imperative like `ha`/`writer` above, not a template binding: the render `guard` below
     // deliberately excludes `hass` (it changes on every state update in the house), so a templated binding here
     // would never reach the editor. `hass.states` is a fresh object on every push, so this always reassigns.
     if (ed && this.hass?.states) ed.hassState = this.hass.states;
   }
-  protected updated() { this.pushHa(); }
+  protected updated() {
+    this.pushHa();
+  }
 
   private async onSave(e: Event) {
     const ed = e.currentTarget as FloorplanStudioEditor;
     const layout = (e as CustomEvent<Layout>).detail;
-    if (this.stale) { ed.saveDone(false, `Not saved: this page is out of date (${this.built}, installed ${this.stale}). Reload, then save again.`); return; }
+    if (this.stale) {
+      ed.saveDone(
+        false,
+        `Not saved: this page is out of date (${this.built}, installed ${this.stale}). Reload, then save again.`,
+      );
+      return;
+    }
     try {
       await this.hass!.callWS({ type: "floorplan_studio/save", layout });
       ed.saveDone(true, "Saved to Home Assistant");
@@ -149,8 +184,10 @@ export class FloorplanStudioPanel extends LitElement {
   }
 
   private banner() {
-    if (this.stale) return html`<div class="update stale">Floorplan Studio was updated to ${this.stale}; this page still runs ${this.built}. <button @click=${() => this.reload()}>Reload</button> Saving is off until you do.</div>`;
-    if (this.install === "done") return html`<div class="update">Update installed. Restart Home Assistant to finish (Settings, System, Restart).</div>`;
+    if (this.stale)
+      return html`<div class="update stale">Floorplan Studio was updated to ${this.stale}; this page still runs ${this.built}. <button @click=${() => this.reload()}>Reload</button> Saving is off until you do.</div>`;
+    if (this.install === "done")
+      return html`<div class="update">Update installed. Restart Home Assistant to finish (Settings, System, Restart).</div>`;
     const u = findUpdate(this.hass);
     if (!u) return nothing;
     const failed = this.install && this.install !== "busy" ? html` <span class="bad">${this.install}</span>` : nothing;
@@ -171,9 +208,11 @@ export class FloorplanStudioPanel extends LitElement {
     // house, and Lit re-sets an object property on every render: without this guard each update handed the editor the stored layout
     // again, which it takes for a fresh load (zoom reset, selection gone, unsaved edits reverted, undo history wiped).
     // No stored plan: leave `layout` unset. A blank plan is not a valid layout (an outline needs 3 points), so the editor's own blank start is used.
-    const editor = guard([this.layout, dark], () => this.layout
-      ? html`<floorplan-studio-editor .layout=${this.layout} .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`
-      : html`<floorplan-studio-editor .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`);
+    const editor = guard([this.layout, dark], () =>
+      this.layout
+        ? html`<floorplan-studio-editor .layout=${this.layout} .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`
+        : html`<floorplan-studio-editor .demo=${demoLayout} .haDark=${dark} @save-request=${this.onSave}></floorplan-studio-editor>`,
+    );
     return html`${this.banner()}${editor}`;
   }
 
@@ -186,4 +225,5 @@ export class FloorplanStudioPanel extends LitElement {
     button { font: inherit; padding: 4px 12px; cursor: pointer; }
   `;
 }
-if (!customElements.get("floorplan-studio-panel")) customElements.define("floorplan-studio-panel", FloorplanStudioPanel);
+if (!customElements.get("floorplan-studio-panel"))
+  customElements.define("floorplan-studio-panel", FloorplanStudioPanel);

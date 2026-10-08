@@ -67,7 +67,11 @@ export const POPUP_CSS = css`
   .fp-tip span { opacity: 0.8; }
 `;
 
-const RANGE: Record<SliderKind, { label: string; unit: string }> = { b: { label: "Brightness", unit: " %" }, t: { label: "Colour temperature", unit: " K" }, h: { label: "Colour", unit: "°" } };
+const RANGE: Record<SliderKind, { label: string; unit: string }> = {
+  b: { label: "Brightness", unit: " %" },
+  t: { label: "Colour temperature", unit: " K" },
+  h: { label: "Colour", unit: "°" },
+};
 
 /** The popup, drawn from `v`. Every string reaches the page through lit's text bindings, which escape it (finding 2). */
 export function popupTemplate(v: PopupView) {
@@ -82,29 +86,45 @@ export function popupTemplate(v: PopupView) {
     </label>`;
   };
   const label = v.doorLabel ?? v.op?.label ?? null;
-  const primary = label === null ? nothing
-    : v.confirming && v.op?.confirm
-      ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>Cancel</button></div>`
-      : html`<button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>`;
+  const primary =
+    label === null
+      ? nothing
+      : v.confirming && v.op?.confirm
+        ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>Cancel</button></div>`
+        : html`<button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>`;
   return html`<div class="fp-pop" role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
     <div class="fp-pop-name">${s.name}</div>
     <div class="fp-pop-state">${v.text}</div>
-    ${v.caps && (v.caps.brightness || v.caps.temp || v.caps.hue) ? html`<div class="fp-pop-sliders">
+    ${
+      v.caps && (v.caps.brightness || v.caps.temp || v.caps.hue)
+        ? html`<div class="fp-pop-sliders">
       ${v.caps.brightness ? slider("b", 1, 100, 1) : nothing}
       ${v.caps.temp ? slider("t", v.caps.temp.min, v.caps.temp.max, 50) : nothing}
       ${v.caps.hue ? slider("h", 0, 360, 1, "fp-pop-hue") : nothing}
-    </div>` : nothing}
+    </div>`
+        : nothing
+    }
     ${primary}
     ${s.entities.length && !v.kiosk ? html`<button type="button" class="fp-pop-more" @click=${v.more}>More info</button>` : nothing}
   </div>`;
 }
 
 /** Puts `el` (absolutely positioned in `host`) just below the point (client x, y), above it when there is no room below, and inside the host either way. */
-export function placeNear(el: HTMLElement, host: HTMLElement, x: number, y: number, gap = 14, beside: DOMRect | null = null): void {
-  const h = host.getBoundingClientRect(), w = el.offsetWidth, ht = el.offsetHeight;
+export function placeNear(
+  el: HTMLElement,
+  host: HTMLElement,
+  x: number,
+  y: number,
+  gap = 14,
+  beside: DOMRect | null = null,
+): void {
+  const h = host.getBoundingClientRect(),
+    w = el.offsetWidth,
+    ht = el.offsetHeight;
   // Beside a list row, the popup goes to the side of the list and lines up with the row, so the rows under it stay reachable.
   if (beside) {
-    const right = beside.right - h.left + 8, room = right + w + 4 <= h.width;
+    const right = beside.right - h.left + 8,
+      room = right + w + 4 <= h.width;
     el.style.left = `${Math.round(Math.max(4, room ? right : beside.left - h.left - w - 8))}px`;
     el.style.top = `${Math.round(Math.max(4, Math.min(h.height - ht - 4, beside.top - h.top + beside.height / 2 - ht / 2)))}px`;
     return;

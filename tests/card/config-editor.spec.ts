@@ -17,7 +17,12 @@ const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 async function open(page: Page) {
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
-  await page.evaluate(() => Promise.all([customElements.whenDefined("floorplan-studio-card"), customElements.whenDefined("floorplan-studio-card-editor")]));
+  await page.evaluate(() =>
+    Promise.all([
+      customElements.whenDefined("floorplan-studio-card"),
+      customElements.whenDefined("floorplan-studio-card-editor"),
+    ]),
+  );
 }
 
 /** Calls FloorplanStudioCard.getConfigElement(), appends the result to the body, calls setConfig, and returns
@@ -118,17 +123,28 @@ test("floors come from the layout the card loaded, in layout order", async ({ pa
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
-  const ids = await editor.locator('input[type="checkbox"][data-floor]').evaluateAll((els) => els.map((e) => e.getAttribute("data-floor")));
+  const ids = await editor
+    .locator('input[type="checkbox"][data-floor]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute("data-floor")));
   expect(ids).toEqual(["ground", "first", "test"]);
 });
 
-test("view and view_switch fields: defaults shown, defaults dropped from the payload, picks written", async ({ page }) => {
+test("view and view_switch fields: defaults shown, defaults dropped from the payload, picks written", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
   await expect(editor.locator("select#view")).toHaveValue("2d");
   await expect(editor.locator("#view_switch")).toBeChecked();
-  expect(await editor.locator("select#view option").evaluateAll((os) => os.map((o) => [o.getAttribute("value"), o.textContent!.trim()]))).toEqual([["2d", "2D"], ["2.5d", "2.5D"]]);
+  expect(
+    await editor
+      .locator("select#view option")
+      .evaluateAll((os) => os.map((o) => [o.getAttribute("value"), o.textContent!.trim()])),
+  ).toEqual([
+    ["2d", "2D"],
+    ["2.5d", "2.5D"],
+  ]);
 
   await editor.locator("select#view").selectOption("2.5d");
   let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
@@ -145,7 +161,9 @@ test("view and view_switch fields: defaults shown, defaults dropped from the pay
   expect("view_switch" in detail.config).toBe(false);
 });
 
-test("rotate_switch and names fields: ticked and unticked as on the card, defaults dropped from the payload", async ({ page }) => {
+test("rotate_switch and names fields: ticked and unticked as on the card, defaults dropped from the payload", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
@@ -168,7 +186,9 @@ test("rotate_switch and names fields: ticked and unticked as on the card, defaul
   await expect(page.locator("#editor #names").last()).toBeChecked();
 });
 
-test("a config with view 2.5d and view_switch false shows both, and a junk view shows 2D without an event", async ({ page }) => {
+test("a config with view 2.5d and view_switch false shows both, and a junk view shows 2D without an event", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { view: "2.5d", view_switch: false, layout: demo });
   await expect(page.locator("#editor select#view")).toHaveValue("2.5d");
@@ -197,7 +217,7 @@ test("an empty or negative fade falls back to the default and drops from the pay
   for (const bad of ["", "-5"]) {
     await editor.locator("#fade").fill(bad);
     await editor.locator("#fade").blur();
-    const all = await events(page) as { config: Record<string, unknown> }[];
+    const all = (await events(page)) as { config: Record<string, unknown> }[];
     const detail = all[all.length - 1];
     expect("fade" in detail.config, JSON.stringify(bad)).toBe(false);
     await editor.locator("#fade").fill("45");
@@ -223,7 +243,9 @@ test("before a layout has loaded, the Floor select shows only All floors", async
   await expect(editor.locator("select#floor")).toHaveValue("");
 });
 
-test("choosing a floor emits config.floor without config.floors, and hides the Switcher-shows checkboxes", async ({ page }) => {
+test("choosing a floor emits config.floor without config.floors, and hides the Switcher-shows checkboxes", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo, floors: ["ground", "first"] });
   const editor = page.locator("#editor");
@@ -237,7 +259,9 @@ test("choosing a floor emits config.floor without config.floors, and hides the S
   await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(0);
 });
 
-test("choosing All floors after a single floor was picked removes config.floor and shows the checkboxes again", async ({ page }) => {
+test("choosing All floors after a single floor was picked removes config.floor and shows the checkboxes again", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo, floor: "first" });
   const editor = page.locator("#editor");
@@ -249,7 +273,7 @@ test("choosing All floors after a single floor was picked removes config.floor a
   await expect(editor.locator('input[type="checkbox"][data-floor]')).toHaveCount(3);
 });
 
-test("a starting config of floor: \"all\" shows All floors selected", async ({ page }) => {
+test('a starting config of floor: "all" shows All floors selected', async ({ page }) => {
   await open(page);
   await mount(page, { layout: demo, floor: "all" });
   const editor = page.locator("#editor");
@@ -261,7 +285,9 @@ test("a starting config of floor: \"all\" shows All floors selected", async ({ p
 // represent "unset" — it shows the theme's own default (#d64545, --fp-dev-contact's value) until a colour is
 // picked, and a separate Clear control removes the key rather than the input being set back to that same hex
 // (which config-changed could never tell apart from the user actually choosing #d64545).
-test("open_color: the colour field starts at the contact default, picking a colour emits it, and Clear removes the key", async ({ page }) => {
+test("open_color: the colour field starts at the contact default, picking a colour emits it, and Clear removes the key", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
@@ -302,7 +328,9 @@ test("setConfig fills icon_size from the config when set", async ({ page }) => {
   await expect(editor.locator("#icon_size")).toHaveValue("1.5");
 });
 
-test("changing icon_size fires config-changed with detail.config.icon_size, dropped again at the default", async ({ page }) => {
+test("changing icon_size fires config-changed with detail.config.icon_size, dropped again at the default", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
@@ -365,7 +393,9 @@ test("setConfig fills Center X/Y and Zoom level from center/zoom_level", async (
   await expect(editor.locator("#zoom_level")).toHaveValue("2.5");
 });
 
-test("filling both Center fields emits config.center as a pair; a half-filled pair drafts without dispatching, and clearing both drops the key", async ({ page }) => {
+test("filling both Center fields emits config.center as a pair; a half-filled pair drafts without dispatching, and clearing both drops the key", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
@@ -447,7 +477,9 @@ test("an out-of-range zoom_level clamps into 1..8 rather than being refused", as
   expect(detail.config.zoom_level).toBe(8);
 });
 
-test("labels and tilt fields: defaults shown and dropped from the payload, picks written, junk shows the default", async ({ page }) => {
+test("labels and tilt fields: defaults shown and dropped from the payload, picks written, junk shows the default", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
@@ -474,7 +506,9 @@ test("labels and tilt fields: defaults shown and dropped from the payload, picks
   await expect(page.locator("#editor #tilt")).toHaveValue("1");
 });
 
-test("rotation field: a 45 degree select, 0 dropped from the payload, junk shows 0, a note says the view is remembered", async ({ page }) => {
+test("rotation field: a 45 degree select, 0 dropped from the payload, junk shows 0, a note says the view is remembered", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
@@ -500,7 +534,9 @@ test("rotation field: a 45 degree select, 0 dropped from the payload, junk shows
 // Plugs are active from `plug_watts` of measured power. The form shows the default 2 and drops it from the
 // payload at the default, like fade. An empty or negative field is the default, not 0 W (0 would call any
 // reading, even 0.0 W, "drawing power").
-test("plug_watts: shows 2 by default, writes a changed value, and an empty or negative field is the default, dropped from the payload", async ({ page }) => {
+test("plug_watts: shows 2 by default, writes a changed value, and an empty or negative field is the default, dropped from the payload", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");
@@ -513,13 +549,18 @@ test("plug_watts: shows 2 by default, writes a changed value, and an empty or ne
     await editor.locator("#plug_watts").blur();
     await editor.locator("#plug_watts").fill(bad);
     await editor.locator("#plug_watts").blur();
-    expect("plug_watts" in ((await events(page)).at(-1) as { config: Record<string, unknown> }).config, JSON.stringify(bad)).toBe(false);
+    expect(
+      "plug_watts" in ((await events(page)).at(-1) as { config: Record<string, unknown> }).config,
+      JSON.stringify(bad),
+    ).toBe(false);
   }
 });
 
 // S14.8: the range plugs are tinted over, two numbers. Shown with their defaults, dropped from the payload at the default, and a pair that cannot be a range
 // (empty, negative is fine as a from, from >= to) is left to the card, which falls back to the default pair.
-test("plug_heat_from and plug_heat_to: default 0 and 2000, written when changed, dropped when emptied", async ({ page }) => {
+test("plug_heat_from and plug_heat_to: default 0 and 2000, written when changed, dropped when emptied", async ({
+  page,
+}) => {
   await open(page);
   await mount(page, { layout: demo });
   const editor = page.locator("#editor");

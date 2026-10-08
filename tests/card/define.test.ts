@@ -17,7 +17,8 @@ function fakeRegistry() {
 
 describe("S8.3: defineElement survives a registry swap", () => {
   const original = Object.getOwnPropertyDescriptor(window, "customElements");
-  const swap = (r: unknown) => Object.defineProperty(window, "customElements", { value: r, configurable: true, writable: true });
+  const swap = (r: unknown) =>
+    Object.defineProperty(window, "customElements", { value: r, configurable: true, writable: true });
 
   afterEach(() => {
     vi.restoreAllMocks();

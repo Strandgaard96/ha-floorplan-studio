@@ -59,7 +59,21 @@ describe("room and stair paint: colours you used, and textures", () => {
     st.paint("stairs", 0, { texture: "stone-grey" });
     const html = renderFloor(st.f, opts);
     expect(html).toMatch(/<(polygon|path) class="stairs room" fill="url\(#fp-tex-stone-grey\)"/);
-    st.edit((f) => { f.rooms.push({ id: "zone-1", name: "Rug", area: "", kind: "zone", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["boundary", "boundary", "boundary", "boundary"] }); });
+    st.edit((f) => {
+      f.rooms.push({
+        id: "zone-1",
+        name: "Rug",
+        area: "",
+        kind: "zone",
+        pts: [
+          [10, 10],
+          [60, 10],
+          [60, 60],
+          [10, 60],
+        ],
+        wk: ["boundary", "boundary", "boundary", "boundary"],
+      });
+    });
     const z = st.f.rooms.length - 1;
     st.paint("rooms", z, { color: "#336699" });
     expect(renderFloor(st.f, opts)).toContain(`data-r="${z}" class="room room-zone" fill="#336699"`);
@@ -84,9 +98,11 @@ describe("room and stair paint: colours you used, and textures", () => {
     expect(validate(l).ok).toBe(false);
     const html = renderFloor(l.floors[Object.keys(l.floors)[0]], opts);
     expect(html).not.toContain("<script>");
-    const p = fresh(); (p as any).palette = ["#12345", 5];
+    const p = fresh();
+    (p as any).palette = ["#12345", 5];
     expect(validate(p).ok).toBe(false);
-    const q = fresh(); (q as any).palette = Array(25).fill("#123456");
+    const q = fresh();
+    (q as any).palette = Array(25).fill("#123456");
     expect(validate(q).ok).toBe(false);
   });
 
@@ -131,7 +147,9 @@ describe("room and stair paint: colours you used, and textures", () => {
     st.paint("rooms", 1, { texture: "wood-light", rot: 90 });
     const html = renderFloor(st.f, opts);
     expect(html).toContain('<pattern id="fp-tex-wood-light"'); // room 0, unrotated: the plain id, unchanged from before this feature
-    expect(html).toContain('<pattern id="fp-tex-wood-light-r90" width="80" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(90)"');
+    expect(html).toContain(
+      '<pattern id="fp-tex-wood-light-r90" width="80" height="40" patternUnits="userSpaceOnUse" patternTransform="rotate(90)"',
+    );
     expect(html).toContain('fill="url(#fp-tex-wood-light)"');
     expect(html).toContain('fill="url(#fp-tex-wood-light-r90)"');
     expect(html.match(/<pattern id="fp-tex-wood-light/g)).toHaveLength(2); // no duplicate declarations
@@ -142,8 +160,12 @@ describe("room and stair paint: colours you used, and textures", () => {
     st.paint("rooms", 0, { texture: "wood-light" });
     const before = structuredClone(st.layout);
     // Simulates the slider: replaceFloor on every drag tick (no history), one commitLiveEdit at release.
-    let g = structuredClone(st.f); g.rooms[0].textureRot = 30; st.replaceFloor(g);
-    g = structuredClone(st.f); g.rooms[0].textureRot = 60; st.replaceFloor(g);
+    let g = structuredClone(st.f);
+    g.rooms[0].textureRot = 30;
+    st.replaceFloor(g);
+    g = structuredClone(st.f);
+    g.rooms[0].textureRot = 60;
+    st.replaceFloor(g);
     expect(st.f.rooms[0].textureRot).toBe(60); // live-previewed already, before any undo step exists
     expect(st.commitLiveEdit(before)).toBe(true);
     expect(st.f.rooms[0].textureRot).toBe(60);
@@ -158,8 +180,12 @@ describe("room and stair paint: colours you used, and textures", () => {
     const st = new EditorState(fresh());
     st.paint("rooms", 0, { texture: "wood-light", rot: 30 });
     const before = structuredClone(st.layout);
-    let g = structuredClone(st.f); g.rooms[0].textureRot = 90; st.replaceFloor(g);
-    g = structuredClone(st.f); g.rooms[0].textureRot = 30; st.replaceFloor(g); // back to where it started
+    let g = structuredClone(st.f);
+    g.rooms[0].textureRot = 90;
+    st.replaceFloor(g);
+    g = structuredClone(st.f);
+    g.rooms[0].textureRot = 30;
+    st.replaceFloor(g); // back to where it started
     expect(st.commitLiveEdit(before)).toBe(false); // no-op: nothing to undo
     expect(st.f.rooms[0].textureRot).toBe(30);
   });
@@ -205,7 +231,9 @@ describe("room and stair paint: colours you used, and textures", () => {
     st.paint("rooms", 1, { texture: "wood-light", scale: 1.5 });
     const html = renderFloor(st.f, opts);
     expect(html).toContain('<pattern id="fp-tex-wood-light"'); // room 0, at 100%: the plain id, unchanged from before this feature
-    expect(html).toContain('<pattern id="fp-tex-wood-light-s150" width="120" height="60" patternUnits="userSpaceOnUse" viewBox="0 0 80 40"');
+    expect(html).toContain(
+      '<pattern id="fp-tex-wood-light-s150" width="120" height="60" patternUnits="userSpaceOnUse" viewBox="0 0 80 40"',
+    );
     expect(html).toContain('fill="url(#fp-tex-wood-light)"');
     expect(html).toContain('fill="url(#fp-tex-wood-light-s150)"');
     expect(html.match(/<pattern id="fp-tex-wood-light/g)).toHaveLength(2); // no duplicate declarations
@@ -216,8 +244,12 @@ describe("room and stair paint: colours you used, and textures", () => {
     st.paint("rooms", 0, { texture: "wood-light" });
     const before = structuredClone(st.layout);
     // Simulates the slider: replaceFloor on every drag tick (no history), one commitLiveEdit at release.
-    let g = structuredClone(st.f); g.rooms[0].textureScale = 0.5; st.replaceFloor(g);
-    g = structuredClone(st.f); g.rooms[0].textureScale = 0.75; st.replaceFloor(g);
+    let g = structuredClone(st.f);
+    g.rooms[0].textureScale = 0.5;
+    st.replaceFloor(g);
+    g = structuredClone(st.f);
+    g.rooms[0].textureScale = 0.75;
+    st.replaceFloor(g);
     expect(st.f.rooms[0].textureScale).toBe(0.75); // live-previewed already, before any undo step exists
     expect(st.commitLiveEdit(before)).toBe(true);
     expect(st.f.rooms[0].textureScale).toBe(0.75);
@@ -232,8 +264,12 @@ describe("room and stair paint: colours you used, and textures", () => {
     const st = new EditorState(fresh());
     st.paint("rooms", 0, { texture: "wood-light", scale: 0.75 });
     const before = structuredClone(st.layout);
-    let g = structuredClone(st.f); g.rooms[0].textureScale = 2; st.replaceFloor(g);
-    g = structuredClone(st.f); g.rooms[0].textureScale = 0.75; st.replaceFloor(g); // back to where it started
+    let g = structuredClone(st.f);
+    g.rooms[0].textureScale = 2;
+    st.replaceFloor(g);
+    g = structuredClone(st.f);
+    g.rooms[0].textureScale = 0.75;
+    st.replaceFloor(g); // back to where it started
     expect(st.commitLiveEdit(before)).toBe(false); // no-op: nothing to undo
     expect(st.f.rooms[0].textureScale).toBe(0.75);
   });
@@ -242,7 +278,9 @@ describe("room and stair paint: colours you used, and textures", () => {
     const st = new EditorState(fresh());
     st.paint("rooms", 0, { texture: "wood-light", rot: 90, scale: 1.5 });
     const html = renderFloor(st.f, opts);
-    expect(html).toContain('<pattern id="fp-tex-wood-light-r90-s150" width="120" height="60" patternUnits="userSpaceOnUse" viewBox="0 0 80 40" patternTransform="rotate(90)"');
+    expect(html).toContain(
+      '<pattern id="fp-tex-wood-light-r90-s150" width="120" height="60" patternUnits="userSpaceOnUse" viewBox="0 0 80 40" patternTransform="rotate(90)"',
+    );
     expect(html).toContain('fill="url(#fp-tex-wood-light-r90-s150)"');
   });
 });

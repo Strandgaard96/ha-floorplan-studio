@@ -2,12 +2,9 @@
   "name": "ha-floorplan-studio",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Draw your home inside Home Assistant and use it as a live dashboard.",
   "license": "MIT",
-  "engines": {
-    "node": ">=22.12"
-  },
+  "type": "module",
   "scripts": {
     "lint": "oxlint",
     "test": "NODE_OPTIONS=--no-experimental-webstorage vitest run",
@@ -39,5 +36,8 @@
     "vite": "^8.3.3",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^5.0.3"
+  },
+  "engines": {
+    "node": ">=22.12"
   }
 }

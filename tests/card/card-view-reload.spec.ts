@@ -15,11 +15,16 @@ const card = (page: Page) => page.locator("floorplan-studio-card");
 const select = (page: Page, label: string) => card(page).locator(`css=select[aria-label="${label}"]`);
 const button = (page: Page, label: string) => card(page).locator(`css=button[aria-label="${label}"]`);
 const settled = (page: Page) => expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0);
-const viewBox = (page: Page) => card(page).evaluate((el) => el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number));
-const planDeg = (page: Page) => card(page).evaluate((el) => {
-  const m = el.shadowRoot!.querySelector("svg g.plan-turn")?.getAttribute("transform")?.match(/^rotate\((-?[\d.]+)/);
-  return m ? Number(m[1]) : 0;
-});
+const viewBox = (page: Page) =>
+  card(page).evaluate((el) => el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number));
+const planDeg = (page: Page) =>
+  card(page).evaluate((el) => {
+    const m = el
+      .shadowRoot!.querySelector("svg g.plan-turn")
+      ?.getAttribute("transform")
+      ?.match(/^rotate\((-?[\d.]+)/);
+    return m ? Number(m[1]) : 0;
+  });
 
 /** What a real dashboard config looks like: theme, view and tilt set, the layout from the websocket. Same shape
  * websocket.py sends: `{ layout }` (CLAUDE.md finding 21). */
@@ -28,17 +33,24 @@ const HA_CONFIG = { type: "custom:floorplan-studio-card", floor: "ground", theme
 async function boot(page: Page, config: Record<string, unknown> = HA_CONFIG) {
   await page.addScriptTag({ content: CARD_JS, type: "module" });
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await page.evaluate(async ({ config, layout }) => {
-    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-    el.setConfig(structuredClone(config));
-    el.hass = {
-      states: {},
-      connection: { sendMessagePromise: async () => ({ layout }) },
-      themes: { darkMode: false },
-    };
-    await new Promise((r) => setTimeout(r, 50)); // the websocket answer
-    await el.updateComplete;
-  }, { config, layout: structuredClone(demo) });
+  await page.evaluate(
+    async ({ config, layout }) => {
+      const el = document.getElementById("card") as unknown as {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
+      el.setConfig(structuredClone(config));
+      el.hass = {
+        states: {},
+        connection: { sendMessagePromise: async () => ({ layout }) },
+        themes: { darkMode: false },
+      };
+      await new Promise((r) => setTimeout(r, 50)); // the websocket answer
+      await el.updateComplete;
+    },
+    { config, layout: structuredClone(demo) },
+  );
 }
 
 async function fresh(page: Page) {
@@ -52,7 +64,9 @@ async function reload(page: Page, config?: Record<string, unknown>) {
 }
 
 test.describe("a dashboard reload keeps the view (card, HA lifecycle)", () => {
-  test("theme, view, tilt, rotation and zoom picked over a config that sets them survive a reload", async ({ page }) => {
+  test("theme, view, tilt, rotation and zoom picked over a config that sets them survive a reload", async ({
+    page,
+  }) => {
     await fresh(page);
     expect(await select(page, "Theme").inputValue()).toBe("terminal");
     await select(page, "Theme").selectOption("light");
@@ -74,7 +88,10 @@ test.describe("a dashboard reload keeps the view (card, HA lifecycle)", () => {
     await select(page, "Theme").selectOption("light");
     await button(page, "Zoom in").click();
     const before = await viewBox(page);
-    await card(page).evaluate((el, config) => (el as unknown as { setConfig(c: unknown): void }).setConfig(structuredClone(config)), HA_CONFIG);
+    await card(page).evaluate(
+      (el, config) => (el as unknown as { setConfig(c: unknown): void }).setConfig(structuredClone(config)),
+      HA_CONFIG,
+    );
     await expect.poll(() => select(page, "Theme").inputValue()).toBe("light");
     const after = await viewBox(page);
     for (let i = 0; i < 4; i++) expect(after[i]!).toBeCloseTo(before[i]!, 2);
@@ -85,7 +102,11 @@ test.describe("a dashboard reload keeps the view (card, HA lifecycle)", () => {
     await select(page, "Theme").selectOption("light");
     await button(page, "Rotate left").click();
     await settled(page);
-    await card(page).evaluate((el) => { const p = el.parentElement!; el.remove(); p.appendChild(el); });
+    await card(page).evaluate((el) => {
+      const p = el.parentElement!;
+      el.remove();
+      p.appendChild(el);
+    });
     expect(await select(page, "Theme").inputValue()).toBe("light");
     expect(await planDeg(page)).toBe(315);
   });

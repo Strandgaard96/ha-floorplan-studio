@@ -17,7 +17,8 @@ function baseCtx(st: EditorState): PanelCtx {
     attachToRoom: () => {},
     select: () => {},
     paint: () => {},
-    rotateTexture: () => {}, rotateItem: () => {},
+    rotateTexture: () => {},
+    rotateItem: () => {},
     scaleTexture: () => {},
     drawArea: () => {},
     placeArea: () => {},
@@ -42,7 +43,11 @@ describe("devicePanel Links heading (Opus review of S8.9)", () => {
     const ctx = { ...baseCtx(st), areaDiff: () => ({ name: "Kitchen" }) }; // moveArea omitted on purpose
     const div = document.createElement("div");
     render(selectionPanel(ctx), div);
-    expect(div.querySelectorAll("h4.pnl-h, summary.pnl-h").length ? [...div.querySelectorAll("h4.pnl-h, summary.pnl-h")].map((h) => h.textContent) : []).not.toContain("Links");
+    expect(
+      div.querySelectorAll("h4.pnl-h, summary.pnl-h").length
+        ? [...div.querySelectorAll("h4.pnl-h, summary.pnl-h")].map((h) => h.textContent)
+        : [],
+    ).not.toContain("Links");
   });
 
   it("shows Links when both areaDiff and moveArea are given", () => {
@@ -58,10 +63,21 @@ describe("devicePanel Links heading (Opus review of S8.9)", () => {
 
 describe("room Sensors section follows roomAt's rule (Opus review of Sprint 11, finding 2)", () => {
   it("shows the three pickers for exactly the kinds that can own a point, one test per RoomKind", () => {
-    const owns: Record<string, boolean> = { room: true, garden: true, pavement: true, terrace: true, water: true, fill: false, structure: false, zone: false };
+    const owns: Record<string, boolean> = {
+      room: true,
+      garden: true,
+      pavement: true,
+      terrace: true,
+      water: true,
+      fill: false,
+      structure: false,
+      zone: false,
+    };
     for (const kind of ROOM_KINDS) {
       const st = new EditorState(fresh());
-      st.edit((f) => { f.rooms[0].kind = kind; });
+      st.edit((f) => {
+        f.rooms[0].kind = kind;
+      });
       st.sel = { t: "room", i: 0 };
       const div = document.createElement("div");
       render(selectionPanel(baseCtx(st)), div);
@@ -76,28 +92,55 @@ describe("changing a room's kind (Opus re-check of Sprint 11, D)", () => {
   const changeKind = (st: EditorState, kind: string) => {
     st.sel = { t: "room", i: 0 };
     const div = document.createElement("div");
-    render(selectionPanel({ ...baseCtx(st), commit: (fn) => { st.edit(fn); } }), div);
+    render(
+      selectionPanel({
+        ...baseCtx(st),
+        commit: (fn) => {
+          st.edit(fn);
+        },
+      }),
+      div,
+    );
     const sel = div.querySelector<HTMLSelectElement>("#rk")!;
     sel.value = kind;
     sel.dispatchEvent(new Event("change"));
   };
   const withSensors = () => {
     const l = fresh();
-    Object.assign(l.floors.ground.rooms[0], { temps: ["sensor.a"], humidity: ["sensor.b"], motion: ["binary_sensor.c"] });
+    Object.assign(l.floors.ground.rooms[0], {
+      temps: ["sensor.a"],
+      humidity: ["sensor.b"],
+      motion: ["binary_sensor.c"],
+    });
     return new EditorState(l);
   };
-  const owns: Record<string, boolean> = { room: true, garden: true, pavement: true, terrace: true, water: true, fill: false, structure: false, zone: false };
+  const owns: Record<string, boolean> = {
+    room: true,
+    garden: true,
+    pavement: true,
+    terrace: true,
+    water: true,
+    fill: false,
+    structure: false,
+    zone: false,
+  };
   for (const kind of ROOM_KINDS.filter((k) => k !== "room"))
     it(`to ${kind}: the sensor lists go exactly when nothing could show them, and one undo brings them back`, () => {
       const st = withSensors();
       changeKind(st, kind);
       const r = st.f.rooms[0];
       expect(r.kind).toBe(kind);
-      if (owns[kind]) expect([r.temps, r.humidity, r.motion]).toEqual([["sensor.a"], ["sensor.b"], ["binary_sensor.c"]]);
+      if (owns[kind])
+        expect([r.temps, r.humidity, r.motion]).toEqual([["sensor.a"], ["sensor.b"], ["binary_sensor.c"]]);
       else expect([r.temps, r.humidity, r.motion]).toEqual([undefined, undefined, undefined]);
       expect(st.undo()).toBe(true);
       const back = st.f.rooms[0];
-      expect([back.kind, back.temps, back.humidity, back.motion]).toEqual(["room", ["sensor.a"], ["sensor.b"], ["binary_sensor.c"]]);
+      expect([back.kind, back.temps, back.humidity, back.motion]).toEqual([
+        "room",
+        ["sensor.a"],
+        ["sensor.b"],
+        ["binary_sensor.c"],
+      ]);
       expect(st.canUndo).toBe(false);
     });
 });

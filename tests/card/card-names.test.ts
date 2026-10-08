@@ -15,7 +15,7 @@ import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 const L = demo as unknown as Layout;
-const showNames = () => (((renderFloor as unknown as Mock).mock.calls.at(-1)![1]) as RenderOpts).showNames;
+const showNames = () => ((renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts).showNames;
 
 async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<FloorplanStudioCard> {
   const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
@@ -24,12 +24,21 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   await el.updateComplete;
   return el;
 }
-const btn = (el: FloorplanStudioCard, label: string) => el.shadowRoot!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
-const click = async (el: FloorplanStudioCard, label: string) => { btn(el, label)!.click(); await el.updateComplete; };
+const btn = (el: FloorplanStudioCard, label: string) =>
+  el.shadowRoot!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+const click = async (el: FloorplanStudioCard, label: string) => {
+  btn(el, label)!.click();
+  await el.updateComplete;
+};
 
 beforeEach(() => {
   localStorage.clear();
-  window.matchMedia = ((q: string) => ({ matches: q.includes("prefers-reduced-motion"), media: q, addEventListener() {}, removeEventListener() {} })) as never;
+  window.matchMedia = ((q: string) => ({
+    matches: q.includes("prefers-reduced-motion"),
+    media: q,
+    addEventListener() {},
+    removeEventListener() {},
+  })) as never;
 });
 afterEach(() => {
   document.body.innerHTML = "";
@@ -45,7 +54,12 @@ describe("Device names toggle", () => {
   });
 
   it("config names: true starts on; anything but true is off", async () => {
-    for (const [v, want] of [[true, true], [false, false], ["yes", false], [1, false]] as const) {
+    for (const [v, want] of [
+      [true, true],
+      [false, false],
+      ["yes", false],
+      [1, false],
+    ] as const) {
       const el = await mount({ names: v as never });
       expect(!!showNames(), String(v)).toBe(want);
       el.remove();

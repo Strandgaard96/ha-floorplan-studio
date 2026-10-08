@@ -4,7 +4,11 @@ const said = new Set<string>();
 export function debugOnce(kind: string, err: unknown): void {
   if (said.has(kind)) return;
   said.add(kind);
-  try { console.debug(`floorplan-studio: ${kind} (${err instanceof Error ? err.message : String(err)}); this is said once`); } catch { /* no console */ }
+  try {
+    console.debug(`floorplan-studio: ${kind} (${err instanceof Error ? err.message : String(err)}); this is said once`);
+  } catch {
+    /* no console */
+  }
 }
 /** For tests: forget what was said. */
 export const forgetDebug = (): void => said.clear();

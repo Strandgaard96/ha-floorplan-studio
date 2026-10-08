@@ -10,11 +10,25 @@ describe("parseStoredView: walls (storage is untrusted)", () => {
     for (const m of WALLS_MODES) expect(parse({ walls: m }), m).toEqual({ walls: m });
   });
   it("drops anything else on its own and keeps the good fields", () => {
-    for (const junk of ["", "FULL", "Cut", "tall", " full", "__proto__", "constructor", 1, null, true, ["full"], { full: 1 }]) {
+    for (const junk of [
+      "",
+      "FULL",
+      "Cut",
+      "tall",
+      " full",
+      "__proto__",
+      "constructor",
+      1,
+      null,
+      true,
+      ["full"],
+      { full: 1 },
+    ]) {
       expect(parse({ walls: junk, labels: false }), JSON.stringify(junk)).toEqual({ labels: false });
     }
   });
   it("round-trips through the JSON string", () => {
-    for (const m of WALLS_MODES) expect(parse(JSON.stringify({ v: 1, walls: m, tilt: 0.3 }))).toEqual({ walls: m, tilt: 0.3 });
+    for (const m of WALLS_MODES)
+      expect(parse(JSON.stringify({ v: 1, walls: m, tilt: 0.3 }))).toEqual({ walls: m, tilt: 0.3 });
   });
 });

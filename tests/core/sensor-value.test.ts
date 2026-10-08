@@ -6,7 +6,9 @@ import demo from "../../demo/layout.json";
 const L = migrate(demo as unknown);
 const floor = Object.values(L.floors)[0];
 const tempDev = floor.devices.find((d) => d.type === "temp")!;
-const st = (state: string) => ({ [tempDev.entity]: { state, attributes: { unit_of_measurement: "°C" }, last_changed: new Date().toISOString() } });
+const st = (state: string) => ({
+  [tempDev.entity]: { state, attributes: { unit_of_measurement: "°C" }, last_changed: new Date().toISOString() },
+});
 
 describe("a sensor value that is not a number", () => {
   it("shows an en dash, never the raw state", () => {

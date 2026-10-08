@@ -1,26 +1,87 @@
 import { describe, expect, it } from "vitest";
 import { rolesToTokens, type ThemeRoles } from "../../src/core/theme-roles";
 
-const tokenPairs = (css: string) => new Map((css.match(/--fp-[a-z-]+:[^;]+/g) ?? []).map((kv) => { const i = kv.indexOf(":"); return [kv.slice(0, i), kv.slice(i + 1)]; }));
+const tokenPairs = (css: string) =>
+  new Map(
+    (css.match(/--fp-[a-z-]+:[^;]+/g) ?? []).map((kv) => {
+      const i = kv.indexOf(":");
+      return [kv.slice(0, i), kv.slice(i + 1)];
+    }),
+  );
 
-const BASE: ThemeRoles = { base: "#1c3f73", fg: "#eef3fb", fgAlpha: 0.75, line: "#35d47a", accent: "#ff8a1f", dark: true };
+const BASE: ThemeRoles = {
+  base: "#1c3f73",
+  fg: "#eef3fb",
+  fgAlpha: 0.75,
+  line: "#35d47a",
+  accent: "#ff8a1f",
+  dark: true,
+};
 
 describe("theme-roles (S4.21)", () => {
   it("defines every token render.ts's other themes define", () => {
     // Every LIGHT_TOKENS/MIDNIGHT_TOKENS key must exist here too, or a generated theme silently falls back to nothing
     // for that property (CLAUDE.md finding: a rule checker cannot see a missing token, only a computed-style read can).
     const wanted = [
-      "--fp-ink", "--fp-bg", "--fp-room", "--fp-room-empty", "--fp-garden", "--fp-terrace", "--fp-pavement", "--fp-wall",
-      "--fp-idle", "--fp-on", "--fp-open", "--fp-motion", "--fp-heater", "--fp-door", "--fp-glass", "--fp-window",
-      "--fp-sealed", "--fp-water", "--fp-fill", "--fp-fill-line", "--fp-tread", "--fp-halo", "--fp-alpha", "--fp-disc",
-      "--fp-disc-alpha", "--fp-outline", "--fp-text", "--fp-warn", "--fp-danger", "--fp-primary", "--fp-wall-external",
-      "--fp-wall-fence", "--fp-wall-edge", "--fp-measure", "--fp-glow", "--fp-aura", "--fp-active", "--fp-on-dark", "--fp-on-light",
-      "--fp-furniture", "--fp-night",
+      "--fp-ink",
+      "--fp-bg",
+      "--fp-room",
+      "--fp-room-empty",
+      "--fp-garden",
+      "--fp-terrace",
+      "--fp-pavement",
+      "--fp-wall",
+      "--fp-idle",
+      "--fp-on",
+      "--fp-open",
+      "--fp-motion",
+      "--fp-heater",
+      "--fp-door",
+      "--fp-glass",
+      "--fp-window",
+      "--fp-sealed",
+      "--fp-water",
+      "--fp-fill",
+      "--fp-fill-line",
+      "--fp-tread",
+      "--fp-halo",
+      "--fp-alpha",
+      "--fp-disc",
+      "--fp-disc-alpha",
+      "--fp-outline",
+      "--fp-text",
+      "--fp-warn",
+      "--fp-danger",
+      "--fp-primary",
+      "--fp-wall-external",
+      "--fp-wall-fence",
+      "--fp-wall-edge",
+      "--fp-measure",
+      "--fp-glow",
+      "--fp-aura",
+      "--fp-active",
+      "--fp-on-dark",
+      "--fp-on-light",
+      "--fp-furniture",
+      "--fp-night",
       // the device types render.ts's CSS actually reads a dedicated colour for; the rest (switch, temp, humidity,
       // battery, inverter, server, access_point, other) fall back to --fp-idle in the stylesheet, no token of their own.
-      "--fp-dev-light", "--fp-dev-motion", "--fp-dev-contact", "--fp-dev-heater", "--fp-dev-climate", "--fp-dev-ac-cool",
-      "--fp-dev-ac-heat", "--fp-dev-tv", "--fp-dev-media", "--fp-dev-cover", "--fp-dev-plug", "--fp-dev-computer",
-      "--fp-dev-camera", "--fp-dev-garden", "--fp-dev-person", "--fp-dev-radar",
+      "--fp-dev-light",
+      "--fp-dev-motion",
+      "--fp-dev-contact",
+      "--fp-dev-heater",
+      "--fp-dev-climate",
+      "--fp-dev-ac-cool",
+      "--fp-dev-ac-heat",
+      "--fp-dev-tv",
+      "--fp-dev-media",
+      "--fp-dev-cover",
+      "--fp-dev-plug",
+      "--fp-dev-computer",
+      "--fp-dev-camera",
+      "--fp-dev-garden",
+      "--fp-dev-person",
+      "--fp-dev-radar",
       // S9.1: an open door or window's colour, defaulting to the contact colour.
       "--fp-open-door",
     ];
@@ -30,7 +91,9 @@ describe("theme-roles (S4.21)", () => {
 
   it("S9.1: --fp-open-door is a fixed red, regardless of the roles given (never the accent)", () => {
     const a = tokenPairs(rolesToTokens(BASE));
-    const b = tokenPairs(rolesToTokens({ base: "#888888", fg: "#111111", fgAlpha: 0.5, line: "#00ff00", accent: "#ff00ff", dark: false }));
+    const b = tokenPairs(
+      rolesToTokens({ base: "#888888", fg: "#111111", fgAlpha: 0.5, line: "#00ff00", accent: "#ff00ff", dark: false }),
+    );
     expect(a.get("--fp-open-door")).toBe("#d64545");
     expect(b.get("--fp-open-door")).toBe("#d64545");
   });
@@ -50,8 +113,11 @@ describe("theme-roles (S4.21)", () => {
 
   it("warn, danger, primary, on-dark and on-light are the same fixed pair regardless of the roles given: UI chrome, not device state", () => {
     const a = tokenPairs(rolesToTokens(BASE));
-    const b = tokenPairs(rolesToTokens({ base: "#888888", fg: "#111111", fgAlpha: 0.5, line: "#00ff00", accent: "#ff00ff", dark: false }));
-    for (const k of ["--fp-warn", "--fp-danger", "--fp-primary", "--fp-on-dark", "--fp-on-light"]) expect(a.get(k)).toBe(b.get(k));
+    const b = tokenPairs(
+      rolesToTokens({ base: "#888888", fg: "#111111", fgAlpha: 0.5, line: "#00ff00", accent: "#ff00ff", dark: false }),
+    );
+    for (const k of ["--fp-warn", "--fp-danger", "--fp-primary", "--fp-on-dark", "--fp-on-light"])
+      expect(a.get(k)).toBe(b.get(k));
   });
 
   it("device colours default to the single accent, unless a theme overrides that type", () => {

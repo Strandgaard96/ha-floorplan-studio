@@ -8,12 +8,50 @@ import { isKnownRole, roleStyle } from "../../src/card/three/palette";
 // A linked tv, speaker or computer piece in 3D (DECISIONS 2026-10-07): the scene marks it, the live state says whether it is on
 // by the device rule, the picker hands a tap on it to the gesture code as its own thing, and the palette has its two colours.
 const st = (state: string) => ({ state, attributes: {}, last_changed: "2026-10-07T10:00:00Z" });
-const floor = (furniture: unknown[], devices: unknown[] = []): Floor => ({
-  title: "T", outline: [[0, 0], [600, 0], [600, 500], [0, 500]], owk: ["external", "external", "external", "external"],
-  rooms: [{ id: "a", name: "A", area: "", kind: "room", pts: [[0, 0], [600, 0], [600, 500], [0, 500]], wk: ["wall", "wall", "wall", "wall"] }] as never,
-  walls: [], stairs: [], doors: [], openings: [], extras: [], devices, furniture, unlinked: [],
-}) as unknown as Floor;
-const piece = (symbol: string, extra: Record<string, unknown> = {}) => ({ id: `p-${symbol}`, symbol, x: 300, y: 250, rot: 0, w: 120, h: 40, ...extra });
+const floor = (furniture: unknown[], devices: unknown[] = []): Floor =>
+  ({
+    title: "T",
+    outline: [
+      [0, 0],
+      [600, 0],
+      [600, 500],
+      [0, 500],
+    ],
+    owk: ["external", "external", "external", "external"],
+    rooms: [
+      {
+        id: "a",
+        name: "A",
+        area: "",
+        kind: "room",
+        pts: [
+          [0, 0],
+          [600, 0],
+          [600, 500],
+          [0, 500],
+        ],
+        wk: ["wall", "wall", "wall", "wall"],
+      },
+    ] as never,
+    walls: [],
+    stairs: [],
+    doors: [],
+    openings: [],
+    extras: [],
+    devices,
+    furniture,
+    unlinked: [],
+  }) as unknown as Floor;
+const piece = (symbol: string, extra: Record<string, unknown> = {}) => ({
+  id: `p-${symbol}`,
+  symbol,
+  x: 300,
+  y: 250,
+  rot: 0,
+  w: 120,
+  h: 40,
+  ...extra,
+});
 const solidOf = (f: Floor) => buildScene(f).solids.find((s) => s.kind === "furniture")!;
 
 describe("scene: a linked piece", () => {
@@ -35,15 +73,31 @@ describe("scene: a linked piece", () => {
 describe("live: pieces", () => {
   const live = (f: Floor, state: Record<string, unknown>) => liveOf(f, { scale: 1, state: state as never }, 0);
   it("a paused tv piece is on, a speaker piece only while playing, an unlinked or unreadable one is null", () => {
-    const f = floor([piece("tv", { entity: "media_player.t" }), piece("speaker", { entity: "media_player.s" }), piece("tv"), 5]);
-    expect(live(f, { "media_player.t": st("paused"), "media_player.s": st("paused") }).pieces).toEqual([{ on: true }, { on: false }, null, null]);
-    expect(live(f, { "media_player.t": st("off"), "media_player.s": st("playing") }).pieces).toEqual([{ on: false }, { on: true }, null, null]);
+    const f = floor([
+      piece("tv", { entity: "media_player.t" }),
+      piece("speaker", { entity: "media_player.s" }),
+      piece("tv"),
+      5,
+    ]);
+    expect(live(f, { "media_player.t": st("paused"), "media_player.s": st("paused") }).pieces).toEqual([
+      { on: true },
+      { on: false },
+      null,
+      null,
+    ]);
+    expect(live(f, { "media_player.t": st("off"), "media_player.s": st("playing") }).pieces).toEqual([
+      { on: false },
+      { on: true },
+      null,
+      null,
+    ]);
   });
 });
 
 describe("pick: a linked piece", () => {
   const down = (x: number, y: number): Ray => ({ o: [x, y, 1000], d: [0, 0, -1] });
-  const plain = (s: { shape: { type: string; z0?: number; z1?: number } }): [number, number] | null => (s.shape.type === "prism" ? [s.shape.z0!, s.shape.z1!] : null);
+  const plain = (s: { shape: { type: string; z0?: number; z1?: number } }): [number, number] | null =>
+    s.shape.type === "prism" ? [s.shape.z0!, s.shape.z1!] : null;
   it("is its own thing, by its index; an unlinked piece is its room's floor", () => {
     const p = new Picker(buildScene(floor([piece("tv"), piece("tv", { entity: "media_player.x", x: 450 })])).solids);
     expect(p.pick(down(450, 250), plain as never)).toEqual({ type: "piece", index: 1 });

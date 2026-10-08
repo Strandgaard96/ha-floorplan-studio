@@ -41,9 +41,12 @@ describe("S10.4: entitiesOfDevice decides, per device type, which entities a tap
   });
 
   test("a heater with trvs and tempSensors: main, then every trv, then every temp sensor", () => {
-    expect(
-      entitiesOfDevice(dev("heater", { trvs: ["climate.a", "climate.b"], tempSensors: ["sensor.t1"] })),
-    ).toEqual(["domain.main", "climate.a", "climate.b", "sensor.t1"]);
+    expect(entitiesOfDevice(dev("heater", { trvs: ["climate.a", "climate.b"], tempSensors: ["sensor.t1"] }))).toEqual([
+      "domain.main",
+      "climate.a",
+      "climate.b",
+      "sensor.t1",
+    ]);
   });
 
   test("an ac with linked climate entities: main, then each linked entity", () => {
@@ -87,7 +90,15 @@ describe("S10.4: entitiesOfDevice decides, per device type, which entities a tap
   });
 
   test("break it: a malformed layout (finding 1) never throws — non-array attachment fields are ignored", () => {
-    const bad = { id: "d1", type: "heater", entity: "domain.main", x: 0, y: 0, trvs: "not-an-array", tempSensors: 5 } as unknown as Device;
+    const bad = {
+      id: "d1",
+      type: "heater",
+      entity: "domain.main",
+      x: 0,
+      y: 0,
+      trvs: "not-an-array",
+      tempSensors: 5,
+    } as unknown as Device;
     expect(() => entitiesOfDevice(bad)).not.toThrow();
     expect(entitiesOfDevice(bad)).toEqual(["domain.main"]);
   });

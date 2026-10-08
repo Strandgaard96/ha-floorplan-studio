@@ -1,13 +1,39 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
-import { DEVICE_TYPES, UNLINKED_TYPES, FURNITURE_SYMBOLS, ROOM_KINDS, type Layout, type Pt, type RoomKind, type WallKind } from "../../src/core/schema";
+import {
+  DEVICE_TYPES,
+  UNLINKED_TYPES,
+  FURNITURE_SYMBOLS,
+  ROOM_KINDS,
+  type Layout,
+  type Pt,
+  type RoomKind,
+  type WallKind,
+} from "../../src/core/schema";
 import { stairSteps } from "../../src/core";
 import { DEVICE_ICONS } from "../../src/core/icons";
-import { renderFloor, viewBoxFor, planPivot, rotateAbout, contentPoints, DEVICE_COLOURS, DEVICE_REACH, LIGHT_REACH, DOOR_ALERT_EXTRA, FLOORPLAN_CSS, type StateOverlay } from "../../src/core/render";
+import {
+  renderFloor,
+  viewBoxFor,
+  planPivot,
+  rotateAbout,
+  contentPoints,
+  DEVICE_COLOURS,
+  DEVICE_REACH,
+  LIGHT_REACH,
+  DOOR_ALERT_EXTRA,
+  FLOORPLAN_CSS,
+  type StateOverlay,
+} from "../../src/core/render";
 
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
-const st = (state: string, extra: Partial<StateOverlay[string]> = {}) => ({ state, attributes: {}, last_changed: "2026-09-19T10:00:00Z", ...extra });
+const st = (state: string, extra: Partial<StateOverlay[string]> = {}) => ({
+  state,
+  attributes: {},
+  last_changed: "2026-09-19T10:00:00Z",
+  ...extra,
+});
 const NOW = Date.parse("2026-09-19T10:00:05Z");
 const base = { scale: 0.5, now: NOW, fade: 10 };
 
@@ -17,14 +43,28 @@ describe("renderFloor", () => {
   });
 
   it("S5.1: matches the snapshot for a floor carrying every FURNITURE_SYMBOLS symbol", () => {
-    const f = { ...ground, furniture: FURNITURE_SYMBOLS.map((symbol, i) => ({ id: `f-${symbol}`, symbol, x: 100 + i * 150, y: 100, rot: 0, w: 80, h: 60 })) };
+    const f = {
+      ...ground,
+      furniture: FURNITURE_SYMBOLS.map((symbol, i) => ({
+        id: `f-${symbol}`,
+        symbol,
+        x: 100 + i * 150,
+        y: 100,
+        rot: 0,
+        w: 80,
+        h: 60,
+      })),
+    };
     expect(renderFloor(f, { scale: 0.5 })).toMatchSnapshot();
   });
 
   it("draws openings as erase lines and extras as dashed shapes with escaped names", () => {
     const f = structuredClone(ground);
     f.openings.push({ id: "o1", a: [100, 400], b: [200, 400] });
-    f.extras.push({ id: "x1", name: "<b>shed</b>", a: [100, 450], b: [200, 520] }, { id: "x2", name: "path", a: [0, 0], b: [50, 0] });
+    f.extras.push(
+      { id: "x1", name: "<b>shed</b>", a: [100, 450], b: [200, 520] },
+      { id: "x2", name: "path", a: [0, 0], b: [50, 0] },
+    );
     const html = renderFloor(f, base);
     // S8.9: an opening's stroke now matches the wall it erases (here a plain internal wall, 10 + OPENING_EXTRA).
     // Opus review of S8.11 (2026-09-26): OPENING_EXTRA widened from 2 to WALL_HALO_EXTRA + 2 (4), so 10 + 4 = 14.
@@ -41,7 +81,7 @@ describe("renderFloor", () => {
     f.extras.push({ id: "x1", name: "shed", a: [100, 450], b: [200, 520] });
     const html = renderFloor(f, { ...base, showNames: true });
     const firstDevice = html.indexOf("data-x=");
-    const roomName = html.indexOf("font-weight=\"600\"");
+    const roomName = html.indexOf('font-weight="600"');
     for (const under of ['data-s="0"', 'data-e="s0:0"', 'class="opening"', 'class="extra"', ">shed</text>"]) {
       const at = html.indexOf(under);
       expect(at, under).toBeGreaterThan(-1);
@@ -55,11 +95,16 @@ describe("renderFloor", () => {
     f.walls.push({ id: "w1", a: [100, 700], b: [300, 700], kind: "wall" });
     f.openings.push({ id: "o1", a: [150, 700], b: [250, 700] }, { id: "o2", a: [200, 400], b: [300, 400] });
     const html = renderFloor(f, base);
-    const wall = html.indexOf('data-w="0"'), edge = html.indexOf('data-e="r0:2"'), o = [...html.matchAll(/<line class="opening"/g)].map((m) => m.index!);
+    const wall = html.indexOf('data-w="0"'),
+      edge = html.indexOf('data-e="r0:2"'),
+      o = [...html.matchAll(/<line class="opening"/g)].map((m) => m.index!);
     expect(wall).toBeGreaterThan(-1);
     expect(edge).toBeGreaterThan(-1);
     expect(o).toHaveLength(2);
-    for (const at of o) { expect(at).toBeGreaterThan(wall); expect(at).toBeGreaterThan(edge); }
+    for (const at of o) {
+      expect(at).toBeGreaterThan(wall);
+      expect(at).toBeGreaterThan(edge);
+    }
     expect(html.lastIndexOf('data-e="')).toBeLessThan(o[0]); // after every edge line
     expect(html.indexOf('data-d="0"')).toBeGreaterThan(o[1]); // and under the doors
   });
@@ -110,7 +155,10 @@ describe("renderFloor", () => {
   });
 
   it("S2.2: a lit light's own rgb_color sets --fp-dev-fill on its device group, none of it comes from the layout's device colours", () => {
-    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) } });
+    const html = renderFloor(ground, {
+      ...base,
+      state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) },
+    });
     expect(html).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-fill:rgb\(255,0,0\)/);
   });
 
@@ -121,18 +169,33 @@ describe("renderFloor", () => {
   });
 
   it("S2.2: a malformed rgb_color (untrusted state) sets no --fp-dev-fill instead of throwing", () => {
-    const bad = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0] } }) } });
+    const bad = renderFloor(ground, {
+      ...base,
+      state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0] } }) },
+    });
     expect(bad.match(/<g[^>]*data-x="1"[^>]*>/)![0]).not.toContain("--fp-dev-fill");
-    const bad2 = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: "red" } }) } });
+    const bad2 = renderFloor(ground, {
+      ...base,
+      state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: "red" } }) },
+    });
     expect(bad2.match(/<g[^>]*data-x="1"[^>]*>/)![0]).not.toContain("--fp-dev-fill");
   });
 
   it("S2.2: brightness sets --fp-dev-opacity as brightness/255, floored at 0.35", () => {
-    const full = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { brightness: 255 } }) } });
+    const full = renderFloor(ground, {
+      ...base,
+      state: { "light.demo_kitchen": st("on", { attributes: { brightness: 255 } }) },
+    });
     expect(full).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-opacity:1"/);
-    const dim = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { brightness: 0 } }) } }); // 0/255 would be 0, floored to 0.35
+    const dim = renderFloor(ground, {
+      ...base,
+      state: { "light.demo_kitchen": st("on", { attributes: { brightness: 0 } }) },
+    }); // 0/255 would be 0, floored to 0.35
     expect(dim).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-opacity:0\.35"/);
-    const low = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { brightness: 10 } }) } }); // 10/255 ~= 0.04, under the floor
+    const low = renderFloor(ground, {
+      ...base,
+      state: { "light.demo_kitchen": st("on", { attributes: { brightness: 10 } }) },
+    }); // 10/255 ~= 0.04, under the floor
     expect(low).toMatch(/data-x="1"[^>]*style="[^"]*--fp-dev-opacity:0\.35"/);
   });
 
@@ -142,14 +205,25 @@ describe("renderFloor", () => {
   });
 
   it("S2.2: a light that is off gets neither --fp-dev-fill nor --fp-dev-opacity, even with rgb_color/brightness set", () => {
-    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("off", { attributes: { rgb_color: [255, 0, 0], brightness: 10 } }) } });
+    const html = renderFloor(ground, {
+      ...base,
+      state: { "light.demo_kitchen": st("off", { attributes: { rgb_color: [255, 0, 0], brightness: 10 } }) },
+    });
     const group = html.match(/<g[^>]*data-x="1"[^>]*>/)![0];
     expect(group).not.toContain("--fp-dev-fill");
     expect(group).not.toContain("--fp-dev-opacity");
   });
 
   it("marks unavailable and unknown entities, except lights and switches, which read as off (Diego, 2026-10-06)", () => {
-    const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("unavailable"), "light.demo_kitchen": st("unknown"), "switch.demo_tv_plug": st("unavailable"), "camera.demo_hall": st("unavailable") } });
+    const html = renderFloor(ground, {
+      ...base,
+      state: {
+        "light.demo_living": st("unavailable"),
+        "light.demo_kitchen": st("unknown"),
+        "switch.demo_tv_plug": st("unavailable"),
+        "camera.demo_hall": st("unavailable"),
+      },
+    });
     expect(html).toMatch(/data-x="0"[^>]*class="dev dev-light bound off"/);
     expect(html).toMatch(/data-x="1"[^>]*class="dev dev-light off"/);
     expect(html).toMatch(/data-x="3"[^>]*class="dev dev-plug off"/);
@@ -171,7 +245,7 @@ describe("renderFloor", () => {
 
     it("leaves the aura unclipped for a lamp outside every room", () => {
       const f = structuredClone(ground);
-      f.devices[1] = { ...f.devices[1], x: 2000, y: 2000 } as typeof f.devices[number];
+      f.devices[1] = { ...f.devices[1], x: 2000, y: 2000 } as (typeof f.devices)[number];
       const html = renderFloor(f, { ...base, state: on });
       expect(html).toMatch(/<circle class="aura" cx="2000" cy="2000" r="150"\/>/);
       expect(html).not.toContain("<clipPath");
@@ -179,7 +253,19 @@ describe("renderFloor", () => {
 
     it("clips to the smallest room that holds the lamp, not a bigger one around it", () => {
       const f = structuredClone(ground);
-      f.rooms.push({ id: "closet", name: "Closet", area: 1, kind: "room", pts: [[600, 150], [700, 150], [700, 250], [600, 250]], wk: ["i", "i", "i", "i"] } as unknown as typeof f.rooms[number]);
+      f.rooms.push({
+        id: "closet",
+        name: "Closet",
+        area: 1,
+        kind: "room",
+        pts: [
+          [600, 150],
+          [700, 150],
+          [700, 250],
+          [600, 250],
+        ],
+        wk: ["i", "i", "i", "i"],
+      } as unknown as (typeof f.rooms)[number]);
       expect(clipOf(renderFloor(f, { ...base, state: on }))).toBe("600,150 700,150 700,250 600,250");
     });
 
@@ -195,8 +281,10 @@ describe("renderFloor", () => {
 
     it("ignores a zone: a lamp in the Reading corner clips to the room under it", () => {
       const f = structuredClone(ground);
-      f.devices[0] = { ...f.devices[0], x: 400, y: 80 } as typeof f.devices[number];
-      expect(clipOf(renderFloor(f, { ...base, state: { "light.demo_living": st("on") } }))).toBe("0,0 500,0 500,400 0,400");
+      f.devices[0] = { ...f.devices[0], x: 400, y: 80 } as (typeof f.devices)[number];
+      expect(clipOf(renderFloor(f, { ...base, state: { "light.demo_living": st("on") } }))).toBe(
+        "0,0 500,0 500,400 0,400",
+      );
     });
   });
 
@@ -218,8 +306,13 @@ describe("renderFloor", () => {
     });
 
     it("a light with rgb_color sets --fp-aura on its own circle through style", () => {
-      const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) } });
-      expect(html).toMatch(/<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? style="--fp-aura:rgb\(255,0,0\)"\/>/);
+      const html = renderFloor(ground, {
+        ...base,
+        state: { "light.demo_kitchen": st("on", { attributes: { rgb_color: [255, 0, 0] } }) },
+      });
+      expect(html).toMatch(
+        /<circle class="aura" cx="650" cy="200" r="150"(?: clip-path="url\(#[^)]+\)")? style="--fp-aura:rgb\(255,0,0\)"\/>/,
+      );
     });
 
     it("a light with no rgb_color carries no --fp-aura, so the default CSS variable applies", () => {
@@ -234,7 +327,10 @@ describe("renderFloor", () => {
     });
 
     it("every aura is drawn before every device group, so overlapping auras never hide an icon", () => {
-      const html = renderFloor(ground, { ...base, state: { "light.demo_living": st("on"), "light.demo_kitchen": st("on") } });
+      const html = renderFloor(ground, {
+        ...base,
+        state: { "light.demo_living": st("on"), "light.demo_kitchen": st("on") },
+      });
       const auras = [...html.matchAll(/<circle class="aura"/g)].map((m) => m.index!);
       const groups = [...html.matchAll(/<g[^>]*data-x="/g)].map((m) => m.index!);
       expect(auras).toHaveLength(2);
@@ -250,7 +346,9 @@ describe("renderFloor", () => {
     });
 
     it("the .aura rule reads --fp-aura at --fp-alpha and never catches the pointer", () => {
-      expect(FLOORPLAN_CSS).toMatch(/\.aura\{fill:var\(--fp-aura\);fill-opacity:var\(--fp-alpha\);pointer-events:none\}/);
+      expect(FLOORPLAN_CSS).toMatch(
+        /\.aura\{fill:var\(--fp-aura\);fill-opacity:var\(--fp-alpha\);pointer-events:none\}/,
+      );
       expect(FLOORPLAN_CSS).toContain("--fp-aura:#f0c419");
     });
   });
@@ -259,7 +357,8 @@ describe("renderFloor", () => {
     // light-living (device 0) sits at 250,200, inside room 0 (Living); light-kitchen (device 1) is off.
     const html = renderFloor(ground, { ...base, roomGlow: true, state: { "light.demo_living": st("on") } });
     expect(html).toMatch(/<polygon data-r="0" class="[^"]*\bglow\b[^"]*"/);
-    for (let i = 1; i < ground.rooms.length; i++) expect(html).not.toMatch(new RegExp(`<polygon data-r="${i}" class="[^"]*\\bglow\\b`));
+    for (let i = 1; i < ground.rooms.length; i++)
+      expect(html).not.toMatch(new RegExp(`<polygon data-r="${i}" class="[^"]*\\bglow\\b`));
   });
 
   it("S2.6: with room_glow off (the default), a lit light gives no room the glow class", () => {
@@ -288,9 +387,17 @@ describe("renderFloor", () => {
   it("fades motion from last_changed over `fade` seconds", () => {
     const html = renderFloor(ground, { ...base, state: { "binary_sensor.demo_hall_motion": st("on") } });
     expect(html).toMatch(/data-x="5"[^>]*style="[^"]*--fp-fade:0\.5/);
-    const early = renderFloor(ground, { ...base, now: NOW - 3000, state: { "binary_sensor.demo_hall_motion": st("on") } });
+    const early = renderFloor(ground, {
+      ...base,
+      now: NOW - 3000,
+      state: { "binary_sensor.demo_hall_motion": st("on") },
+    });
     expect(early).toMatch(/data-x="5"[^>]*style="[^"]*--fp-fade:0\.8/);
-    const late = renderFloor(ground, { ...base, now: NOW + 60000, state: { "binary_sensor.demo_hall_motion": st("on") } });
+    const late = renderFloor(ground, {
+      ...base,
+      now: NOW + 60000,
+      state: { "binary_sensor.demo_hall_motion": st("on") },
+    });
     expect(late).toMatch(/data-x="5"[^>]*style="[^"]*--fp-fade:0[;"]/);
   });
 
@@ -299,7 +406,10 @@ describe("renderFloor", () => {
   });
 
   it("survives an unreadable last_changed", () => {
-    const html = renderFloor(ground, { ...base, state: { "binary_sensor.demo_hall_motion": st("on", { last_changed: "not a date" }) } });
+    const html = renderFloor(ground, {
+      ...base,
+      state: { "binary_sensor.demo_hall_motion": st("on", { last_changed: "not a date" }) },
+    });
     expect(html).not.toContain("NaN");
   });
 
@@ -333,13 +443,22 @@ describe("renderFloor", () => {
   });
 
   it("shows temperature and humidity as labels with units", () => {
-    const html = renderFloor(ground, { ...base, state: { "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
+    const html = renderFloor(ground, {
+      ...base,
+      state: { "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) },
+    });
     expect(html).toContain("21.5 °C");
   });
 
   it("S2.5: shows a humidity label with its unit", () => {
-    const f = { ...ground, devices: [{ id: "h", type: "humidity", entity: "sensor.demo_bathroom_humidity", x: 100, y: 100 }] } as unknown as typeof ground;
-    const html = renderFloor(f, { ...base, state: { "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }) } });
+    const f = {
+      ...ground,
+      devices: [{ id: "h", type: "humidity", entity: "sensor.demo_bathroom_humidity", x: 100, y: 100 }],
+    } as unknown as typeof ground;
+    const html = renderFloor(f, {
+      ...base,
+      state: { "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }) },
+    });
     expect(html).toContain("48 %");
   });
 
@@ -349,7 +468,10 @@ describe("renderFloor", () => {
   });
 
   it("S2.5 Break it: an unavailable humidity sensor also shows a dash, not the raw word", () => {
-    const f = { ...ground, devices: [{ id: "h", type: "humidity", entity: "sensor.demo_bathroom_humidity", x: 100, y: 100 }] } as unknown as typeof ground;
+    const f = {
+      ...ground,
+      devices: [{ id: "h", type: "humidity", entity: "sensor.demo_bathroom_humidity", x: 100, y: 100 }],
+    } as unknown as typeof ground;
     const html = renderFloor(f, { ...base, state: { "sensor.demo_bathroom_humidity": st("unavailable") } });
     expect(html).toMatch(/class="val"[^>]*>–</);
     expect(html).not.toContain("unavailable<");
@@ -375,7 +497,9 @@ describe("renderFloor", () => {
     const both = renderFloor(ground, { ...base, filter: ["switch", "light"] }).match(/<g[^>]*data-x="/g)?.length;
     const single = renderFloor(ground, { ...base, filter: ["switch"] }).match(/<g[^>]*data-x="/g)?.length ?? 0;
     expect(both).toBeGreaterThan(single); // adding a second type shows more devices than either alone
-    expect(renderFloor(ground, { ...base, filter: [...DEVICE_TYPES] })).toBe(renderFloor(ground, { ...base, filter: [] })); // every type checked equals no filter at all
+    expect(renderFloor(ground, { ...base, filter: [...DEVICE_TYPES] })).toBe(
+      renderFloor(ground, { ...base, filter: [] }),
+    ); // every type checked equals no filter at all
   });
 
   it("escapes names", () => {
@@ -385,14 +509,20 @@ describe("renderFloor", () => {
   });
 
   it("uses no literal hex colours", () => {
-    const html = renderFloor(ground, { ...base, editor: true, showNames: true, state: { "light.demo_living": st("on") } });
+    const html = renderFloor(ground, {
+      ...base,
+      editor: true,
+      showNames: true,
+      state: { "light.demo_living": st("on") },
+    });
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
   });
 });
 
 describe("zones and water", () => {
   const html = renderFloor(ground, { scale: 0.5 }); // no editor: the card draws the same
-  const zi = ground.rooms.findIndex((r) => r.kind === "zone"), wi = ground.rooms.findIndex((r) => r.kind === "water");
+  const zi = ground.rooms.findIndex((r) => r.kind === "zone"),
+    wi = ground.rooms.findIndex((r) => r.kind === "water");
 
   it("the demo has a Reading corner zone (area reading) inside the living room and a water pond", () => {
     expect(zi).toBeGreaterThan(-1);
@@ -422,7 +552,10 @@ describe("zones and water", () => {
     expect(html).toMatch(/<text class="lbl zone"[^>]*font-size="14\.29"[^>]*>Reading corner<\/text>/);
   });
   it("puts no literal colour in the zone and water markup", () => {
-    const mine = html.split("\n").filter((l) => new RegExp(`data-(r="(${zi}|${wi})"|e="r(${zi}|${wi}):)`).test(l)).join("\n");
+    const mine = html
+      .split("\n")
+      .filter((l) => new RegExp(`data-(r="(${zi}|${wi})"|e="r(${zi}|${wi}):)`).test(l))
+      .join("\n");
     expect(mine).not.toMatch(/#[0-9a-f]{3,8}|rgb\(|fill="|stroke="/i);
   });
   it("escapes the name, area-free label and kind of zone and water", () => {
@@ -442,23 +575,30 @@ describe("zones and water", () => {
 
 describe("S8.13: brighter alerts, wider light", () => {
   const dev = (type: string, entity: string, x = 400, y = 300) => ({ id: `${type}-x`, type, entity, x, y });
-  const draw = (devices: unknown[], state: StateOverlay) => renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });
+  const draw = (devices: unknown[], state: StateOverlay) =>
+    renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });
   const group = (html: string) => html.match(/<g data-x="0"[^>]*>.*?<\/g>/s)![0];
 
   it("a lit lamp's aura is 1.5 times the old 100 cm, and a camera's cone keeps 100", () => {
     expect(LIGHT_REACH).toBe(150);
     expect(DEVICE_REACH).toBe(100);
-    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(/<circle class="aura" cx="400" cy="300" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/);
+    expect(draw([dev("light", "light.l")], { "light.l": st("on") })).toMatch(
+      /<circle class="aura" cx="400" cy="300" r="150"(?: clip-path="url\(#[^)]+\)")?\/>/,
+    );
   });
 
   it("a triggered motion or contact sensor carries a ping ring under its disc; idle, off, unavailable or another type do not", () => {
     for (const type of ["motion", "contact"]) {
       const on = group(draw([dev(type, "binary_sensor.s")], { "binary_sensor.s": st("on") }));
       expect(on, type).toMatch(/<circle class="ping" cx="12" cy="12" r="16"\/><circle class="halo"/);
-      for (const s of ["off", "unavailable", "unknown"]) expect(group(draw([dev(type, "binary_sensor.s")], { "binary_sensor.s": st(s) })), `${type} ${s}`).not.toContain("ping");
+      for (const s of ["off", "unavailable", "unknown"])
+        expect(group(draw([dev(type, "binary_sensor.s")], { "binary_sensor.s": st(s) })), `${type} ${s}`).not.toContain(
+          "ping",
+        );
       expect(group(draw([dev(type, "binary_sensor.s")], {})), `${type} no state`).not.toContain("ping");
     }
-    for (const type of ["light", "plug", "switch", "person", "radar"]) expect(group(draw([dev(type, "x.y")], { "x.y": st("on") })), type).not.toContain("ping");
+    for (const type of ["light", "plug", "switch", "person", "radar"])
+      expect(group(draw([dev(type, "x.y")], { "x.y": st("on") })), type).not.toContain("ping");
   });
 
   it("an open door draws a wide alert line under its own line; a closed one or a cover door does not", () => {
@@ -469,11 +609,16 @@ describe("S8.13: brighter alerts, wider light", () => {
     expect(Number(alert[0]!.match(/stroke-width="([\d.]+)"/)![1])).toBe(w + DOOR_ALERT_EXTRA);
     expect(open.indexOf('class="door-alert"')).toBeLessThan(open.indexOf('<line data-d="0" class="door '));
     expect(renderFloor(ground, base)).not.toContain("door-alert");
-    expect(renderFloor(ground, { ...base, state: { "cover.demo_garage_door": st("open") } })).not.toContain("door-alert");
+    expect(renderFloor(ground, { ...base, state: { "cover.demo_garage_door": st("open") } })).not.toContain(
+      "door-alert",
+    );
   });
 
   it("the wider aura draws under walls, doors, furniture and names, so it never tints an open door's red line", () => {
-    const html = renderFloor(ground, { ...base, state: { "light.demo_kitchen": st("on"), "binary_sensor.demo_front_door": st("on") } });
+    const html = renderFloor(ground, {
+      ...base,
+      state: { "light.demo_kitchen": st("on"), "binary_sensor.demo_front_door": st("on") },
+    });
     const aura = html.indexOf('class="aura"');
     for (const mark of ['class="eh', 'class="door-alert"', "data-d=", "data-f=", 'class="lbl"']) {
       const at = html.indexOf(mark);
@@ -484,16 +629,25 @@ describe("S8.13: brighter alerts, wider light", () => {
 
   it("the alert rules: a ping pulses in the sensor's own colour, a triggered disc is stronger than any other on disc, the door alert is contact red, and none take the pointer", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ping\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-ping/);
-    expect(FLOORPLAN_CSS).toMatch(/\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.door-alert\{stroke:var\(--fp-open-door\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave,\.siren-ring\{animation:none\}/);
+    expect(FLOORPLAN_CSS).toMatch(
+      /\.dev-motion\.on \.halo,\.dev-contact\.on \.halo\{fill-opacity:\.6;stroke:var\(--fp-dev\);stroke-width:2\}/,
+    );
+    expect(FLOORPLAN_CSS).toMatch(
+      /\.door-alert\{stroke:var\(--fp-open-door\);[^}]*stroke-linecap:butt;[^}]*pointer-events:none/,
+    );
+    expect(FLOORPLAN_CSS).toMatch(
+      /prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave,\.siren-ring\{animation:none\}/,
+    );
   });
 });
 
 describe("S10.3: a triggered vibration sensor turns its door red, solid, same as an open contact", () => {
   // Two <line data-d="i"> share the attribute (the invisible door-hit twin, finding 3, and the visible line); this
   // helper skips the hit line and returns the visible one's own class list.
-  const doorHtml = (html: string, i: number) => [...html.matchAll(new RegExp(`<line data-d="${i}" class="([^"]*)"`, "g"))].map((m) => m[1]).find((c) => c !== "door-hit") ?? "";
+  const doorHtml = (html: string, i: number) =>
+    [...html.matchAll(new RegExp(`<line data-d="${i}" class="([^"]*)"`, "g"))]
+      .map((m) => m[1])
+      .find((c) => c !== "door-hit") ?? "";
 
   it("a vibration sensor on gives the door .alarm, not .open; unavailable/unknown/off give neither", () => {
     const f = structuredClone(ground);
@@ -522,7 +676,10 @@ describe("S10.3: a triggered vibration sensor turns its door red, solid, same as
   it("both a contact and a vibration sensor on: the door carries both classes, dashed (open wins the dash, CSS pair in editor.spec.ts), and only one alert line", () => {
     const f = structuredClone(ground);
     f.doors[0].vibration = ["binary_sensor.demo_front_vibration"];
-    const html = renderFloor(f, { ...base, state: { "binary_sensor.demo_front_door": st("on"), "binary_sensor.demo_front_vibration": st("on") } });
+    const html = renderFloor(f, {
+      ...base,
+      state: { "binary_sensor.demo_front_door": st("on"), "binary_sensor.demo_front_vibration": st("on") },
+    });
     const cls = doorHtml(html, 0);
     expect(cls).toMatch(/\bopen\b/);
     expect(cls).toMatch(/\balarm\b/);
@@ -535,7 +692,9 @@ describe("S10.3: a triggered vibration sensor turns its door red, solid, same as
     const html = renderFloor(f, { ...base, state: { "binary_sensor.demo_front_vibration": st("on") } });
     const alert = html.match(/<line class="door-alert"[^>]*>/g) ?? [];
     expect(alert).toHaveLength(1);
-    const visible = [...html.matchAll(/<line data-d="0" class="([^"]*)"[^>]*stroke-width="([\d.]+)"/g)].find((m) => m[1] !== "door-hit")!;
+    const visible = [...html.matchAll(/<line data-d="0" class="([^"]*)"[^>]*stroke-width="([\d.]+)"/g)].find(
+      (m) => m[1] !== "door-hit",
+    )!;
     expect(Number(alert[0]!.match(/stroke-width="([\d.]+)"/)![1])).toBe(Number(visible[2]) + DOOR_ALERT_EXTRA);
   });
 
@@ -559,7 +718,8 @@ describe("S10.3: a triggered vibration sensor turns its door red, solid, same as
 
 describe("S9.4: a speaker radiates while it plays", () => {
   const dev = (type: string, entity: string, x = 400, y = 300) => ({ id: `${type}-x`, type, entity, x, y });
-  const draw = (devices: unknown[], state: StateOverlay) => renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });
+  const draw = (devices: unknown[], state: StateOverlay) =>
+    renderFloor({ ...structuredClone(ground), devices } as never, { ...base, state });
   const group = (html: string) => html.match(/<g data-x="0"[^>]*>.*?<\/g>/s)![0];
   // Opus review finding 8: the two arcs used to be <path> semicircles under transform-box:fill-box, each scaling
   // about its own bbox centre — a semicircle's bbox is only half as tall as it is wide, so its centre sits on the
@@ -567,7 +727,8 @@ describe("S9.4: a speaker radiates while it plays", () => {
   // a square bbox centred on (cx,cy), so scaling it about "center" is automatically concentric with the halo,
   // whatever arc `stroke-dasharray` (with `pathLength="100"` so "50 50" always means "half the circumference,
   // half gap" regardless of r) leaves visible.
-  const WAVE = /<circle class="wave" cx="12" cy="12" r="16"[^>]*\/><circle class="wave w2" cx="12" cy="12" r="16"[^>]*\/><circle class="halo"/;
+  const WAVE =
+    /<circle class="wave" cx="12" cy="12" r="16"[^>]*\/><circle class="wave w2" cx="12" cy="12" r="16"[^>]*\/><circle class="halo"/;
 
   it("a playing speaker or media device draws two staggered arcs before the halo, each a circle centred on the halo's own centre", () => {
     for (const type of ["speaker", "media"]) {
@@ -583,7 +744,9 @@ describe("S9.4: a speaker radiates while it plays", () => {
   it("paused, idle, off, on (not playing), unavailable, unknown or no state draws no arcs", () => {
     for (const type of ["speaker", "media"]) {
       for (const s of ["paused", "idle", "off", "on", "unavailable", "unknown"]) {
-        expect(group(draw([dev(type, "media_player.s")], { "media_player.s": st(s) })), `${type} ${s}`).not.toContain("wave");
+        expect(group(draw([dev(type, "media_player.s")], { "media_player.s": st(s) })), `${type} ${s}`).not.toContain(
+          "wave",
+        );
       }
       expect(group(draw([dev(type, "media_player.s")], {})), `${type} no state`).not.toContain("wave");
     }
@@ -606,7 +769,9 @@ describe("S9.4: a speaker radiates while it plays", () => {
   it("the wave rule pulses from the sensor's own colour, staggered, and holds still under reduced motion", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.wave\{[^}]*stroke:var\(--fp-dev\)[^}]*pointer-events:none[^}]*animation:fp-wave/);
     expect(FLOORPLAN_CSS).toMatch(/\.wave\.w2\{animation-delay:\.8s\}/);
-    expect(FLOORPLAN_CSS).toMatch(/prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave,\.siren-ring\{animation:none\}\.ping,\.wave\{transform:scale\(calc\(1 \+ \.5\*var\(--fp-fx,1\)\)\);opacity:\.6\}/);
+    expect(FLOORPLAN_CSS).toMatch(
+      /prefers-reduced-motion:reduce\)\{\.ping,\.door-alert,\.wave,\.siren-ring\{animation:none\}\.ping,\.wave\{transform:scale\(calc\(1 \+ \.5\*var\(--fp-fx,1\)\)\);opacity:\.6\}/,
+    );
   });
 
   // Opus review finding 8: the wave is now a <circle>, like .ping — so, like .ping, it needs no ".dev.on path.wave"
@@ -619,11 +784,17 @@ describe("S9.4: a speaker radiates while it plays", () => {
 });
 
 describe("S9.3: a TV is a fixed blue in every theme", () => {
-  const themeBlock = (theme: string) => FLOORPLAN_CSS.match(new RegExp(`data-theme="${theme}"\\](?:\\[data-mode="dark"\\])?[^{]*\\{([^}]*)\\}`))?.[1];
+  const themeBlock = (theme: string) =>
+    FLOORPLAN_CSS.match(new RegExp(`data-theme="${theme}"\\](?:\\[data-mode="dark"\\])?[^{]*\\{([^}]*)\\}`))?.[1];
 
   it("every theme's block defines --fp-dev-tv as the same blue, except solarized's own Solarized blue", () => {
     const want: Record<string, string> = {
-      blueprint: "#2c7fb8", midnight: "#2c7fb8", light: "#2c7fb8", slate: "#2c7fb8", terminal: "#2c7fb8", solarized: "#268bd2",
+      blueprint: "#2c7fb8",
+      midnight: "#2c7fb8",
+      light: "#2c7fb8",
+      slate: "#2c7fb8",
+      terminal: "#2c7fb8",
+      solarized: "#268bd2",
     };
     for (const [theme, hex] of Object.entries(want)) expect(themeBlock(theme), theme).toContain(`--fp-dev-tv:${hex}`);
   });
@@ -724,9 +895,12 @@ describe("viewBoxFor", () => {
 
 describe("bound light", () => {
   const f = structuredClone(ground);
-  const L1 = "light.demo_living", S1 = "switch.demo_living_relay";
+  const L1 = "light.demo_living",
+    S1 = "switch.demo_living_relay";
   const g = (state: StateOverlay | undefined, floor = f) =>
-    renderFloor(floor, { ...base, state }).match(/<g[^>]*data-x="\d+"[^>]*class="dev dev-light[^"]*"[^>]*>[^]*?<\/g>/g)!.find((s) => s.includes("Living"))!;
+    renderFloor(floor, { ...base, state })
+      .match(/<g[^>]*data-x="\d+"[^>]*class="dev dev-light[^"]*"[^>]*>[^]*?<\/g>/g)!
+      .find((s) => s.includes("Living"))!;
   const cls = (s: string) => /class="([^"]*)"/.exec(s)![1];
 
   it("uses the class token bound and shows both names in the title", () => {
@@ -771,7 +945,9 @@ describe("bound light", () => {
     expect(html).not.toContain("bound");
   });
   it("names the bound entity by friendly_name when known, else by its id", () => {
-    expect(g({ [S1]: st("off", { attributes: { friendly_name: "Relay <1>" } }) })).toContain("<title>light: Living light + Relay &lt;1&gt;</title>");
+    expect(g({ [S1]: st("off", { attributes: { friendly_name: "Relay <1>" } }) })).toContain(
+      "<title>light: Living light + Relay &lt;1&gt;</title>",
+    );
   });
 });
 
@@ -790,32 +966,65 @@ describe("zone paint order", () => {
 });
 
 describe("nested room paint order", () => {
-  const sq = (x: number, y: number, w: number): Pt[] => [[x, y], [x + w, y], [x + w, y + w], [x, y + w]];
+  const sq = (x: number, y: number, w: number): Pt[] => [
+    [x, y],
+    [x + w, y],
+    [x + w, y + w],
+    [x, y + w],
+  ];
   const lay = (rooms: { name: string; pts: Pt[] }[]) => {
     const f = structuredClone(ground);
     f.rooms = rooms.map((r) => ({ kind: "garden" as RoomKind, ...r })) as unknown as typeof f.rooms;
-    f.devices = []; f.stairs = []; f.furniture = []; f.walls = [];
+    f.devices = [];
+    f.stairs = [];
+    f.furniture = [];
+    f.walls = [];
     return f;
   };
   const at = (html: string, i: number) => html.indexOf(`<polygon data-r="${i}"`);
 
   it("paints a room inside a bigger one after it, even when it comes first in the array", () => {
-    const html = renderFloor(lay([{ name: "House", pts: sq(100, 100, 100) }, { name: "Garden", pts: sq(0, 0, 400) }]), { scale: 0.5 });
+    const html = renderFloor(
+      lay([
+        { name: "House", pts: sq(100, 100, 100) },
+        { name: "Garden", pts: sq(0, 0, 400) },
+      ]),
+      { scale: 0.5 },
+    );
     expect(at(html, 0)).toBeGreaterThan(at(html, 1));
     expect(at(html, 1)).toBeGreaterThan(-1);
   });
   it("keeps array order for rooms that are not nested, and for the already right order", () => {
-    const side = renderFloor(lay([{ name: "A", pts: sq(0, 0, 100) }, { name: "B", pts: sq(200, 0, 100) }]), { scale: 0.5 });
+    const side = renderFloor(
+      lay([
+        { name: "A", pts: sq(0, 0, 100) },
+        { name: "B", pts: sq(200, 0, 100) },
+      ]),
+      { scale: 0.5 },
+    );
     expect(at(side, 0)).toBeLessThan(at(side, 1));
-    const ok = renderFloor(lay([{ name: "Garden", pts: sq(0, 0, 400) }, { name: "House", pts: sq(100, 100, 100) }]), { scale: 0.5 });
+    const ok = renderFloor(
+      lay([
+        { name: "Garden", pts: sq(0, 0, 400) },
+        { name: "House", pts: sq(100, 100, 100) },
+      ]),
+      { scale: 0.5 },
+    );
     expect(at(ok, 0)).toBeLessThan(at(ok, 1));
   });
   it("orders three levels by nesting, and a degenerate polygon does not throw", () => {
-    const f = lay([{ name: "Pond", pts: sq(120, 120, 20) }, { name: "House", pts: sq(100, 100, 100) }, { name: "Garden", pts: sq(0, 0, 400) }]);
+    const f = lay([
+      { name: "Pond", pts: sq(120, 120, 20) },
+      { name: "House", pts: sq(100, 100, 100) },
+      { name: "Garden", pts: sq(0, 0, 400) },
+    ]);
     const html = renderFloor(f, { scale: 0.5 });
     expect(at(html, 2)).toBeLessThan(at(html, 1));
     expect(at(html, 1)).toBeLessThan(at(html, 0));
-    f.rooms[1].pts = [[100, 100], [200, 100]]; // a degenerate ring: no area, so it is never a parent or a child
+    f.rooms[1].pts = [
+      [100, 100],
+      [200, 100],
+    ]; // a degenerate ring: no area, so it is never a parent or a child
     expect(() => renderFloor(f, { scale: 0.5 })).not.toThrow();
   });
 });
@@ -824,7 +1033,12 @@ describe("wall kinds", () => {
   const kinds = ["wall", "boundary", "external", "fence", "edge"] as const;
   const withWalls = () => {
     const f = structuredClone(ground);
-    f.walls = kinds.map((kind, i) => ({ id: `w${i}`, a: [0, 500 + i * 20] as [number, number], b: [100, 500 + i * 20] as [number, number], kind }));
+    f.walls = kinds.map((kind, i) => ({
+      id: `w${i}`,
+      a: [0, 500 + i * 20] as [number, number],
+      b: [100, 500 + i * 20] as [number, number],
+      kind,
+    }));
     return f;
   };
   const line = (html: string, i: number) => html.match(new RegExp(`<line class="([^"]*)" data-w="${i}"`))?.[1];
@@ -840,11 +1054,15 @@ describe("wall kinds", () => {
     }
     expect(FLOORPLAN_CSS).toMatch(/\.e\.external\{[^}]*stroke-width:(\d+(\.\d+)?)/);
     expect(FLOORPLAN_CSS).toMatch(/\.e\.fence\{[^}]*stroke-dasharray:\d+ \d+ \d+ \d+/); // dash-dot
-    const walls = renderFloor(withWalls(), base).split("\n").filter((l) => l.includes("data-w=")).join("\n");
+    const walls = renderFloor(withWalls(), base)
+      .split("\n")
+      .filter((l) => l.includes("data-w="))
+      .join("\n");
     expect(walls).not.toMatch(/#[0-9a-f]{3,8}|rgb\(|stroke="|style=/i);
   });
   it("the external wall is thicker than a wall, the fence is thinner", () => {
-    const w = (k: string) => +(FLOORPLAN_CSS.match(new RegExp(`\\.e\\.${k}\\{[^}]*stroke-width:([\\d.]+)`))?.[1] ?? NaN);
+    const w = (k: string) =>
+      +(FLOORPLAN_CSS.match(new RegExp(`\\.e\\.${k}\\{[^}]*stroke-width:([\\d.]+)`))?.[1] ?? NaN);
     const wall = +(FLOORPLAN_CSS.match(/\.e\{[^}]*stroke-width:([\d.]+)/)?.[1] ?? NaN);
     expect(w("external")).toBeGreaterThan(wall);
     expect(w("fence")).toBeLessThan(wall);
@@ -863,11 +1081,19 @@ describe("wall kinds", () => {
   // same as before) — pinning every kind here means a future kind fails until someone writes down its own thickness,
   // the same guard the review asked for on DEVICE_TYPES/RoomKind.
   it("S8.9: pins every WallKind's own line thickness", () => {
-    const THICKNESS: Record<(typeof kinds)[number], number> = { wall: 10, boundary: 1.5, external: 20, fence: 1.5, edge: 1.5 };
+    const THICKNESS: Record<(typeof kinds)[number], number> = {
+      wall: 10,
+      boundary: 1.5,
+      external: 20,
+      fence: 1.5,
+      edge: 1.5,
+    };
     const html = renderFloor(withWalls(), base);
     kinds.forEach((k, i) => {
       const cls = line(html, i)!; // "e", "e nw", "e external", "e fence", "e edge"
-      const w = +(FLOORPLAN_CSS.match(new RegExp(`\\.${cls.split(" ").join("\\.")}\\{[^}]*stroke-width:([\\d.]+)`))?.[1] ?? NaN);
+      const w = +(
+        FLOORPLAN_CSS.match(new RegExp(`\\.${cls.split(" ").join("\\.")}\\{[^}]*stroke-width:([\\d.]+)`))?.[1] ?? NaN
+      );
       expect(w, k).toBe(THICKNESS[k]);
     });
   });
@@ -884,18 +1110,28 @@ describe("wall kinds", () => {
 describe("S8.9 part 2: a door or window takes the thickness of the wall it sits on", () => {
   // A tiny, walls-only floor (empty outline: renderFloor draws nothing for it, and it sits far enough from
   // nothing to ever tie with a real wall) so the wall a door snaps to is never ambiguous.
-  const floor = () => ({
-    title: "T", outline: [], rooms: [], stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
-    walls: [
-      { id: "wi", a: [0, 0], b: [200, 0], kind: "wall" },
-      { id: "we", a: [0, 200], b: [200, 200], kind: "external" },
-    ],
-    doors: [
-      { id: "di", name: "Internal door", kind: "door", a: [50, 0], b: [140, 0] },
-      { id: "de", name: "External door", kind: "door", a: [50, 200], b: [140, 200] },
-    ],
-  } as unknown as typeof ground);
-  const widthOf = (html: string, i: number) => +(html.match(new RegExp(`data-d="${i}" class="door door-[^"]*"[^>]*stroke-width="(\\d+)"`))?.[1] ?? NaN);
+  const floor = () =>
+    ({
+      title: "T",
+      outline: [],
+      rooms: [],
+      stairs: [],
+      openings: [],
+      extras: [],
+      devices: [],
+      furniture: [],
+      unlinked: [],
+      walls: [
+        { id: "wi", a: [0, 0], b: [200, 0], kind: "wall" },
+        { id: "we", a: [0, 200], b: [200, 200], kind: "external" },
+      ],
+      doors: [
+        { id: "di", name: "Internal door", kind: "door", a: [50, 0], b: [140, 0] },
+        { id: "de", name: "External door", kind: "door", a: [50, 200], b: [140, 200] },
+      ],
+    }) as unknown as typeof ground;
+  const widthOf = (html: string, i: number) =>
+    +(html.match(new RegExp(`data-d="${i}" class="door door-[^"]*"[^>]*stroke-width="(\\d+)"`))?.[1] ?? NaN);
 
   it("renders at 10 on an internal wall, at 20 on an external one", () => {
     const html = renderFloor(floor(), base);
@@ -912,7 +1148,11 @@ describe("S8.9 part 2: a door or window takes the thickness of the wall it sits 
   it("keeps the old fixed 22 cm click target regardless (finding 3): an invisible, same-position door-hit twin", () => {
     const html = renderFloor(floor(), base);
     for (const i of [0, 1]) {
-      expect(html).toMatch(new RegExp(`<line data-d="${i}" class="door-hit" x1="[^"]+" y1="[^"]+" x2="[^"]+" y2="[^"]+" stroke-width="22"/>`));
+      expect(html).toMatch(
+        new RegExp(
+          `<line data-d="${i}" class="door-hit" x1="[^"]+" y1="[^"]+" x2="[^"]+" y2="[^"]+" stroke-width="22"/>`,
+        ),
+      );
     }
     // Opus review: door-hit is the draggable click target, but nothing said so to the pointer.
     expect(FLOORPLAN_CSS).toMatch(/\.door-hit\{stroke:transparent;pointer-events:stroke;cursor:move\}/);
@@ -926,29 +1166,89 @@ describe("S8.9 part 2: a door or window takes the thickness of the wall it sits 
 });
 
 describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whichever nearestEdge kept on a tie", () => {
-  const widthOf = (html: string, i: number) => +(html.match(new RegExp(`data-d="${i}" class="door door-[^"]*"[^>]*stroke-width="(\\d+)"`))?.[1] ?? NaN);
+  const widthOf = (html: string, i: number) =>
+    +(html.match(new RegExp(`data-d="${i}" class="door door-[^"]*"[^>]*stroke-width="(\\d+)"`))?.[1] ?? NaN);
   const openingWidthOf = (html: string) => +(html.match(/class="opening"[^>]*stroke-width="(\d+)"/)?.[1] ?? NaN);
 
   it("an outline edge set to none, exactly under a room edge set to external, renders at 20 (the widest, not the first)", () => {
     // nearestEdge visits the outline before any room (polys() order), so on an exact-distance tie it used to keep
     // "none" (the outline) and miss the room's "external" sitting on the very same segment.
     const f = {
-      title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["none", "wall", "wall", "wall"],
-      rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
-      walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 0], b: [140, 0] }],
-      stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+      title: "T",
+      outline: [
+        [0, 0],
+        [200, 0],
+        [200, 100],
+        [0, 100],
+      ],
+      owk: ["none", "wall", "wall", "wall"],
+      rooms: [
+        {
+          id: "r1",
+          name: "R",
+          area: "",
+          kind: "room",
+          pts: [
+            [0, 0],
+            [200, 0],
+            [200, 50],
+            [0, 50],
+          ],
+          wk: ["external", "wall", "wall", "wall"],
+        },
+      ],
+      walls: [],
+      doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 0], b: [140, 0] }],
+      stairs: [],
+      openings: [],
+      extras: [],
+      devices: [],
+      furniture: [],
+      unlinked: [],
     } as unknown as typeof ground;
     expect(widthOf(renderFloor(f, base), 0)).toBe(20);
   });
 
   it("two rooms sharing one edge, one wall and one external, renders at 20 (the widest of the two)", () => {
     const f = {
-      title: "T", outline: [], rooms: [
-        { id: "r1", name: "R1", area: "", kind: "room", pts: [[0, 0], [200, 0], [200, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] },
-        { id: "r2", name: "R2", area: "", kind: "room", pts: [[0, 0], [200, 0], [200, -100], [0, -100]], wk: ["external", "wall", "wall", "wall"] },
+      title: "T",
+      outline: [],
+      rooms: [
+        {
+          id: "r1",
+          name: "R1",
+          area: "",
+          kind: "room",
+          pts: [
+            [0, 0],
+            [200, 0],
+            [200, 100],
+            [0, 100],
+          ],
+          wk: ["wall", "wall", "wall", "wall"],
+        },
+        {
+          id: "r2",
+          name: "R2",
+          area: "",
+          kind: "room",
+          pts: [
+            [0, 0],
+            [200, 0],
+            [200, -100],
+            [0, -100],
+          ],
+          wk: ["external", "wall", "wall", "wall"],
+        },
       ],
-      walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 0], b: [140, 0] }],
-      stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+      walls: [],
+      doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 0], b: [140, 0] }],
+      stairs: [],
+      openings: [],
+      extras: [],
+      devices: [],
+      furniture: [],
+      unlinked: [],
     } as unknown as typeof ground;
     expect(widthOf(renderFloor(f, base), 0)).toBe(20);
   });
@@ -957,10 +1257,37 @@ describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whic
     // The door sits exactly on the room's own wall (y=1, kind wall, distance 0) -- nearestEdge alone would have
     // returned "wall" (10). The outline's external edge one cm away is the same physical wall, drawn wider.
     const f = {
-      title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["external", "wall", "wall", "wall"],
-      rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 1], [200, 1], [200, 50], [0, 50]], wk: ["wall", "wall", "wall", "wall"] }],
-      walls: [], doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 1], b: [140, 1] }],
-      stairs: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [],
+      title: "T",
+      outline: [
+        [0, 0],
+        [200, 0],
+        [200, 100],
+        [0, 100],
+      ],
+      owk: ["external", "wall", "wall", "wall"],
+      rooms: [
+        {
+          id: "r1",
+          name: "R",
+          area: "",
+          kind: "room",
+          pts: [
+            [0, 1],
+            [200, 1],
+            [200, 50],
+            [0, 50],
+          ],
+          wk: ["wall", "wall", "wall", "wall"],
+        },
+      ],
+      walls: [],
+      doors: [{ id: "d0", name: "Door", kind: "door", a: [50, 1], b: [140, 1] }],
+      stairs: [],
+      openings: [],
+      extras: [],
+      devices: [],
+      furniture: [],
+      unlinked: [],
     } as unknown as typeof ground;
     expect(widthOf(renderFloor(f, base), 0)).toBe(20);
   });
@@ -970,9 +1297,36 @@ describe("S8.9 defect 4 (Opus review): the widest coincident edge wins, not whic
     // opening instead of a door: the old tie-break kept the outline ("none", width 10, +2 = 12).
     // Opus review of S8.11 (2026-09-26): OPENING_EXTRA widened from 2 to WALL_HALO_EXTRA + 2 (4), so 20 + 4 = 24.
     const f = {
-      title: "T", outline: [[0, 0], [200, 0], [200, 100], [0, 100]], owk: ["none", "wall", "wall", "wall"],
-      rooms: [{ id: "r1", name: "R", area: "", kind: "room", pts: [[0, 0], [200, 0], [200, 50], [0, 50]], wk: ["external", "wall", "wall", "wall"] }],
-      walls: [], doors: [], stairs: [], extras: [], devices: [], furniture: [], unlinked: [],
+      title: "T",
+      outline: [
+        [0, 0],
+        [200, 0],
+        [200, 100],
+        [0, 100],
+      ],
+      owk: ["none", "wall", "wall", "wall"],
+      rooms: [
+        {
+          id: "r1",
+          name: "R",
+          area: "",
+          kind: "room",
+          pts: [
+            [0, 0],
+            [200, 0],
+            [200, 50],
+            [0, 50],
+          ],
+          wk: ["external", "wall", "wall", "wall"],
+        },
+      ],
+      walls: [],
+      doors: [],
+      stairs: [],
+      extras: [],
+      devices: [],
+      furniture: [],
+      unlinked: [],
       openings: [{ id: "o0", a: [50, 0], b: [140, 0] }],
     } as unknown as typeof ground;
     expect(openingWidthOf(renderFloor(f, base))).toBe(24);
@@ -988,7 +1342,8 @@ describe("S8.11: an opening is a real hole, cut from the wall layer with a <mask
   /** The id a `<g mask="url(#...)">` names, or undefined when there is none. */
   const wallGroupMaskId = (html: string) => html.match(/<g mask="url\(#([^")]+)\)">/)?.[1];
   /** The `<mask id="...">...</mask>` block that id names, or undefined. */
-  const maskBlock = (html: string, id: string) => html.match(new RegExp(`<mask id="${id}"[^>]*>([\\s\\S]*?)</mask>`))?.[1];
+  const maskBlock = (html: string, id: string) =>
+    html.match(new RegExp(`<mask id="${id}"[^>]*>([\\s\\S]*?)</mask>`))?.[1];
 
   it("a floor with an opening wraps its wall lines in a <g mask> naming a <mask> with one black cut per opening", () => {
     const f = withOpening();
@@ -1055,8 +1410,11 @@ describe("renderFloor never throws on a layout that skipped validate (review S1.
   for (const bad of [5, { a: 1 }, ["x", 2], null, undefined, true]) {
     it(`name and title fields = ${JSON.stringify(bad)}`, () => {
       const f: any = structuredClone(ground);
-      f.rooms[0].name = bad; f.rooms[3].name = bad;
-      f.stairs[0].name = bad; f.doors[0].name = bad; f.devices[0].name = bad;
+      f.rooms[0].name = bad;
+      f.rooms[3].name = bad;
+      f.stairs[0].name = bad;
+      f.doors[0].name = bad;
+      f.devices[0].name = bad;
       f.extras.push({ id: "x1", name: bad, a: [0, 0], b: [50, 50] });
       expect(() => renderFloor(f, { ...base, showNames: true })).not.toThrow();
     });
@@ -1079,19 +1437,40 @@ describe("garden and pavement (S1.14)", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.room-terrace:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-terrace\)[^}]*\}/);
     expect(FLOORPLAN_CSS).toMatch(/\.room-pavement:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-pavement\)[^}]*\}/);
     expect(FLOORPLAN_CSS).not.toContain("--fp-outdoor");
-    for (const [v, c] of [["garden", "#9db98a"], ["terrace", "#cdb094"], ["pavement", "#c9c6bf"]]) expect(FLOORPLAN_CSS).toContain(`--fp-${v}:${c}`);
+    for (const [v, c] of [
+      ["garden", "#9db98a"],
+      ["terrace", "#cdb094"],
+      ["pavement", "#c9c6bf"],
+    ])
+      expect(FLOORPLAN_CSS).toContain(`--fp-${v}:${c}`);
   });
 });
 
 describe("fill is hatched (S1.15)", () => {
   const withFill = (n: number) => {
     const f = structuredClone(ground);
-    for (let i = 0; i < n; i++) f.rooms.push({ id: `fill${i}`, name: `F${i}`, area: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], wk: ["wall", "wall", "wall"] });
+    for (let i = 0; i < n; i++)
+      f.rooms.push({
+        id: `fill${i}`,
+        name: `F${i}`,
+        area: "",
+        kind: "fill",
+        pts: [
+          [0, 0],
+          [50, 0],
+          [50, 50],
+        ],
+        wk: ["wall", "wall", "wall"],
+      });
     return f;
   };
   it("emits the hatch pattern first, once, and the class points at it", () => {
     const html = renderFloor(withFill(1), base);
-    expect(html.startsWith('<defs><pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">')).toBe(true);
+    expect(
+      html.startsWith(
+        '<defs><pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">',
+      ),
+    ).toBe(true);
     expect(html.match(/<defs>/g)).toHaveLength(1);
     expect(html).toContain('<rect width="12" height="12" fill="var(--fp-fill)"/>');
     expect(html).toContain('stroke="var(--fp-fill-line)"');
@@ -1130,7 +1509,19 @@ describe("room colour (S1.16)", () => {
   });
   it("a fill room with a colour renders and still emits the hatch", () => {
     const f = structuredClone(ground);
-    f.rooms.push({ id: "f1", name: "F", area: "", kind: "fill", pts: [[0, 0], [50, 0], [50, 50]], wk: ["wall", "wall", "wall"], color: "#aabbcc" });
+    f.rooms.push({
+      id: "f1",
+      name: "F",
+      area: "",
+      kind: "fill",
+      pts: [
+        [0, 0],
+        [50, 0],
+        [50, 50],
+      ],
+      wk: ["wall", "wall", "wall"],
+      color: "#aabbcc",
+    });
     const html = renderFloor(f, base);
     expect(html).toContain("<defs>");
     expect(html).toContain('class="room room-fill" fill="#aabbcc"');
@@ -1197,8 +1588,15 @@ describe("theme (S2.12)", () => {
     expect(renderFloor(ground, base)).not.toContain("data-theme");
   });
   it("the default block is blueprint; light and ha override it, and ha maps only neutrals onto Home Assistant's variables, each with a fallback", () => {
-    const tokenPairs = (css: string) => new Map((css.match(/--fp-[a-z-]+:[^;]+/g) ?? []).map((kv) => { const j = kv.indexOf(":"); return [kv.slice(0, j), kv.slice(j + 1).replace(/\}$/, "")]; }));
-    const block = (sel: string) => FLOORPLAN_CSS.match(new RegExp(sel.replace(/[[\]().]/g, "\\$&") + "[^{]*\\{[^}]*\\}", "s"))?.[0] ?? "";
+    const tokenPairs = (css: string) =>
+      new Map(
+        (css.match(/--fp-[a-z-]+:[^;]+/g) ?? []).map((kv) => {
+          const j = kv.indexOf(":");
+          return [kv.slice(0, j), kv.slice(j + 1).replace(/\}$/, "")];
+        }),
+      );
+    const block = (sel: string) =>
+      FLOORPLAN_CSS.match(new RegExp(sel.replace(/[[\]().]/g, "\\$&") + "[^{]*\\{[^}]*\\}", "s"))?.[0] ?? "";
     const base_ = tokenPairs(FLOORPLAN_CSS.match(/:host,\.fp\{[^}]*\}/s)?.[0] ?? "");
     const light = tokenPairs(block(':host([data-theme="light"])'));
     // ha's un-themed neutrals fall back to midnight's fixed hexes, not to whatever the default theme (blueprint) currently is
@@ -1206,21 +1604,38 @@ describe("theme (S2.12)", () => {
     const midnight = tokenPairs(block(':host([data-theme="midnight"])'));
     const ha = tokenPairs(block(':host([data-theme="ha"])'));
     expect(new Set(light.keys())).toEqual(new Set(base_.keys())); // every token is defined by every theme
-    for (const k of ["--fp-ink", "--fp-bg", "--fp-room", "--fp-wall", "--fp-disc", "--fp-outline", "--fp-measure", "--fp-wall-external"])
+    for (const k of [
+      "--fp-ink",
+      "--fp-bg",
+      "--fp-room",
+      "--fp-wall",
+      "--fp-disc",
+      "--fp-outline",
+      "--fp-measure",
+      "--fp-wall-external",
+    ])
       expect(light.get(k), k).not.toBe(midnight.get(k)); // a light block copied from midnight would fail here
-    for (const k of ["--fp-ink", "--fp-bg", "--fp-room", "--fp-wall", "--fp-measure"]) expect(ha.get(k), k).toMatch(/^var\(--[a-z-]+,[^)]+\)$/);
-    for (const k of ["--fp-on", "--fp-danger", "--fp-warn", "--fp-primary"]) if (midnight.has(k)) expect(ha.get(k), k).toBe(midnight.get(k)); // meaning colours never follow the host's theme
+    for (const k of ["--fp-ink", "--fp-bg", "--fp-room", "--fp-wall", "--fp-measure"])
+      expect(ha.get(k), k).toMatch(/^var\(--[a-z-]+,[^)]+\)$/);
+    for (const k of ["--fp-on", "--fp-danger", "--fp-warn", "--fp-primary"])
+      if (midnight.has(k)) expect(ha.get(k), k).toBe(midnight.get(k)); // meaning colours never follow the host's theme
   });
 });
 
 describe("device rotation (S1.23)", () => {
-  const withRot = (rot?: number) => { const f = structuredClone(ground); if (rot !== undefined) (f.devices[0] as { rot?: number }).rot = rot; return renderFloor(f, base); };
+  const withRot = (rot?: number) => {
+    const f = structuredClone(ground);
+    if (rot !== undefined) (f.devices[0] as { rot?: number }).rot = rot;
+    return renderFloor(f, base);
+  };
   const group = (html: string) => html.match(/<g data-x="0"[^>]*>/)![0];
 
   it("turns the device group by rot about its centre and the icon back by the same amount", () => {
     const html = withRot(90);
     expect(group(html)).toMatch(/transform="translate\([^)]*\) scale\([^)]*\) rotate\(90 12 12\)"/);
-    expect(html).toMatch(/<g data-x="0"[^>]*>(<title>[^<]*<\/title>)<g transform="rotate\(-90 12 12\)"><circle[^>]*\/><path d="[^"]*"\/><\/g><\/g>/);
+    expect(html).toMatch(
+      /<g data-x="0"[^>]*>(<title>[^<]*<\/title>)<g transform="rotate\(-90 12 12\)"><circle[^>]*\/><path d="[^"]*"\/><\/g><\/g>/,
+    );
   });
 
   it("a device with rot 0 renders byte-identical to one with no rot", () => {
@@ -1230,15 +1645,29 @@ describe("device rotation (S1.23)", () => {
   });
 
   it("does not touch the other devices", () => {
-    const a = withRot(), b = withRot(45);
+    const a = withRot(),
+      b = withRot(45);
     expect(b.match(/<g data-x="[1-9]"[^>]*>/g)).toEqual(a.match(/<g data-x="[1-9]"[^>]*>/g));
   });
 });
 
 describe("stairs treads (S1.25)", () => {
-  const withStairs = (t: object) => { const f = structuredClone(ground); Object.assign(f.stairs[0], t); return renderFloor(f, base); };
+  const withStairs = (t: object) => {
+    const f = structuredClone(ground);
+    Object.assign(f.stairs[0], t);
+    return renderFloor(f, base);
+  };
   const group = (html: string) => html.match(/<g data-s="0"[^>]*>[\s\S]*?<\/g>/)![0];
-  const round = { shape: "round", dia: 200, inner: 60, steps: 12, pts: Array.from({ length: 24 }, (_, i): [number, number] => [Math.round(500 + 100 * Math.cos((i * Math.PI) / 12)), Math.round(400 + 100 * Math.sin((i * Math.PI) / 12))]) };
+  const round = {
+    shape: "round",
+    dia: 200,
+    inner: 60,
+    steps: 12,
+    pts: Array.from({ length: 24 }, (_, i): [number, number] => [
+      Math.round(500 + 100 * Math.cos((i * Math.PI) / 12)),
+      Math.round(400 + 100 * Math.sin((i * Math.PI) / 12)),
+    ]),
+  };
 
   it("wraps a straight flight in a group with its rotation about the box centre and draws steps - 1 treads across it", () => {
     const g = group(withStairs({ shape: "straight", steps: 99, rot: 30 })); // a stored count is ignored: the run gives 160 / 40 = 4
@@ -1254,15 +1683,31 @@ describe("stairs treads (S1.25)", () => {
     expect(g).toContain('class="stairs room"');
   });
   it("draws the treads of a flight that is wider than long across its short side", () => {
-    const g = group(withStairs({ pts: [[0, 0], [200, 0], [200, 50], [0, 50]] }));
+    const g = group(
+      withStairs({
+        pts: [
+          [0, 0],
+          [200, 0],
+          [200, 50],
+          [0, 50],
+        ],
+      }),
+    );
     const treads = [...g.matchAll(/<line class="tread" x1="([\d.]+)" y1="([\d.]+)" x2="([\d.]+)" y2="([\d.]+)"/g)];
-    expect(treads.map((m) => [m[1], m[2], m[3], m[4]])).toEqual([["40", "0", "40", "50"], ["80", "0", "80", "50"], ["120", "0", "120", "50"], ["160", "0", "160", "50"]]);
+    expect(treads.map((m) => [m[1], m[2], m[3], m[4]])).toEqual([
+      ["40", "0", "40", "50"],
+      ["80", "0", "80", "50"],
+      ["120", "0", "120", "50"],
+      ["160", "0", "160", "50"],
+    ]);
   });
   it("draws a round stair as one even-odd path with a hole, and 9 spokes (pi * 130 / 40 rounds to 10 steps) from the inner to the outer rim", () => {
     const g = group(withStairs(round));
     expect(g).toMatch(/<path class="stairs room" fill-rule="evenodd" d="M/);
     expect(g).not.toContain("<polygon");
-    const spokes = [...g.matchAll(/<line class="tread" x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)"\/>/g)];
+    const spokes = [
+      ...g.matchAll(/<line class="tread" x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)"\/>/g),
+    ];
     expect(spokes).toHaveLength(9);
     for (const m of spokes) {
       expect(Math.hypot(+m[1] - 500, +m[2] - 400)).toBeCloseTo(30, 0);
@@ -1282,18 +1727,30 @@ describe("stairs treads (S1.25)", () => {
   it("the tread style exists", () => expect(FLOORPLAN_CSS).toMatch(/--fp-tread:#8b8578/));
   it("S1.50: the measure grid style exists: thin, non-scaling, brighter on the metre", () => {
     expect(FLOORPLAN_CSS).toContain("--fp-measure:#3a3a3a");
-    expect(FLOORPLAN_CSS).toMatch(/\.mg\{stroke:var\(--fp-measure\);stroke-width:\.5;vector-effect:non-scaling-stroke\}/);
+    expect(FLOORPLAN_CSS).toMatch(
+      /\.mg\{stroke:var\(--fp-measure\);stroke-width:\.5;vector-effect:non-scaling-stroke\}/,
+    );
     expect(FLOORPLAN_CSS).toMatch(/\.mg\.m\{stroke-width:1\}/);
   });
   it("a stair that skipped migrate still draws (no shape, no steps)", () => {
     const f = structuredClone(ground) as any;
-    delete f.stairs[0].shape; delete f.stairs[0].steps; delete f.stairs[0].rot;
+    delete f.stairs[0].shape;
+    delete f.stairs[0].steps;
+    delete f.stairs[0].rot;
     expect(group(renderFloor(f, base)).match(/class="tread"/g)).toHaveLength(3);
   });
 });
 
 describe("stairSteps (S1.44)", () => {
-  const box = (w: number, h: number) => ({ pts: [[0, 0], [w, 0], [w, h], [0, h]] as [number, number][], shape: "straight" as const });
+  const box = (w: number, h: number) => ({
+    pts: [
+      [0, 0],
+      [w, 0],
+      [w, h],
+      [0, h],
+    ] as [number, number][],
+    shape: "straight" as const,
+  });
   it("is one per 40 cm of the long side, rounded, from 2 to 40", () => {
     expect(stairSteps(box(100, 300))).toBe(8); // 7.5 rounds up
     expect(stairSteps(box(300, 100))).toBe(8);
@@ -1306,7 +1763,9 @@ describe("stairSteps (S1.44)", () => {
     expect(stairSteps({ ...box(200, 200), shape: "round", dia: 200, inner: 80 })).toBe(11);
     expect(stairSteps({ ...box(200, 200), shape: "round", dia: 200 })).toBe(8);
   });
-  it("survives rubbish points", () => { expect(stairSteps({ pts: [] as never, shape: "straight" })).toBe(2); });
+  it("survives rubbish points", () => {
+    expect(stairSteps({ pts: [] as never, shape: "straight" })).toBe(2);
+  });
 });
 
 describe("devices sit on top (S1.29)", () => {
@@ -1320,7 +1779,9 @@ describe("devices sit on top (S1.29)", () => {
   it("the halo is a class, with no inline fill", () => {
     expect(html).toContain('<circle class="halo" cx="12" cy="12" r="16"/>'); // the icon is 12 out, the disc 3 more plus one
     expect(html).not.toContain("fill-opacity");
-    expect(FLOORPLAN_CSS).toMatch(/\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:var\(--fp-disc-alpha\);stroke:var\(--fp-halo\);stroke-width:1;vector-effect:non-scaling-stroke\}/);
+    expect(FLOORPLAN_CSS).toMatch(
+      /\.dev \.halo\{fill:var\(--fp-disc\);fill-opacity:var\(--fp-disc-alpha\);stroke:var\(--fp-halo\);stroke-width:1;vector-effect:non-scaling-stroke\}/,
+    );
     expect(FLOORPLAN_CSS).toContain("--fp-halo:#8b8578");
     expect(FLOORPLAN_CSS).toContain("--fp-disc:#fff");
     expect(FLOORPLAN_CSS).toContain("--fp-disc-alpha:.5");
@@ -1328,25 +1789,42 @@ describe("devices sit on top (S1.29)", () => {
   });
   it("a device on a room-name spot draws after that name", () => {
     const room = ground.rooms.find((r) => r.name && r.kind !== "fill" && r.kind !== "zone")!;
-    const cx = room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length, cy = room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length;
-    const f = { ...ground, devices: [{ id: "d", type: "light", entity: "light.x", x: cx, y: cy }] } as unknown as typeof ground;
+    const cx = room.pts.reduce((s, p) => s + p[0], 0) / room.pts.length,
+      cy = room.pts.reduce((s, p) => s + p[1], 0) / room.pts.length;
+    const f = {
+      ...ground,
+      devices: [{ id: "d", type: "light", entity: "light.x", x: cx, y: cy }],
+    } as unknown as typeof ground;
     const h = renderFloor(f, base);
     expect(h.indexOf("<g data-x=")).toBeGreaterThan(h.indexOf(`>${room.name}</text>`));
   });
   it("fix/heater-bar-under-icon: a heater's bar draws before its icon group, so the icon paints on top", () => {
-    const f = { ...ground, devices: [{ id: "bar", type: "heater", entity: "climate.bar", a: [3000, 10], b: [3100, 10] }] } as unknown as typeof ground;
+    const f = {
+      ...ground,
+      devices: [{ id: "bar", type: "heater", entity: "climate.bar", a: [3000, 10], b: [3100, 10] }],
+    } as unknown as typeof ground;
     const h = renderFloor(f, base);
-    const bar = h.indexOf('data-xbar="0"'), icon = h.indexOf('data-x="0"');
+    const bar = h.indexOf('data-xbar="0"'),
+      icon = h.indexOf('data-x="0"');
     expect(bar).toBeGreaterThan(-1);
     expect(icon).toBeGreaterThan(-1);
     expect(bar).toBeLessThan(icon);
   });
 
   it("S2.5: the heater bar carries the on class only when hvac_action is heating", () => {
-    const f = { ...ground, devices: [{ id: "bar", type: "heater", entity: "climate.bar", a: [3000, 10], b: [3100, 10] }] } as unknown as typeof ground;
-    const heating = renderFloor(f, { ...base, state: { "climate.bar": st("heat", { attributes: { hvac_action: "heating" } }) } });
+    const f = {
+      ...ground,
+      devices: [{ id: "bar", type: "heater", entity: "climate.bar", a: [3000, 10], b: [3100, 10] }],
+    } as unknown as typeof ground;
+    const heating = renderFloor(f, {
+      ...base,
+      state: { "climate.bar": st("heat", { attributes: { hvac_action: "heating" } }) },
+    });
     expect(heating).toMatch(/<line data-xbar="0" class="heater on"/);
-    const idle = renderFloor(f, { ...base, state: { "climate.bar": st("heat", { attributes: { hvac_action: "idle" } }) } });
+    const idle = renderFloor(f, {
+      ...base,
+      state: { "climate.bar": st("heat", { attributes: { hvac_action: "idle" } }) },
+    });
     expect(idle).toMatch(/<line data-xbar="0" class="heater off"/);
     const noState = renderFloor(f, base);
     expect(noState).toMatch(/<line data-xbar="0" class="heater off"/);
@@ -1354,15 +1832,44 @@ describe("devices sit on top (S1.29)", () => {
 });
 
 describe("outdoor sensors and the palette (S1.30)", () => {
-  const room = (kind: string, pts: [number, number][]) => ({ id: kind, name: "", area: "", kind, pts, wk: pts.map(() => "boundary") });
+  const room = (kind: string, pts: [number, number][]) => ({
+    id: kind,
+    name: "",
+    area: "",
+    kind,
+    pts,
+    wk: pts.map(() => "boundary"),
+  });
   const dev = (type: string, x: number, y: number) => ({ id: `${type}-${x}`, type, entity: "sensor.x", x, y });
   const draw = (rooms: unknown[], devices: unknown[]) =>
-    renderFloor({ ...ground, rooms, devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [] } as unknown as typeof ground, base);
-  const box = (x: number, y: number): [number, number][] => [[x, y], [x + 100, y], [x + 100, y + 100], [x, y + 100]];
-  const classOfDev = (html: string, i: number) => html.match(new RegExp(`<g data-x="${i}" class="([^"]*)"`))![1].split(" ");
+    renderFloor(
+      {
+        ...ground,
+        rooms,
+        devices,
+        doors: [],
+        walls: [],
+        openings: [],
+        furniture: [],
+        stairs: [],
+        extras: [],
+      } as unknown as typeof ground,
+      base,
+    );
+  const box = (x: number, y: number): [number, number][] => [
+    [x, y],
+    [x + 100, y],
+    [x + 100, y + 100],
+    [x, y + 100],
+  ];
+  const classOfDev = (html: string, i: number) =>
+    html.match(new RegExp(`<g data-x="${i}" class="([^"]*)"`))![1].split(" ");
 
   it("a temp sensor inside a garden room gets outdoor; one in a normal room does not", () => {
-    const html = draw([room("garden", box(0, 0)), room("room", box(300, 0))], [dev("temp", 50, 50), dev("temp", 350, 50)]);
+    const html = draw(
+      [room("garden", box(0, 0)), room("room", box(300, 0))],
+      [dev("temp", 50, 50), dev("temp", 350, 50)],
+    );
     expect(classOfDev(html, 0)).toContain("outdoor");
     expect(classOfDev(html, 1)).not.toContain("outdoor");
   });
@@ -1379,7 +1886,21 @@ describe("outdoor sensors and the palette (S1.30)", () => {
     expect(classOfDev(draw([room("garden", box(0, 0))], [dev("motion", 50, 50)]), 0)).not.toContain("outdoor");
   });
   it("carries the palette", () => {
-    const want: Record<string, string> = { light: "#e0a800", motion: "#d64545", contact: "#d64545", heater: "#e8801a", climate: "#e8801a", "ac-cool": "#2c7fb8", "ac-heat": "#e8801a", tv: "#2c7fb8", plug: "#2c7fb8", computer: "#2c7fb8", camera: "#4a4a48", garden: "#3f8f4f", person: "#1b9e77" };
+    const want: Record<string, string> = {
+      light: "#e0a800",
+      motion: "#d64545",
+      contact: "#d64545",
+      heater: "#e8801a",
+      climate: "#e8801a",
+      "ac-cool": "#2c7fb8",
+      "ac-heat": "#e8801a",
+      tv: "#2c7fb8",
+      plug: "#2c7fb8",
+      computer: "#2c7fb8",
+      camera: "#4a4a48",
+      garden: "#3f8f4f",
+      person: "#1b9e77",
+    };
     for (const [k, v] of Object.entries(want)) expect(FLOORPLAN_CSS).toContain(`--fp-dev-${k}:${v}`);
     expect(FLOORPLAN_CSS).toContain(".dev-camera path{fill:var(--fp-dev-camera)}");
     expect(FLOORPLAN_CSS).toContain(".dev.outdoor path{fill:var(--fp-dev-garden)}");
@@ -1387,23 +1908,53 @@ describe("outdoor sensors and the palette (S1.30)", () => {
 });
 
 describe("S2.9: a device wears its colour when it is on", () => {
-  const dev = (type: string, entity: string, extra: Record<string, unknown> = {}) => ({ id: `${type}-x`, type, entity, x: 50, y: 50, ...extra });
+  const dev = (type: string, entity: string, extra: Record<string, unknown> = {}) => ({
+    id: `${type}-x`,
+    type,
+    entity,
+    x: 50,
+    y: 50,
+    ...extra,
+  });
   const draw = (devices: unknown[], state: StateOverlay) =>
-    renderFloor({ ...ground, rooms: [], devices, doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [] } as unknown as typeof ground, { ...base, state });
+    renderFloor(
+      {
+        ...ground,
+        rooms: [],
+        devices,
+        doors: [],
+        walls: [],
+        openings: [],
+        furniture: [],
+        stairs: [],
+        extras: [],
+      } as unknown as typeof ground,
+      { ...base, state },
+    );
   const classOfDev = (html: string, i = 0) => html.match(new RegExp(`<g data-x="${i}" class="([^"]*)"`))![1].split(" ");
 
   it("one CSS rule per type sets --fp-dev on .dev-<type>.on; switch and humidity fall back to --fp-idle", () => {
     const want: Record<string, string> = {
-      light: "var(--fp-dev-light)", motion: "var(--fp-dev-motion)", contact: "var(--fp-dev-contact)", heater: "var(--fp-dev-heater)",
-      climate: "var(--fp-dev-climate)", tv: "var(--fp-dev-tv)", plug: "var(--fp-dev-plug)", computer: "var(--fp-dev-computer)",
-      switch: "var(--fp-idle)", humidity: "var(--fp-idle)", person: "var(--fp-dev-person)",
+      light: "var(--fp-dev-light)",
+      motion: "var(--fp-dev-motion)",
+      contact: "var(--fp-dev-contact)",
+      heater: "var(--fp-dev-heater)",
+      climate: "var(--fp-dev-climate)",
+      tv: "var(--fp-dev-tv)",
+      plug: "var(--fp-dev-plug)",
+      computer: "var(--fp-dev-computer)",
+      switch: "var(--fp-idle)",
+      humidity: "var(--fp-idle)",
+      person: "var(--fp-dev-person)",
     };
     for (const [type, value] of Object.entries(want))
       expect(FLOORPLAN_CSS, type).toContain(`.dev-${type}.on{--fp-dev:${value}}`);
   });
 
   it("the two shared rules read --fp-dev on the icon and the halo, and the halo keeps --fp-alpha (25%) while on", () => {
-    expect(FLOORPLAN_CSS).toContain(".dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}");
+    expect(FLOORPLAN_CSS).toContain(
+      ".dev.on path{fill:var(--fp-dev-fill,var(--fp-dev));opacity:var(--fp-dev-opacity,1)}",
+    );
     expect(FLOORPLAN_CSS).toContain(".dev.on .halo{fill:var(--fp-dev);fill-opacity:var(--fp-alpha)}");
   });
 
@@ -1421,7 +1972,9 @@ describe("S2.9: a device wears its colour when it is on", () => {
   it("S9.1: --fp-open-door is red in every theme block: the contact red where it is red, a fixed red where the theme collapses to one accent", () => {
     for (const theme of ["blueprint", "midnight", "light", "slate", "terminal", "solarized"]) {
       const block = FLOORPLAN_CSS.match(new RegExp(`data-theme="${theme}"\\][^{]*\\{([^}]*)\\}`))?.[1];
-      const want = ["blueprint", "slate", "terminal"].includes(theme) ? "--fp-open-door:#d64545" : "--fp-open-door:var(--fp-dev-contact)";
+      const want = ["blueprint", "slate", "terminal"].includes(theme)
+        ? "--fp-open-door:#d64545"
+        : "--fp-open-door:var(--fp-dev-contact)";
       expect(block, theme).toContain(want);
     }
   });
@@ -1486,7 +2039,21 @@ describe("S2.9: a device wears its colour when it is on", () => {
 // from a deliberate grey — the S2.9 verifier found media, cover and other sitting there while SPEC promised media
 // an accent. This test makes every member of DEVICE_TYPES a decision someone had to write down.
 describe("S2.9: every device type has a decided active colour", () => {
-  const IDLE_ON_PURPOSE = ["switch", "humidity", "temp", "other", "camera", "battery", "inverter", "server", "access_point", "boiler", "car", "ups", "printer"]; // S2.13: these are monitored, not switched; the S4.25 four (speaker moved to its own on colour in S9.4) are unlinked-only types with no entity state to read, so never on
+  const IDLE_ON_PURPOSE = [
+    "switch",
+    "humidity",
+    "temp",
+    "other",
+    "camera",
+    "battery",
+    "inverter",
+    "server",
+    "access_point",
+    "boiler",
+    "car",
+    "ups",
+    "printer",
+  ]; // S2.13: these are monitored, not switched; the S4.25 four (speaker moved to its own on colour in S9.4) are unlinked-only types with no entity state to read, so never on
   it.each(DEVICE_TYPES)("%s either names its own --fp-dev or is idle on purpose", (t) => {
     if (t === "ac") return; // ac has two: .dev-ac.cool.on and .dev-ac.heat.on, tested below
     const rule = new RegExp(`\\.dev-${t}\\.on\\{--fp-dev:var\\((--fp-[a-z-]+)\\)\\}`);
@@ -1498,10 +2065,45 @@ describe("S2.9: every device type has a decided active colour", () => {
 });
 
 describe("S2.9: a room or a piece of furniture with an entity carries the on class", () => {
-  const room = (kind: string, extra: Record<string, unknown> = {}) => ({ id: "r", name: "pond", area: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill("wall"), ...extra });
-  const furn = (extra: Record<string, unknown> = {}) => ({ id: "f", symbol: "patio-wood", x: 50, y: 50, rot: 0, w: 100, h: 100, ...extra });
+  const room = (kind: string, extra: Record<string, unknown> = {}) => ({
+    id: "r",
+    name: "pond",
+    area: "",
+    kind,
+    pts: [
+      [0, 0],
+      [100, 0],
+      [100, 100],
+      [0, 100],
+    ],
+    wk: Array(4).fill("wall"),
+    ...extra,
+  });
+  const furn = (extra: Record<string, unknown> = {}) => ({
+    id: "f",
+    symbol: "patio-wood",
+    x: 50,
+    y: 50,
+    rot: 0,
+    w: 100,
+    h: 100,
+    ...extra,
+  });
   const draw = (rooms: unknown[], furniture: unknown[], state: StateOverlay) =>
-    renderFloor({ ...ground, rooms, devices: [], furniture, doors: [], walls: [], openings: [], stairs: [], extras: [] } as unknown as typeof ground, { ...base, state });
+    renderFloor(
+      {
+        ...ground,
+        rooms,
+        devices: [],
+        furniture,
+        doors: [],
+        walls: [],
+        openings: [],
+        stairs: [],
+        extras: [],
+      } as unknown as typeof ground,
+      { ...base, state },
+    );
   const roomClass = (html: string) => html.match(/<polygon data-r="0" class="([^"]*)"/)![1].split(" ");
   const furnClass = (html: string) => html.match(/<g data-f="0" class="([^"]*)"/)![1].split(" ");
 
@@ -1513,14 +2115,26 @@ describe("S2.9: a room or a piece of furniture with an entity carries the on cla
   });
 
   it("a room with an area is never tinted this way, even with an entity", () => {
-    const withArea = draw([room("water", { entity: "switch.pond_pump", area: "garden" })], [], { "switch.pond_pump": st("on") });
+    const withArea = draw([room("water", { entity: "switch.pond_pump", area: "garden" })], [], {
+      "switch.pond_pump": st("on"),
+    });
     expect(roomClass(withArea)).not.toContain("on");
   });
 
   it("open and playing also count as on; off does not", () => {
-    expect(roomClass(draw([room("zone", { entity: "cover.gate" })], [], { "cover.gate": st("open", { attributes: { device_class: "gate" } }) }))).toContain("on");
-    expect(roomClass(draw([room("zone", { entity: "media_player.x" })], [], { "media_player.x": st("playing") }))).toContain("on");
-    expect(roomClass(draw([room("zone", { entity: "cover.gate" })], [], { "cover.gate": st("closed") }))).not.toContain("on");
+    expect(
+      roomClass(
+        draw([room("zone", { entity: "cover.gate" })], [], {
+          "cover.gate": st("open", { attributes: { device_class: "gate" } }),
+        }),
+      ),
+    ).toContain("on");
+    expect(
+      roomClass(draw([room("zone", { entity: "media_player.x" })], [], { "media_player.x": st("playing") })),
+    ).toContain("on");
+    expect(roomClass(draw([room("zone", { entity: "cover.gate" })], [], { "cover.gate": st("closed") }))).not.toContain(
+      "on",
+    );
   });
 
   it("a piece of furniture with an entity carries the on class when its state is on; off, or no entity, does not", () => {
@@ -1536,15 +2150,32 @@ describe("S2.9: a room or a piece of furniture with an entity carries the on cla
   const linkedTag = (html: string) => /<g data-f="0"[^>]* data-linked[ >]/.test(html);
   it("S18.12 every furniture symbol is decided: only a tv, speaker or computer with an entity is linked", () => {
     for (const symbol of FURNITURE_SYMBOLS) {
-      expect(linkedTag(draw([], [furn({ symbol, entity: "media_player.x" })], { "media_player.x": st("idle") })), `${symbol} with an entity`).toBe(["tv", "speaker", "computer"].includes(symbol));
+      expect(
+        linkedTag(draw([], [furn({ symbol, entity: "media_player.x" })], { "media_player.x": st("idle") })),
+        `${symbol} with an entity`,
+      ).toBe(["tv", "speaker", "computer"].includes(symbol));
       expect(linkedTag(draw([], [furn({ symbol })], {})), `${symbol} without one`).toBe(false);
     }
   });
   it("S18.12 a linked piece that is on keeps its on class, in 2D and in 2.5D", () => {
-    const f = [furn({ symbol: "tv", entity: "media_player.x", w: 120, h: 10 })], state = { "media_player.x": st("playing") };
+    const f = [furn({ symbol: "tv", entity: "media_player.x", w: 120, h: 10 })],
+      state = { "media_player.x": st("playing") };
     expect(furnClass(draw([], f, state))).toEqual(["furn", "on"]);
     expect(linkedTag(draw([], f, state))).toBe(true);
-    const solid = renderFloor({ ...ground, rooms: [], devices: [], furniture: f, doors: [], walls: [], openings: [], stairs: [], extras: [] } as unknown as typeof ground, { ...base, view: "2.5d", state });
+    const solid = renderFloor(
+      {
+        ...ground,
+        rooms: [],
+        devices: [],
+        furniture: f,
+        doors: [],
+        walls: [],
+        openings: [],
+        stairs: [],
+        extras: [],
+      } as unknown as typeof ground,
+      { ...base, view: "2.5d", state },
+    );
     expect(solid.match(/<g data-f="0" class="([^"]*)"/)![1].split(" ")).toEqual(["furn", "on"]);
     expect(linkedTag(solid)).toBe(true);
   });
@@ -1573,7 +2204,9 @@ describe("camera cone (S1.31)", () => {
   const group = (html: string) => html.match(new RegExp(`<g data-x="${ci}"[\\s\\S]*?</g>`))![0];
   /** The cone's path in the device group's frame: centre, the two ends of the arc and its radius. */
   const cone = (html: string) => {
-    const m = group(html).match(/<path class="cone" d="M([\d.-]+) ([\d.-]+)L([\d.-]+) ([\d.-]+)A([\d.-]+) ([\d.-]+) 0 0 1 ([\d.-]+) ([\d.-]+)Z"\/>/)!;
+    const m = group(html).match(
+      /<path class="cone" d="M([\d.-]+) ([\d.-]+)L([\d.-]+) ([\d.-]+)A([\d.-]+) ([\d.-]+) 0 0 1 ([\d.-]+) ([\d.-]+)Z"\/>/,
+    )!;
     const n = m.slice(1).map(Number);
     return { c: [n[0], n[1]], p1: [n[2], n[3]], p2: [n[6], n[7]], r: n[4] };
   };
@@ -1607,7 +2240,9 @@ describe("camera cone (S1.31)", () => {
     const f = structuredClone(ground);
     f.devices = f.devices.filter((d) => d.type !== "camera");
     expect(renderFloor(f, base)).not.toContain("cone");
-    expect(FLOORPLAN_CSS).toMatch(/path\.cone\{[^}]*fill:var\(--fp-dev-camera\)[^}]*fill-opacity:var\(--fp-alpha\)[^}]*pointer-events:none/);
+    expect(FLOORPLAN_CSS).toMatch(
+      /path\.cone\{[^}]*fill:var\(--fp-dev-camera\)[^}]*fill-opacity:var\(--fp-alpha\)[^}]*pointer-events:none/,
+    );
   });
 });
 
@@ -1627,7 +2262,11 @@ describe("plan rotation (S1.33)", () => {
   it("planPivot is the centre of the box round every outline, and the origin with none", () => {
     expect(pivot).toEqual([400, 300]);
     const l = structuredClone(L);
-    l.floors.first.outline = [[0, 0], [1600, 0], [1600, 200]]; // wider than the ground floor: the pivot follows both
+    l.floors.first.outline = [
+      [0, 0],
+      [1600, 0],
+      [1600, 200],
+    ]; // wider than the ground floor: the pivot follows both
     expect(planPivot(l)).toEqual([800, 300]);
     for (const f of Object.values(l.floors)) f.outline = [];
     expect(planPivot(l)).toEqual([0, 0]);
@@ -1643,15 +2282,23 @@ describe("plan rotation (S1.33)", () => {
   });
 
   it("turns every text back about its own anchor, by the opposite angle", () => {
-    const html = turned(90, ground, { showNames: true, state: { "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
+    const html = turned(90, ground, {
+      showNames: true,
+      state: { "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) },
+    });
     const texts = html.match(/<text [^>]*>/g)!;
     expect(texts.length).toBeGreaterThan(8);
     for (const t of texts) {
-      const x = t.match(/ x="([^"]+)"/)![1], y = t.match(/ y="([^"]+)"/)![1];
+      const x = t.match(/ x="([^"]+)"/)![1],
+        y = t.match(/ y="([^"]+)"/)![1];
       expect(t, t).toContain(`transform="rotate(-90 ${x} ${y})"`);
     }
     expect(renderFloor(ground, base).match(/<text [^>]*transform=/)).toBeNull(); // not at rotate 0
-    expect(turned(45).match(/<text [^>]*>/g)!.every((t) => t.includes("rotate(-45 "))).toBe(true);
+    expect(
+      turned(45)
+        .match(/<text [^>]*>/g)!
+        .every((t) => t.includes("rotate(-45 ")),
+    ).toBe(true);
   });
 
   it("keeps every icon upright: the group turns by rot, the icon back by rot plus the plan angle; the cone is not turned back", () => {
@@ -1659,34 +2306,56 @@ describe("plan rotation (S1.33)", () => {
     const ci = f.devices.findIndex((d) => d.type === "camera");
     (f.devices[ci] as { rot?: number }).rot = 30;
     const html = turned(90, f);
-    expect(html).toMatch(/rotate\(30 12 12\)"><title>[^<]*<\/title><path class="cone"[^>]*\/><g transform="rotate\(-120 12 12\)"><circle/);
+    expect(html).toMatch(
+      /rotate\(30 12 12\)"><title>[^<]*<\/title><path class="cone"[^>]*\/><g transform="rotate\(-120 12 12\)"><circle/,
+    );
     // a device with no rot of its own: the icon alone takes the plan angle back
     expect(html).toMatch(/<g data-x="0"[^>]*><title>[^<]*<\/title><g transform="rotate\(-90 12 12\)"><circle/);
     // a full turn in total needs no wrapper
     (f.devices[ci] as { rot?: number }).rot = 270;
-    expect(turned(90, f)).toMatch(new RegExp(`<g data-x="${ci}"[^>]*><title>[^<]*</title><path class="cone"[^>]*/><circle`));
+    expect(turned(90, f)).toMatch(
+      new RegExp(`<g data-x="${ci}"[^>]*><title>[^<]*</title><path class="cone"[^>]*/><circle`),
+    );
   });
 
   it("draws the same shapes: every stored coordinate in the markup is the one it is without a turn", () => {
     // Label text and leader lines are placed in the screen frame, so a narrow room can send a name outside when turned
     // and not when flat (2026-10-02); the shapes are what must not move.
-    const coords = (h: string) => h.replace(/<text [^>]*>[^<]*<\/text>|<line class="lbl-leader"[^>]*\/>/g, "").match(/ (?:points|x1|y1|x2|y2|cx|cy)="[^"]*"/g);
+    const coords = (h: string) =>
+      h
+        .replace(/<text [^>]*>[^<]*<\/text>|<line class="lbl-leader"[^>]*\/>/g, "")
+        .match(/ (?:points|x1|y1|x2|y2|cx|cy)="[^"]*"/g);
     expect(coords(turned(90))).toEqual(coords(renderFloor(ground, base)));
     expect(coords(turned(90))!.length).toBeGreaterThan(50);
   });
 
   it("viewBoxFor at 90 on a wide outline is tall, at 45 it is the box of the turned corners, at 0 or none unchanged", () => {
     const f = structuredClone(ground);
-    f.outline = [[0, 0], [1000, 0], [1000, 200], [0, 200]];
+    f.outline = [
+      [0, 0],
+      [1000, 0],
+      [1000, 200],
+      [0, 200],
+    ];
     // pure padding/rotation geometry: no rooms, walls, furniture or devices of `ground`'s own left over to widen
     // the box past this outline (0.12.14: `viewBoxFor` now bounds on all of those, not the outline alone).
-    f.rooms = []; f.stairs = []; f.walls = []; f.doors = []; f.openings = []; f.extras = []; f.furniture = []; f.unlinked = []; f.devices = [];
+    f.rooms = [];
+    f.stairs = [];
+    f.walls = [];
+    f.doors = [];
+    f.openings = [];
+    f.extras = [];
+    f.furniture = [];
+    f.unlinked = [];
+    f.devices = [];
     const flat = viewBoxFor(f, 0);
     expect(flat).toEqual({ x: 0, y: 0, w: 1000, h: 200 });
     const piv: [number, number] = [500, 100];
     const tall = viewBoxFor(f, 0, { deg: 90, pivot: piv });
-    expect(tall.w).toBeCloseTo(200); expect(tall.h).toBeCloseTo(1000);
-    expect(tall.x + tall.w / 2).toBeCloseTo(500); expect(tall.y + tall.h / 2).toBeCloseTo(100); // turned about its own centre: the centre stays
+    expect(tall.w).toBeCloseTo(200);
+    expect(tall.h).toBeCloseTo(1000);
+    expect(tall.x + tall.w / 2).toBeCloseTo(500);
+    expect(tall.y + tall.h / 2).toBeCloseTo(100); // turned about its own centre: the centre stays
     const d = viewBoxFor(f, 0, { deg: 45, pivot: piv });
     expect(d.w).toBeCloseTo((1000 + 200) / Math.SQRT2);
     expect(viewBoxFor(f, 0, { deg: 0, pivot: piv })).toEqual(flat);
@@ -1695,7 +2364,8 @@ describe("plan rotation (S1.33)", () => {
 
   it("rotateAbout: a quarter turn clockwise on screen takes the top of a plan to the right", () => {
     const p = rotateAbout([0, -10], 90, [0, 0]);
-    expect(p[0]).toBeCloseTo(10); expect(p[1]).toBeCloseTo(0);
+    expect(p[0]).toBeCloseTo(10);
+    expect(p[1]).toBeCloseTo(0);
     expect(rotateAbout([5, 5], 360, [1, 1])[0]).toBeCloseTo(5);
   });
 });
@@ -1708,15 +2378,23 @@ describe("device colours (S1.36)", () => {
   });
   it("puts each chosen colour in one style as --fp-dev-<type>, around the drawing", () => {
     const html = renderFloor(ground, { scale: 0.5, colors: { light: "#aabbcc", camera: "#112233" } });
-    expect(html.startsWith('<g class="dev-colours" style="--fp-dev-light:#aabbcc;--fp-dev-camera:#112233">')).toBe(true);
+    expect(html.startsWith('<g class="dev-colours" style="--fp-dev-light:#aabbcc;--fp-dev-camera:#112233">')).toBe(
+      true,
+    );
     expect(html.endsWith("</g>")).toBe(true);
     expect(renderFloor(ground, { scale: 0.5 })).toBe(html.slice(html.indexOf(">") + 1, -4)); // the rest is unchanged
   });
   it("skips what is not a device type or #rrggbb, so nothing untrusted reaches the attribute", () => {
-    const html = renderFloor(ground, { scale: 0.5, colors: { fridge: "#aabbcc", light: 'red;" onload="x', tv: "#abcdef" } as any });
+    const html = renderFloor(ground, {
+      scale: 0.5,
+      colors: { fridge: "#aabbcc", light: 'red;" onload="x', tv: "#abcdef" } as any,
+    });
     expect(html).toContain('style="--fp-dev-tv:#abcdef"');
-    expect(html).not.toContain("fridge"); expect(html).not.toContain("onload");
-    expect(renderFloor(ground, { scale: 0.5, colors: { light: "nope" } as any })).toBe(renderFloor(ground, { scale: 0.5 }));
+    expect(html).not.toContain("fridge");
+    expect(html).not.toContain("onload");
+    expect(renderFloor(ground, { scale: 0.5, colors: { light: "nope" } as any })).toBe(
+      renderFloor(ground, { scale: 0.5 }),
+    );
   });
   const LIGHT_BLOCK = FLOORPLAN_CSS.match(/:host\(\[data-theme="light"\]\)[^{]*\{[^}]*\}/s)?.[0] ?? "";
   it("DEVICE_COLOURS gives every device type a #rrggbb default that matches the palette variables", () => {
@@ -1739,7 +2417,8 @@ describe("contentPoints (S1.49)", () => {
     const f = structuredClone(ground);
     f.devices.push({ id: "far", type: "temp", entity: "sensor.far", x: 2000, y: -300 } as any);
     f.devices.push({ id: "bar", type: "heater", entity: "climate.bar", a: [3000, 10], b: [3100, 10] } as any);
-    const pts = contentPoints(f), has = (p: [number, number]) => pts.some((q) => q[0] === p[0] && q[1] === p[1]);
+    const pts = contentPoints(f),
+      has = (p: [number, number]) => pts.some((q) => q[0] === p[0] && q[1] === p[1]);
     for (const p of f.outline) expect(has(p)).toBe(true);
     for (const r of f.rooms) for (const p of r.pts) expect(has(p)).toBe(true);
     for (const t of f.stairs) for (const p of t.pts) expect(has(p)).toBe(true);
@@ -1747,7 +2426,20 @@ describe("contentPoints (S1.49)", () => {
     expect(has([3000, 10]) && has([3100, 10])).toBe(true);
   });
   it("is empty for a floor with nothing on it, and never contains a non-number", () => {
-    expect(contentPoints({ title: "E", outline: [], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], devices: [] } as any)).toEqual([]);
+    expect(
+      contentPoints({
+        title: "E",
+        outline: [],
+        rooms: [],
+        walls: [],
+        doors: [],
+        openings: [],
+        extras: [],
+        stairs: [],
+        furniture: [],
+        devices: [],
+      } as any),
+    ).toEqual([]);
     const f = structuredClone(ground);
     (f.devices[0] as any).x = NaN;
     expect(contentPoints(f).every((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]))).toBe(true);
@@ -1779,21 +2471,59 @@ describe("S1.42: a device never hides a room name", () => {
   const k = 2; // scale 0.5
   const floor = (kind: "room" | "zone", devs: [number, number][], filter?: string) => {
     const f = structuredClone(ground);
-    f.rooms = [{ id: "r", name: "Lounge", kind, area: "", pts: [[0, 0], [400, 0], [400, 200], [0, 200]] } as never];
+    f.rooms = [
+      {
+        id: "r",
+        name: "Lounge",
+        kind,
+        area: "",
+        pts: [
+          [0, 0],
+          [400, 0],
+          [400, 200],
+          [0, 200],
+        ],
+      } as never,
+    ];
     f.devices = devs.map(([x, y], i) => ({ id: `d${i}`, type: "light", entity: `light.d${i}`, x, y }) as never);
-    f.doors = []; f.stairs = []; f.walls = []; f.furniture = [];
+    f.doors = [];
+    f.stairs = [];
+    f.walls = [];
+    f.furniture = [];
     return renderFloor(f, { scale: 0.5, ...(filter ? { filter: filter as never } : {}) });
   };
   const nameY = (html: string) => Number(html.match(/<text class="lbl(?: zone)?"[^>]* y="([\d.-]+)"[^>]*>Lounge</)![1]);
   const cy = 100;
 
-  it("stays put with no device near", () => { expect(nameY(floor("room", []))).toBe(cy); expect(nameY(floor("room", [[20, 20]]))).toBe(cy); });
-  it("moves down 32k when a device sits on the centroid", () => { expect(nameY(floor("room", [[200, 100]]))).toBe(cy + 32 * k); });
-  it("moves up when the spot below is taken too", () => { expect(nameY(floor("room", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k); });
+  it("stays put with no device near", () => {
+    expect(nameY(floor("room", []))).toBe(cy);
+    expect(nameY(floor("room", [[20, 20]]))).toBe(cy);
+  });
+  it("moves down 32k when a device sits on the centroid", () => {
+    expect(nameY(floor("room", [[200, 100]]))).toBe(cy + 32 * k);
+  });
+  it("moves up when the spot below is taken too", () => {
+    expect(
+      nameY(
+        floor("room", [
+          [200, 100],
+          [200, 100 + 32 * k],
+        ]),
+      ),
+    ).toBe(cy - 32 * k);
+  });
   // S7.1: two more rows, 64k below then 64k above, before the centroid is kept regardless.
-  const three: [number, number][] = [[200, 100], [200, 100 + 32 * k], [200, 100 - 32 * k]];
-  it("S7.1: moves 64k down when the three near spots are taken", () => { expect(nameY(floor("room", three))).toBe(cy + 64 * k); });
-  it("S7.1: moves 64k up when 64k down is taken too", () => { expect(nameY(floor("room", [...three, [200, 100 + 64 * k]]))).toBe(cy - 64 * k); });
+  const three: [number, number][] = [
+    [200, 100],
+    [200, 100 + 32 * k],
+    [200, 100 - 32 * k],
+  ];
+  it("S7.1: moves 64k down when the three near spots are taken", () => {
+    expect(nameY(floor("room", three))).toBe(cy + 64 * k);
+  });
+  it("S7.1: moves 64k up when 64k down is taken too", () => {
+    expect(nameY(floor("room", [...three, [200, 100 + 64 * k]]))).toBe(cy - 64 * k);
+  });
   it("stays at the centroid when all five spots are taken, so nothing is dropped", () => {
     expect(nameY(floor("room", [...three, [200, 100 + 64 * k], [200, 100 - 64 * k]]))).toBe(cy);
   });
@@ -1802,31 +2532,64 @@ describe("S1.42: a device never hides a room name", () => {
   // below (the door reaches down to y 161), and lands on the row above (its box ends at y 43, the door starts at 49).
   const withDoor = (a: [number, number], b: [number, number]) => {
     const f = structuredClone(ground);
-    f.rooms = [{ id: "r", name: "Lounge", kind: "room", area: "", pts: [[0, 0], [400, 0], [400, 200], [0, 200]] } as never];
-    f.devices = []; f.stairs = []; f.walls = []; f.furniture = [];
+    f.rooms = [
+      {
+        id: "r",
+        name: "Lounge",
+        kind: "room",
+        area: "",
+        pts: [
+          [0, 0],
+          [400, 0],
+          [400, 200],
+          [0, 200],
+        ],
+      } as never,
+    ];
+    f.devices = [];
+    f.stairs = [];
+    f.walls = [];
+    f.furniture = [];
     f.doors = [{ id: "d", name: "Door", kind: "door", a, b } as never];
     return renderFloor(f, { scale: 0.5 });
   };
-  it("S7.15: moves off a door that runs through the centroid", () => { expect(nameY(withDoor([200, 60], [200, 150]))).toBe(cy - 32 * k); });
+  it("S7.15: moves off a door that runs through the centroid", () => {
+    expect(nameY(withDoor([200, 60], [200, 150]))).toBe(cy - 32 * k);
+  });
   it("S7.15: a door whose stroke just reaches the name's box counts, one 1 unit further does not", () => {
     // The name box at the centroid spans y 83.5..105.5 (22 tall, baseline 0.75 down). A horizontal door at y 116 with
     // stroke 22 reaches up to 105 and overlaps; at y 117 its edge only touches the box, which does not count.
     expect(nameY(withDoor([100, 116], [300, 116]))).toBe(cy + 32 * k);
     expect(nameY(withDoor([100, 117], [300, 117]))).toBe(cy);
   });
-  it("S7.15: a door far from the name leaves it at the centroid", () => { expect(nameY(withDoor([50, 190], [350, 190]))).toBe(cy); });
+  it("S7.15: a door far from the name leaves it at the centroid", () => {
+    expect(nameY(withDoor([50, 190], [350, 190]))).toBe(cy);
+  });
   it("a zone follows the same steps with its smaller size", () => {
     expect(nameY(floor("zone", [[200, 100]]))).toBe(cy + 32 * k);
-    expect(nameY(floor("zone", [[200, 100], [200, 100 + 32 * k]]))).toBe(cy - 32 * k);
+    expect(
+      nameY(
+        floor("zone", [
+          [200, 100],
+          [200, 100 + 32 * k],
+        ]),
+      ),
+    ).toBe(cy - 32 * k);
   });
-  it("counts only devices the filter draws", () => { expect(nameY(floor("room", [[200, 100]], "heater"))).toBe(cy); });
-  it("a device far to the side does not move the name", () => { expect(nameY(floor("room", [[380, 100]]))).toBe(cy); });
+  it("counts only devices the filter draws", () => {
+    expect(nameY(floor("room", [[200, 100]], "heater"))).toBe(cy);
+  });
+  it("a device far to the side does not move the name", () => {
+    expect(nameY(floor("room", [[380, 100]]))).toBe(cy);
+  });
 });
 
 describe("S1.46: one text style", () => {
   it("every text class is dark grey with the white outline; no black, no dark-only rule", () => {
     expect(FLOORPLAN_CSS).toContain("--fp-text:#3a3a3a");
-    expect(FLOORPLAN_CSS).toMatch(/\.val,\.lbl\{fill:var\(--fp-text\);paint-order:stroke;stroke:var\(--fp-outline\);stroke-width:3;stroke-linejoin:round\}/);
+    expect(FLOORPLAN_CSS).toMatch(
+      /\.val,\.lbl\{fill:var\(--fp-text\);paint-order:stroke;stroke:var\(--fp-outline\);stroke-width:3;stroke-linejoin:round\}/,
+    );
     expect(FLOORPLAN_CSS).not.toMatch(/\.(val|lbl)[^{]*\{[^}]*fill:var\(--fp-ink\)/);
     expect(FLOORPLAN_CSS).not.toMatch(/\.lbl[^{]*\{[^}]*stroke:var\(--fp-bg\)/);
   });
@@ -1838,10 +2601,15 @@ describe("S1.46: one text style", () => {
 });
 
 describe("S1.47: an edge of kind none", () => {
-  const withNone = () => { const f = structuredClone(ground); f.rooms[0].wk[1] = "none"; return f; };
+  const withNone = () => {
+    const f = structuredClone(ground);
+    f.rooms[0].wk[1] = "none";
+    return f;
+  };
   const count = (html: string, re: RegExp) => (html.match(re) ?? []).length;
   it("draws no line and no twin on the card", () => {
-    const a = renderFloor(ground, base), b = renderFloor(withNone(), base);
+    const a = renderFloor(ground, base),
+      b = renderFloor(withNone(), base);
     expect(count(b, /<line class="e[ "][^>]*data-e/g)).toBe(count(a, /<line class="e[ "][^>]*data-e/g) - 1);
     expect(count(b, /<line class="eh/g)).toBe(count(a, /<line class="eh/g) - 1);
     expect(b).not.toContain('data-e="r0:1"');
@@ -1857,19 +2625,29 @@ describe("an air conditioner shows what it is doing (S2.10)", () => {
   const ac = { id: "ac1", type: "ac", entity: "climate.ac", x: 100, y: 100 };
   const fl = { ...ground, devices: [ac] } as never;
   const draw = (state: string, attributes: Record<string, unknown> = {}) =>
-    renderFloor(fl, { ...base, state: { "climate.ac": { state, attributes, last_changed: "2026-01-01T00:00:00Z" } } as never });
+    renderFloor(fl, {
+      ...base,
+      state: { "climate.ac": { state, attributes, last_changed: "2026-01-01T00:00:00Z" } } as never,
+    });
   const cls = (svg: string) => svg.match(/class="(dev dev-ac[^"]*)"/)?.[1];
   it.each([
-    ["cooling", "cool", "dev dev-ac cool on"], ["heating", "heat", "dev dev-ac heat on"],
-  ])("hvac_action %s draws %s", (a, state, want) => { expect(cls(draw(state, { hvac_action: a }))).toBe(want); });
-  it("hvac_action idle is grey even when the mode is cool", () => { expect(cls(draw("cool", { hvac_action: "idle" }))).toBe("dev dev-ac off"); });
+    ["cooling", "cool", "dev dev-ac cool on"],
+    ["heating", "heat", "dev dev-ac heat on"],
+  ])("hvac_action %s draws %s", (a, state, want) => {
+    expect(cls(draw(state, { hvac_action: a }))).toBe(want);
+  });
+  it("hvac_action idle is grey even when the mode is cool", () => {
+    expect(cls(draw("cool", { hvac_action: "idle" }))).toBe("dev dev-ac off");
+  });
   it("with no hvac_action, state cool is blue, heat is orange, fan_only and dry are grey", () => {
     expect(cls(draw("cool"))).toBe("dev dev-ac cool on");
     expect(cls(draw("heat"))).toBe("dev dev-ac heat on");
     expect(cls(draw("fan_only"))).toBe("dev dev-ac off");
     expect(cls(draw("dry"))).toBe("dev dev-ac off");
   });
-  it("break it: off wins over a stale hvac_action of cooling", () => { expect(cls(draw("off", { hvac_action: "cooling" }))).toBe("dev dev-ac off"); });
+  it("break it: off wins over a stale hvac_action of cooling", () => {
+    expect(cls(draw("off", { hvac_action: "cooling" }))).toBe("dev dev-ac off");
+  });
   it("unavailable is unavailable, and a missing entity draws grey without throwing", () => {
     expect(cls(draw("unavailable", { hvac_action: "cooling" }))).toBe("dev dev-ac unavailable");
     expect(cls(renderFloor(fl, { ...base, state: {} as never }))).toBe("dev dev-ac off");
@@ -1921,13 +2699,15 @@ describe("unlinked appliances (S4.25)", () => {
   it("rot turns the glyph itself, unlike a device's icon which counter-turns to stay upright (asymmetric check, not [1,0])", () => {
     const html = renderFloor({ ...ground, unlinked: [{ ...heater, rot: 33 }] } as never, base);
     const group = html.match(/<g data-u="0"[^>]*>[^]*?<\/g>/)![0];
-    expect(group).toContain('rotate(33 12 12)');
+    expect(group).toContain("rotate(33 12 12)");
     expect(group).not.toContain("rotate(-33 12 12)"); // no counter-turn: the icon visibly rotates, like furniture
   });
 
   it("attached does not change the class: it is reference-only, never state (Opus finding 12 discipline)", () => {
     const withAttach = { ...ground, unlinked: [{ ...heater, attached: ["light.a"] }] } as never;
-    expect(renderFloor(withAttach, base).match(/<g data-u="0"[^>]*>/)![0]).toBe(renderFloor(fl, base).match(/<g data-u="0"[^>]*>/)![0]);
+    expect(renderFloor(withAttach, base).match(/<g data-u="0"[^>]*>/)![0]).toBe(
+      renderFloor(fl, base).match(/<g data-u="0"[^>]*>/)![0],
+    );
   });
 
   it("a non-finite x or y is skipped without throwing", () => {
@@ -1951,49 +2731,82 @@ describe("unlinked appliances (S4.25)", () => {
 
 describe("S7.1: labels never overprint each other", () => {
   type Box = [number, number, number, number]; // x, y, w, h in the screen frame, plan units
-  const unesc = (t: string) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+  const unesc = (t: string) =>
+    t
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&");
   // Written out here on purpose, not imported from render.ts: the brief's estimate, len x 0.6 x size wide by size tall,
   // the baseline 0.75 of the size below the top. A device icon is its halo, a 16k disc about the icon centre, as a square.
   const boxesOf = (html: string, rotate?: { deg: number; pivot: Pt }) => {
     const scr = (p: Pt): Pt => (rotate ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
     const texts = [...html.matchAll(/<text ([^>]*)>([^<]*)<\/text>/g)].map((m) => {
       const a = (n: string) => Number(m[1].match(new RegExp(` ${n}="([^"]+)"`))![1]);
-      const size = a("font-size"), s = unesc(m[2]), w = s.length * 0.6 * size, [x, y] = scr([a("x"), a("y")]);
+      const size = a("font-size"),
+        s = unesc(m[2]),
+        w = s.length * 0.6 * size,
+        [x, y] = scr([a("x"), a("y")]);
       return { s, box: [x - w / 2, y - 0.75 * size, w, size] as Box };
     });
     // S7.8: a person's translate is a CSS transform in its style (px units, a comma); every other icon's is the attribute.
-    const discs = [...html.matchAll(/<g data-[xu]="\d+"[^>]*(?: transform="|transform:)translate\(([-\d.]+)(?:px)?[ ,]([-\d.]+)(?:px)?\) scale\(([\d.]+)\)/g)].map((m) => {
-      const s = Number(m[3]), [x, y] = scr([Number(m[1]) + 12 * s, Number(m[2]) + 12 * s]);
+    const discs = [
+      ...html.matchAll(
+        /<g data-[xu]="\d+"[^>]*(?: transform="|transform:)translate\(([-\d.]+)(?:px)?[ ,]([-\d.]+)(?:px)?\) scale\(([\d.]+)\)/g,
+      ),
+    ].map((m) => {
+      const s = Number(m[3]),
+        [x, y] = scr([Number(m[1]) + 12 * s, Number(m[2]) + 12 * s]);
       return [x - 16 * s, y - 16 * s, 32 * s, 32 * s] as Box;
     });
     // S7.15: a door is its line widened by half its stroke, in the screen frame (a turned door's box is the box of its
     // turned endpoints, so it is a little generous off-axis, which only makes the check stricter). S8.9: only the
     // visible door line, not its invisible wider "door-hit" click-target twin (finding 3) — same position, so
     // counting both would only double-count, not change any answer, but the length assertions below want one each.
-    const doors = [...html.matchAll(/<line data-d="\d+" class="(?!door-hit")[^"]*"[^>]* x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)" stroke-width="(\d+)"/g)].map((m) => {
-      const [x1, y1] = scr([Number(m[1]), Number(m[2])]), [x2, y2] = scr([Number(m[3]), Number(m[4])]), h = Number(m[5]) / 2;
+    const doors = [
+      ...html.matchAll(
+        /<line data-d="\d+" class="(?!door-hit")[^"]*"[^>]* x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)" stroke-width="(\d+)"/g,
+      ),
+    ].map((m) => {
+      const [x1, y1] = scr([Number(m[1]), Number(m[2])]),
+        [x2, y2] = scr([Number(m[3]), Number(m[4])]),
+        h = Number(m[5]) / 2;
       return [Math.min(x1, x2) - h, Math.min(y1, y2) - h, Math.abs(x2 - x1) + 2 * h, Math.abs(y2 - y1) + 2 * h] as Box;
     });
     return { texts, discs, doors };
   };
   const EPS = 0.05; // num() rounds every coordinate to 0.01
-  const meet = (a: Box, b: Box) => a[0] < b[0] + b[2] - EPS && b[0] < a[0] + a[2] - EPS && a[1] < b[1] + b[3] - EPS && b[1] < a[1] + a[3] - EPS;
+  const meet = (a: Box, b: Box) =>
+    a[0] < b[0] + b[2] - EPS && b[0] < a[0] + a[2] - EPS && a[1] < b[1] + b[3] - EPS && b[1] < a[1] + a[3] - EPS;
   const clashes = (html: string, rotate?: { deg: number; pivot: Pt }) => {
-    const { texts, discs, doors } = boxesOf(html, rotate), out: string[] = [];
+    const { texts, discs, doors } = boxesOf(html, rotate),
+      out: string[] = [];
     texts.forEach((t, i) => {
       for (const u of texts.slice(i + 1)) if (meet(t.box, u.box)) out.push(`"${t.s}" on "${u.s}"`);
-      discs.forEach((d, j) => { if (meet(t.box, d)) out.push(`"${t.s}" on icon ${j}`); });
-      doors.forEach((d, j) => { if (meet(t.box, d)) out.push(`"${t.s}" on door ${j}`); });
+      discs.forEach((d, j) => {
+        if (meet(t.box, d)) out.push(`"${t.s}" on icon ${j}`);
+      });
+      doors.forEach((d, j) => {
+        if (meet(t.box, d)) out.push(`"${t.s}" on door ${j}`);
+      });
     });
     return out;
   };
-  const bare = (f: typeof ground) => { f.doors = []; f.stairs = []; f.walls = []; f.furniture = []; return f; };
+  const bare = (f: typeof ground) => {
+    f.doors = [];
+    f.stairs = [];
+    f.walls = [];
+    f.furniture = [];
+    return f;
+  };
   // Every value the demo can show, with units, so the value boxes are as wide as they get on a card.
   const STATE: StateOverlay = {
     "sensor.demo_living_temperature": st("23.5", { attributes: { unit_of_measurement: "°C" } }),
     "sensor.demo_bedroom_temperature": st("19", { attributes: { unit_of_measurement: "°C" } }),
     "sensor.demo_bathroom_humidity": st("54", { attributes: { unit_of_measurement: "%" } }),
-    "light.demo_living": st("on"), "light.demo_kitchen": st("on"), "binary_sensor.demo_hall_motion": st("on"),
+    "light.demo_living": st("on"),
+    "light.demo_kitchen": st("on"),
+    "binary_sensor.demo_hall_motion": st("on"),
   };
   const pivot = planPivot(L);
 
@@ -2006,7 +2819,10 @@ describe("S7.1: labels never overprint each other", () => {
           const f = L.floors[name];
           const html = renderFloor(f, { scale, now: NOW, state: STATE, rotate });
           const { texts, discs, doors } = boxesOf(html, rotate);
-          expect(texts.length).toBe(f.rooms.filter((r) => r.name && r.kind !== "fill").length + f.devices.filter((d) => d.type === "temp" || d.type === "humidity").length);
+          expect(texts.length).toBe(
+            f.rooms.filter((r) => r.name && r.kind !== "fill").length +
+              f.devices.filter((d) => d.type === "temp" || d.type === "humidity").length,
+          );
           expect(discs.length).toBe(f.devices.length);
           expect(doors.length).toBe(f.doors.length);
           expect(clashes(html, rotate)).toEqual([]);
@@ -2017,12 +2833,37 @@ describe("S7.1: labels never overprint each other", () => {
     const wk = ["boundary", "boundary", "boundary", "boundary"];
     f.rooms = [
       // 60 wide each, 40 apart: each name fits its zone (a 40 wide one would send it outside, 2026-10-02) and they meet
-      { id: "a", name: "Reading nook", kind: "zone", area: "", pts: [[0, 0], [60, 0], [60, 40], [0, 40]], wk },
-      { id: "b", name: "Music stand", kind: "zone", area: "", pts: [[40, 0], [100, 0], [100, 40], [40, 40]], wk },
+      {
+        id: "a",
+        name: "Reading nook",
+        kind: "zone",
+        area: "",
+        pts: [
+          [0, 0],
+          [60, 0],
+          [60, 40],
+          [0, 40],
+        ],
+        wk,
+      },
+      {
+        id: "b",
+        name: "Music stand",
+        kind: "zone",
+        area: "",
+        pts: [
+          [40, 0],
+          [100, 0],
+          [100, 40],
+          [40, 40],
+        ],
+        wk,
+      },
     ] as never;
     f.devices = [];
     const html = renderFloor(f, { scale: 1 });
-    const y = (n: string) => Number(html.match(new RegExp(`<text class="lbl zone"[^>]* y="([\\d.-]+)"[^>]*>${n}<`))![1]);
+    const y = (n: string) =>
+      Number(html.match(new RegExp(`<text class="lbl zone"[^>]* y="([\\d.-]+)"[^>]*>${n}<`))![1]);
     expect(y("Reading nook")).toBe(20); // the first keeps its centroid
     expect(Math.abs(y("Music stand") - 20)).toBeGreaterThanOrEqual(10); // at least a whole row (size 10) away
     expect(clashes(html)).toEqual([]);
@@ -2031,11 +2872,39 @@ describe("S7.1: labels never overprint each other", () => {
   it("a room name, a zone label and a sensor value on one spot all get a place of their own", () => {
     const f = bare(structuredClone(ground));
     f.rooms = [
-      { id: "r", name: "Study", kind: "room", area: "", pts: [[0, 0], [200, 0], [200, 200], [0, 200]], wk: ["wall", "wall", "wall", "wall"] },
-      { id: "z", name: "Desk corner", kind: "zone", area: "", pts: [[0, 0], [200, 0], [200, 200], [0, 200]], wk: ["boundary", "boundary", "boundary", "boundary"] },
+      {
+        id: "r",
+        name: "Study",
+        kind: "room",
+        area: "",
+        pts: [
+          [0, 0],
+          [200, 0],
+          [200, 200],
+          [0, 200],
+        ],
+        wk: ["wall", "wall", "wall", "wall"],
+      },
+      {
+        id: "z",
+        name: "Desk corner",
+        kind: "zone",
+        area: "",
+        pts: [
+          [0, 0],
+          [200, 0],
+          [200, 200],
+          [0, 200],
+        ],
+        wk: ["boundary", "boundary", "boundary", "boundary"],
+      },
     ] as never;
     f.devices = [{ id: "t", type: "temp", entity: "sensor.t", x: 100, y: 150 }] as never;
-    const html = renderFloor(f, { scale: 1, now: NOW, state: { "sensor.t": st("21.5", { attributes: { unit_of_measurement: "°C" } }) } });
+    const html = renderFloor(f, {
+      scale: 1,
+      now: NOW,
+      state: { "sensor.t": st("21.5", { attributes: { unit_of_measurement: "°C" } }) },
+    });
     expect(html).toMatch(/<text class="lbl" x="100" y="100"[^>]*font-weight="600" opacity="\.5">Study</); // the name goes first and keeps its centroid
     for (const t of [">Desk corner<", ">21.5 °C<"]) expect(html).toContain(t);
     expect(clashes(html)).toEqual([]);
@@ -2047,31 +2916,72 @@ describe("S7.1: labels never overprint each other", () => {
     const t = { id: "t", type: "temp", entity: "sensor.t", x: 100, y: 100 };
     const sw = (id: string, y: number) => ({ id, type: "switch", entity: `switch.${id}`, x: 100, y });
     const valAt = (devs: object[]) => {
-      const html = renderFloor({ ...f, devices: devs } as never, { scale: 1, now: NOW, state: { "sensor.t": st("7") } });
+      const html = renderFloor({ ...f, devices: devs } as never, {
+        scale: 1,
+        now: NOW,
+        state: { "sensor.t": st("7") },
+      });
       expect(clashes(html)).toEqual([]);
       const m = html.match(/<text class="val" x="([\d.-]+)" y="([\d.-]+)"/)!;
       return [Number(m[1]), Number(m[2])];
     };
     const below = valAt([t]);
-    expect(below[0]).toBe(100); expect(below[1]).toBeGreaterThan(116);
+    expect(below[0]).toBe(100);
+    expect(below[1]).toBeGreaterThan(116);
     const above = valAt([t, sw("s", 140)]);
-    expect(above[0]).toBe(100); expect(above[1]).toBeLessThan(84);
+    expect(above[0]).toBe(100);
+    expect(above[1]).toBeLessThan(84);
     const right = valAt([t, sw("s", 140), sw("u", 60)]);
-    expect(right[0]).toBeGreaterThan(116); expect(Math.abs(right[1] - 100)).toBeLessThan(8);
+    expect(right[0]).toBeGreaterThan(116);
+    expect(Math.abs(right[1] - 100)).toBeLessThan(8);
   });
 
   it("break it: a name longer than its room still draws, whole, at the centroid", () => {
     const f = bare(structuredClone(ground));
     const long = "Storage and laundry!"; // 20 characters in a 100 cm store room: about 168 cm of text
-    f.rooms = [{ id: "s", name: long, kind: "room", area: "", pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] }] as never;
+    f.rooms = [
+      {
+        id: "s",
+        name: long,
+        kind: "room",
+        area: "",
+        pts: [
+          [0, 0],
+          [100, 0],
+          [100, 100],
+          [0, 100],
+        ],
+        wk: ["wall", "wall", "wall", "wall"],
+      },
+    ] as never;
     f.devices = [];
     expect(renderFloor(f, { scale: 1 })).toMatch(new RegExp(`<text class="lbl" x="50" y="50"[^>]*>${long}<`));
   });
 
   it("break it: with every candidate row taken, a name still draws at the centroid, the one documented overlap", () => {
     const f = bare(structuredClone(ground));
-    f.rooms = [{ id: "s", name: "Store", kind: "room", area: "", pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: ["wall", "wall", "wall", "wall"] }] as never;
-    f.devices = [0, 32, -32, 64, -64].map((d, i) => ({ id: `d${i}`, type: "switch", entity: `switch.d${i}`, x: 50, y: 50 + d })) as never;
+    f.rooms = [
+      {
+        id: "s",
+        name: "Store",
+        kind: "room",
+        area: "",
+        pts: [
+          [0, 0],
+          [100, 0],
+          [100, 100],
+          [0, 100],
+        ],
+        wk: ["wall", "wall", "wall", "wall"],
+      },
+    ] as never;
+    f.devices = [0, 32, -32, 64, -64].map((d, i) => ({
+      id: `d${i}`,
+      type: "switch",
+      entity: `switch.d${i}`,
+      x: 50,
+      y: 50 + d,
+    })) as never;
     const html = renderFloor(f, { scale: 1 });
     expect(html).toMatch(/<text class="lbl" x="50" y="50"[^>]*>Store</);
     expect(clashes(html)).toEqual(['"Store" on icon 0']);
@@ -2079,7 +2989,12 @@ describe("S7.1: labels never overprint each other", () => {
 
   // 2026-10-02: small rooms. A name wider than its room shrinks (floor 7k) and, when even that is too wide, goes
   // outside with a leader line; a name is also kept off a smaller room drawn inside its own (Garden / Garden pond).
-  const sq = (w: number, h = 100): Pt[] => [[0, 0], [w, 0], [w, h], [0, h]];
+  const sq = (w: number, h = 100): Pt[] => [
+    [0, 0],
+    [w, 0],
+    [w, h],
+    [0, h],
+  ];
   const roomLayout = (name: string, w: number, kind = "room") => {
     const f = bare(structuredClone(ground));
     f.rooms = [{ id: "s", name, kind, area: "", pts: sq(w), wk: ["wall", "wall", "wall", "wall"] }] as never;
@@ -2087,25 +3002,36 @@ describe("S7.1: labels never overprint each other", () => {
     return f;
   };
   const labelOf = (html: string, name: string) => {
-    const m = html.match(new RegExp(`<text class="lbl[^"]*" x="([\\d.-]+)" y="([\\d.-]+)"[^>]* font-size="([\\d.]+)"[^>]*>${name}<`))!;
+    const m = html.match(
+      new RegExp(`<text class="lbl[^"]*" x="([\\d.-]+)" y="([\\d.-]+)"[^>]* font-size="([\\d.]+)"[^>]*>${name}<`),
+    )!;
     return { x: Number(m[1]), y: Number(m[2]), size: Number(m[3]) };
   };
 
   for (const scale of [1, 0.5])
     it(`the demo's Garden name stays off the pond inside it, and the pond's name, wider than the pond, goes out on a leader (scale ${scale})`, () => {
-      const f = L.floors.ground, k = 1 / scale;
+      const f = L.floors.ground,
+        k = 1 / scale;
       const html = renderFloor(f, { scale, now: NOW, state: STATE });
       const pond = f.rooms.find((r) => r.name === "Garden pond")!;
-      const g = labelOf(html, "Garden"), p = labelOf(html, "Garden pond");
-      const inside = (x: number, y: number, poly: Pt[]) => poly.reduce((c, a, i) => { const b = poly[(i + poly.length - 1) % poly.length]; return (a[1] > y) !== (b[1] > y) && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0] ? !c : c; }, false);
+      const g = labelOf(html, "Garden"),
+        p = labelOf(html, "Garden pond");
+      const inside = (x: number, y: number, poly: Pt[]) =>
+        poly.reduce((c, a, i) => {
+          const b = poly[(i + poly.length - 1) % poly.length];
+          return a[1] > y !== b[1] > y && x < ((b[0] - a[0]) * (y - a[1])) / (b[1] - a[1]) + a[0] ? !c : c;
+        }, false);
       expect(inside(g.x, g.y, pond.pts as Pt[])).toBe(false);
       expect(p.size).toBeCloseTo(7 * k, 5); // shrunk to the floor
       expect(html).toContain('class="lbl-leader"');
       expect(clashes(html)).toEqual([]);
       // and the leader line does not run across another name
-      const m = html.match(/<line class="lbl-leader"[^>]* x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/)!;
+      const m = html.match(
+        /<line class="lbl-leader"[^>]* x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/,
+      )!;
       const seg: Box = [Math.min(+m[1], +m[3]) - 0.5, Math.min(+m[2], +m[4]), 1, Math.abs(+m[4] - +m[2])];
-      for (const t of boxesOf(html).texts) if (t.s !== "Garden pond") expect(meet(seg, t.box), `leader on "${t.s}"`).toBe(false);
+      for (const t of boxesOf(html).texts)
+        if (t.s !== "Garden pond") expect(meet(seg, t.box), `leader on "${t.s}"`).toBe(false);
     });
 
   it("a name longer than its room shrinks, stays above the floor, draws whole and needs no leader", () => {
@@ -2149,10 +3075,12 @@ describe("S7.1: labels never overprint each other", () => {
 
 describe("renderFloor: trace image (S7.11)", () => {
   const SRC = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
-  const traced = (t: Partial<NonNullable<Layout["floors"][string]["trace"]>> = {}) =>
-    ({ ...structuredClone(ground), trace: { src: SRC, x: 10, y: -20, w: 500, rot: 90, alpha: 0.3, on: true, ...t } });
+  const traced = (t: Partial<NonNullable<Layout["floors"][string]["trace"]>> = {}) => ({
+    ...structuredClone(ground),
+    trace: { src: SRC, x: 10, y: -20, w: 500, rot: 90, alpha: 0.3, on: true, ...t },
+  });
 
-  it("with trace: true draws <image class=\"trace\"> first, with href, x, y, width, opacity and transform", () => {
+  it('with trace: true draws <image class="trace"> first, with href, x, y, width, opacity and transform', () => {
     const html = renderFloor(traced(), { scale: 0.5, trace: true });
     expect(html.startsWith('<image class="trace"')).toBe(true);
     const img = html.slice(0, html.indexOf("/>") + 2);
@@ -2178,7 +3106,11 @@ describe("renderFloor: trace image (S7.11)", () => {
   });
 
   it("draws nothing for an untrusted src that validate would refuse, and never lets a quote out", () => {
-    for (const src of [`${SRC}"><script>alert(1)</script>`, "javascript:alert(1)", "data:image/svg+xml;base64,PHN2Zz4="]) {
+    for (const src of [
+      `${SRC}"><script>alert(1)</script>`,
+      "javascript:alert(1)",
+      "data:image/svg+xml;base64,PHN2Zz4=",
+    ]) {
       const html = renderFloor(traced({ src }), { scale: 0.5, trace: true });
       expect(html, src).not.toContain("<image");
       expect(html, src).not.toContain("<script");
@@ -2189,11 +3121,16 @@ describe("renderFloor: trace image (S7.11)", () => {
 });
 
 describe("S7.6 night", () => {
-  const nightRows = (html: string) => [...html.matchAll(/<polygon data-night="(\d+)" class="room-night( lit)?"/g)].map((m) => [Number(m[1]), !!m[2]] as const);
+  const nightRows = (html: string) =>
+    [...html.matchAll(/<polygon data-night="(\d+)" class="room-night( lit)?"/g)].map(
+      (m) => [Number(m[1]), !!m[2]] as const,
+    );
 
   it("sets class night on the root, with or without a plan theme", () => {
     expect(renderFloor(ground, { ...base, night: true })).toMatch(/^<g class="night">/);
-    expect(renderFloor(ground, { ...base, night: true, theme: "light" })).toMatch(/^<g data-theme="light" class="night">/);
+    expect(renderFloor(ground, { ...base, night: true, theme: "light" })).toMatch(
+      /^<g data-theme="light" class="night">/,
+    );
   });
 
   it("without night draws no overlay and no night class", () => {
@@ -2209,16 +3146,28 @@ describe("S7.6 night", () => {
   });
 
   it("marks lit exactly the rooms with an on light inside them", () => {
-    const rows = nightRows(renderFloor(ground, { ...base, night: true, state: { "light.demo_kitchen": st("on"), "light.demo_living": st("off") } }));
+    const rows = nightRows(
+      renderFloor(ground, {
+        ...base,
+        night: true,
+        state: { "light.demo_kitchen": st("on"), "light.demo_living": st("off") },
+      }),
+    );
     expect(rows.filter((r) => r[1]).map((r) => r[0])).toEqual([1]);
     // a bound light that is on through its switch alone counts, as it does for room_glow
-    const bound = nightRows(renderFloor(ground, { ...base, night: true, state: { "switch.demo_living_relay": st("on") } }));
+    const bound = nightRows(
+      renderFloor(ground, { ...base, night: true, state: { "switch.demo_living_relay": st("on") } }),
+    );
     expect(bound.filter((r) => r[1]).map((r) => r[0])).toEqual([0]);
   });
 
   it("the overlay sits over the room fills and stairs, under the walls and devices", () => {
     const html = renderFloor(ground, { ...base, night: true });
-    const firstNight = html.indexOf('class="room-night'), lastRoom = html.lastIndexOf("<polygon data-r="), stairs = html.lastIndexOf("<g data-s="), wall = html.indexOf('<line class="eh'), dev = html.indexOf("<g data-x=");
+    const firstNight = html.indexOf('class="room-night'),
+      lastRoom = html.lastIndexOf("<polygon data-r="),
+      stairs = html.lastIndexOf("<g data-s="),
+      wall = html.indexOf('<line class="eh'),
+      dev = html.indexOf("<g data-x=");
     expect(firstNight).toBeGreaterThan(lastRoom);
     expect(firstNight).toBeGreaterThan(stairs);
     expect(firstNight).toBeLessThan(wall);
@@ -2226,10 +3175,33 @@ describe("S7.6 night", () => {
   });
 
   it("every room kind is a decision: overlaid or not", () => {
-    const decided: Record<RoomKind, boolean> = { room: true, garden: true, pavement: true, fill: true, terrace: true, water: true, structure: false, zone: false };
+    const decided: Record<RoomKind, boolean> = {
+      room: true,
+      garden: true,
+      pavement: true,
+      fill: true,
+      terrace: true,
+      water: true,
+      structure: false,
+      zone: false,
+    };
     for (const kind of ROOM_KINDS) {
       const f = structuredClone(ground);
-      f.rooms = [{ id: "k", name: "K", area: "", kind, pts: [[0, 0], [100, 0], [100, 100], [0, 100]], wk: Array(4).fill(kind === "zone" ? "boundary" : "wall") }];
+      f.rooms = [
+        {
+          id: "k",
+          name: "K",
+          area: "",
+          kind,
+          pts: [
+            [0, 0],
+            [100, 0],
+            [100, 100],
+            [0, 100],
+          ],
+          wk: Array(4).fill(kind === "zone" ? "boundary" : "wall"),
+        },
+      ];
       expect(nightRows(renderFloor(f, { ...base, night: true })).length, kind).toBe(decided[kind] ? 1 : 0);
     }
   });
@@ -2254,19 +3226,37 @@ describe("S7.8: people on the plan", () => {
   // The demo ground floor without its devices: the positions below are the room's own, with no other icon to avoid.
   const empty = { ...structuredClone(ground), devices: [] as typeof ground.devices };
   const n0 = 0;
-  const P = (id: string, extra: Record<string, unknown> = {}) => ({ id, type: "person", entity: `person.${id}`, x: 200, y: 520, ...extra });
-  const draw = (people: unknown[], state: StateOverlay, f0 = empty) => renderFloor({ ...structuredClone(f0), devices: [...f0.devices, ...people] } as never, { ...base, state });
+  const P = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    type: "person",
+    entity: `person.${id}`,
+    x: 200,
+    y: 520,
+    ...extra,
+  });
+  const draw = (people: unknown[], state: StateOverlay, f0 = empty) =>
+    renderFloor({ ...structuredClone(f0), devices: [...f0.devices, ...people] } as never, { ...base, state });
   const openTag = (html: string, i = n0) => html.match(new RegExp(`<g data-x="${i}"[^>]*>`))![0];
-  const groupOf = (html: string, i = n0) => { const s = html.indexOf(openTag(html, i)); return html.slice(s, html.indexOf('<g data-x="', s + 5) > 0 ? html.indexOf('<g data-x="', s + 5) : undefined); };
-  const classesOf = (html: string, i = n0) => openTag(html, i).match(/class="([^"]*)"/)![1].split(" ");
+  const groupOf = (html: string, i = n0) => {
+    const s = html.indexOf(openTag(html, i));
+    return html.slice(s, html.indexOf('<g data-x="', s + 5) > 0 ? html.indexOf('<g data-x="', s + 5) : undefined);
+  };
+  const classesOf = (html: string, i = n0) =>
+    openTag(html, i)
+      .match(/class="([^"]*)"/)![1]
+      .split(" ");
   /** The icon's centre, from its translate (attribute or CSS) plus half the 24-unit glyph box times its scale. */
   const centreOf = (html: string, i = n0): Pt => {
     const m = openTag(html, i).match(/translate\((-?[\d.]+)(?:px)?[ ,]+(-?[\d.]+)(?:px)?\) scale\(([\d.]+)\)/)!;
     const k = Number(m[3]);
     return [Number(m[1]) + 12 * k, Number(m[2]) + 12 * k];
   };
-  const near = (a: Pt, b: Pt) => { expect(a[0]).toBeCloseTo(b[0], 1); expect(a[1]).toBeCloseTo(b[1], 1); };
-  const inRect = (p: Pt, x0: number, y0: number, x1: number, y1: number) => p[0] > x0 && p[0] < x1 && p[1] > y0 && p[1] < y1;
+  const near = (a: Pt, b: Pt) => {
+    expect(a[0]).toBeCloseTo(b[0], 1);
+    expect(a[1]).toBeCloseTo(b[1], 1);
+  };
+  const inRect = (p: Pt, x0: number, y0: number, x1: number, y1: number) =>
+    p[0] > x0 && p[0] < x1 && p[1] > y0 && p[1] < y1;
 
   it("home is full and on; not_home or any other zone is away and not on", () => {
     const home = classesOf(draw([P("a")], { "person.a": st("home") }));
@@ -2299,7 +3289,10 @@ describe("S7.8: people on the plan", () => {
   });
 
   it("a room sensor whose state names Kitchen moves the icon to the kitchen's centroid", () => {
-    near(centreOf(draw([P("a", { room: "sensor.a_room" })], { "person.a": st("home"), "sensor.a_room": st("Kitchen") })), [650, 200]);
+    near(
+      centreOf(draw([P("a", { room: "sensor.a_room" })], { "person.a": st("home"), "sensor.a_room": st("Kitchen") })),
+      [650, 200],
+    );
   });
 
   it("break it: the kitchen light sits at the centroid; the person moves beside it, inside the kitchen, never over it", () => {
@@ -2312,20 +3305,45 @@ describe("S7.8: people on the plan", () => {
   });
 
   it("area_id and area attributes match too, case-insensitively", () => {
-    near(centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st("on", { attributes: { area_id: "kitchen" } }) })), [650, 200]);
-    near(centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st("on", { attributes: { area: "KITCHEN" } }) })), [650, 200]);
+    near(
+      centreOf(
+        draw([P("a", { room: "sensor.r" })], {
+          "person.a": st("home"),
+          "sensor.r": st("on", { attributes: { area_id: "kitchen" } }),
+        }),
+      ),
+      [650, 200],
+    );
+    near(
+      centreOf(
+        draw([P("a", { room: "sensor.r" })], {
+          "person.a": st("home"),
+          "sensor.r": st("on", { attributes: { area: "KITCHEN" } }),
+        }),
+      ),
+      [650, 200],
+    );
   });
 
   it("a room's area is matched before any room's name", () => {
     const f = structuredClone(empty);
     f.rooms[0].area = "kitchen"; // Living now carries the HA area "kitchen"; the room named Kitchen another one
     f.rooms[1].area = "cucina";
-    near(centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st("kitchen") }, f)), [250, 200]);
+    near(
+      centreOf(draw([P("a", { room: "sensor.r" })], { "person.a": st("home"), "sensor.r": st("kitchen") }, f)),
+      [250, 200],
+    );
   });
 
   it("two people in one room have different spots, both inside the room, their discs apart", () => {
-    const html = draw([P("a", { room: "sensor.ra" }), P("b", { room: "sensor.rb" })], { "person.a": st("home"), "person.b": st("home"), "sensor.ra": st("Kitchen"), "sensor.rb": st("Kitchen") });
-    const a = centreOf(html, n0), b = centreOf(html, n0 + 1);
+    const html = draw([P("a", { room: "sensor.ra" }), P("b", { room: "sensor.rb" })], {
+      "person.a": st("home"),
+      "person.b": st("home"),
+      "sensor.ra": st("Kitchen"),
+      "sensor.rb": st("Kitchen"),
+    });
+    const a = centreOf(html, n0),
+      b = centreOf(html, n0 + 1);
     expect(Math.hypot(a[0] - b[0], a[1] - b[1])).toBeGreaterThanOrEqual(64); // two 16k discs at scale 0.5, k = 2
     for (const p of [a, b]) expect(inRect(p, 500, 0, 800, 400)).toBe(true);
   });
@@ -2333,10 +3351,15 @@ describe("S7.8: people on the plan", () => {
   it("break it: five people in one room all get their own spot", () => {
     const people = [0, 1, 2, 3, 4].map((i) => P(`p${i}`, { room: `sensor.r${i}` }));
     const state: StateOverlay = {};
-    for (let i = 0; i < 5; i++) { state[`person.p${i}`] = st("home"); state[`sensor.r${i}`] = st("Kitchen"); }
+    for (let i = 0; i < 5; i++) {
+      state[`person.p${i}`] = st("home");
+      state[`sensor.r${i}`] = st("Kitchen");
+    }
     const html = draw(people, state);
     const cs = people.map((_, i) => centreOf(html, n0 + i));
-    for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) expect(Math.hypot(cs[i][0] - cs[j][0], cs[i][1] - cs[j][1])).toBeGreaterThanOrEqual(64);
+    for (let i = 0; i < 5; i++)
+      for (let j = i + 1; j < 5; j++)
+        expect(Math.hypot(cs[i][0] - cs[j][0], cs[i][1] - cs[j][1])).toBeGreaterThanOrEqual(64);
   });
 
   it("an unmatched room, not_home, unknown, unavailable or a missing sensor keeps the placed spot", () => {
@@ -2347,9 +3370,31 @@ describe("S7.8: people on the plan", () => {
 
   it("a person who moved is placed at the room, so the room's name moves off the icon", () => {
     const f = structuredClone(ground);
-    f.doors = []; f.stairs = []; f.walls = []; f.furniture = []; f.devices = [];
-    f.rooms = [{ id: "d", name: "Den", kind: "room", area: "", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }] as never;
-    const nameAt = (html: string) => html.match(/<text class="lbl" x="([\d.-]+)" y="([\d.-]+)"[^>]*>Den</)!.slice(1).join(",");
+    f.doors = [];
+    f.stairs = [];
+    f.walls = [];
+    f.furniture = [];
+    f.devices = [];
+    f.rooms = [
+      {
+        id: "d",
+        name: "Den",
+        kind: "room",
+        area: "",
+        pts: [
+          [0, 0],
+          [400, 0],
+          [400, 400],
+          [0, 400],
+        ],
+        wk: ["wall", "wall", "wall", "wall"],
+      },
+    ] as never;
+    const nameAt = (html: string) =>
+      html
+        .match(/<text class="lbl" x="([\d.-]+)" y="([\d.-]+)"[^>]*>Den</)!
+        .slice(1)
+        .join(",");
     const person = [{ id: "a", type: "person", entity: "person.a", x: 50, y: 50, room: "sensor.r" }];
     expect(nameAt(draw(person, { "person.a": st("home") }, f))).toBe("200,200");
     expect(nameAt(draw(person, { "person.a": st("home"), "sensor.r": st("Den") }, f))).not.toBe("200,200");
@@ -2372,19 +3417,36 @@ describe("S7.8: people on the plan", () => {
 describe("S7.9: mmWave radar targets", () => {
   // The demo ground floor without its devices, same approach as S7.8's people tests: predictable positions, no other icon in the way.
   const empty = { ...structuredClone(ground), devices: [] as typeof ground.devices };
-  const R = (id: string, extra: Record<string, unknown> = {}) => ({ id, type: "radar", entity: `binary_sensor.${id}`, x: 200, y: 300, ...extra });
-  const draw = (radars: unknown[], state: StateOverlay, f0 = empty) => renderFloor({ ...structuredClone(f0), devices: [...f0.devices, ...radars] } as never, { ...base, state });
-  const targets = (html: string) => [...html.matchAll(/<circle class="target" cx="(-?[\d.]+)" cy="(-?[\d.]+)" r="([\d.]+)"\/>/g)].map((m) => [Number(m[1]), Number(m[2]), Number(m[3])] as const);
+  const R = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    type: "radar",
+    entity: `binary_sensor.${id}`,
+    x: 200,
+    y: 300,
+    ...extra,
+  });
+  const draw = (radars: unknown[], state: StateOverlay, f0 = empty) =>
+    renderFloor({ ...structuredClone(f0), devices: [...f0.devices, ...radars] } as never, { ...base, state });
+  const targets = (html: string) =>
+    [...html.matchAll(/<circle class="target" cx="(-?[\d.]+)" cy="(-?[\d.]+)" r="([\d.]+)"\/>/g)].map(
+      (m) => [Number(m[1]), Number(m[2]), Number(m[3])] as const,
+    );
 
   it("a target at x=0, y=2000mm with rot 90 draws 200cm screen-right of the icon (the brief's own example)", () => {
-    const html = draw([R("r", { rot: 90, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("0"), "sensor.ty": st("2000") });
+    const html = draw([R("r", { rot: 90, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], {
+      "sensor.tx": st("0"),
+      "sensor.ty": st("2000"),
+    });
     const [[cx, cy]] = targets(html);
     expect(cx).toBeCloseTo(200 + 200, 1); // 200cm to the right of the icon's own x=200
     expect(cy).toBeCloseTo(300, 1); // same height: rot 90 turns "ahead" from up to right
   });
 
   it("rot 0: forward (y) is screen-up, right (x) is screen-right, asymmetric values so an axis swap would fail", () => {
-    const html = draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("500"), "sensor.ty": st("1500") }); // x=50cm right, y=150cm ahead
+    const html = draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], {
+      "sensor.tx": st("500"),
+      "sensor.ty": st("1500"),
+    }); // x=50cm right, y=150cm ahead
     const [[cx, cy]] = targets(html);
     expect(cx).toBeCloseTo(200 + 50, 1);
     expect(cy).toBeCloseTo(300 - 150, 1); // "ahead" moves up (smaller y)
@@ -2392,7 +3454,10 @@ describe("S7.9: mmWave radar targets", () => {
 
   it("a non-numeric or unavailable reading draws nothing for that pair; a missing sensor too", () => {
     for (const bad of [st("unavailable"), st("unknown"), st("not-a-number")]) {
-      const html = draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("100"), "sensor.ty": bad });
+      const html = draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], {
+        "sensor.tx": st("100"),
+        "sensor.ty": bad,
+      });
       expect(targets(html), bad.state).toHaveLength(0);
     }
     const html = draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("100") }); // sensor.ty missing entirely
@@ -2400,7 +3465,10 @@ describe("S7.9: mmWave radar targets", () => {
   });
 
   it("Opus review 2026-09-25: an empty slot reads 0/0 (what an LD2450 reports for no target) and draws nothing; a blank state draws nothing", () => {
-    const one = (x: string, y: string) => targets(draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st(x), "sensor.ty": st(y) }));
+    const one = (x: string, y: string) =>
+      targets(
+        draw([R("r", { targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st(x), "sensor.ty": st(y) }),
+      );
     expect(one("0", "0")).toHaveLength(0); // Number("0") is finite, so without the rule a dot sat on the sensor itself
     expect(one("", "")).toHaveLength(0); // Number("") is 0, same trap
     expect(one(" ", "100")).toHaveLength(0); // Number(" ") is 0 too
@@ -2409,34 +3477,64 @@ describe("S7.9: mmWave radar targets", () => {
   });
 
   it("three targets draw three dots", () => {
-    const html = draw([R("r", { targets: [{ x: "sensor.t0x", y: "sensor.t0y" }, { x: "sensor.t1x", y: "sensor.t1y" }, { x: "sensor.t2x", y: "sensor.t2y" }] })], {
-      "sensor.t0x": st("50"), "sensor.t0y": st("50"), "sensor.t1x": st("100"), "sensor.t1y": st("0"), "sensor.t2x": st("-100"), "sensor.t2y": st("0"),
-    });
+    const html = draw(
+      [
+        R("r", {
+          targets: [
+            { x: "sensor.t0x", y: "sensor.t0y" },
+            { x: "sensor.t1x", y: "sensor.t1y" },
+            { x: "sensor.t2x", y: "sensor.t2y" },
+          ],
+        }),
+      ],
+      {
+        "sensor.t0x": st("50"),
+        "sensor.t0y": st("50"),
+        "sensor.t1x": st("100"),
+        "sensor.t1y": st("0"),
+        "sensor.t2x": st("-100"),
+        "sensor.t2y": st("0"),
+      },
+    );
     expect(targets(html)).toHaveLength(3);
   });
 
   it("break it: twenty pairs draw twenty dots, nothing caps the count", () => {
     const pairs = Array.from({ length: 20 }, (_, i) => ({ x: `sensor.t${i}x`, y: `sensor.t${i}y` }));
     const state: StateOverlay = {};
-    for (let i = 0; i < 20; i++) { state[`sensor.t${i}x`] = st(String((i + 1) * 10)); state[`sensor.t${i}y`] = st(String((i + 1) * 5)); } // i+1: 0/0 is an empty slot since the 2026-09-25 review
+    for (let i = 0; i < 20; i++) {
+      state[`sensor.t${i}x`] = st(String((i + 1) * 10));
+      state[`sensor.t${i}y`] = st(String((i + 1) * 5));
+    } // i+1: 0/0 is an empty slot since the 2026-09-25 review
     expect(targets(draw([R("r", { targets: pairs })], state))).toHaveLength(20);
   });
 
   it("a target outside the floor's own outline is skipped, not clamped to the edge", () => {
     // The ground floor's outline is [[0,0],[800,0],[800,600],[0,600]]; forward (rot 0, y) from an icon at y=100 by 5m (500cm) lands at y=-400, outside.
-    const html = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("0"), "sensor.ty": st("5000") });
+    const html = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], {
+      "sensor.tx": st("0"),
+      "sensor.ty": st("5000"),
+    });
     expect(targets(html)).toHaveLength(0);
   });
 
   it("the outline check discriminates, not just always hides: the same sensor a little closer lands in bounds and is drawn", () => {
-    const html = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("0"), "sensor.ty": st("5000") });
+    const html = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], {
+      "sensor.tx": st("0"),
+      "sensor.ty": st("5000"),
+    });
     expect(targets(html)).toHaveLength(0); // 500cm ahead of y=100: outside
-    const inBounds = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], { "sensor.tx": st("0"), "sensor.ty": st("-500") }); // 50cm behind: y=150, inside
+    const inBounds = draw([R("r", { x: 100, y: 100, targets: [{ x: "sensor.tx", y: "sensor.ty" }] })], {
+      "sensor.tx": st("0"),
+      "sensor.ty": st("-500"),
+    }); // 50cm behind: y=150, inside
     expect(targets(inBounds)).toHaveLength(1);
   });
 
   it("a target's own colour comes from --fp-dev-radar, and it takes no clicks", () => {
-    expect(FLOORPLAN_CSS).toContain(".target{fill:var(--fp-dev-radar);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}");
+    expect(FLOORPLAN_CSS).toContain(
+      ".target{fill:var(--fp-dev-radar);stroke:var(--fp-outline);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}",
+    );
   });
 
   it("a radar with a presence entity wears the on class and --fp-dev-radar like any other device", () => {
@@ -2449,8 +3547,16 @@ describe("S7.9: mmWave radar targets", () => {
 
 describe("S7.10: a vacuum's four states", () => {
   const empty = { ...structuredClone(ground), devices: [] as typeof ground.devices };
-  const V = (extra: Record<string, unknown> = {}) => ({ id: "v", type: "vacuum", entity: "vacuum.v", x: 200, y: 300, ...extra });
-  const draw = (state: StateOverlay) => renderFloor({ ...structuredClone(empty), devices: [V()] } as never, { ...base, state });
+  const V = (extra: Record<string, unknown> = {}) => ({
+    id: "v",
+    type: "vacuum",
+    entity: "vacuum.v",
+    x: 200,
+    y: 300,
+    ...extra,
+  });
+  const draw = (state: StateOverlay) =>
+    renderFloor({ ...structuredClone(empty), devices: [V()] } as never, { ...base, state });
   const classOfDev = (html: string) => html.match(/<g data-x="0" class="([^"]*)"/)![1].split(" ");
 
   it("docked, idle and paused all read idle grey (off), never on", () => {
@@ -2493,31 +3599,92 @@ describe("S7.10: a vacuum's four states", () => {
 });
 
 describe("0.12.16: room names sit inside their room, small and half transparent", () => {
-  const bare = (f: typeof ground) => { f.doors = []; f.stairs = []; f.walls = []; f.furniture = []; return f; };
-  const inside = (p: Pt, poly: Pt[]) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) if ((poly[i][1] > p[1]) !== (poly[j][1] > p[1]) && p[0] < ((poly[j][0] - poly[i][0]) * (p[1] - poly[i][1])) / (poly[j][1] - poly[i][1]) + poly[i][0]) c = !c; return c; };
-  const ell: Pt[] = [[0, 0], [300, 0], [300, 50], [50, 50], [50, 300], [0, 300]]; // the vertex mean (117, 117) is outside it
-  const at = (html: string, name: string): Pt => { const m = html.match(new RegExp(`<text class="lbl[^"]*" x="([\\d.-]+)" y="([\\d.-]+)"[^>]*>${name}<`))!; return [Number(m[1]), Number(m[2]) - 8]; };
-  const mk = (pts: Pt[], kind: string) => { const f = bare(structuredClone(ground)); f.rooms = [{ id: "r", name: "Laundry", kind, area: "", pts, wk: pts.map(() => "wall") }] as never; f.devices = []; return f; };
+  const bare = (f: typeof ground) => {
+    f.doors = [];
+    f.stairs = [];
+    f.walls = [];
+    f.furniture = [];
+    return f;
+  };
+  const inside = (p: Pt, poly: Pt[]) => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
+      if (
+        poly[i][1] > p[1] !== poly[j][1] > p[1] &&
+        p[0] < ((poly[j][0] - poly[i][0]) * (p[1] - poly[i][1])) / (poly[j][1] - poly[i][1]) + poly[i][0]
+      )
+        c = !c;
+    return c;
+  };
+  const ell: Pt[] = [
+    [0, 0],
+    [300, 0],
+    [300, 50],
+    [50, 50],
+    [50, 300],
+    [0, 300],
+  ]; // the vertex mean (117, 117) is outside it
+  const at = (html: string, name: string): Pt => {
+    const m = html.match(new RegExp(`<text class="lbl[^"]*" x="([\\d.-]+)" y="([\\d.-]+)"[^>]*>${name}<`))!;
+    return [Number(m[1]), Number(m[2]) - 8];
+  };
+  const mk = (pts: Pt[], kind: string) => {
+    const f = bare(structuredClone(ground));
+    f.rooms = [{ id: "r", name: "Laundry", kind, area: "", pts, wk: pts.map(() => "wall") }] as never;
+    f.devices = [];
+    return f;
+  };
   it("an L-shaped room keeps its name inside the L, with or without an icon in the way", () => {
     for (const kind of ["room", "zone"]) {
       const html = renderFloor(mk(ell, kind), { scale: 1 });
       expect(inside(at(html, "Laundry"), ell), kind).toBe(true);
     }
-    const f = mk(ell, "room"); f.devices = [{ id: "l", type: "light", entity: "light.a", x: 25, y: 25 }] as never;
+    const f = mk(ell, "room");
+    f.devices = [{ id: "l", type: "light", entity: "light.a", x: 25, y: 25 }] as never;
     expect(inside(at(renderFloor(f, { scale: 1 }), "Laundry"), ell)).toBe(true);
   });
   it("a room name is 11, a zone name 8 (times the scale), and both are drawn at half opacity", () => {
-    const html = renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "room"), { scale: 1 });
+    const html = renderFloor(
+      mk(
+        [
+          [0, 0],
+          [200, 0],
+          [200, 200],
+          [0, 200],
+        ],
+        "room",
+      ),
+      { scale: 1 },
+    );
     expect(html).toMatch(/<text class="lbl"[^>]*font-size="11"[^>]*opacity="\.5"[^>]*>Laundry</);
-    expect(renderFloor(mk([[0, 0], [200, 0], [200, 200], [0, 200]], "zone"), { scale: 1 })).toMatch(/<text class="lbl zone"[^>]*font-size="8"[^>]*>Laundry</);
+    expect(
+      renderFloor(
+        mk(
+          [
+            [0, 0],
+            [200, 0],
+            [200, 200],
+            [0, 200],
+          ],
+          "zone",
+        ),
+        { scale: 1 },
+      ),
+    ).toMatch(/<text class="lbl zone"[^>]*font-size="8"[^>]*>Laundry</);
     expect(FLOORPLAN_CSS).toMatch(/\.lbl\.zone\{opacity:\.5\}/);
   });
 });
 
 describe("a speaker or TV object linked to a media player shows its state", () => {
-  const floorWith = (type: string, attached?: string[]) => ({ ...ground, unlinked: [{ id: "u1", type, name: "Obj", x: 100, y: 100, rot: 0, scale: 1, ...(attached ? { attached } : {}) }] }) as unknown as typeof ground;
-  const st = (entity: string, state: string) => ({ state: { [entity]: { state, attributes: {} } } }) as unknown as Partial<StateOverlay>;
-  const html = (type: string, attached: string[] | undefined, state?: [string, string]) => renderFloor(floorWith(type, attached), { ...base, ...(state ? st(state[0], state[1]) : {}) } as never);
+  const floorWith = (type: string, attached?: string[]) =>
+    ({
+      ...ground,
+      unlinked: [{ id: "u1", type, name: "Obj", x: 100, y: 100, rot: 0, scale: 1, ...(attached ? { attached } : {}) }],
+    }) as unknown as typeof ground;
+  const st = (entity: string, state: string) =>
+    ({ state: { [entity]: { state, attributes: {} } } }) as unknown as Partial<StateOverlay>;
+  const html = (type: string, attached: string[] | undefined, state?: [string, string]) =>
+    renderFloor(floorWith(type, attached), { ...base, ...(state ? st(state[0], state[1]) : {}) } as never);
   it.each(["speaker", "tv"])("a %s whose player is playing draws two waves and carries on", (type) => {
     const out = html(type, ["media_player.living"], ["media_player.living", "playing"]);
     expect(out.match(/class="wave/g)).toHaveLength(2);

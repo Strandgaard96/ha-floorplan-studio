@@ -2,7 +2,8 @@ import type { Device, DeviceType, Door } from "./schema";
 
 /** Only string, non-empty entries; anything else (untrusted layout, CLAUDE.md finding 1) is silently skipped
  *  rather than thrown on. */
-const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((e): e is string => typeof e === "string" && e.length > 0) : []);
+const strings = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((e): e is string => typeof e === "string" && e.length > 0) : [];
 
 /**
  * A speaker or TV object stands in for the media player attached to it: the first attached `media_player.*`. Any other
@@ -41,7 +42,9 @@ export function playerOf(u: { type: DeviceType; attached?: unknown }): string | 
  */
 export function entitiesOfDevice(d: { type: DeviceType; entity?: string } & Partial<Device>): string[] {
   const out: string[] = [];
-  const add = (e: string | undefined | null) => { if (e && !out.includes(e)) out.push(e); };
+  const add = (e: string | undefined | null) => {
+    if (e && !out.includes(e)) out.push(e);
+  };
   add(d.entity);
   switch (d.type) {
     case "heater":
@@ -80,7 +83,9 @@ export function entitiesOfDevice(d: { type: DeviceType; entity?: string } & Part
  */
 export function entitiesOfDoor(door: Partial<Door>): string[] {
   const out: string[] = [];
-  const add = (e: string) => { if (!out.includes(e)) out.push(e); };
+  const add = (e: string) => {
+    if (!out.includes(e)) out.push(e);
+  };
   if (typeof door.cover === "string" && door.cover.length > 0) add(door.cover);
   strings(door.sensors).forEach(add);
   strings(door.vibration).forEach(add);

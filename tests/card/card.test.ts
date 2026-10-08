@@ -19,7 +19,12 @@ const L = demo as unknown as Layout;
 const lastRenderState = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts;
 
 /** A state map entry, matching what `hass.states` holds. */
-const st = (state: string, extra: Record<string, unknown> = {}) => ({ state, attributes: {}, last_changed: "2026-09-19T10:00:00Z", ...extra });
+const st = (state: string, extra: Record<string, unknown> = {}) => ({
+  state,
+  attributes: {},
+  last_changed: "2026-09-19T10:00:00Z",
+  ...extra,
+});
 
 /** A minimal stub `hass`: enough states for the demo layout's devices, a fixed theme, no websocket. */
 function stubHass(overrides: Record<string, ReturnType<typeof st>> = {}, darkMode = false) {
@@ -53,7 +58,9 @@ describe("FloorplanStudioCard", () => {
   });
 
   it("registers itself on window.customCards", () => {
-    const entry = (window as unknown as { customCards: { type: string }[] }).customCards.find((c) => c.type === "floorplan-studio-card");
+    const entry = (window as unknown as { customCards: { type: string }[] }).customCards.find(
+      (c) => c.type === "floorplan-studio-card",
+    );
     expect(entry).toBeTruthy();
   });
 
@@ -113,7 +120,9 @@ describe("FloorplanStudioCard", () => {
       const line2 = svg2.querySelector(`line[data-d="${doorIndex()}"]:not(.door-hit)`)!;
       expect(line2.getAttribute("class")).toMatch(/\bopen\b/);
       // and no other door on the same floor lit up as a side effect
-      const openDoors = [...svg2.querySelectorAll("line[data-d]:not(.door-hit)")].filter((l) => l.getAttribute("class")?.match(/\bopen\b/));
+      const openDoors = [...svg2.querySelectorAll("line[data-d]:not(.door-hit)")].filter((l) =>
+        l.getAttribute("class")?.match(/\bopen\b/),
+      );
       expect(openDoors).toHaveLength(1);
       expect(openDoors[0]).toBe(line2);
     });
@@ -137,7 +146,7 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
-  it("S2.3 Opus review: with all three sensors on and config.floor: \"first\", only the first floor's window is .open — a wrong floor index would light a ground door instead", async () => {
+  it('S2.3 Opus review: with all three sensors on and config.floor: "first", only the first floor\'s window is .open — a wrong floor index would light a ground door instead', async () => {
     const el = await mount();
     el.setConfig({ layout: structuredClone(L), floor: "first" });
     el.hass = stubHass({
@@ -147,7 +156,9 @@ describe("FloorplanStudioCard", () => {
     }) as never;
     await el.updateComplete;
     const svg = el.shadowRoot!.querySelector("svg")!;
-    const openDoors = [...svg.querySelectorAll("line[data-d]")].filter((l) => l.getAttribute("class")?.match(/\bopen\b/));
+    const openDoors = [...svg.querySelectorAll("line[data-d]")].filter((l) =>
+      l.getAttribute("class")?.match(/\bopen\b/),
+    );
     expect(openDoors).toHaveLength(1);
     expect(openDoors[0].querySelector("title")!.textContent).toBe("Bedroom window");
   });
@@ -169,7 +180,9 @@ describe("FloorplanStudioCard", () => {
     const el = await mount();
     el.setConfig({});
     await el.updateComplete;
-    expect(el.shadowRoot!.textContent).toContain("No layout: install the Floorplan Studio integration or set layout_url");
+    expect(el.shadowRoot!.textContent).toContain(
+      "No layout: install the Floorplan Studio integration or set layout_url",
+    );
     expect(el.shadowRoot!.querySelector("svg")).toBeNull();
   });
 
@@ -215,7 +228,9 @@ describe("FloorplanStudioCard", () => {
     await Promise.resolve();
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector("svg")).toBeNull();
-    expect(el.shadowRoot!.textContent).toContain("No layout: install the Floorplan Studio integration or set layout_url");
+    expect(el.shadowRoot!.textContent).toContain(
+      "No layout: install the Floorplan Studio integration or set layout_url",
+    );
   });
 
   it("S7.16: a websocket reply whose layout is invalid says why, so the message can be matched to the plan", async () => {
@@ -264,7 +279,10 @@ describe("FloorplanStudioCard", () => {
     // it finds its own function still in place; left wrapped by a leaked spy, it silently `delete`s the global
     // instead, leaving `clearInterval` undefined for the rest of the file and the card's disconnectedCallback
     // throwing on the next `document.body.innerHTML = ""` (S2.4 review: caught only by running `npm test` bare).
-    afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    });
 
     it("runs only while a motion device is inside its fade window", async () => {
       const setSpy = vi.spyOn(globalThis, "setInterval");
@@ -274,7 +292,9 @@ describe("FloorplanStudioCard", () => {
       const now = Date.parse("2026-09-19T10:00:00Z");
       vi.setSystemTime(now);
       // motion just ended: inside the 10 s fade window. (While it is on there is nothing to fade, so no timer.)
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(now).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(now).toISOString() }),
+      }) as never;
       await el.updateComplete;
       expect(setSpy).toHaveBeenCalled();
 
@@ -288,7 +308,9 @@ describe("FloorplanStudioCard", () => {
       const setSpy = vi.spyOn(globalThis, "setInterval");
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), fade: 10 });
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: "2020-01-01T00:00:00Z" }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("off", { last_changed: "2020-01-01T00:00:00Z" }),
+      }) as never;
       await el.updateComplete;
       expect(setSpy).not.toHaveBeenCalled();
     });
@@ -304,7 +326,9 @@ describe("FloorplanStudioCard", () => {
       const now = Date.parse("2026-09-19T10:00:00Z");
       vi.setSystemTime(now);
       // motion just ended: inside the 10 s fade window, so the timer is running.
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(now).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(now).toISOString() }),
+      }) as never;
       await el.updateComplete;
       expect(setSpy).toHaveBeenCalledTimes(1);
       const timerId = setSpy.mock.results[0]!.value;
@@ -324,7 +348,10 @@ describe("FloorplanStudioCard", () => {
   describe("S2.4 motion fade, counted from when motion ends (2026-10-06: it was from when it began)", () => {
     beforeEach(() => vi.useFakeTimers());
     // See "the motion re-render timer" above: spies on globalThis timers must be restored before uninstalling fakes.
-    afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    });
 
     const motionIndex = L.floors.ground.devices.findIndex((d) => d.entity === "binary_sensor.demo_hall_motion");
 
@@ -338,14 +365,18 @@ describe("FloorplanStudioCard", () => {
       const styleOf = () => el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style");
 
       // on at t0: fully red.
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }),
+      }) as never;
       await el.updateComplete;
       expect(styleOf()).toContain("--fp-fade:1");
       expect(setSpy).not.toHaveBeenCalled(); // on: nothing fades yet, so no timer (a sensor stuck on must not tick forever)
 
       // t0+2s: the sensor returns to off. Motion has ended: the fade window starts here.
       vi.setSystemTime(t0 + 2000);
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }),
+      }) as never;
       await el.updateComplete;
       expect(setSpy).toHaveBeenCalledTimes(1);
 
@@ -373,15 +404,24 @@ describe("FloorplanStudioCard", () => {
       vi.setSystemTime(t0);
       // a houseful of unrelated entities, none on the plan: a doorbell, a sun sensor, an energy meter.
       const crowd: Record<string, ReturnType<typeof st>> = {};
-      for (let i = 0; i < 50; i++) crowd[`sensor.unrelated_${i}`] = st("on", { last_changed: new Date(t0).toISOString() });
+      for (let i = 0; i < 50; i++)
+        crowd[`sensor.unrelated_${i}`] = st("on", { last_changed: new Date(t0).toISOString() });
 
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }), ...crowd }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }),
+        ...crowd,
+      }) as never;
       await el.updateComplete;
 
       // the crowd turns off at t0+2s; so does the motion sensor.
       vi.setSystemTime(t0 + 2000);
-      const crowdOff = Object.fromEntries(Object.keys(crowd).map((id) => [id, st("off", { last_changed: new Date(t0 + 2000).toISOString() })]));
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }), ...crowdOff }) as never;
+      const crowdOff = Object.fromEntries(
+        Object.keys(crowd).map((id) => [id, st("off", { last_changed: new Date(t0 + 2000).toISOString() })]),
+      );
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }),
+        ...crowdOff,
+      }) as never;
       await el.updateComplete;
 
       const state = lastRenderState().state as Record<string, { last_changed: string }>;
@@ -396,20 +436,26 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L), fade: 10, floor: "ground" });
       const t0 = Date.parse("2026-09-19T10:00:00Z");
       vi.setSystemTime(t0);
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }),
+      }) as never;
       await el.updateComplete;
 
       // switch to a floor that draws no motion device at all, and let the sensor go off while it is not shown.
       vi.setSystemTime(t0 + 2000);
       el.setConfig({ layout: structuredClone(L), fade: 10, floor: "first" });
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 2000).toISOString() }),
+      }) as never;
       await el.updateComplete;
 
       // back to ground: the fade is counted from the t0+2s off event, not reset by the floor switch.
       vi.setSystemTime(t0 + 7000);
       el.setConfig({ layout: structuredClone(L), fade: 10, floor: "ground" });
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style")).toContain("--fp-fade:0.5");
+      expect(el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style")).toContain(
+        "--fp-fade:0.5",
+      );
     });
 
     it("a long motion fades for the full window after it ends (it was already grey when it ended)", async () => {
@@ -417,14 +463,20 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L), fade: 10 });
       const t0 = Date.parse("2026-09-19T10:00:00Z");
       vi.setSystemTime(t0);
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }),
+      }) as never;
       await el.updateComplete;
       vi.setSystemTime(t0 + 100_000); // on for 100 s, then off
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 100_000).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 100_000).toISOString() }),
+      }) as never;
       vi.setSystemTime(t0 + 103_000);
       el.requestUpdate();
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style")).toContain("--fp-fade:0.7");
+      expect(el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style")).toContain(
+        "--fp-fade:0.7",
+      );
     });
 
     it("a room's own motion list keeps the timer running while its border fades, and the border is gone when the fade is over", async () => {
@@ -436,7 +488,9 @@ describe("FloorplanStudioCard", () => {
       const t0 = Date.parse("2026-09-19T10:00:00Z");
       vi.setSystemTime(t0);
       const rings = () => el.shadowRoot!.querySelectorAll('svg polygon.motion-perimeter[data-m="0"]').length;
-      el.hass = stubHass({ "binary_sensor.garden_ring": st("off", { last_changed: new Date(t0 - 3000).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.garden_ring": st("off", { last_changed: new Date(t0 - 3000).toISOString() }),
+      }) as never;
       await el.updateComplete;
       expect(rings()).toBe(1);
       expect(setSpy).toHaveBeenCalledTimes(1);
@@ -454,13 +508,17 @@ describe("FloorplanStudioCard", () => {
       const classOf = () => el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("class");
       const styleOf = () => el.shadowRoot!.querySelector(`svg [data-x="${motionIndex}"]`)!.getAttribute("style");
 
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("on", { last_changed: new Date(t0).toISOString() }),
+      }) as never;
       await el.updateComplete;
       expect(classOf()).toMatch(/\bon\b/);
       expect(styleOf()).toContain("--fp-fade:1");
 
       vi.setSystemTime(t0 + 1000);
-      el.hass = stubHass({ "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 1000).toISOString() }) }) as never;
+      el.hass = stubHass({
+        "binary_sensor.demo_hall_motion": st("off", { last_changed: new Date(t0 + 1000).toISOString() }),
+      }) as never;
       await el.updateComplete;
       expect(classOf()).not.toMatch(/\bon\b/);
       expect(styleOf()).toContain("--fp-fade:0"); // grey at once, no lingering fade from the remembered on time
@@ -477,12 +535,16 @@ describe("FloorplanStudioCard", () => {
     it("shows temperature and humidity labels with their unit", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
-      el.hass = stubHass({ "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }) }) as never;
+      el.hass = stubHass({
+        "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }),
+      }) as never;
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("21.5 °C");
 
       el.setConfig({ layout: structuredClone(L), floor: "first" });
-      el.hass = stubHass({ "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }) }) as never;
+      el.hass = stubHass({
+        "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }),
+      }) as never;
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("48 %");
       expect(el.shadowRoot!.querySelector(`svg [data-x="${humidityIndex}"]`)).not.toBeNull(); // the humidity device itself is on this floor
@@ -552,7 +614,7 @@ describe("FloorplanStudioCard", () => {
     });
   });
 
-  describe("S2.6: floor switcher (floor: \"all\")", () => {
+  describe('S2.6: floor switcher (floor: "all")', () => {
     it("shows one chip per floor, outside the <svg>, and the chip count equals the number of floors", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "all" });
@@ -584,7 +646,7 @@ describe("FloorplanStudioCard", () => {
       expect(chips2.find((b) => b.textContent === L.floors.ground.title)!.getAttribute("aria-pressed")).toBe("false");
     });
 
-    it("no chips at all with an explicit floor (not \"all\")", async () => {
+    it('no chips at all with an explicit floor (not "all")', async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "ground" });
       el.hass = stubHass() as never;
@@ -592,7 +654,7 @@ describe("FloorplanStudioCard", () => {
       expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
     });
 
-    it("Break it: a layout with one floor and floor: \"all\" shows one chip and throws nothing", async () => {
+    it('Break it: a layout with one floor and floor: "all" shows one chip and throws nothing', async () => {
       const oneFloor = structuredClone(L);
       delete (oneFloor.floors as Record<string, unknown>).first;
       delete (oneFloor.floors as Record<string, unknown>).test;
@@ -833,17 +895,17 @@ describe("FloorplanStudioCard", () => {
       expect(callService).toHaveBeenCalledWith("light", "turn_on", { entity_id: "light.demo_living" }); // stubHass has the light off
     });
 
-    it("kiosk: \"yes\" (a string) is refused by setConfig, naming the key", async () => {
+    it('kiosk: "yes" (a string) is refused by setConfig, naming the key', async () => {
       const el = await mount();
       expect(() => el.setConfig({ kiosk: "yes" as never })).toThrow(/kiosk/);
     });
 
-    it("zoom: \"yes\" (an unknown string) is refused by setConfig, naming the key — S7.4 left this falling back to true", async () => {
+    it('zoom: "yes" (an unknown string) is refused by setConfig, naming the key — S7.4 left this falling back to true', async () => {
       const el = await mount();
       expect(() => el.setConfig({ zoom: "yes" as never })).toThrow(/zoom/);
     });
 
-    it("zoom: true, false and \"wheel\" are all still accepted", async () => {
+    it('zoom: true, false and "wheel" are all still accepted', async () => {
       const el = await mount();
       for (const zoom of [true, false, "wheel"] as const) expect(() => el.setConfig({ zoom })).not.toThrow();
     });
@@ -946,7 +1008,7 @@ describe("FloorplanStudioCard", () => {
       expect(callService).not.toHaveBeenCalled();
     });
 
-    it("a tap on a door with a closed cover opens an in-card dialog reading \"Open <name>?\" with an Open button", async () => {
+    it('a tap on a door with a closed cover opens an in-card dialog reading "Open <name>?" with an Open button', async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
@@ -960,7 +1022,7 @@ describe("FloorplanStudioCard", () => {
       expect(el.shadowRoot!.querySelector(".fp-dialog")!.closest("svg")).toBeNull(); // card chrome, not plan content
     });
 
-    it("Open calls callService(\"cover\", \"open_cover\", { entity_id }) when the cover is closed", async () => {
+    it('Open calls callService("cover", "open_cover", { entity_id }) when the cover is closed', async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       const callService = vi.fn();
@@ -976,7 +1038,7 @@ describe("FloorplanStudioCard", () => {
       expect(dialogText(el)).toBeNull(); // dialog closes after acting
     });
 
-    it("a tap on a door with an open cover opens a dialog reading \"Close <name>?\" with a Close button, and it calls close_cover (Opus review: text must match the action)", async () => {
+    it('a tap on a door with an open cover opens a dialog reading "Close <name>?" with a Close button, and it calls close_cover (Opus review: text must match the action)', async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       const callService = vi.fn();
@@ -1017,7 +1079,7 @@ describe("FloorplanStudioCard", () => {
       expect(callService).toHaveBeenCalledWith("cover", "close_cover", { entity_id: garageEntity }); // matches the label shown at press time, not the one at open time
     });
 
-    it("the dialog is a labelled, modal region to assistive tech: role=\"dialog\", aria-modal=\"true\", and aria-labelledby pointing at the question text (Opus review)", async () => {
+    it('the dialog is a labelled, modal region to assistive tech: role="dialog", aria-modal="true", and aria-labelledby pointing at the question text (Opus review)', async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ [garageEntity]: st("closed") }) as never;
@@ -1075,7 +1137,9 @@ describe("FloorplanStudioCard", () => {
 
       await tap(el, garageIndex);
       await el.updateComplete;
-      el.shadowRoot!.querySelector(".fp-dialog-backdrop")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }));
+      el.shadowRoot!.querySelector(".fp-dialog-backdrop")!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }),
+      );
       await el.updateComplete;
       expect(callService).not.toHaveBeenCalled();
       expect(dialogText(el)).toBeNull();
@@ -1095,7 +1159,9 @@ describe("FloorplanStudioCard", () => {
 
       // Tab from the last control (Open) wraps back to the first (Cancel), not out of the dialog.
       confirmBtn.focus();
-      el.shadowRoot!.querySelector(".fp-dialog-backdrop")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true, composed: true }));
+      el.shadowRoot!.querySelector(".fp-dialog-backdrop")!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Tab", bubbles: true, composed: true }),
+      );
       expect(el.shadowRoot!.activeElement).toBe(cancelBtn);
     });
 
@@ -1164,13 +1230,21 @@ describe("FloorplanStudioCard", () => {
       const l = withExtraDevices();
       const el = await mount();
       el.setConfig({ layout: l });
-      el.hass = stubHass({ "media_player.demo_tv": st("on"), "switch.demo_tv_plug": st("on"), "switch.demo_computer": st("on") }) as never;
+      el.hass = stubHass({
+        "media_player.demo_tv": st("on"),
+        "switch.demo_tv_plug": st("on"),
+        "switch.demo_computer": st("on"),
+      }) as never;
       await el.updateComplete;
       expect(classOf(el, "media_player.demo_tv", l)).toMatch(/\bon\b/);
       expect(classOf(el, "switch.demo_tv_plug", l)).toMatch(/\bon\b/);
       expect(classOf(el, "switch.demo_computer", l)).toMatch(/\bon\b/);
 
-      el.hass = stubHass({ "media_player.demo_tv": st("off"), "switch.demo_tv_plug": st("off"), "switch.demo_computer": st("off") }) as never;
+      el.hass = stubHass({
+        "media_player.demo_tv": st("off"),
+        "switch.demo_tv_plug": st("off"),
+        "switch.demo_computer": st("off"),
+      }) as never;
       await el.updateComplete;
       expect(classOf(el, "media_player.demo_tv", l)).not.toMatch(/\bon\b/);
       expect(classOf(el, "switch.demo_tv_plug", l)).not.toMatch(/\bon\b/);
@@ -1192,7 +1266,20 @@ describe("FloorplanStudioCard", () => {
   describe("S2.9: a custom room or piece of furniture with an entity carries the on class", () => {
     it("a room with an entity carries on when that entity is on, open or playing; off does not", async () => {
       const l = structuredClone(L);
-      l.floors.ground.rooms.push({ id: "pond", name: "Pond", area: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["wall", "wall", "wall", "wall"], entity: "switch.pond_pump" });
+      l.floors.ground.rooms.push({
+        id: "pond",
+        name: "Pond",
+        area: "",
+        kind: "water",
+        pts: [
+          [10, 10],
+          [60, 10],
+          [60, 60],
+          [10, 60],
+        ],
+        wk: ["wall", "wall", "wall", "wall"],
+        entity: "switch.pond_pump",
+      });
       const idx = l.floors.ground.rooms.length - 1;
       const el = await mount();
       el.setConfig({ layout: l });
@@ -1207,7 +1294,19 @@ describe("FloorplanStudioCard", () => {
 
     it("the same room with no entity never carries on, even with the same entity's state on", async () => {
       const l = structuredClone(L);
-      l.floors.ground.rooms.push({ id: "pond2", name: "Pond2", area: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60], [10, 60]], wk: ["wall", "wall", "wall", "wall"] });
+      l.floors.ground.rooms.push({
+        id: "pond2",
+        name: "Pond2",
+        area: "",
+        kind: "water",
+        pts: [
+          [10, 10],
+          [60, 10],
+          [60, 60],
+          [10, 60],
+        ],
+        wk: ["wall", "wall", "wall", "wall"],
+      });
       const idx = l.floors.ground.rooms.length - 1;
       const el = await mount();
       el.setConfig({ layout: l });
@@ -1218,7 +1317,16 @@ describe("FloorplanStudioCard", () => {
 
     it("a piece of furniture with an entity carries the on class when its state is on", async () => {
       const l = structuredClone(L);
-      l.floors.ground.furniture.push({ id: "gate", symbol: "patio-wood", x: 700, y: 500, rot: 0, w: 100, h: 100, entity: "cover.gate" });
+      l.floors.ground.furniture.push({
+        id: "gate",
+        symbol: "patio-wood",
+        x: 700,
+        y: 500,
+        rot: 0,
+        w: 100,
+        h: 100,
+        entity: "cover.gate",
+      });
       const idx = l.floors.ground.furniture.length - 1;
       const el = await mount();
       el.setConfig({ layout: l });
@@ -1314,7 +1422,9 @@ describe("FloorplanStudioCard", () => {
   });
 
   it("the message colour has no hard-coded hex fallback outside FLOORPLAN_CSS (Opus review, CLAUDE.md finding 9)", () => {
-    const cssText = (FloorplanStudioCard.styles as unknown as { toString(): string }[]).map((s) => String(s)).join("\n");
+    const cssText = (FloorplanStudioCard.styles as unknown as { toString(): string }[])
+      .map((s) => String(s))
+      .join("\n");
     expect(cssText).not.toMatch(/--fp-text\s*,\s*#[0-9a-fA-F]{3,6}/);
   });
 
@@ -1331,8 +1441,22 @@ describe("FloorplanStudioCard", () => {
     function bigFloor(side: number) {
       const o = side - 120; // pad is 60 on every edge
       return {
-        title: "Big", outline: [[0, 0], [o, 0], [o, o], [0, o]], owk: ["wall", "wall", "wall", "wall"],
-        rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], furniture: [], unlinked: [],
+        title: "Big",
+        outline: [
+          [0, 0],
+          [o, 0],
+          [o, o],
+          [0, o],
+        ],
+        owk: ["wall", "wall", "wall", "wall"],
+        rooms: [],
+        walls: [],
+        stairs: [],
+        doors: [],
+        openings: [],
+        extras: [],
+        furniture: [],
+        unlinked: [],
         devices: [{ id: "light-big", type: "light", entity: "light.demo_big", name: "Big light", x: o / 2, y: o / 2 }],
       };
     }
@@ -1402,7 +1526,11 @@ describe("FloorplanStudioCard", () => {
   // and the config keys that hide it.
   describe("S9.5: the active-devices panel", () => {
     beforeEach(() => {
-      try { localStorage.clear(); } catch { /* jsdom always has one; guard anyway, same contract as the card's own reads */ }
+      try {
+        localStorage.clear();
+      } catch {
+        /* jsdom always has one; guard anyway, same contract as the card's own reads */
+      }
     });
 
     /** The panel's own rows, as `[groupLabel, [rowNames...]][]`, in DOM order — the same shape `groupActiveByType`
@@ -1442,8 +1570,10 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
       await el.updateComplete;
-      const head = (cat: string) => el.shadowRoot!.querySelector<HTMLButtonElement>(`.fp-active-group[data-cat="${cat}"] button.fp-cat`)!;
-      const rows = (cat: string) => el.shadowRoot!.querySelectorAll(`.fp-active-group[data-cat="${cat}"] .fp-active-row`).length;
+      const head = (cat: string) =>
+        el.shadowRoot!.querySelector<HTMLButtonElement>(`.fp-active-group[data-cat="${cat}"] button.fp-cat`)!;
+      const rows = (cat: string) =>
+        el.shadowRoot!.querySelectorAll(`.fp-active-group[data-cat="${cat}"] .fp-active-row`).length;
       expect(head("lights").getAttribute("aria-expanded")).toBe("true");
       expect(rows("lights")).toBe(1);
       head("lights").click();
@@ -1457,7 +1587,11 @@ describe("FloorplanStudioCard", () => {
       el2.setConfig({ layout: structuredClone(L) });
       el2.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
       await el2.updateComplete;
-      expect(el2.shadowRoot!.querySelector('.fp-active-group[data-cat="lights"] button.fp-cat')!.getAttribute("aria-expanded")).toBe("false");
+      expect(
+        el2
+          .shadowRoot!.querySelector('.fp-active-group[data-cat="lights"] button.fp-cat')!
+          .getAttribute("aria-expanded"),
+      ).toBe("false");
       expect(el2.shadowRoot!.querySelectorAll('.fp-active-group[data-cat="media"] .fp-active-row').length).toBe(1);
       // and a click again opens it, and storage that throws or holds junk never breaks the panel
       head("lights").click();
@@ -1680,7 +1814,11 @@ describe("FloorplanStudioCard", () => {
 
     it("zoom_level clamps into [1, MAX_ZOOM]: 0, a negative number and past MAX_ZOOM all clamp rather than being refused", async () => {
       const f = fit();
-      for (const [given, want] of [[0, 1], [-3, 1], [50, MAX_ZOOM]] as const) {
+      for (const [given, want] of [
+        [0, 1],
+        [-3, 1],
+        [50, MAX_ZOOM],
+      ] as const) {
         const el = await withConfig({ zoom_level: given });
         expect(viewBox(el).w, `zoom_level ${given}`).toBeCloseTo(f.w / want, 6);
       }
@@ -1705,7 +1843,9 @@ describe("FloorplanStudioCard", () => {
 
     it("does not throw setConfig, unlike the typo-throwing zoom/kiosk keys — center/zoom_level always fall back", () => {
       const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
-      expect(() => el.setConfig({ layout: structuredClone(L), center: "nonsense" as never, zoom_level: "nonsense" as never })).not.toThrow();
+      expect(() =>
+        el.setConfig({ layout: structuredClone(L), center: "nonsense" as never, zoom_level: "nonsense" as never }),
+      ).not.toThrow();
     });
 
     it("the icon scale (S9.2) is unaffected by a pin: same scale with or without center/zoom_level", async () => {
@@ -1717,7 +1857,7 @@ describe("FloorplanStudioCard", () => {
       expect(withPin).toBeTruthy();
     });
 
-    it("the fp-zoomed class reads against the pinned home, not the whole floor: a pinned card is not \"zoomed\" at rest", async () => {
+    it('the fp-zoomed class reads against the pinned home, not the whole floor: a pinned card is not "zoomed" at rest', async () => {
       const el = await withConfig({ center: [300, 700], zoom_level: 3 });
       const svg = el.shadowRoot!.querySelector("svg")!;
       expect(svg.getAttribute("class")).toBe("fp-zoomable");
@@ -1765,7 +1905,11 @@ describe("FloorplanStudioCard", () => {
   // panel moved every other card's panel too, on the next reload.
   describe("S9.6 review: the active panel's storage key includes center/zoom_level (Opus, 2026-09-27)", () => {
     beforeEach(() => {
-      try { localStorage.clear(); } catch { /* jsdom always has one; guard anyway */ }
+      try {
+        localStorage.clear();
+      } catch {
+        /* jsdom always has one; guard anyway */
+      }
     });
 
     async function mountPinned(config: Record<string, unknown>) {
@@ -1838,7 +1982,18 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass() as never;
       await el.updateComplete;
       const svg = el.shadowRoot!.querySelector("svg")!;
-      svg.getBoundingClientRect = () => ({ x: 0, y: 0, top: 0, left: 0, right: 300, bottom: 300, width: 300, height: 300, toJSON: () => ({}) }) as DOMRect;
+      svg.getBoundingClientRect = () =>
+        ({
+          x: 0,
+          y: 0,
+          top: 0,
+          left: 0,
+          right: 300,
+          bottom: 300,
+          width: 300,
+          height: 300,
+          toJSON: () => ({}),
+        }) as DOMRect;
       return el;
     }
 

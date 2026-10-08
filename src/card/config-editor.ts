@@ -16,7 +16,8 @@ const DEFAULT_ROOM_GLOW = false;
 // Matches PLUG_ACTIVE_WATTS in core/power.ts, kept apart like the defaults around it.
 const DEFAULT_PLUG_WATTS = 2;
 // Matches HEAT_FROM and HEAT_TO in core/power.ts (S14.8).
-const DEFAULT_HEAT_FROM = 0, DEFAULT_HEAT_TO = 2000;
+const DEFAULT_HEAT_FROM = 0,
+  DEFAULT_HEAT_TO = 2000;
 const DEFAULT_KIOSK = false;
 const DEFAULT_ACTIVE_LIST = true;
 const DEFAULT_NIGHT = "auto";
@@ -41,7 +42,10 @@ const DEFAULT_VIEW = "2d";
 const DEFAULT_VIEW_SWITCH = true;
 // Same two options as VIEW_OPTIONS in floorplan-studio-card.ts, kept apart for the same reason as the defaults above.
 const DEFAULT_LABELS = true;
-const VIEW_CHOICES = [["2d", "2D"], ["2.5d", "2.5D"]] as const;
+const VIEW_CHOICES = [
+  ["2d", "2D"],
+  ["2.5d", "2.5D"],
+] as const;
 
 /**
  * `floorplan-studio-card-editor`: the form the Home Assistant Edit-card dialog shows instead of raw YAML, per
@@ -112,7 +116,9 @@ export class FloorplanStudioCardEditor extends LitElement {
       fetch(this._config.layout_url)
         .then((res) => res.json())
         .then((json) => this._applyLayout(json))
-        .catch(() => { /* no layout: the floor list just stays empty */ });
+        .catch(() => {
+          /* no layout: the floor list just stays empty */
+        });
       return;
     }
     if (this._hass?.connection) {
@@ -121,7 +127,9 @@ export class FloorplanStudioCardEditor extends LitElement {
       this._hass.connection
         .sendMessagePromise({ type: "floorplan_studio/load" })
         .then((layout) => this._applyLayout(layout))
-        .catch(() => { /* no layout: the floor list just stays empty */ });
+        .catch(() => {
+          /* no layout: the floor list just stays empty */
+        });
     }
   }
 
@@ -272,7 +280,9 @@ export class FloorplanStudioCardEditor extends LitElement {
   /** S9.2: `config.icon_size`, clamped to [0.5, 3] for display, same as the card itself reads it. */
   private _iconSize(): number {
     const v = this._config.icon_size;
-    return typeof v === "number" && Number.isFinite(v) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v)) : DEFAULT_ICON_SIZE;
+    return typeof v === "number" && Number.isFinite(v)
+      ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, v))
+      : DEFAULT_ICON_SIZE;
   }
 
   /** S9.6: `config.center`'s two fields, each shown empty until a real pin is set — there is no single numeric
@@ -301,8 +311,10 @@ export class FloorplanStudioCardEditor extends LitElement {
   private _onCenter(): void {
     const xEl = this.renderRoot.querySelector<HTMLInputElement>("#center_x");
     const yEl = this.renderRoot.querySelector<HTMLInputElement>("#center_y");
-    const xRaw = xEl?.value.trim() ?? "", yRaw = yEl?.value.trim() ?? "";
-    const x = Number(xRaw), y = Number(yRaw);
+    const xRaw = xEl?.value.trim() ?? "",
+      yRaw = yEl?.value.trim() ?? "";
+    const x = Number(xRaw),
+      y = Number(yRaw);
     const bothEmpty = xRaw === "" && yRaw === "";
     const bothValid = xRaw !== "" && yRaw !== "" && Number.isFinite(x) && Number.isFinite(y);
     if (!bothEmpty && !bothValid) {
@@ -324,7 +336,9 @@ export class FloorplanStudioCardEditor extends LitElement {
   /** S9.6: `config.zoom_level`, clamped to [1, 8] for display, same as the card itself reads it (MAX_ZOOM). */
   private _zoomLevel(): number {
     const v = this._config.zoom_level;
-    return typeof v === "number" && Number.isFinite(v) ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, v)) : DEFAULT_ZOOM_LEVEL;
+    return typeof v === "number" && Number.isFinite(v)
+      ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, v))
+      : DEFAULT_ZOOM_LEVEL;
   }
 
   private _onZoomLevel(e: Event): void {
@@ -332,7 +346,8 @@ export class FloorplanStudioCardEditor extends LitElement {
     // silent clamp to the range's own bottom.
     const raw = (e.target as HTMLInputElement).value.trim();
     const n = Number(raw);
-    const v = raw !== "" && Number.isFinite(n) ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, n)) : DEFAULT_ZOOM_LEVEL;
+    const v =
+      raw !== "" && Number.isFinite(n) ? Math.min(ZOOM_LEVEL_MAX, Math.max(ZOOM_LEVEL_MIN, n)) : DEFAULT_ZOOM_LEVEL;
     this._set("zoom_level", v, DEFAULT_ZOOM_LEVEL);
   }
 
@@ -341,7 +356,8 @@ export class FloorplanStudioCardEditor extends LitElement {
     // 0.5) — it falls back to the default, which _set then drops from the payload.
     const raw = (e.target as HTMLInputElement).value.trim();
     const n = Number(raw);
-    const v = raw !== "" && Number.isFinite(n) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, n)) : DEFAULT_ICON_SIZE;
+    const v =
+      raw !== "" && Number.isFinite(n) ? Math.min(ICON_SIZE_MAX, Math.max(ICON_SIZE_MIN, n)) : DEFAULT_ICON_SIZE;
     this._set("icon_size", v, DEFAULT_ICON_SIZE);
   }
 
@@ -426,21 +442,25 @@ export class FloorplanStudioCardEditor extends LitElement {
         </select>
       </div>
 
-      ${floorChoice === ""
-        ? html`<div class="row">
+      ${
+        floorChoice === ""
+          ? html`<div class="row">
               <label class="main">Switcher shows</label>
-              ${floors.length
-                ? html`<div class="floors">
+              ${
+                floors.length
+                  ? html`<div class="floors">
                     ${floors.map(
                       ([id, title]) => html`<label
                         ><input type="checkbox" data-floor=${id} .checked=${checked.has(id)} @change=${(e: Event) => this._toggleFloor(id, (e.target as HTMLInputElement).checked)} />${title}</label
                       >`,
                     )}
                   </div>`
-                : html`<p class="hint">No layout loaded yet — the floor list fills in once one has.</p>`}
+                  : html`<p class="hint">No layout loaded yet — the floor list fills in once one has.</p>`
+              }
             </div>
             ${floors.length ? html`<p class="hint">None ticked: every floor.</p>` : null}`
-        : null}
+          : null
+      }
 
       <div class="row">
         <label class="main" for="fade">Fade (s)</label>

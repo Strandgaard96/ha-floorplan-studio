@@ -20,13 +20,24 @@ const settled = (page: Page) => expect(card(page).locator("css=svg.fp-turning"))
 async function boot(page: Page, config: Record<string, unknown>) {
   await page.addScriptTag({ content: CARD_JS, type: "module" });
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-  await page.evaluate(async ({ config, layout }) => {
-    const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
-    el.setConfig(structuredClone(config));
-    el.hass = { states: {}, connection: { sendMessagePromise: async () => ({ layout }) }, themes: { darkMode: false } };
-    await new Promise((r) => setTimeout(r, 50));
-    await el.updateComplete;
-  }, { config, layout: structuredClone(demo) });
+  await page.evaluate(
+    async ({ config, layout }) => {
+      const el = document.getElementById("card") as unknown as {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
+      el.setConfig(structuredClone(config));
+      el.hass = {
+        states: {},
+        connection: { sendMessagePromise: async () => ({ layout }) },
+        themes: { darkMode: false },
+      };
+      await new Promise((r) => setTimeout(r, 50));
+      await el.updateComplete;
+    },
+    { config, layout: structuredClone(demo) },
+  );
 }
 const CONFIG = { type: "custom:floorplan-studio-card", floor: "ground", view: "2.5d" };
 async function fresh(page: Page, config: Record<string, unknown> = CONFIG) {
@@ -35,17 +46,25 @@ async function fresh(page: Page, config: Record<string, unknown> = CONFIG) {
 }
 
 /** Screen heights of every wall side polygon, tallest first, in real coordinates. */
-const wallHeights = (page: Page) => card(page).evaluate((el) =>
-  [...el.shadowRoot!.querySelectorAll("svg polygon.ws")].map((p) => p.getBoundingClientRect().height).sort((a, b) => b - a));
+const wallHeights = (page: Page) =>
+  card(page).evaluate((el) =>
+    [...el.shadowRoot!.querySelectorAll("svg polygon.ws")]
+      .map((p) => p.getBoundingClientRect().height)
+      .sort((a, b) => b - a),
+  );
 /** The wall that is lowest on screen: the front wall at rotation 0. */
-const frontWall = (page: Page) => card(page).evaluate((el) => {
-  const rects = [...el.shadowRoot!.querySelectorAll("svg polygon.ws")].map((p) => p.getBoundingClientRect());
-  // The front wall is the wide one lowest on screen.
-  const wide = rects.filter((r) => r.width > r.height * 2);
-  return wide.sort((a, b) => b.bottom - a.bottom)[0]!.height;
-});
+const frontWall = (page: Page) =>
+  card(page).evaluate((el) => {
+    const rects = [...el.shadowRoot!.querySelectorAll("svg polygon.ws")].map((p) => p.getBoundingClientRect());
+    // The front wall is the wide one lowest on screen.
+    const wide = rects.filter((r) => r.width > r.height * 2);
+    return wide.sort((a, b) => b.bottom - a.bottom)[0]!.height;
+  });
 const tallest = async (page: Page) => (await wallHeights(page))[0]!;
-const mean = async (page: Page) => { const h = await wallHeights(page); return h.reduce((a, b) => a + b, 0) / h.length; };
+const mean = async (page: Page) => {
+  const h = await wallHeights(page);
+  return h.reduce((a, b) => a + b, 0) / h.length;
+};
 
 test.describe("the card's Walls select (real browser, real reload)", () => {
   test("lists Full height, Cutaway and Low, Cutaway chosen by default, only in 2.5D", async ({ page }) => {
@@ -109,7 +128,9 @@ test.describe("the card's Walls select (real browser, real reload)", () => {
     expect(await select(page, "Walls").inputValue()).toBe("cut");
     await select(page, "Walls").selectOption("full");
     await page.evaluate(() => {
-      for (const k of Object.keys(localStorage)) if (k.startsWith("fp-view:")) localStorage.setItem(k, JSON.stringify({ v: 1, walls: "../../etc", labels: false }));
+      for (const k of Object.keys(localStorage))
+        if (k.startsWith("fp-view:"))
+          localStorage.setItem(k, JSON.stringify({ v: 1, walls: "../../etc", labels: false }));
     });
     await page.reload();
     await boot(page, { ...CONFIG, walls: "<script>" });

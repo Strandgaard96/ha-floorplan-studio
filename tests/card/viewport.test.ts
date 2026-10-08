@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type View } from "../../src/card/viewport";
+import {
+  MAX_ZOOM,
+  MIN_ZOOM,
+  clamp,
+  panBy,
+  pinch,
+  pinnedView,
+  sameView,
+  zoomAt,
+  type View,
+} from "../../src/card/viewport";
 
 // An asymmetric plan box (not square, not at the origin), so a swapped x/y or w/h shows up.
 const FIT: View = { x: -60, y: -40, w: 1200, h: 800 };
@@ -105,10 +115,13 @@ describe("viewport: pinch", () => {
   });
 
   it("the plan point under the old midpoint ends up under the new midpoint", () => {
-    const p1: [number, number] = [100, 100], p2: [number, number] = [300, 300];
-    const q1: [number, number] = [150, 120], q2: [number, number] = [450, 420]; // 1.5x and moved
+    const p1: [number, number] = [100, 100],
+      p2: [number, number] = [300, 300];
+    const q1: [number, number] = [150, 120],
+      q2: [number, number] = [450, 420]; // 1.5x and moved
     const v = pinch(FIT, p1, p2, q1, q2);
-    const pm: [number, number] = [200, 200], qm: [number, number] = [300, 270];
+    const pm: [number, number] = [200, 200],
+      qm: [number, number] = [300, 270];
     // qm's screen position in the old view is where pm must be in the new one.
     const [a, b] = frac(FIT, qm[0], qm[1]);
     const [c, d] = frac(v, pm[0], pm[1]);

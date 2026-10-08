@@ -5,26 +5,42 @@ import { test, expect, type Page } from "@playwright/test";
 // real coordinates and focus (CLAUDE.md finding 3).
 
 const EDITOR = "floorplan-studio-editor";
-const st = <T>(page: Page, fn: (s: any) => T) => page.evaluate(([tag, src]) => new Function("s", `return (${src})(s)`)((document.querySelector(tag as string) as any).st) as T, [EDITOR, fn.toString()] as const);
-const layoutJson = (page: Page) => page.evaluate((tag) => JSON.stringify((document.querySelector(tag) as any).layout), EDITOR);
-const viewBox = async (page: Page) => (await page.locator(`${EDITOR} .canvas > svg`).getAttribute("viewBox"))!.split(" ").map(Number);
+const st = <T>(page: Page, fn: (s: any) => T) =>
+  page.evaluate(
+    ([tag, src]) => new Function("s", `return (${src})(s)`)((document.querySelector(tag as string) as any).st) as T,
+    [EDITOR, fn.toString()] as const,
+  );
+const layoutJson = (page: Page) =>
+  page.evaluate((tag) => JSON.stringify((document.querySelector(tag) as any).layout), EDITOR);
+const viewBox = async (page: Page) =>
+  (await page.locator(`${EDITOR} .canvas > svg`).getAttribute("viewBox"))!.split(" ").map(Number);
 /** The plan's turn in degrees, read from the DOM: the first turned group. */
-const planDeg = (page: Page) => page.evaluate((tag) => {
-  const g = document.querySelector(tag)!.shadowRoot!.querySelector("svg g.plan-turn");
-  const m = g?.getAttribute("transform")?.match(/^rotate\((-?[\d.]+)/);
-  return m ? Number(m[1]) : 0;
-}, EDITOR);
+const planDeg = (page: Page) =>
+  page.evaluate((tag) => {
+    const g = document.querySelector(tag)!.shadowRoot!.querySelector("svg g.plan-turn");
+    const m = g?.getAttribute("transform")?.match(/^rotate\((-?[\d.]+)/);
+    return m ? Number(m[1]) : 0;
+  }, EDITOR);
 const settled = (page: Page) => expect.poll(() => st(page, (s) => s.turning)).toBeNull();
-const focusEditor = (page: Page) => page.evaluate((tag) => (document.querySelector(tag) as HTMLElement).focus(), EDITOR);
+const focusEditor = (page: Page) =>
+  page.evaluate((tag) => (document.querySelector(tag) as HTMLElement).focus(), EDITOR);
 /** Screen position of a plan point (cm). Reads through the turned group, as the editor's own specs do. */
 const screenOf = (page: Page, x: number, y: number) =>
-  page.evaluate(([tag, px, py]) => {
-    const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector(".canvas > svg") as SVGSVGElement;
-    const g = svg.querySelector(":scope > g.plan-turn") as SVGGraphicsElement | null;
-    const q = new DOMPoint(px as number, py as number).matrixTransform((g ?? svg).getScreenCTM()!);
-    return { x: q.x, y: q.y };
-  }, [EDITOR, x, y] as const);
-const clickCm = async (page: Page, x: number, y: number) => { const c = await screenOf(page, x, y); await page.mouse.click(c.x, c.y); };
+  page.evaluate(
+    ([tag, px, py]) => {
+      const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector(
+        ".canvas > svg",
+      ) as SVGSVGElement;
+      const g = svg.querySelector(":scope > g.plan-turn") as SVGGraphicsElement | null;
+      const q = new DOMPoint(px as number, py as number).matrixTransform((g ?? svg).getScreenCTM()!);
+      return { x: q.x, y: q.y };
+    },
+    [EDITOR, x, y] as const,
+  );
+const clickCm = async (page: Page, x: number, y: number) => {
+  const c = await screenOf(page, x, y);
+  await page.mouse.click(c.x, c.y);
+};
 /** The demo's living room, away from any device (the editor's own specs click it at 60, 200). */
 const clickRoom = (page: Page) => clickCm(page, 60, 200);
 /** Device 0 by the middle of its icon, the way the editor's own specs click it. */
@@ -46,7 +62,8 @@ test.describe("rotate view buttons", () => {
     for (const id of ["zin", "zout", "zreset", "vrotl", "vrotr"]) await expect(zoom.locator(`#${id}`)).toHaveCount(1);
     await expect(page.locator("#vrotl")).toHaveAttribute("aria-label", "Rotate view left");
     await expect(page.locator("#vrotr")).toHaveAttribute("aria-label", "Rotate view right");
-    const z = (await page.locator("#zin").boundingBox())!, r = (await page.locator("#vrotr").boundingBox())!;
+    const z = (await page.locator("#zin").boundingBox())!,
+      r = (await page.locator("#vrotr").boundingBox())!;
     expect(Math.abs(r.x - z.x)).toBeLessThan(60); // the same column or the next one, not across the canvas
   });
 
@@ -57,7 +74,10 @@ test.describe("rotate view buttons", () => {
       (window as any).__seen = seen;
       const el = document.querySelector(tag)!;
       const loop = () => {
-        const m = el.shadowRoot!.querySelector("svg g.plan-turn")?.getAttribute("transform")?.match(/^rotate\((-?[\d.]+)/);
+        const m = el
+          .shadowRoot!.querySelector("svg g.plan-turn")
+          ?.getAttribute("transform")
+          ?.match(/^rotate\((-?[\d.]+)/);
         seen.push(m ? Number(m[1]) : 0);
         requestAnimationFrame(loop);
       };
@@ -83,7 +103,12 @@ test.describe("rotate view buttons", () => {
   });
 
   test("a layout whose rotate is set keeps it: the user's turn adds to it and never writes it", async ({ page }) => {
-    await page.evaluate((tag) => { const e = document.querySelector(tag) as any; const l = JSON.parse(JSON.stringify(e.layout)); l.rotate = 90; e.layout = l; }, EDITOR);
+    await page.evaluate((tag) => {
+      const e = document.querySelector(tag) as any;
+      const l = JSON.parse(JSON.stringify(e.layout));
+      l.rotate = 90;
+      e.layout = l;
+    }, EDITOR);
     await expect.poll(() => planDeg(page)).toBe(90);
     await page.locator("#vrotr").click();
     await settled(page);
@@ -91,7 +116,9 @@ test.describe("rotate view buttons", () => {
     expect(await page.evaluate((tag) => (document.querySelector(tag) as any).layout.rotate, EDITOR)).toBe(90);
   });
 
-  test("a device still takes a click at its real position after a turn (hit-test follows the turn)", async ({ page }) => {
+  test("a device still takes a click at its real position after a turn (hit-test follows the turn)", async ({
+    page,
+  }) => {
     await page.locator("#vrotr").click();
     await settled(page);
     await clickDevice(page);
@@ -114,13 +141,21 @@ test.describe("rotate view buttons", () => {
     await page.locator("#vrotr").click();
     await settled(page);
     const ok = await st(page, (s) => {
-      const f = s.f, v = s.view;
+      const f = s.f,
+        v = s.view;
       const rot = s.rotation;
-      const cos = Math.cos((rot.deg * Math.PI) / 180), sin = Math.sin((rot.deg * Math.PI) / 180);
+      const cos = Math.cos((rot.deg * Math.PI) / 180),
+        sin = Math.sin((rot.deg * Math.PI) / 180);
       const pv = rot.pivot;
-      const pts = f.outline.map((p: number[]) => [pv[0] + (p[0] - pv[0]) * cos - (p[1] - pv[1]) * sin, pv[1] + (p[0] - pv[0]) * sin + (p[1] - pv[1]) * cos]);
-      const c = [(v.x + v.w / 2), (v.y + v.h / 2)];
-      const cr = [pv[0] + (c[0] - pv[0]) * cos - (c[1] - pv[1]) * sin, pv[1] + (c[0] - pv[0]) * sin + (c[1] - pv[1]) * cos];
+      const pts = f.outline.map((p: number[]) => [
+        pv[0] + (p[0] - pv[0]) * cos - (p[1] - pv[1]) * sin,
+        pv[1] + (p[0] - pv[0]) * sin + (p[1] - pv[1]) * cos,
+      ]);
+      const c = [v.x + v.w / 2, v.y + v.h / 2];
+      const cr = [
+        pv[0] + (c[0] - pv[0]) * cos - (c[1] - pv[1]) * sin,
+        pv[1] + (c[0] - pv[0]) * sin + (c[1] - pv[1]) * cos,
+      ];
       return pts.every((p: number[]) => Math.abs(p[0] - cr[0]) <= v.w / 2 + 1 && Math.abs(p[1] - cr[1]) <= v.h / 2 + 1);
     });
     expect(ok).toBe(true);
@@ -128,7 +163,9 @@ test.describe("rotate view buttons", () => {
 });
 
 test.describe("keys", () => {
-  test("+ zooms in, - zooms out, the arrows pan, Space resets, Space resets (editor focused, nothing selected)", async ({ page }) => {
+  test("+ zooms in, - zooms out, the arrows pan, Space resets, Space resets (editor focused, nothing selected)", async ({
+    page,
+  }) => {
     await focusEditor(page);
     const w0 = (await viewBox(page))[2]!;
     await page.keyboard.press("+");
@@ -154,7 +191,9 @@ test.describe("keys", () => {
     await expect(page.locator("#undo")).toBeDisabled(); // none of it is an edit
   });
 
-  test("Up and Down pan vertically, [ and ] turn the plan 45 degrees, and neither touches the layout", async ({ page }) => {
+  test("Up and Down pan vertically, [ and ] turn the plan 45 degrees, and neither touches the layout", async ({
+    page,
+  }) => {
     await focusEditor(page);
     await page.keyboard.press("+");
     await page.keyboard.press("+");
@@ -230,7 +269,12 @@ test.describe("keys", () => {
   });
 
   test("keys pressed outside the editor do nothing to it", async ({ page }) => {
-    await page.evaluate(() => { const i = document.createElement("input"); i.id = "outside"; document.body.appendChild(i); (i as HTMLElement).blur(); });
+    await page.evaluate(() => {
+      const i = document.createElement("input");
+      i.id = "outside";
+      document.body.appendChild(i);
+      (i as HTMLElement).blur();
+    });
     await page.locator("body").click({ position: { x: 5, y: 5 } });
     const w0 = (await viewBox(page))[2]!;
     await page.keyboard.press("+");
@@ -245,9 +289,13 @@ test.describe("Cmd/Ctrl+S saves", () => {
       await page.evaluate((tag) => {
         const e = document.querySelector(tag)!;
         (window as any).__saves = 0;
-        e.addEventListener("save-request", () => { (window as any).__saves++; });
+        e.addEventListener("save-request", () => {
+          (window as any).__saves++;
+        });
         (window as any).__prevented = [];
-        window.addEventListener("keydown", (k) => { if (k.key.toLowerCase() === "s") (window as any).__prevented.push(k.defaultPrevented); });
+        window.addEventListener("keydown", (k) => {
+          if (k.key.toLowerCase() === "s") (window as any).__prevented.push(k.defaultPrevented);
+        });
       }, EDITOR);
       await focusEditor(page);
       await page.keyboard.press(chord);
@@ -258,7 +306,12 @@ test.describe("Cmd/Ctrl+S saves", () => {
   }
 
   test("works with focus inside a text box, where Space and the arrows do not", async ({ page }) => {
-    await page.evaluate((tag) => { (window as any).__saves = 0; document.querySelector(tag)!.addEventListener("save-request", () => { (window as any).__saves++; }); }, EDITOR);
+    await page.evaluate((tag) => {
+      (window as any).__saves = 0;
+      document.querySelector(tag)!.addEventListener("save-request", () => {
+        (window as any).__saves++;
+      });
+    }, EDITOR);
     await clickRoom(page);
     await page.locator("#panel #rn").first().click();
     await page.keyboard.press("Control+s");
@@ -269,7 +322,9 @@ test.describe("Cmd/Ctrl+S saves", () => {
     await page.evaluate((tag) => {
       const e = document.querySelector(tag) as any;
       (window as any).__saves = 0;
-      e.addEventListener("save-request", () => { (window as any).__saves++; });
+      e.addEventListener("save-request", () => {
+        (window as any).__saves++;
+      });
       e.st.layout.floors[e.st.floor].rooms[0].pts = [[0, 0]]; // a room with one corner: validate refuses it
       e.requestUpdate();
     }, EDITOR);
@@ -280,7 +335,12 @@ test.describe("Cmd/Ctrl+S saves", () => {
   });
 
   test("Shift+Ctrl+S is left to the browser", async ({ page }) => {
-    await page.evaluate((tag) => { (window as any).__saves = 0; document.querySelector(tag)!.addEventListener("save-request", () => { (window as any).__saves++; }); }, EDITOR);
+    await page.evaluate((tag) => {
+      (window as any).__saves = 0;
+      document.querySelector(tag)!.addEventListener("save-request", () => {
+        (window as any).__saves++;
+      });
+    }, EDITOR);
     await focusEditor(page);
     await page.keyboard.press("Control+Shift+s");
     expect(await page.evaluate(() => (window as any).__saves)).toBe(0);
@@ -299,7 +359,11 @@ test.describe("the view survives a reload", () => {
     await page.locator("#zin").click();
     await page.locator("#zin").click();
     await page.locator("#zin").click();
-    await page.evaluate((tag) => { const e = document.querySelector(tag) as any; e.st.views[e.st.floor] = { ...e.st.view, x: e.st.view.x + 120, y: e.st.view.y + 40 }; e.requestUpdate(); }, EDITOR);
+    await page.evaluate((tag) => {
+      const e = document.querySelector(tag) as any;
+      e.st.views[e.st.floor] = { ...e.st.view, x: e.st.view.x + 120, y: e.st.view.y + 40 };
+      e.requestUpdate();
+    }, EDITOR);
     const before = await st(page, (s) => ({ rot: s.viewRot, v: s.view, floor: s.floor }));
     await page.waitForTimeout(300); // the debounced save, no page event involved
     await reload(page);
@@ -317,7 +381,9 @@ test.describe("the view survives a reload", () => {
     const reset = await st(page, (s) => ({ rot: s.viewRot, zoomed: Object.keys(s.views).length }));
     expect(reset.rot).toBe(0);
     expect(await planDeg(page)).toBe(0);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("floorplan-studio:view") ?? "{}").zooms)).toBeUndefined();
+    expect(
+      await page.evaluate(() => JSON.parse(localStorage.getItem("floorplan-studio:view") ?? "{}").zooms),
+    ).toBeUndefined();
   });
 
   test("the labels toggle and the floor are back too", async ({ page }) => {
@@ -342,7 +408,12 @@ test.describe("the view survives a reload", () => {
   });
 
   test("a stored view that is junk is ignored: the editor starts normal", async ({ page }) => {
-    await page.evaluate(() => localStorage.setItem("floorplan-studio:view", '{"mode":"3d","tilt":"x","rotation":"x","zooms":[["ground",{"zoom":"big"}]],"floor":"nope"}'));
+    await page.evaluate(() =>
+      localStorage.setItem(
+        "floorplan-studio:view",
+        '{"mode":"3d","tilt":"x","rotation":"x","zooms":[["ground",{"zoom":"big"}]],"floor":"nope"}',
+      ),
+    );
     await reload(page);
     expect(await page.locator("svg .ws").count()).toBe(0);
     expect(await planDeg(page)).toBe(0);
@@ -354,7 +425,7 @@ test.describe("the view survives a reload", () => {
     await page.locator("#zin").click();
     await page.locator("#panel #rn").first().fill("Renamed room");
     await page.keyboard.press("Tab");
-    expect((await layoutJson(page))).toContain("Renamed room");
+    expect(await layoutJson(page)).toContain("Renamed room");
     await page.waitForTimeout(300);
     const w = (await viewBox(page))[2]!;
     await reload(page);

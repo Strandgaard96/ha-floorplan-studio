@@ -6,10 +6,27 @@ export interface PickerHass {
   states?: Record<string, { state: string; attributes: Record<string, unknown> }>;
 }
 
-interface EntityReg { entity_id: string; name?: string | null; original_name?: string | null; area_id?: string | null; device_id?: string | null; disabled_by?: string | null; device_class?: string | null; original_device_class?: string | null; platform?: string | null; unique_id?: string | null; entity_category?: string | null }
+interface EntityReg {
+  entity_id: string;
+  name?: string | null;
+  original_name?: string | null;
+  area_id?: string | null;
+  device_id?: string | null;
+  disabled_by?: string | null;
+  device_class?: string | null;
+  original_device_class?: string | null;
+  platform?: string | null;
+  unique_id?: string | null;
+  entity_category?: string | null;
+}
 
 /** HA's own device registry row shape (`config/device_registry/list`): `name_by_user` is what someone renamed it to in HA, `name` its integration-given name. */
-interface DeviceReg { id: string; name?: string | null; name_by_user?: string | null; area_id?: string | null }
+interface DeviceReg {
+  id: string;
+  name?: string | null;
+  name_by_user?: string | null;
+  area_id?: string | null;
+}
 
 const text = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
 
@@ -32,29 +49,58 @@ export async function haData(hass: PickerHass): Promise<HaData | undefined> {
   if (devs.status === "fulfilled") for (const d of devs.value) deviceArea.set(d.id, d.area_id ?? null);
   const reg = new Map<string, EntityReg>();
   const disabled = new Set<string>();
-  if (ents.status === "fulfilled") for (const e of ents.value) { if (e.disabled_by) disabled.add(e.entity_id); else reg.set(e.entity_id, e); }
+  if (ents.status === "fulfilled")
+    for (const e of ents.value) {
+      if (e.disabled_by) disabled.add(e.entity_id);
+      else reg.set(e.entity_id, e);
+    }
   const ids = new Set([...Object.keys(hass.states ?? {}), ...reg.keys()].filter((id) => !disabled.has(id)));
   const entities: HaData["entities"] = [];
   for (const id of ids) {
-    const r = reg.get(id), attrs = hass.states?.[id]?.attributes ?? {};
+    const r = reg.get(id),
+      attrs = hass.states?.[id]?.attributes ?? {};
     if (!hass.states?.[id] && !r) continue;
     const area = r?.area_id ?? (r?.device_id ? deviceArea.get(r.device_id) : null) ?? null;
     const domain = id.split(".")[0];
     // S4.5: a group's own membership list, so the Group menu can tell which of its members sit on the current floor.
-    const members = domain === "group" && Array.isArray(attrs.entity_id) ? attrs.entity_id.filter((m): m is string => typeof m === "string") : undefined;
+    const members =
+      domain === "group" && Array.isArray(attrs.entity_id)
+        ? attrs.entity_id.filter((m): m is string => typeof m === "string")
+        : undefined;
     // S4.7: the room box only needs to tell a switch_as_x light apart from a physical one, and an automation/script's editor id.
     const platform = domain === "light" ? text(r?.platform) : undefined;
     const uid = domain === "automation" || domain === "script" ? text(r?.unique_id) : undefined;
     // S8.6: entity_category marks a device's own diagnostic/config helper (a plug's connectivity sensor, a light's
     // signal strength) — mainEntity drops these so the Add list offers the plug itself, not its network indicator.
     const cat = text(r?.entity_category);
-    entities.push({ id, name: text(attrs.friendly_name) ?? text(r?.name) ?? text(r?.original_name) ?? id, domain, area, dc: text(attrs.device_class) ?? text(r?.device_class) ?? text(r?.original_device_class), ...(r?.device_id ? { dev: r.device_id } : {}), ...(members ? { members } : {}), ...(platform ? { platform } : {}), ...(uid ? { uid } : {}), ...(cat ? { cat } : {}) });
+    entities.push({
+      id,
+      name: text(attrs.friendly_name) ?? text(r?.name) ?? text(r?.original_name) ?? id,
+      domain,
+      area,
+      dc: text(attrs.device_class) ?? text(r?.device_class) ?? text(r?.original_device_class),
+      ...(r?.device_id ? { dev: r.device_id } : {}),
+      ...(members ? { members } : {}),
+      ...(platform ? { platform } : {}),
+      ...(uid ? { uid } : {}),
+      ...(cat ? { cat } : {}),
+    });
   }
   // S8.6: one row per HA device, named the way HA names it (a user's own rename first), for every device-grouped list.
-  const devices: HaData["devices"] = devs.status === "fulfilled" ? devs.value.map((d) => ({ id: d.id, name: text(d.name_by_user) ?? text(d.name) ?? d.id, ...(d.area_id ? { area: d.area_id } : {}) })) : undefined;
+  const devices: HaData["devices"] =
+    devs.status === "fulfilled"
+      ? devs.value.map((d) => ({
+          id: d.id,
+          name: text(d.name_by_user) ?? text(d.name) ?? d.id,
+          ...(d.area_id ? { area: d.area_id } : {}),
+        }))
+      : undefined;
   return {
     floors: floors.status === "fulfilled" ? floors.value.map((f) => ({ id: f.floor_id, name: f.name })) : [],
-    areas: areas.status === "fulfilled" ? areas.value.map((a) => ({ id: a.area_id, name: a.name, ...(a.floor_id ? { floor_id: a.floor_id } : {}) })) : [],
+    areas:
+      areas.status === "fulfilled"
+        ? areas.value.map((a) => ({ id: a.area_id, name: a.name, ...(a.floor_id ? { floor_id: a.floor_id } : {}) }))
+        : [],
     ...(devices ? { devices } : {}),
     entities,
   };

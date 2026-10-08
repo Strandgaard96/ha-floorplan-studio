@@ -5,8 +5,12 @@
 const DECIMAL = /^-?\d+(\.\d+)?$/;
 const NO_STATE = "no state";
 
-interface Reading { state?: unknown; attributes?: unknown }
-const attrsOf = (s: Reading): Record<string, unknown> => (s.attributes && typeof s.attributes === "object" ? (s.attributes as Record<string, unknown>) : {});
+interface Reading {
+  state?: unknown;
+  attributes?: unknown;
+}
+const attrsOf = (s: Reading): Record<string, unknown> =>
+  s.attributes && typeof s.attributes === "object" ? (s.attributes as Record<string, unknown>) : {};
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** A reading the way the plan prints it: the state, then its unit when there is one. */
@@ -23,7 +27,8 @@ export const meanText = (n: number): string => String(Math.round(n * 10) / 10);
  */
 export function stateText(type: string, st: Reading | undefined, extra?: string): string {
   if (!st || typeof st.state !== "string") return NO_STATE;
-  const a = attrsOf(st), s = st.state;
+  const a = attrsOf(st),
+    s = st.state;
   let text = DECIMAL.test(s.trim()) ? readingText(s, a.unit_of_measurement) : s;
   if ((type === "light" || num(a.brightness) !== null) && s === "on") {
     const b = num(a.brightness);

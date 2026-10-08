@@ -4,23 +4,57 @@ import { OBLIQUE, renderFloor } from "../../src/core/render";
 import { buildScene } from "../../src/core/scene";
 import { DOOR_KINDS, validate, type Floor, type Layout } from "../../src/core/schema";
 import { migrate } from "../../src/core/migrate";
-import { DEFAULT_FLOOR_HEIGHT, DOOR_DEFAULTS, SLIT_HEIGHT, SLIT_HEAD_GAP, doorCeiling, doorSpan, radiatorSpan } from "../../src/core/heights";
+import {
+  DEFAULT_FLOOR_HEIGHT,
+  DOOR_DEFAULTS,
+  SLIT_HEIGHT,
+  SLIT_HEAD_GAP,
+  doorCeiling,
+  doorSpan,
+  radiatorSpan,
+} from "../../src/core/heights";
 import { doorStateOf } from "../../src/core/door-state";
 import { OPENING_FILL } from "../../src/core/solids";
 
 // The slit window: a window 60 cm high that hangs from the ceiling of the wall it sits in (Diego, 2026-10-05).
-const R = OBLIQUE.rise, K = OBLIQUE.skew;
+const R = OBLIQUE.rise,
+  K = OBLIQUE.skew;
 const n = (v: number) => String(Math.round(v * 100) / 100);
 const P = (x: number, y: number, h: number) => `${n(x + h * K * R)},${n(y - h * R)}`;
-const box = (x0: number, x1: number, z0: number, z1: number) => `${P(x0, 0, z0)} ${P(x1, 0, z0)} ${P(x1, 0, z1)} ${P(x0, 0, z1)}`;
+const box = (x0: number, x1: number, z0: number, z1: number) =>
+  `${P(x0, 0, z0)} ${P(x1, 0, z0)} ${P(x1, 0, z1)} ${P(x0, 0, z1)}`;
 const floor = (o: Partial<Floor> = {}): Floor => ({
-  title: "T", outline: [[0, 0], [400, 0], [400, 300], [0, 300]], owk: ["external", "none", "none", "none"], rooms: [],
-  walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o,
+  title: "T",
+  outline: [
+    [0, 0],
+    [400, 0],
+    [400, 300],
+    [0, 300],
+  ],
+  owk: ["external", "none", "none", "none"],
+  rooms: [],
+  walls: [],
+  stairs: [],
+  doors: [],
+  openings: [],
+  extras: [],
+  devices: [],
+  furniture: [],
+  unlinked: [],
+  ...o,
 });
-const slit = (d: Record<string, unknown> = {}) => ({ id: "s", name: "S", kind: "slit", a: [100, 0], b: [220, 0], ...d });
+const slit = (d: Record<string, unknown> = {}) => ({
+  id: "s",
+  name: "S",
+  kind: "slit",
+  a: [100, 0],
+  b: [220, 0],
+  ...d,
+});
 const deep = (f: Floor) => renderFloor(f, { scale: 1, view: "2.5d" });
 const flat = (f: Floor) => renderFloor(f, { scale: 1 });
-const glass = (html: string) => [...html.matchAll(/<polygon class="(glass [^"]*)" points="([^"]*)"\/>/g)].map((m) => `${m[1]}|${m[2]}`);
+const glass = (html: string) =>
+  [...html.matchAll(/<polygon class="(glass [^"]*)" points="([^"]*)"\/>/g)].map((m) => `${m[1]}|${m[2]}`);
 const faces = (html: string) => [...html.matchAll(/<polygon class="ws[^"]*" points="([^"]*)"\/>/g)].map((m) => m[1]);
 
 describe("slit: the kind", () => {
@@ -65,7 +99,16 @@ describe("slit: the head sits as far under the ceiling as a window's does", () =
     expect(250 - w.head).toBe(SLIT_HEAD_GAP); // a window and a slit end the same distance under the ceiling
     expect(250 - doorSpan(slit() as never, 250).head).toBe(SLIT_HEAD_GAP);
   });
-  it.each([[250, 150, 210], [300, 200, 260], [220, 120, 180], [120, 20, 80], [100, 0, 60], [60, 0, 60], [40, 0, 40], [0, 0, 0]])("wall %i cm: sill %i, head %i", (h, sill, head) => {
+  it.each([
+    [250, 150, 210],
+    [300, 200, 260],
+    [220, 120, 180],
+    [120, 20, 80],
+    [100, 0, 60],
+    [60, 0, 60],
+    [40, 0, 40],
+    [0, 0, 0],
+  ])("wall %i cm: sill %i, head %i", (h, sill, head) => {
     expect(doorSpan(slit() as never, h)).toEqual({ sill, head });
   });
   it("with no wall at all it is the storey default, 250: sill 150, head 210", () => {
@@ -81,7 +124,8 @@ describe("slit: the head sits as far under the ceiling as a window's does", () =
     expect(doorSpan(slit({ sill: 0 }) as never, 250)).toEqual({ sill: 0, head: 60 });
   });
   it("junk falls back to the default, and no other kind is touched by a ceiling", () => {
-    for (const j of [NaN, "tall", -5, 1001, null]) expect(doorSpan(slit({ sill: j, height: j }) as never, 300), String(j)).toEqual({ sill: 200, head: 260 });
+    for (const j of [NaN, "tall", -5, 1001, null])
+      expect(doorSpan(slit({ sill: j, height: j }) as never, 300), String(j)).toEqual({ sill: 200, head: 260 });
     expect(doorSpan({ kind: "window" } as never, 300)).toEqual({ sill: 90, head: 210 });
     expect(doorSpan({ kind: "door" } as never, 40)).toEqual({ sill: 0, head: 210 });
   });
@@ -91,19 +135,45 @@ describe("slit: the head sits as far under the ceiling as a window's does", () =
 });
 
 describe("slit: the ceiling is the wall's own", () => {
-  const room = { id: "r0", name: "R", area: "r", kind: "room", pts: [[0, 0], [400, 0], [400, 300], [0, 300]], wk: ["wall", "wall", "wall", "wall"], height: 220 };
+  const room = {
+    id: "r0",
+    name: "R",
+    area: "r",
+    kind: "room",
+    pts: [
+      [0, 0],
+      [400, 0],
+      [400, 300],
+      [0, 300],
+    ],
+    wk: ["wall", "wall", "wall", "wall"],
+    height: 220,
+  };
   it("a free wall, a room edge, the outline and no wall at all each answer with their own height", () => {
-    expect(doorCeiling(floor({ owk: ["none", "none", "none", "none"], walls: [{ id: "w", a: [0, 0], b: [400, 0], kind: "wall", height: 40 }] as never }), slit() as never)).toBe(40);
-    expect(doorCeiling(floor({ rooms: [room] as never, owk: ["none", "none", "none", "none"] }), slit() as never)).toBe(220); // the room's ceiling
+    expect(
+      doorCeiling(
+        floor({
+          owk: ["none", "none", "none", "none"],
+          walls: [{ id: "w", a: [0, 0], b: [400, 0], kind: "wall", height: 40 }] as never,
+        }),
+        slit() as never,
+      ),
+    ).toBe(40);
+    expect(doorCeiling(floor({ rooms: [room] as never, owk: ["none", "none", "none", "none"] }), slit() as never)).toBe(
+      220,
+    ); // the room's ceiling
     expect(doorCeiling(floor({ height: 300 }), slit() as never)).toBe(300); // the outline's edge: the storey
     expect(doorCeiling(floor({ height: 300 }), slit({ a: [1000, 1000], b: [1100, 1000] }) as never)).toBe(300); // on no wall: the storey
   });
   it("junk points answer with the storey and never throw", () => {
-    for (const j of [undefined, null, [NaN, 0], "x"]) expect(doorCeiling(floor(), slit({ a: j, b: j }) as never)).toBe(250);
+    for (const j of [undefined, null, [NaN, 0], "x"])
+      expect(doorCeiling(floor(), slit({ a: j, b: j }) as never)).toBe(250);
     expect(doorCeiling(floor(), null as never)).toBe(250);
   });
   it("a slit on a room whose ceiling is 220 hangs from 220 in the 3D scene", () => {
-    const sc = buildScene(floor({ rooms: [room] as never, owk: ["none", "none", "none", "none"], doors: [slit()] as never }));
+    const sc = buildScene(
+      floor({ rooms: [room] as never, owk: ["none", "none", "none", "none"], doors: [slit()] as never }),
+    );
     const pane = sc.solids.find((s) => s.tag === "glass")!;
     expect([(pane.shape as any).z0, (pane.shape as any).z1]).toEqual([120, 180]);
   });
@@ -111,7 +181,10 @@ describe("slit: the ceiling is the wall's own", () => {
 
 describe("slit: a window in every other respect", () => {
   it("cover is curtains: an open cover never colours it, as with a window", () => {
-    const st = { "cover.c": { state: "open", attributes: {}, last_changed: "" }, "binary_sensor.c": { state: "on", attributes: {}, last_changed: "" } };
+    const st = {
+      "cover.c": { state: "open", attributes: {}, last_changed: "" },
+      "binary_sensor.c": { state: "on", attributes: {}, last_changed: "" },
+    };
     expect(doorStateOf({ kind: "slit", cover: "cover.c" } as never, st).cover).toBe(false);
     expect(doorStateOf({ kind: "window", cover: "cover.c" } as never, st).cover).toBe(false);
     expect(doorStateOf({ kind: "slit", sensors: ["binary_sensor.c"] } as never, st).open).toBe(true);
@@ -119,7 +192,10 @@ describe("slit: a window in every other respect", () => {
 });
 
 describe("slit: 2.5D", () => {
-  it.each([[undefined, 250], [300, 300]])("storey %s: a block under, glass from top-100 to top-40, wall above it", (storey, top) => {
+  it.each([
+    [undefined, 250],
+    [300, 300],
+  ])("storey %s: a block under, glass from top-100 to top-40, wall above it", (storey, top) => {
     const f = floor({ doors: [slit()] as never, ...(storey ? { height: storey } : {}) });
     const html = deep(f);
     expect(glass(html)).toEqual([`glass g-slit|${box(100, 220, top - 100, top - 40)}`]);
@@ -127,28 +203,50 @@ describe("slit: 2.5D", () => {
     expect(faces(html)).toContain(box(100, 220, top - 40, top)); // the 40 cm of wall over the head
   });
   it("an own sill and height win", () => {
-    expect(glass(deep(floor({ doors: [slit({ sill: 100, height: 30 })] as never })))).toEqual([`glass g-slit|${box(100, 220, 100, 130)}`]);
+    expect(glass(deep(floor({ doors: [slit({ sill: 100, height: 30 })] as never })))).toEqual([
+      `glass g-slit|${box(100, 220, 100, 130)}`,
+    ]);
   });
   it("a wall of 40 cm gives a slit as high as the wall: glass from 0 to 40", () => {
-    const f = floor({ owk: ["none", "none", "none", "none"], walls: [{ id: "w", a: [0, 0], b: [400, 0], kind: "wall", height: 40 }] as never, doors: [slit()] as never });
+    const f = floor({
+      owk: ["none", "none", "none", "none"],
+      walls: [{ id: "w", a: [0, 0], b: [400, 0], kind: "wall", height: 40 }] as never,
+      doors: [slit()] as never,
+    });
     expect(glass(deep(f))).toEqual([`glass g-slit|${box(100, 220, 0, 40)}`]);
   });
 });
 
 describe("slit: 3D scene", () => {
   const prism = (s: any) => s.shape;
-  it.each([[250, undefined], [300, 300], [40, undefined]])("wall %i: the pane spans top-100 to top-40, a block under it, 40 cm of wall over it", (h, storey) => {
-    const f = h === 40
-      ? floor({ owk: ["none", "none", "none", "none"], walls: [{ id: "w", a: [0, 0], b: [400, 0], kind: "wall", height: 40 }] as never, doors: [slit()] as never })
-      : floor({ doors: [slit()] as never, ...(storey ? { height: storey } : {}) });
+  it.each([
+    [250, undefined],
+    [300, 300],
+    [40, undefined],
+  ])("wall %i: the pane spans top-100 to top-40, a block under it, 40 cm of wall over it", (h, storey) => {
+    const f =
+      h === 40
+        ? floor({
+            owk: ["none", "none", "none", "none"],
+            walls: [{ id: "w", a: [0, 0], b: [400, 0], kind: "wall", height: 40 }] as never,
+            doors: [slit()] as never,
+          })
+        : floor({ doors: [slit()] as never, ...(storey ? { height: storey } : {}) });
     const sc = buildScene(f);
     const pane = sc.solids.filter((s) => s.tag === "glass");
     expect(pane).toHaveLength(1);
     expect([prism(pane[0]).z0, prism(pane[0]).z1]).toEqual(h === 40 ? [0, 40] : [h - 100, h - 40]);
     expect(pane[0].paint.role).toBe("glass-slit");
     const walls = sc.solids.filter((s) => s.kind === "wall" && s.tag !== "glass");
-    const under = walls.filter((s) => { const xs = prism(s).base.map((p: number[]) => p[0]); return Math.min(...xs) >= 100 && Math.max(...xs) <= 220; });
-    if (h > 60) expect(under.map((s) => [prism(s).z0, prism(s).z1]).sort((x, y) => x[0] - y[0])).toEqual([[0, h - 100], [h - 40, h]]);
+    const under = walls.filter((s) => {
+      const xs = prism(s).base.map((p: number[]) => p[0]);
+      return Math.min(...xs) >= 100 && Math.max(...xs) <= 220;
+    });
+    if (h > 60)
+      expect(under.map((s) => [prism(s).z0, prism(s).z1]).sort((x, y) => x[0] - y[0])).toEqual([
+        [0, h - 100],
+        [h - 40, h],
+      ]);
     else expect(under).toEqual([]);
   });
 });
@@ -157,7 +255,9 @@ describe("slit: 2D", () => {
   it("draws the window mark as a thin band, selectable like any door", () => {
     const f = floor({ doors: [slit(), slit({ id: "w", kind: "window", a: [250, 0], b: [370, 0] })] as never });
     const html = flat(f);
-    const lines = [...html.matchAll(/<line data-d="(\d)" class="door door-(\w+)[^"]*"[^>]*stroke-width="([\d.]+)"/g)].map((m) => [m[1], m[2], Number(m[3])]);
+    const lines = [
+      ...html.matchAll(/<line data-d="(\d)" class="door door-(\w+)[^"]*"[^>]*stroke-width="([\d.]+)"/g),
+    ].map((m) => [m[1], m[2], Number(m[3])]);
     expect(lines[0]).toEqual(["0", "slit", expect.any(Number)]);
     expect(lines[1][1]).toBe("window");
     expect(html).toMatch(/class="door door-slit door-window"/); // the window's colour rule, no new CSS

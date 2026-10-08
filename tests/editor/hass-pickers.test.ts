@@ -5,7 +5,10 @@ import { haData, type PickerHass } from "../../src/editor/hass-pickers";
 const S = (attributes: Record<string, unknown> = {}) => ({ state: "on", attributes });
 const answers: Record<string, unknown> = {
   "config/floor_registry/list": [{ floor_id: "gf", name: "Ground" }],
-  "config/area_registry/list": [{ area_id: "living", name: "Living", floor_id: "gf" }, { area_id: "loft", name: "Loft" }],
+  "config/area_registry/list": [
+    { area_id: "living", name: "Living", floor_id: "gf" },
+    { area_id: "loft", name: "Loft" },
+  ],
   "config/device_registry/list": [{ id: "dev1", area_id: "living" }],
   "config/entity_registry/list": [
     { entity_id: "light.own_area", area_id: "loft", device_id: "dev1", name: "Named in registry" }, // its own area beats its device's
@@ -15,16 +18,31 @@ const answers: Record<string, unknown> = {
   ],
 };
 const hass = (over: Record<string, () => unknown> = {}): PickerHass => ({
-  callWS: vi.fn(async (m: { type: string }): Promise<never> => { if (over[m.type]) return over[m.type]() as never; if (m.type in answers) return answers[m.type] as never; throw new Error("unknown"); }),
-  states: { "light.own_area": S({ friendly_name: "Own area lamp" }), "light.via_device": S(), "sensor.t": S({ device_class: "temperature", friendly_name: "T" }), "light.off": S(), "switch.no_registry": S() },
+  callWS: vi.fn(async (m: { type: string }): Promise<never> => {
+    if (over[m.type]) return over[m.type]() as never;
+    if (m.type in answers) return answers[m.type] as never;
+    throw new Error("unknown");
+  }),
+  states: {
+    "light.own_area": S({ friendly_name: "Own area lamp" }),
+    "light.via_device": S(),
+    "sensor.t": S({ device_class: "temperature", friendly_name: "T" }),
+    "light.off": S(),
+    "switch.no_registry": S(),
+  },
 });
-const boom = () => { throw new Error("no such command"); };
+const boom = () => {
+  throw new Error("no such command");
+};
 
 describe("haData", () => {
   it("gives floors, areas, and entities with the area each sits in", async () => {
     const d = (await haData(hass()))!;
     expect(d.floors).toEqual([{ id: "gf", name: "Ground" }]);
-    expect(d.areas).toEqual([{ id: "living", name: "Living", floor_id: "gf" }, { id: "loft", name: "Loft" }]);
+    expect(d.areas).toEqual([
+      { id: "living", name: "Living", floor_id: "gf" },
+      { id: "loft", name: "Loft" },
+    ]);
     const by = Object.fromEntries(d.entities.map((e) => [e.id, e]));
     expect(by["light.own_area"]).toMatchObject({ name: "Own area lamp", area: "loft", domain: "light" });
     expect(by["light.via_device"]).toMatchObject({ name: "Via device", area: "living" });
@@ -41,7 +59,9 @@ describe("haData", () => {
   });
 
   it("when neither the area nor the entity registry answers, gives nothing so the editor keeps its text fields", async () => {
-    expect(await haData(hass({ "config/area_registry/list": boom, "config/entity_registry/list": boom }))).toBeUndefined();
+    expect(
+      await haData(hass({ "config/area_registry/list": boom, "config/entity_registry/list": boom })),
+    ).toBeUndefined();
   });
 
   // S8.6: devices, not entities — the device registry's own name (a user's rename first) and an entity's entity_category.
@@ -57,7 +77,10 @@ describe("haData", () => {
       ],
     });
     const d = (await haData(h))!;
-    expect(d.devices).toEqual([{ id: "dev1", name: "Kitchen plug", area: "living" }, { id: "dev2", name: "Sensor (integration)", area: "loft" }]);
+    expect(d.devices).toEqual([
+      { id: "dev1", name: "Kitchen plug", area: "living" },
+      { id: "dev2", name: "Sensor (integration)", area: "loft" },
+    ]);
     const by = Object.fromEntries(d.entities.map((e) => [e.id, e]));
     expect(by["switch.plug"]).toMatchObject({ dev: "dev1" });
     expect("cat" in by["switch.plug"]).toBe(false);
@@ -71,11 +94,20 @@ describe("haData", () => {
 });
 
 describe("entitiesForType", () => {
-  const ha: HaData = { floors: [], areas: [], entities: [
-    { id: "light.a", name: "A", domain: "light" }, { id: "switch.plug", name: "P", domain: "switch", dc: "outlet" }, { id: "switch.wall", name: "W", domain: "switch" },
-    { id: "sensor.t", name: "T", domain: "sensor", dc: "temperature" }, { id: "sensor.h", name: "H", domain: "sensor", dc: "humidity" }, { id: "sensor.plain", name: "X", domain: "sensor" },
-    { id: "binary_sensor.m", name: "M", domain: "binary_sensor", dc: "motion" }, { id: "binary_sensor.d", name: "D", domain: "binary_sensor", dc: "door" },
-  ] };
+  const ha: HaData = {
+    floors: [],
+    areas: [],
+    entities: [
+      { id: "light.a", name: "A", domain: "light" },
+      { id: "switch.plug", name: "P", domain: "switch", dc: "outlet" },
+      { id: "switch.wall", name: "W", domain: "switch" },
+      { id: "sensor.t", name: "T", domain: "sensor", dc: "temperature" },
+      { id: "sensor.h", name: "H", domain: "sensor", dc: "humidity" },
+      { id: "sensor.plain", name: "X", domain: "sensor" },
+      { id: "binary_sensor.m", name: "M", domain: "binary_sensor", dc: "motion" },
+      { id: "binary_sensor.d", name: "D", domain: "binary_sensor", dc: "door" },
+    ],
+  };
   const ids = (l: HaData["entities"]) => l.map((e) => e.id).sort();
   it("matches by domain and device class", () => {
     expect(ids(entitiesForType(ha, "light").match)).toEqual(["light.a"]);

@@ -4,7 +4,18 @@ import v1 from "../../demo/layout.v1.json";
 import type { Layout, WallKind } from "../../src/core/schema";
 import { movePointAll, setSecondEnd, stairsAt } from "../../src/editor/ops";
 import { contentPoints, rotateAbout } from "../../src/core";
-import { EditorState, GRID_KEY, MEASURE_KEY, STORAGE_KEY, THEME_KEY, emptyLayout, isBlank, loadLayout, newId, restoreLayout } from "../../src/editor/state";
+import {
+  EditorState,
+  GRID_KEY,
+  MEASURE_KEY,
+  STORAGE_KEY,
+  THEME_KEY,
+  emptyLayout,
+  isBlank,
+  loadLayout,
+  newId,
+  restoreLayout,
+} from "../../src/editor/state";
 
 const fresh = () => structuredClone(demo) as unknown as Layout;
 
@@ -13,7 +24,9 @@ describe("EditorState", () => {
 
   it("undoes and redoes an edit", () => {
     const st = new EditorState(fresh());
-    st.edit((f) => { f.rooms[0].name = "Changed"; });
+    st.edit((f) => {
+      f.rooms[0].name = "Changed";
+    });
     expect(st.f.rooms[0].name).toBe("Changed");
     expect(st.undo()).toBe(true);
     expect(st.f.rooms[0].name).toBe("Living");
@@ -24,10 +37,14 @@ describe("EditorState", () => {
 
   it("does not record an undo step when an edit changes nothing", () => {
     const st = new EditorState(fresh());
-    st.edit((f) => { f.rooms[0].name = "Living"; });
+    st.edit((f) => {
+      f.rooms[0].name = "Living";
+    });
     st.edit(() => {});
     expect(st.canUndo).toBe(false);
-    st.edit((f) => { f.rooms[0].name = "Changed"; });
+    st.edit((f) => {
+      f.rooms[0].name = "Changed";
+    });
     expect(st.canUndo).toBe(true);
     st.undo();
     expect(st.f.rooms[0].name).toBe("Living");
@@ -39,25 +56,41 @@ describe("EditorState", () => {
     // the demo catalog keeps one contact sensor off the plan, for the door picker.
     // the relay is bound to a light but has no icon, so it is on the list (S1.32).
     expect(st.unplaced().map((c) => c.id)).toEqual(["contact-garage", "switch-living-relay"]);
-    st.edit((f) => { f.devices.shift(); });
+    st.edit((f) => {
+      f.devices.shift();
+    });
     expect(st.unplaced().map((c) => c.id)).toEqual(["light-living", "contact-garage", "switch-living-relay"]);
   });
 
   it("offers only contact sensors no other door uses (S4.24: doorAttachChoices)", () => {
     const l = fresh();
-    l.catalog.push({ id: "contact-front", floor: "ground", room: "Hall", type: "contact", name: "Front door", entity: "binary_sensor.demo_front_door" });
+    l.catalog.push({
+      id: "contact-front",
+      floor: "ground",
+      room: "Hall",
+      type: "contact",
+      name: "Front door",
+      entity: "binary_sensor.demo_front_door",
+    });
     const st = new EditorState(l);
     // the front door itself may keep its own sensor; another door may not take it
-    expect(st.doorAttachChoices("door-ground-1", "sensors").map((c) => c.entity)).toContain("binary_sensor.demo_front_door");
-    expect(st.doorAttachChoices("other-door", "sensors").map((c) => c.entity)).not.toContain("binary_sensor.demo_front_door");
+    expect(st.doorAttachChoices("door-ground-1", "sensors").map((c) => c.entity)).toContain(
+      "binary_sensor.demo_front_door",
+    );
+    expect(st.doorAttachChoices("other-door", "sensors").map((c) => c.entity)).not.toContain(
+      "binary_sensor.demo_front_door",
+    );
     // the demo's garage contact is free for any door
-    expect(st.doorAttachChoices("door-ground-3", "sensors").map((c) => c.entity)).toContain("binary_sensor.demo_garage_door");
+    expect(st.doorAttachChoices("door-ground-3", "sensors").map((c) => c.entity)).toContain(
+      "binary_sensor.demo_garage_door",
+    );
   });
 
   it("S10.6: offers an HA lock entity that has never been placed or catalogued, so it can attach with no prior placement step", () => {
     const st = new EditorState(fresh());
     st.ha = {
-      floors: [], areas: [],
+      floors: [],
+      areas: [],
       entities: [{ id: "lock.front_door_yale", name: "Front door Yale", domain: "lock", area: null }],
     };
     // not placed, not catalogued: without S10.6 this list is catalog-only and never sees it
@@ -67,11 +100,14 @@ describe("EditorState", () => {
   it("S10.6: attaching an uncatalogued HA entity creates its catalog entry in the same step, so it names itself afterwards instead of falling back to its raw id", () => {
     const st = new EditorState(fresh());
     st.ha = {
-      floors: [], areas: [],
+      floors: [],
+      areas: [],
       entities: [{ id: "lock.front_door_yale", name: "Front door Yale", domain: "lock", area: null }],
     };
     expect(st.layout.catalog.some((c) => c.entity === "lock.front_door_yale")).toBe(false);
-    const r = st.attachEntity("lock.front_door_yale", (f) => { f.doors[0].locks = ["lock.front_door_yale"]; });
+    const r = st.attachEntity("lock.front_door_yale", (f) => {
+      f.doors[0].locks = ["lock.front_door_yale"];
+    });
     expect(r.changed).toBe(true);
     const entry = st.layout.catalog.find((c) => c.entity === "lock.front_door_yale");
     expect(entry?.name).toBe("Front door Yale");
@@ -83,7 +119,9 @@ describe("EditorState", () => {
 
   it("autosaves under the documented key and restores it", () => {
     const st = new EditorState(fresh());
-    st.edit((f) => { f.rooms[0].name = "Saved"; });
+    st.edit((f) => {
+      f.rooms[0].name = "Saved";
+    });
     st.persist();
     expect(localStorage.getItem(STORAGE_KEY)).toContain("Saved");
     expect(restoreLayout()?.floors.ground.rooms[0].name).toBe("Saved");
@@ -92,7 +130,16 @@ describe("EditorState", () => {
   it("restores an autosave whose stairs and extras have no name", () => {
     const l: any = structuredClone(demo);
     const g = l.floors.ground;
-    g.stairs = [{ id: "s1", pts: [[10, 10], [40, 10], [40, 40]] }];
+    g.stairs = [
+      {
+        id: "s1",
+        pts: [
+          [10, 10],
+          [40, 10],
+          [40, 40],
+        ],
+      },
+    ];
     g.extras = [{ id: "e1", a: [0, 0], b: [10, 0] }];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(l));
     expect(restoreLayout()?.floors.ground.stairs[0].name).toBe("");
@@ -126,12 +173,20 @@ describe("loadLayout", () => {
 });
 
 describe("stairs add and remove", () => {
-  const add = (st: EditorState) => st.edit((f) => { f.stairs.push({ id: newId(f, st.floor, "stairs"), ...stairsAt([500, 400]) }); });
+  const add = (st: EditorState) =>
+    st.edit((f) => {
+      f.stairs.push({ id: newId(f, st.floor, "stairs"), ...stairsAt([500, 400]) });
+    });
 
   it("makes a 100 x 300 cm rectangle on the grid (10 cm by default; it was 5 before S1.34), centred", () => {
     const t = stairsAt([503, 397]);
     expect(t.name).toBe("Stairs");
-    expect(t.pts).toEqual([[450, 250], [550, 250], [550, 550], [450, 550]]);
+    expect(t.pts).toEqual([
+      [450, 250],
+      [550, 250],
+      [550, 550],
+      [450, 550],
+    ]);
   });
 
   it("adds on a floor with no stairs, and undo removes it", () => {
@@ -145,9 +200,12 @@ describe("stairs add and remove", () => {
 
   it("removes and undoes to the same index and id", () => {
     const st = new EditorState(fresh());
-    add(st); add(st);
+    add(st);
+    add(st);
     const all = structuredClone(st.f.stairs);
-    st.edit((f) => { f.stairs.splice(1, 1); });
+    st.edit((f) => {
+      f.stairs.splice(1, 1);
+    });
     expect(st.f.stairs.map((s) => s.id)).toEqual(["stairs-ground-1", "stairs-ground-3"]);
     st.undo();
     expect(st.f.stairs).toEqual(all);
@@ -156,7 +214,9 @@ describe("stairs add and remove", () => {
   it("gives distinct ids after a delete and another add", () => {
     const st = new EditorState(fresh());
     add(st);
-    st.edit((f) => { f.stairs.splice(0, 1); });
+    st.edit((f) => {
+      f.stairs.splice(0, 1);
+    });
     add(st);
     const ids = st.f.stairs.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -164,14 +224,29 @@ describe("stairs add and remove", () => {
 
   it("removing nothing records no undo step", () => {
     const st = new EditorState(fresh());
-    expect(st.edit((f) => { f.stairs.splice(5, 1); })).toBe(false);
+    expect(
+      st.edit((f) => {
+        f.stairs.splice(5, 1);
+      }),
+    ).toBe(false);
     expect(st.canUndo).toBe(false);
   });
 });
 
 describe("floors", () => {
   const keys = (st: EditorState) => Object.keys(st.layout.floors);
-  const empty = { outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
+  const empty = {
+    outline: [],
+    rooms: [],
+    walls: [],
+    stairs: [],
+    doors: [],
+    openings: [],
+    extras: [],
+    devices: [],
+    furniture: [],
+    unlinked: [],
+  };
 
   describe("addFloor", () => {
     it("adds an empty floor last, keyed by the slug of its title, and selects it", () => {
@@ -179,7 +254,13 @@ describe("floors", () => {
       expect(st.addFloor("Attic")).toBe("attic");
       expect(keys(st)).toEqual(["ground", "first", "test", "attic"]);
       expect(st.floor).toBe("attic");
-      expect(st.f).toEqual({ title: "Attic", ...empty, outline: st.layout.floors.ground.outline, owk: st.layout.floors.ground.owk, stairs: [{ ...st.layout.floors.ground.stairs[0], id: "stairs-attic-1" }] }); // S1.27, owk added Opus review
+      expect(st.f).toEqual({
+        title: "Attic",
+        ...empty,
+        outline: st.layout.floors.ground.outline,
+        owk: st.layout.floors.ground.owk,
+        stairs: [{ ...st.layout.floors.ground.stairs[0], id: "stairs-attic-1" }],
+      }); // S1.27, owk added Opus review
       expect(st.sel).toBeNull();
     });
     it("is one undo step: undo removes it and the selection falls back to a floor that exists", () => {
@@ -210,7 +291,7 @@ describe("floors", () => {
       expect(st.addFloor("???")).toBe("floor");
       expect(st.addFloor("---")).toBe("floor-2");
     });
-    it("rejects an empty or whitespace title: returns \"\", changes nothing, records no step", () => {
+    it('rejects an empty or whitespace title: returns "", changes nothing, records no step', () => {
       const st = new EditorState(fresh());
       for (const t of ["", "   ", "\t\n"]) expect(st.addFloor(t)).toBe("");
       expect(keys(st)).toEqual(["ground", "first", "test"]);
@@ -334,7 +415,11 @@ describe("floors", () => {
   });
 
   describe("moveFloor", () => {
-    const three = () => { const st = new EditorState(fresh()); st.addFloor("Attic"); return st; };
+    const three = () => {
+      const st = new EditorState(fresh());
+      st.addFloor("Attic");
+      return st;
+    };
     it("rebuilds the key order: delta -1 up the list, +1 down, content and titles intact", () => {
       const st = three();
       const g = JSON.stringify(st.layout.floors.ground);
@@ -398,13 +483,35 @@ describe("floors", () => {
 
 describe("a zone corner and a room corner at one spot move apart (review S1.5, finding 2)", () => {
   // zone z has its corner on the shared corner (100, 0) of rooms a and b; the corner is (100, 0) in the demo-free floor below
-  const rect = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
-  const mk = (id: string, pts: [number, number][], kind: "room" | "zone") => ({ id, name: id, area: id, kind, pts, wk: pts.map((): WallKind => (kind === "room" ? "wall" : "boundary")) });
+  const rect = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [
+    [x0, y0],
+    [x1, y0],
+    [x1, y1],
+    [x0, y1],
+  ];
+  const mk = (id: string, pts: [number, number][], kind: "room" | "zone") => ({
+    id,
+    name: id,
+    area: id,
+    kind,
+    pts,
+    wk: pts.map((): WallKind => (kind === "room" ? "wall" : "boundary")),
+  });
   const floor = () => {
     const f = structuredClone(demo.floors.ground) as any;
     f.outline = rect(0, 0, 200, 100);
-    f.rooms = [mk("a", rect(0, 0, 100, 100), "room"), mk("b", rect(100, 0, 200, 100), "room"), mk("z", rect(100, 0, 150, 50), "zone")];
-    f.stairs = []; f.doors = []; f.walls = []; f.openings = []; f.extras = []; f.devices = []; f.furniture = [];
+    f.rooms = [
+      mk("a", rect(0, 0, 100, 100), "room"),
+      mk("b", rect(100, 0, 200, 100), "room"),
+      mk("z", rect(100, 0, 150, 50), "zone"),
+    ];
+    f.stairs = [];
+    f.doors = [];
+    f.walls = [];
+    f.openings = [];
+    f.extras = [];
+    f.devices = [];
+    f.furniture = [];
     return f;
   };
   it("setSecondEnd on a room edge (length, then axis) leaves the zone corner where it is", () => {
@@ -445,7 +552,18 @@ describe("addStairsEverywhere (S1.26)", () => {
     l.floors.attic.title = "Attic";
     return l;
   };
-  const t = () => ({ name: "Stairs", pts: [[10, 20], [110, 20], [110, 320], [10, 320]] as [number, number][], shape: "straight" as const, steps: 12, rot: 0 });
+  const t = () => ({
+    name: "Stairs",
+    pts: [
+      [10, 20],
+      [110, 20],
+      [110, 320],
+      [10, 320],
+    ] as [number, number][],
+    shape: "straight" as const,
+    steps: 12,
+    rot: 0,
+  });
 
   it("puts one copy on every floor, same pts, ids of their own, in one undo step", () => {
     const st = new EditorState(three());
@@ -487,20 +605,37 @@ describe("addStairsEverywhere (S1.26)", () => {
   it("keeps a round stair's diameters, and redo puts them back", () => {
     const st = new EditorState(three());
     st.addStairsEverywhere({ name: "Stairs", pts: t().pts, shape: "round", steps: 9, rot: 30, dia: 200, inner: 60 });
-    for (const f of Object.values(st.layout.floors)) expect(f.stairs[f.stairs.length - 1]).toMatchObject({ shape: "round", steps: 9, rot: 30, dia: 200, inner: 60 });
-    st.undo(); st.redo();
+    for (const f of Object.values(st.layout.floors))
+      expect(f.stairs[f.stairs.length - 1]).toMatchObject({ shape: "round", steps: 9, rot: 30, dia: 200, inner: 60 });
+    st.undo();
+    st.redo();
     expect(st.layout.floors.first.stairs).toHaveLength(1);
   });
 });
 
 describe("addFloor inherits the outline and the stairs of the first floor (S1.27)", () => {
-  const sq = (n: number): [number, number][] => [[0, 0], [n, 0], [n, n], [0, n]];
-  const stair = (id: string, dia?: number) => ({ id, name: "Stairs", pts: sq(50), shape: "straight" as const, steps: 12, rot: 0, ...(dia ? { shape: "round" as const, dia, inner: 20 } : {}) });
+  const sq = (n: number): [number, number][] => [
+    [0, 0],
+    [n, 0],
+    [n, n],
+    [0, n],
+  ];
+  const stair = (id: string, dia?: number) => ({
+    id,
+    name: "Stairs",
+    pts: sq(50),
+    shape: "straight" as const,
+    steps: 12,
+    rot: 0,
+    ...(dia ? { shape: "round" as const, dia, inner: 20 } : {}),
+  });
   const layout = () => {
     const l = structuredClone(demo) as unknown as Layout;
     const g = l.floors.ground;
-    g.outline = sq(400); g.stairs = [stair("stairs-ground-1"), stair("stairs-ground-2", 120)];
-    l.floors.first.outline = sq(999); l.floors.first.stairs = [];
+    g.outline = sq(400);
+    g.stairs = [stair("stairs-ground-1"), stair("stairs-ground-2", 120)];
+    l.floors.first.outline = sq(999);
+    l.floors.first.stairs = [];
     return l;
   };
 
@@ -511,7 +646,8 @@ describe("addFloor inherits the outline and the stairs of the first floor (S1.27
     expect(f.outline).toEqual(sq(400));
     expect(f.stairs.map((s) => s.id)).toEqual(["stairs-attic-1", "stairs-attic-2"]);
     expect(f.stairs[1]).toMatchObject({ shape: "round", dia: 120, inner: 20 });
-    for (const k of ["rooms", "walls", "doors", "openings", "extras", "devices", "furniture"] as const) expect(f[k], k).toEqual([]);
+    for (const k of ["rooms", "walls", "doors", "openings", "extras", "devices", "furniture"] as const)
+      expect(f[k], k).toEqual([]);
   });
   it("copies from the first floor in the key order, not from the floor before it", () => {
     const st = new EditorState(layout());
@@ -523,7 +659,8 @@ describe("addFloor inherits the outline and the stairs of the first floor (S1.27
   it("copies deeply: editing the attic leaves the ground floor alone", () => {
     const st = new EditorState(layout());
     st.addFloor("Attic");
-    st.f.outline[0][0] = 77; st.f.stairs[0].pts[0][0] = 77;
+    st.f.outline[0][0] = 77;
+    st.f.stairs[0].pts[0][0] = 77;
     expect(st.layout.floors.ground.outline[0][0]).toBe(0);
     expect(st.layout.floors.ground.stairs[0].pts[0][0]).toBe(0);
   });
@@ -561,8 +698,10 @@ describe("addFloor inherits the outline and the stairs of the first floor (S1.27
     });
 
     it("rotating right and back leaves every coordinate byte-identical and rotate at 0", () => {
-      const st = new EditorState(fresh()), before = JSON.stringify(st.layout);
-      st.setRotate(90); st.setRotate(0);
+      const st = new EditorState(fresh()),
+        before = JSON.stringify(st.layout);
+      st.setRotate(90);
+      st.setRotate(0);
       expect(st.layout.rotate).toBe(0);
       expect(JSON.stringify(st.layout).replace(/"rotate":0,?/, "")).toBe(before.replace(/"rotate":0,?/, ""));
       expect(st.rotation).toBeUndefined();
@@ -574,8 +713,10 @@ describe("addFloor inherits the outline and the stairs of the first floor (S1.27
       const flat = st.view;
       st.setRotate(90);
       const v = st.view; // dropped and fitted again
-      expect(v.w).toBeCloseTo(flat.h); expect(v.h).toBeCloseTo(flat.w);
-      expect(v.x + v.w / 2).toBeCloseTo(flat.x + flat.w / 2); expect(v.y + v.h / 2).toBeCloseTo(flat.y + flat.h / 2); // turned about the outline's own centre
+      expect(v.w).toBeCloseTo(flat.h);
+      expect(v.h).toBeCloseTo(flat.w);
+      expect(v.x + v.w / 2).toBeCloseTo(flat.x + flat.w / 2);
+      expect(v.y + v.h / 2).toBeCloseTo(flat.y + flat.h / 2); // turned about the outline's own centre
       expect(st.rotation).toEqual({ deg: 90, pivot: [400, 300] });
     });
   });
@@ -604,13 +745,18 @@ describe("the grid setting (S1.34)", () => {
     expect(st.snapGrid).toBe(10);
   });
   it("still works when storage throws", () => {
-    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
-    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
     const st = new EditorState(fresh());
     expect(st.snapGrid).toBe(10);
     st.setGrid(50);
     expect(st.snapGrid).toBe(50);
-    get.mockRestore(); set.mockRestore();
+    get.mockRestore();
+    set.mockRestore();
   });
 });
 
@@ -643,13 +789,18 @@ describe("the measure grid preference (S1.50)", () => {
     expect(st.canUndo).toBe(false);
   });
   it("still works when storage throws", () => {
-    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
-    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
     const st = new EditorState(fresh());
     expect(st.measure).toBe(true);
     st.setMeasure(false);
     expect(st.measure).toBe(false); // the in-memory choice still changes; only the write is lost
-    get.mockRestore(); set.mockRestore();
+    get.mockRestore();
+    set.mockRestore();
   });
 });
 
@@ -666,10 +817,13 @@ describe("the theme choice (S2.12)", () => {
     expect(localStorage.getItem(THEME_KEY)).toBe(t);
     expect(new EditorState(fresh()).theme).toBe(t);
   });
-  it.each(["", "x", "null", "Dark", "system", "auto", "dark"])("a stored %j (unknown, or a retired choice) falls back to blueprint", (v) => {
-    localStorage.setItem(THEME_KEY, v);
-    expect(new EditorState(fresh()).theme).toBe("blueprint");
-  });
+  it.each(["", "x", "null", "Dark", "system", "auto", "dark"])(
+    "a stored %j (unknown, or a retired choice) falls back to blueprint",
+    (v) => {
+      localStorage.setItem(THEME_KEY, v);
+      expect(new EditorState(fresh()).theme).toBe("blueprint");
+    },
+  );
   it("setTheme refuses a value that is not one of the three", () => {
     const st = new EditorState(fresh());
     st.setTheme("Light" as never);
@@ -681,15 +835,19 @@ describe("the theme choice (S2.12)", () => {
     expect(st.canUndo).toBe(false);
   });
   it("a blocked storage falls back to blueprint: the in-memory choice still changes, only the write is lost", () => {
-    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
-    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
+    const get = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const set = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
     const st = new EditorState(fresh());
     expect(st.theme).toBe("blueprint");
     st.setTheme("light");
     expect(st.theme).toBe("light");
-    get.mockRestore(); set.mockRestore();
+    get.mockRestore();
+    set.mockRestore();
   });
-
 });
 
 describe("device colours (S1.36)", () => {
@@ -706,7 +864,8 @@ describe("device colours (S1.36)", () => {
   });
   it("a reset removes the key, and the last one removes colors", () => {
     const st = new EditorState(fresh());
-    st.setColour("light", "#aabbcc"); st.setColour("tv", "#112233");
+    st.setColour("light", "#aabbcc");
+    st.setColour("tv", "#112233");
     expect(st.setColour("light", null)).toBe(true);
     expect(st.layout.colors).toEqual({ tv: "#112233" });
     expect(st.setColour("light", null)).toBe(false); // nothing to reset
@@ -724,7 +883,8 @@ describe("device colours (S1.36)", () => {
 
 describe("recenter (S1.49)", () => {
   const boxOf = (st: EditorState) => st.view;
-  const contains = (v: { x: number; y: number; w: number; h: number }, p: [number, number]) => p[0] >= v.x && p[0] <= v.x + v.w && p[1] >= v.y && p[1] <= v.y + v.h;
+  const contains = (v: { x: number; y: number; w: number; h: number }, p: [number, number]) =>
+    p[0] >= v.x && p[0] <= v.x + v.w && p[1] >= v.y && p[1] <= v.y + v.h;
   it("shows every point of the floor, also one outside the outline, and after a zoom and a pan", () => {
     const l = fresh();
     l.floors.ground.devices.push({ id: "far", type: "temp", entity: "sensor.far", x: 1700, y: -400 } as any);
@@ -736,7 +896,8 @@ describe("recenter (S1.49)", () => {
     for (const p of contentPoints(st.f)) expect(contains(v, p), String(p)).toBe(true);
   });
   it("writes nothing to the layout and is no undo step", () => {
-    const st = new EditorState(fresh()), before = JSON.stringify(st.layout);
+    const st = new EditorState(fresh()),
+      before = JSON.stringify(st.layout);
     st.recenter();
     expect(JSON.stringify(st.layout)).toBe(before);
     expect(st.canUndo).toBe(false);
@@ -746,7 +907,8 @@ describe("recenter (S1.49)", () => {
     st.setRotate(45);
     st.views[st.floor] = { x: 0, y: 0, w: 20, h: 20 };
     st.recenter();
-    const r = st.rotation!, v = st.view;
+    const r = st.rotation!,
+      v = st.view;
     // in the turned frame: the view's centre is the plan point in the screen middle, so turn each point to screen space about the pivot
     const c = rotateAbout([v.x + v.w / 2, v.y + v.h / 2], 45, r.pivot);
     for (const p of contentPoints(st.f)) {
@@ -757,10 +919,22 @@ describe("recenter (S1.49)", () => {
   });
   it("an empty floor does not throw and gets a sensible box", () => {
     const l = fresh();
-    Object.assign(l.floors.ground, { outline: [], rooms: [], walls: [], doors: [], openings: [], extras: [], stairs: [], furniture: [], devices: [], unlinked: [] });
+    Object.assign(l.floors.ground, {
+      outline: [],
+      rooms: [],
+      walls: [],
+      doors: [],
+      openings: [],
+      extras: [],
+      stairs: [],
+      furniture: [],
+      devices: [],
+      unlinked: [],
+    });
     const st = new EditorState(l);
     expect(() => st.recenter()).not.toThrow();
-    expect(st.view.w).toBeGreaterThan(0); expect(st.view.h).toBeGreaterThan(0);
+    expect(st.view.w).toBeGreaterThan(0);
+    expect(st.view.h).toBeGreaterThan(0);
   });
 });
 
@@ -775,11 +949,14 @@ describe("isBlank", () => {
     expect(isBlank(l)).toBe(true);
   });
   it("the demo is not blank", () => expect(isBlank(demoLayout)).toBe(false));
-  it.each(["outline", "rooms", "walls", "stairs", "doors", "openings", "extras", "devices", "furniture"] as const)("one %s is enough to not be blank", (k) => {
-    const l = emptyLayout();
-    (l.floors.ground[k] as unknown[]).push(k === "outline" ? [0, 0] : {});
-    expect(isBlank(l)).toBe(false);
-  });
+  it.each(["outline", "rooms", "walls", "stairs", "doors", "openings", "extras", "devices", "furniture"] as const)(
+    "one %s is enough to not be blank",
+    (k) => {
+      const l = emptyLayout();
+      (l.floors.ground[k] as unknown[]).push(k === "outline" ? [0, 0] : {});
+      expect(isBlank(l)).toBe(false);
+    },
+  );
 });
 
 describe("EditorState.setTrace (S7.11)", () => {
@@ -796,11 +973,16 @@ describe("EditorState.setTrace (S7.11)", () => {
     expect(st.setTrace(null)).toBe(true);
     expect(st.f.trace).toBeUndefined();
     expect(st.setTrace(null)).toBe(false);
-    st.undo(); expect(st.f.trace?.alpha).toBe(0.3);
-    st.undo(); expect(st.f.trace?.alpha).toBe(0.5);
-    st.undo(); expect(st.f.trace).toBeUndefined();
+    st.undo();
+    expect(st.f.trace?.alpha).toBe(0.3);
+    st.undo();
+    expect(st.f.trace?.alpha).toBe(0.5);
+    st.undo();
+    expect(st.f.trace).toBeUndefined();
     expect(st.canUndo).toBe(false);
-    st.redo(); st.redo(); expect(st.f.trace).toEqual({ ...T, alpha: 0.3 });
+    st.redo();
+    st.redo();
+    expect(st.f.trace).toEqual({ ...T, alpha: 0.3 });
     expect(st.layout.floors.first.trace).toBeUndefined(); // only the current floor
   });
 
@@ -808,7 +990,10 @@ describe("EditorState.setTrace (S7.11)", () => {
     const st = new EditorState(fresh());
     const big = "data:image/jpeg;base64," + "A".repeat(200_000);
     st.setTrace({ ...T, src: big });
-    for (let i = 0; i < 20; i++) st.edit((f) => { f.rooms[0].name = `n${i}`; });
+    for (let i = 0; i < 20; i++)
+      st.edit((f) => {
+        f.rooms[0].name = `n${i}`;
+      });
     const hist = (st as unknown as { hist: string[] }).hist;
     expect(hist.length).toBe(21);
     expect(hist.reduce((n, s) => n + s.length, 0)).toBeLessThan(big.length);
@@ -821,9 +1006,15 @@ describe("EditorState.setTrace (S7.11)", () => {
   it("autosaves the plan without its image when the image does not fit in localStorage", () => {
     const st = new EditorState(fresh());
     st.setTrace(T);
-    st.edit((f) => { f.rooms[0].name = "Kept"; });
+    st.edit((f) => {
+      f.rooms[0].name = "Kept";
+    });
     const real = Storage.prototype.setItem;
-    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, k: string, v: string) {
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      k: string,
+      v: string,
+    ) {
       if (v.includes(SRC)) throw new DOMException("full", "QuotaExceededError");
       real.call(this, k, v);
     });
@@ -841,18 +1032,53 @@ describe("EditorState.setTrace (S7.11)", () => {
 describe("EditorState.autoLinkLights (S8.7)", () => {
   /** One floor, one room in area_basement, an unbound light with a uniquely-named same-area switch and an unrelated switch on another floor. */
   const layoutWithTwoLights = (): Layout => ({
-    version: 2, unit: "cm", north: 0,
+    version: 2,
+    unit: "cm",
+    north: 0,
     floors: {
       basement: {
-        title: "Basement", outline: [], rooms: [{ id: "r1", name: "Basement", area: "area_basement", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
-        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        title: "Basement",
+        outline: [],
+        rooms: [
+          {
+            id: "r1",
+            name: "Basement",
+            area: "area_basement",
+            kind: "room",
+            pts: [
+              [0, 0],
+              [400, 0],
+              [400, 400],
+              [0, 400],
+            ],
+            wk: ["wall", "wall", "wall", "wall"],
+          },
+        ],
+        walls: [],
+        stairs: [],
+        doors: [],
+        openings: [],
+        extras: [],
         devices: [
           { id: "d1", type: "light", entity: "light.basement_dumb", name: "Basement dumb light", x: 10, y: 10 },
           { id: "d2", type: "light", entity: "light.basement_lamp", name: "Basement lamp", x: 20, y: 20 },
         ],
-        furniture: [], unlinked: [],
+        furniture: [],
+        unlinked: [],
       },
-      attic: { title: "Attic", outline: [], rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] },
+      attic: {
+        title: "Attic",
+        outline: [],
+        rooms: [],
+        walls: [],
+        stairs: [],
+        doors: [],
+        openings: [],
+        extras: [],
+        devices: [],
+        furniture: [],
+        unlinked: [],
+      },
     },
     catalog: [],
   });
@@ -911,8 +1137,38 @@ describe("EditorState.autoLinkLights (S8.7)", () => {
 
   it("Opus review: a living room with Ceiling light and TV plug auto-links nothing (finding 4, via autoLinkLights)", () => {
     const l: Layout = {
-      version: 2, unit: "cm", north: 0,
-      floors: { ground: { title: "Ground", outline: [], rooms: [{ id: "r1", name: "Living room", area: "area_living", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }], furniture: [], unlinked: [] } },
+      version: 2,
+      unit: "cm",
+      north: 0,
+      floors: {
+        ground: {
+          title: "Ground",
+          outline: [],
+          rooms: [
+            {
+              id: "r1",
+              name: "Living room",
+              area: "area_living",
+              kind: "room",
+              pts: [
+                [0, 0],
+                [400, 0],
+                [400, 400],
+                [0, 400],
+              ],
+              wk: ["wall", "wall", "wall", "wall"],
+            },
+          ],
+          walls: [],
+          stairs: [],
+          doors: [],
+          openings: [],
+          extras: [],
+          devices: [{ id: "d1", type: "light", entity: "light.ceiling", name: "Ceiling light", x: 10, y: 10 }],
+          furniture: [],
+          unlinked: [],
+        },
+      },
       catalog: [],
     };
     const st = new EditorState(l, "ground");
@@ -934,19 +1190,45 @@ describe("EditorState.motionChoices (Opus review finding 12: scoped by HA floor 
   /** One plan floor ("ground") with a room drawn only in area_kitchen. area_pantry is on the same HA floor as
    *  area_kitchen but has no room drawn on this plan floor at all. */
   const layout = (): Layout => ({
-    version: 2, unit: "cm", north: 0,
+    version: 2,
+    unit: "cm",
+    north: 0,
     floors: {
       ground: {
-        title: "Ground", outline: [], rooms: [{ id: "r1", name: "Kitchen", area: "area_kitchen", kind: "room", pts: [[0, 0], [400, 0], [400, 400], [0, 400]], wk: ["wall", "wall", "wall", "wall"] }],
-        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        title: "Ground",
+        outline: [],
+        rooms: [
+          {
+            id: "r1",
+            name: "Kitchen",
+            area: "area_kitchen",
+            kind: "room",
+            pts: [
+              [0, 0],
+              [400, 0],
+              [400, 400],
+              [0, 400],
+            ],
+            wk: ["wall", "wall", "wall", "wall"],
+          },
+        ],
+        walls: [],
+        stairs: [],
+        doors: [],
+        openings: [],
+        extras: [],
         devices: [{ id: "d1", type: "light", entity: "light.kitchen", name: "Kitchen light", x: 10, y: 10 }],
-        furniture: [], unlinked: [],
+        furniture: [],
+        unlinked: [],
       },
     },
     catalog: [],
   });
   const haWithFloorMapping = {
-    floors: [{ id: "floor_ground", name: "Ground" }, { id: "floor_upstairs", name: "Upstairs" }],
+    floors: [
+      { id: "floor_ground", name: "Ground" },
+      { id: "floor_upstairs", name: "Upstairs" },
+    ],
     areas: [
       { id: "area_kitchen", name: "Kitchen", floor_id: "floor_ground" },
       { id: "area_pantry", name: "Pantry", floor_id: "floor_ground" }, // same HA floor, no room drawn for it
@@ -954,9 +1236,27 @@ describe("EditorState.motionChoices (Opus review finding 12: scoped by HA floor 
     ],
     entities: [
       { id: "light.kitchen", name: "Kitchen light", domain: "light", area: "area_kitchen" },
-      { id: "binary_sensor.kitchen_motion", name: "Kitchen motion", domain: "binary_sensor", dc: "motion", area: "area_kitchen" },
-      { id: "binary_sensor.pantry_motion", name: "Pantry motion", domain: "binary_sensor", dc: "motion", area: "area_pantry" },
-      { id: "binary_sensor.bedroom_motion", name: "Bedroom motion", domain: "binary_sensor", dc: "motion", area: "area_bedroom" },
+      {
+        id: "binary_sensor.kitchen_motion",
+        name: "Kitchen motion",
+        domain: "binary_sensor",
+        dc: "motion",
+        area: "area_kitchen",
+      },
+      {
+        id: "binary_sensor.pantry_motion",
+        name: "Pantry motion",
+        domain: "binary_sensor",
+        dc: "motion",
+        area: "area_pantry",
+      },
+      {
+        id: "binary_sensor.bedroom_motion",
+        name: "Bedroom motion",
+        domain: "binary_sensor",
+        dc: "motion",
+        area: "area_bedroom",
+      },
     ],
   };
 
@@ -973,11 +1273,26 @@ describe("EditorState.motionChoices (Opus review finding 12: scoped by HA floor 
     const st = new EditorState(layout(), "ground");
     st.ha = {
       floors: [],
-      areas: [{ id: "area_kitchen", name: "Kitchen" }, { id: "area_pantry", name: "Pantry" }], // no floor_id anywhere
+      areas: [
+        { id: "area_kitchen", name: "Kitchen" },
+        { id: "area_pantry", name: "Pantry" },
+      ], // no floor_id anywhere
       entities: [
         { id: "light.kitchen", name: "Kitchen light", domain: "light", area: "area_kitchen" },
-        { id: "binary_sensor.kitchen_motion", name: "Kitchen motion", domain: "binary_sensor", dc: "motion", area: "area_kitchen" },
-        { id: "binary_sensor.pantry_motion", name: "Pantry motion", domain: "binary_sensor", dc: "motion", area: "area_pantry" },
+        {
+          id: "binary_sensor.kitchen_motion",
+          name: "Kitchen motion",
+          domain: "binary_sensor",
+          dc: "motion",
+          area: "area_kitchen",
+        },
+        {
+          id: "binary_sensor.pantry_motion",
+          name: "Pantry motion",
+          domain: "binary_sensor",
+          dc: "motion",
+          area: "area_pantry",
+        },
       ],
     };
     const names = st.motionChoices(0).map((c) => c.name);
@@ -991,8 +1306,18 @@ describe("EditorState.motionChoices (Opus review finding 12: scoped by HA floor 
       ...haWithFloorMapping,
       entities: [
         ...haWithFloorMapping.entities,
-        { id: "group.motion_kitchen_bedroom", name: "Kitchen + bedroom motion", domain: "group", members: ["binary_sensor.kitchen_motion", "binary_sensor.bedroom_motion"] },
-        { id: "group.motion_bedroom_only", name: "Bedroom-only group", domain: "group", members: ["binary_sensor.bedroom_motion"] },
+        {
+          id: "group.motion_kitchen_bedroom",
+          name: "Kitchen + bedroom motion",
+          domain: "group",
+          members: ["binary_sensor.kitchen_motion", "binary_sensor.bedroom_motion"],
+        },
+        {
+          id: "group.motion_bedroom_only",
+          name: "Bedroom-only group",
+          domain: "group",
+          members: ["binary_sensor.bedroom_motion"],
+        },
       ],
     };
     const names = st.motionChoices(0).map((c) => c.name);
@@ -1003,16 +1328,25 @@ describe("EditorState.motionChoices (Opus review finding 12: scoped by HA floor 
 
 describe("EditorState.pendingMotion (Opus review finding 3: tied to the device id, cleared on selection change)", () => {
   const layout = (): Layout => ({
-    version: 2, unit: "cm", north: 0,
+    version: 2,
+    unit: "cm",
+    north: 0,
     floors: {
       ground: {
-        title: "Ground", outline: [], rooms: [],
-        walls: [], stairs: [], doors: [], openings: [], extras: [],
+        title: "Ground",
+        outline: [],
+        rooms: [],
+        walls: [],
+        stairs: [],
+        doors: [],
+        openings: [],
+        extras: [],
         devices: [
           { id: "dA", type: "light", entity: "light.a", name: "Light A", x: 10, y: 10 },
           { id: "dB", type: "light", entity: "light.b", name: "Light B", x: 20, y: 20 },
         ],
-        furniture: [], unlinked: [],
+        furniture: [],
+        unlinked: [],
       },
     },
     catalog: [],

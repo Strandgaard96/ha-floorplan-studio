@@ -23,14 +23,16 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   await el.updateComplete;
   return el;
 }
-const select = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector<HTMLSelectElement>('select[aria-label="View"]');
+const select = (el: FloorplanStudioCard) =>
+  el.shadowRoot!.querySelector<HTMLSelectElement>('select[aria-label="View"]');
 const pick = async (el: FloorplanStudioCard, value: string) => {
   const s = select(el)!;
   s.value = value;
   s.dispatchEvent(new Event("change", { bubbles: true }));
   await el.updateComplete;
 };
-const box = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+const box = (el: FloorplanStudioCard) =>
+  el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
 const click = async (el: FloorplanStudioCard, label: string) => {
   el.shadowRoot!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click();
   await el.updateComplete;
@@ -46,7 +48,11 @@ describe("card view option and dropdown", () => {
     expect(lastView()).toBe("2d");
     const s = select(el)!;
     expect(s.value).toBe("2d");
-    expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual([["2d", "2D"], ["2.5d", "2.5D"], ["3d", "3D"]]);
+    expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual([
+      ["2d", "2D"],
+      ["2.5d", "2.5D"],
+      ["3d", "3D"],
+    ]);
     // Layout changed (card-stack): the select is in the toolbar, zoom is in the vertical stack, as in the studio.
     expect(s.closest(".fp-zoom")).not.toBeNull();
     expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')!.closest(".fp-stack")).not.toBeNull();
@@ -134,7 +140,12 @@ describe("card view option and dropdown", () => {
     const el = await mount({ view: "2.5d" });
     await pick(el, "2d");
     expect(lastView()).toBe("2d");
-    el.setConfig({ layout: structuredClone(L), floor: "ground", view: "2.5d", rotation: 90 } as FloorplanStudioCardConfig);
+    el.setConfig({
+      layout: structuredClone(L),
+      floor: "ground",
+      view: "2.5d",
+      rotation: 90,
+    } as FloorplanStudioCardConfig);
     await el.updateComplete;
     expect(lastView()).toBe("2.5d");
     expect(select(el)!.value).toBe("2.5d");

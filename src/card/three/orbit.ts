@@ -5,16 +5,21 @@
 // Frame: three's. x east, y up, z south (plan y). `azimuth` 0 puts the camera south of the target, positive turns it
 // toward the east. `polar` is the angle from straight up: 0 is top-down, pi/2 the horizon.
 type V3 = [number, number, number];
-export interface Bounds { min: V3; max: V3 }
+export interface Bounds {
+  min: V3;
+  max: V3;
+}
 
 /** radians. Not quite top-down (the azimuth would mean nothing there) and not quite the horizon (never under the floor). */
-export const MIN_POLAR = 0.1, MAX_POLAR = 1.45;
+export const MIN_POLAR = 0.1,
+  MAX_POLAR = 1.45;
 /** The start: 50 degrees above the horizon. */
 const START_POLAR = (40 * Math.PI) / 180;
 /** radians per pixel dragged. */
 const ROTATE_RATE = 0.006;
 /** The closest and furthest the camera goes, as a multiple of the distance that frames the house. */
-const NEAR_FACTOR = 0.15, FAR_FACTOR = 4;
+const NEAR_FACTOR = 0.15,
+  FAR_FACTOR = 4;
 
 const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -35,8 +40,10 @@ export class Orbit {
 
   /** `bounds` are the scene's, in the plan's frame (x, y, z up, cm); `fovDeg` the camera's vertical field; `turnDeg` the plan's turn. */
   constructor(bounds: Bounds, aspect: number, fovDeg: number, turnDeg: number) {
-    const ok = bounds && Array.isArray(bounds.min) && Array.isArray(bounds.max) && [...bounds.min, ...bounds.max].every(fin);
-    const mn = ok ? bounds.min : [0, 0, 0], mx = ok ? bounds.max : [0, 0, 0];
+    const ok =
+      bounds && Array.isArray(bounds.min) && Array.isArray(bounds.max) && [...bounds.min, ...bounds.max].every(fin);
+    const mn = ok ? bounds.min : [0, 0, 0],
+      mx = ok ? bounds.max : [0, 0, 0];
     // Plan (x, y, z up) to three (x, z, y).
     this.lo = [mn[0], mn[2], mn[1]];
     this.hi = [mx[0], mx[2], mx[1]];
@@ -54,7 +61,10 @@ export class Orbit {
    * centre, the distance to the one that fits them). A panel inset stays. Junk bounds change nothing.
    */
   reframe(bounds: Bounds): void {
-    if (!(bounds && Array.isArray(bounds.min) && Array.isArray(bounds.max) && [...bounds.min, ...bounds.max].every(fin))) return;
+    if (
+      !(bounds && Array.isArray(bounds.min) && Array.isArray(bounds.max) && [...bounds.min, ...bounds.max].every(fin))
+    )
+      return;
     this.lo = [bounds.min[0], bounds.min[2], bounds.min[1]];
     this.hi = [bounds.max[0], bounds.max[2], bounds.max[1]];
     this.target = [0, 1, 2].map((i) => (this.lo[i] + this.hi[i]) / 2) as V3;
@@ -66,7 +76,10 @@ export class Orbit {
 
   /** The distance at which the whole house fits the narrower of the two fields of view. */
   private fitDistance(): number {
-    const radius = Math.max(100, 0.5 * Math.hypot(this.hi[0] - this.lo[0], this.hi[1] - this.lo[1], this.hi[2] - this.lo[2]));
+    const radius = Math.max(
+      100,
+      0.5 * Math.hypot(this.hi[0] - this.lo[0], this.hi[1] - this.lo[1], this.hi[2] - this.lo[2]),
+    );
     const across = 2 * Math.atan(Math.tan(this.fov / 2) * this.aspect * (1 - this.left - this.right));
     return (0.85 * radius) / Math.sin(Math.min(this.fov, across) / 2);
   }
@@ -86,7 +99,10 @@ export class Orbit {
    */
   setInset(left: number, right: number): void {
     if (!(fin(left) && fin(right) && left >= 0 && right >= 0)) return;
-    const total = left + right, k = total > 0.6 ? 0.6 / total : 1, l = left * k, r = right * k;
+    const total = left + right,
+      k = total > 0.6 ? 0.6 / total : 1,
+      l = left * k,
+      r = right * k;
     if (l === this.left && r === this.right) return;
     const was = this.fit;
     this.left = l;
@@ -97,12 +113,18 @@ export class Orbit {
   }
 
   /** Where the free part's centre lies, as a fraction of the view's width from the view's centre (right is positive). */
-  get shift(): number { return (this.left - this.right) / 2; }
+  get shift(): number {
+    return (this.left - this.right) / 2;
+  }
 
   /** Where the camera stands (three's frame). */
   position(): V3 {
     const s = Math.sin(this.polar) * this.distance;
-    return [this.target[0] + s * Math.sin(this.azimuth), this.target[1] + Math.cos(this.polar) * this.distance, this.target[2] + s * Math.cos(this.azimuth)];
+    return [
+      this.target[0] + s * Math.sin(this.azimuth),
+      this.target[1] + Math.cos(this.polar) * this.distance,
+      this.target[2] + s * Math.cos(this.azimuth),
+    ];
   }
 
   /** A drag of `dx`, `dy` pixels: right turns the house to the right, down lifts the camera. Junk changes nothing. */
@@ -120,7 +142,9 @@ export class Orbit {
   /** A pan of `dx`, `dy` pixels in a view `heightPx` tall: the ground follows the pointer. The target stays over the house. */
   pan(dx: number, dy: number, heightPx: number): void {
     if (!(fin(dx) && fin(dy) && fin(heightPx) && heightPx > 0)) return;
-    const perPx = (2 * this.distance * Math.tan(this.fov / 2)) / heightPx, sin = Math.sin(this.azimuth), cos = Math.cos(this.azimuth);
+    const perPx = (2 * this.distance * Math.tan(this.fov / 2)) / heightPx,
+      sin = Math.sin(this.azimuth),
+      cos = Math.cos(this.azimuth);
     // right on the ground is (cos, -sin); away from the camera is (-sin, -cos).
     this.target[0] += -dx * perPx * cos + dy * perPx * -sin;
     this.target[2] += dx * perPx * sin + dy * perPx * -cos;
@@ -141,7 +165,13 @@ export class Orbit {
    * multiple of the one that frames the floor, and the look-at point's offset from the floor's centre. None of them
    * depends on the size of the view, so a restore in a differently shaped card still frames the same. */
   state(): { az: number; polar: number; zoom: number; dx: number; dz: number } {
-    return { az: this.azimuth, polar: this.polar, zoom: this.distance / this.fit, dx: this.target[0] - (this.lo[0] + this.hi[0]) / 2, dz: this.target[2] - (this.lo[2] + this.hi[2]) / 2 };
+    return {
+      az: this.azimuth,
+      polar: this.polar,
+      zoom: this.distance / this.fit,
+      dx: this.target[0] - (this.lo[0] + this.hi[0]) / 2,
+      dz: this.target[2] - (this.lo[2] + this.hi[2]) / 2,
+    };
   }
 
   /** The inverse of `state`, for a camera someone stored: untrusted, so each number is bounded the way a drag, a wheel turn
@@ -152,17 +182,24 @@ export class Orbit {
     this.polar = clamp(s.polar, MIN_POLAR, MAX_POLAR);
     this.distance = clamp(s.zoom * this.fit, this.fit * NEAR_FACTOR, this.fit * FAR_FACTOR);
     const at = (i: 0 | 2, d: number) => {
-      const centre = (this.lo[i] + this.hi[i]) / 2, room = 0.5 * (this.hi[i] - this.lo[i]) + 100;
+      const centre = (this.lo[i] + this.hi[i]) / 2,
+        room = 0.5 * (this.hi[i] - this.lo[i]) + 100;
       return clamp(centre + d, this.lo[i] - room, this.hi[i] + room);
     };
     this.target = [at(0, s.dx), (this.lo[1] + this.hi[1]) / 2, at(2, s.dz)];
   }
 
   /** Whether the camera has a position at all: false when the bounds are so large that the distance overflowed (the view then falls back to 2D). */
-  get finite(): boolean { return [this.distance, this.fit, ...this.target].every(fin); }
+  get finite(): boolean {
+    return [this.distance, this.fit, ...this.target].every(fin);
+  }
 
   /** The distance that frames the house, for the near and far planes. */
-  get framing(): number { return this.fit; }
+  get framing(): number {
+    return this.fit;
+  }
   /** The size of the scene's frame, for the camera's far plane. */
-  get radius(): number { return Math.max(100, 0.5 * Math.hypot(this.hi[0] - this.lo[0], this.hi[1] - this.lo[1], this.hi[2] - this.lo[2])); }
+  get radius(): number {
+    return Math.max(100, 0.5 * Math.hypot(this.hi[0] - this.lo[0], this.hi[1] - this.lo[1], this.hi[2] - this.lo[2]));
+  }
 }

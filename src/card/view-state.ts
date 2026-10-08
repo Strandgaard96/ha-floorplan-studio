@@ -29,7 +29,8 @@ export function easeInOut(t: number): number {
 
 /** The box of zoom `zoom` (1 is `fit`) centred on `centre`, in fit's own aspect ratio. */
 export function viewAround(centre: Pt, zoom: number, fit: View): View {
-  const w = fit.w / zoom, h = fit.h / zoom;
+  const w = fit.w / zoom,
+    h = fit.h / zoom;
   return { x: centre[0] - w / 2, y: centre[1] - h / 2, w, h };
 }
 
@@ -76,7 +77,8 @@ const FOCUS_LIMIT = 1e6;
 /** More floors than this is not a house. */
 const MAX_FLOORS = 50;
 /** The 3D camera's distance range as a multiple of the framing distance (orbit.ts has the same two numbers). */
-export const CAM_ZOOM_MIN = 0.15, CAM_ZOOM_MAX = 4;
+export const CAM_ZOOM_MIN = 0.15,
+  CAM_ZOOM_MAX = 4;
 
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const bound = (n: number) => Math.min(FOCUS_LIMIT, Math.max(-FOCUS_LIMIT, n));
@@ -95,7 +97,13 @@ function parseFloorView(raw: unknown): FloorView | null {
   if (isNum(r.rotation)) out.rotation = normaliseRotation(r.rotation);
   const c = r.cam as Record<string, unknown> | null | undefined;
   if (c && typeof c === "object" && isNum(c.az) && isNum(c.polar) && isNum(c.zoom) && isNum(c.dx) && isNum(c.dz)) {
-    out.cam = { az: Math.min(1e4, Math.max(-1e4, c.az)), polar: c.polar, zoom: Math.min(CAM_ZOOM_MAX, Math.max(CAM_ZOOM_MIN, c.zoom)), dx: bound(c.dx), dz: bound(c.dz) };
+    out.cam = {
+      az: Math.min(1e4, Math.max(-1e4, c.az)),
+      polar: c.polar,
+      zoom: Math.min(CAM_ZOOM_MAX, Math.max(CAM_ZOOM_MIN, c.zoom)),
+      dx: bound(c.dx),
+      dz: bound(c.dz),
+    };
   }
   return Object.keys(out).length ? out : null;
 }
@@ -108,7 +116,11 @@ function parseFloorView(raw: unknown): FloorView | null {
 export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, themes: readonly string[]): StoredView {
   let o: unknown = raw;
   if (typeof raw === "string") {
-    try { o = JSON.parse(raw); } catch { return {}; }
+    try {
+      o = JSON.parse(raw);
+    } catch {
+      return {};
+    }
   }
   if (!o || typeof o !== "object" || Array.isArray(o)) return {};
   const r = o as Record<string, unknown>;

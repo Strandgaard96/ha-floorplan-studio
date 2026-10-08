@@ -5,19 +5,29 @@ import type { Floor, Layout } from "../../src/core/schema";
 // real coordinates (CLAUDE.md finding 3); the layout is read back from the editor element, not from the DOM.
 
 const EDITOR = "floorplan-studio-editor";
-const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
+const layoutOf = (page: Page) =>
+  page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const groundOf = async (page: Page): Promise<Floor> => (await layoutOf(page)).floors.ground;
 const screenOf = (page: Page, x: number, y: number) =>
-  page.evaluate(([tag, px, py]) => {
-    const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
-    const g = svg.querySelector(":scope > g.plan-turn") as SVGGraphicsElement | null;
-    const q = new DOMPoint(px as number, py as number).matrixTransform((g ?? svg).getScreenCTM()!);
-    return { x: q.x, y: q.y };
-  }, [EDITOR, x, y] as const);
-const clickCm = async (page: Page, x: number, y: number) => { const p = await screenOf(page, x, y); await page.mouse.click(p.x, p.y); };
+  page.evaluate(
+    ([tag, px, py]) => {
+      const svg = (document.querySelector(tag as string) as any).shadowRoot.querySelector("svg") as SVGSVGElement;
+      const g = svg.querySelector(":scope > g.plan-turn") as SVGGraphicsElement | null;
+      const q = new DOMPoint(px as number, py as number).matrixTransform((g ?? svg).getScreenCTM()!);
+      return { x: q.x, y: q.y };
+    },
+    [EDITOR, x, y] as const,
+  );
+const clickCm = async (page: Page, x: number, y: number) => {
+  const p = await screenOf(page, x, y);
+  await page.mouse.click(p.x, p.y);
+};
 const optionValues = async (page: Page, sel: string) => {
   await page.locator(sel).locator("input").click();
-  const v = await page.locator(sel).locator("li[role='option']").evaluateAll((els) => els.map((e) => e.getAttribute("data-value") ?? ""));
+  const v = await page
+    .locator(sel)
+    .locator("li[role='option']")
+    .evaluateAll((els) => els.map((e) => e.getAttribute("data-value") ?? ""));
   await page.keyboard.press("Escape");
   return v;
 };
@@ -39,12 +49,18 @@ test.beforeEach(async ({ page }) => {
 test("S11.2: the room panel lists only entities of the right kind in each picker", async ({ page }) => {
   await clickCm(page, 150, 100); // Living room floor, clear of icons and furniture
   await expect(page.locator("#rtemp")).toBeVisible();
-  expect(await optionValues(page, "#rtemp")).toEqual(["", "sensor.demo_living_temperature", "sensor.demo_bedroom_temperature"]);
+  expect(await optionValues(page, "#rtemp")).toEqual([
+    "",
+    "sensor.demo_living_temperature",
+    "sensor.demo_bedroom_temperature",
+  ]);
   expect(await optionValues(page, "#rhum")).toEqual(["", "sensor.demo_bathroom_humidity"]);
   expect(await optionValues(page, "#rmot")).toEqual(["", "binary_sensor.demo_hall_motion"]);
 });
 
-test("S11.2: a pick is one undo step that restores the list and the icon; a repeat is no step; Remove is one step", async ({ page }) => {
+test("S11.2: a pick is one undo step that restores the list and the icon; a repeat is no step; Remove is one step", async ({
+  page,
+}) => {
   await clickCm(page, 150, 100);
   const iconsBefore = await icons(page);
   await pick(page, "#rtemp", "sensor.demo_living_temperature");
@@ -71,8 +87,16 @@ test("S11.2: a pick is one undo step that restores the list and the icon; a repe
 
 test("S11.2: another room's sensor is not offered; a sensor name with markup is shown as text", async ({ page }) => {
   await page.evaluate((tag) => {
-    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
-    l.catalog.push({ id: "evil", floor: "ground", room: "", type: "temp", name: '"><script>window.__pwn=1</script>', entity: "sensor.evil" });
+    const el = document.querySelector(tag) as any,
+      l = JSON.parse(JSON.stringify(el.layout));
+    l.catalog.push({
+      id: "evil",
+      floor: "ground",
+      room: "",
+      type: "temp",
+      name: '"><script>window.__pwn=1</script>',
+      entity: "sensor.evil",
+    });
     l.floors.ground.rooms[1].temps = ["sensor.demo_bedroom_temperature"];
     el.layout = l;
   }, EDITOR);
@@ -107,24 +131,34 @@ test("S11.2: Attach to room moves a loose sensor into its room in one undo step"
 
 test("S11.2: Attach to room is disabled with the reason: outside every room, no entity", async ({ page }) => {
   await page.evaluate((tag) => {
-    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const el = document.querySelector(tag) as any,
+      l = JSON.parse(JSON.stringify(el.layout));
     const d = l.floors.ground.devices;
     d.find((x: any) => x.id === "temp-living").x = 1500; // far outside the plan
     d.find((x: any) => x.id === "motion-hall").entity = "";
     el.layout = l;
   }, EDITOR);
   // the icon of temp-living is now off the plan, out of reach of the mouse: select it through the editor state instead
-  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.st.sel = { t: "dev", i: el.layout.floors.ground.devices.findIndex((x: any) => x.id === "temp-living") }; el.requestUpdate(); }, EDITOR);
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any;
+    el.st.sel = { t: "dev", i: el.layout.floors.ground.devices.findIndex((x: any) => x.id === "temp-living") };
+    el.requestUpdate();
+  }, EDITOR);
   await expect(page.locator("#vattach")).toBeDisabled();
   await expect(page.locator("#vattach-why")).toContainText("not inside a room");
-  await page.evaluate((tag) => { const el = document.querySelector(tag) as any; el.st.sel = { t: "dev", i: el.layout.floors.ground.devices.findIndex((x: any) => x.id === "motion-hall") }; el.requestUpdate(); }, EDITOR);
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any;
+    el.st.sel = { t: "dev", i: el.layout.floors.ground.devices.findIndex((x: any) => x.id === "motion-hall") };
+    el.requestUpdate();
+  }, EDITOR);
   await expect(page.locator("#vattach")).toBeDisabled();
   await expect(page.locator("#vattach-why")).toContainText("no Home Assistant entity");
 });
 
 test("S11.2: a sensor already on a room is still drawn and says which room owns it", async ({ page }) => {
   await page.evaluate((tag) => {
-    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
+    const el = document.querySelector(tag) as any,
+      l = JSON.parse(JSON.stringify(el.layout));
     l.floors.ground.rooms[0].temps = ["sensor.demo_living_temperature"];
     el.layout = l;
   }, EDITOR);

@@ -15,7 +15,18 @@ export interface HaData {
    * apart from a physical one. `uid` (S4.7) is an automation or script's own registry `unique_id`, the id its HA editor URL takes.
    * `cat` (S8.6) is the entity's `entity_category` — "config" or "diagnostic" for a helper entity a device owns
    * (a plug's connectivity sensor, a light's signal strength), absent on a device's primary entity. */
-  entities: { id: string; name: string; domain: string; area?: string | null; dc?: string; /** the HA device it belongs to */ dev?: string; members?: string[]; platform?: string; uid?: string; cat?: string | null }[];
+  entities: {
+    id: string;
+    name: string;
+    domain: string;
+    area?: string | null;
+    dc?: string;
+    /** the HA device it belongs to */ dev?: string;
+    members?: string[];
+    platform?: string;
+    uid?: string;
+    cat?: string | null;
+  }[];
 }
 
 /** Which entities suit a device type: [domain, device classes]. A class list of null means any class of that domain; a type with no rule (computer, server...) has none listed here and takes any entity. */
@@ -49,7 +60,13 @@ const TYPE_RULES: Partial<Record<DeviceType, { domain: string; dcs?: string[]; n
 export function entitiesForType(ha: HaData, type: DeviceType): { match: HaData["entities"]; rest: HaData["entities"] } {
   const rules = TYPE_RULES[type];
   if (!rules) return { match: ha.entities, rest: [] };
-  const ok = (e: HaData["entities"][number]) => rules.some((r) => e.domain === r.domain && (!r.dcs || (e.dc !== undefined && r.dcs.includes(e.dc))) && !(r.not && e.dc !== undefined && r.not.includes(e.dc)));
+  const ok = (e: HaData["entities"][number]) =>
+    rules.some(
+      (r) =>
+        e.domain === r.domain &&
+        (!r.dcs || (e.dc !== undefined && r.dcs.includes(e.dc))) &&
+        !(r.not && e.dc !== undefined && r.not.includes(e.dc)),
+    );
   return { match: ha.entities.filter(ok), rest: ha.entities.filter((e) => !ok(e)) };
 }
 
@@ -68,18 +85,31 @@ export function entitiesForType(ha: HaData, type: DeviceType): { match: HaData["
 export function typeForEntity(e: HaData["entities"][number], ha?: Pick<HaData, "entities">): DeviceType {
   switch (e.domain) {
     // A group is motion only when every member is (it needs `ha` to look them up); any other group is noise.
-    case "group": return ha && isMotionGroup(e, ha.entities, []) ? "motion" : "other";
-    case "light": return "light";
-    case "lock": return "lock";
-    case "camera": return "camera";
-    case "cover": return "cover";
-    case "climate": return "climate";
-    case "media_player": return "media";
-    case "person": case "device_tracker": return "person";
-    case "vacuum": return "vacuum";
-    case "siren": return "siren";
-    case "alarm_control_panel": return "alarm";
-    case "switch": return e.dc === "outlet" ? "plug" : "switch";
+    case "group":
+      return ha && isMotionGroup(e, ha.entities, []) ? "motion" : "other";
+    case "light":
+      return "light";
+    case "lock":
+      return "lock";
+    case "camera":
+      return "camera";
+    case "cover":
+      return "cover";
+    case "climate":
+      return "climate";
+    case "media_player":
+      return "media";
+    case "person":
+    case "device_tracker":
+      return "person";
+    case "vacuum":
+      return "vacuum";
+    case "siren":
+      return "siren";
+    case "alarm_control_panel":
+      return "alarm";
+    case "switch":
+      return e.dc === "outlet" ? "plug" : "switch";
     case "sensor":
       if (e.dc === "temperature") return "temp";
       if (e.dc === "humidity") return "humidity";
@@ -90,7 +120,8 @@ export function typeForEntity(e: HaData["entities"][number], ha?: Pick<HaData, "
       if (e.dc === "door" || e.dc === "window" || e.dc === "garage_door" || e.dc === "opening") return "contact";
       if (e.dc === "vibration") return "vibration";
       return "other";
-    default: return "other";
+    default:
+      return "other";
   }
 }
 
@@ -114,7 +145,14 @@ const MAX_GROUP_DEPTH = 4;
 
 /** A group whose members are all motion entities (a group of groups counts when each is motion too). Never throws: a cycle, an unknown or non-string member, members that are no array, an empty list or a chain past `MAX_GROUP_DEPTH` all read as not motion. */
 function isMotionGroup(g: HaData["entities"][number], all: unknown, path: string[]): boolean {
-  if (!Array.isArray(g.members) || !g.members.length || !Array.isArray(all) || path.length >= MAX_GROUP_DEPTH || path.includes(g.id)) return false;
+  if (
+    !Array.isArray(g.members) ||
+    !g.members.length ||
+    !Array.isArray(all) ||
+    path.length >= MAX_GROUP_DEPTH ||
+    path.includes(g.id)
+  )
+    return false;
   return g.members.every((m) => {
     const e = typeof m === "string" ? all.find((x) => x?.id === m) : undefined;
     if (!e) return false;
@@ -128,7 +166,37 @@ function isMotionGroup(g: HaData["entities"][number], all: unknown, path: string
  * Noise: `other` is anything the plan has no icon of its own for (power, energy, illuminance, signal, a group, a
  * script...); a `battery` is a reading of another device, not a thing in the room; a `person` is not placed by area.
  */
-export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "inverter", "server", "access_point", "lock", "vibration", "boiler", "car", "ups", "printer", "speaker", "radar", "vacuum", "siren", "alarm"]);
+export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>([
+  "heater",
+  "light",
+  "switch",
+  "plug",
+  "temp",
+  "humidity",
+  "motion",
+  "contact",
+  "camera",
+  "climate",
+  "ac",
+  "tv",
+  "computer",
+  "media",
+  "cover",
+  "inverter",
+  "server",
+  "access_point",
+  "lock",
+  "vibration",
+  "boiler",
+  "car",
+  "ups",
+  "printer",
+  "speaker",
+  "radar",
+  "vacuum",
+  "siren",
+  "alarm",
+]);
 export const AREA_NOISE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["other", "battery", "person"]);
 
 /** S8.1: the entities of HA area `area` that are not on the plan yet and that the plan has an icon for. Never throws. */
@@ -146,7 +214,9 @@ export function placeableInArea(l: Layout, ha: HaData, area: string): HaData["en
  */
 export function unplacedHaEntities(l: Layout, ha: HaData): HaData["entities"] {
   if (!Array.isArray(ha?.entities)) return [];
-  const placed = placedEntities(l), catalogued = new Set(l.catalog.map((c) => c.entity)), attached = attachedEntities(l);
+  const placed = placedEntities(l),
+    catalogued = new Set(l.catalog.map((c) => c.entity)),
+    attached = attachedEntities(l);
   return ha.entities.filter((e) => !placed.has(e.id) && !catalogued.has(e.id) && !attached.has(e.id));
 }
 
@@ -161,9 +231,11 @@ export function unplacedHaEntities(l: Layout, ha: HaData): HaData["entities"] {
  */
 export function availableEntities(l: Layout, ha: HaData): AvailableEntity[] {
   if (!Array.isArray(ha?.entities)) return [];
-  const placed = placedEntities(l), attached = attachedEntities(l);
+  const placed = placedEntities(l),
+    attached = attachedEntities(l);
   const roomByArea = new Map<string, string>();
-  for (const f of Object.values(l.floors)) for (const r of f.rooms) if (r.area && !roomByArea.has(r.area)) roomByArea.set(r.area, r.name);
+  for (const f of Object.values(l.floors))
+    for (const r of f.rooms) if (r.area && !roomByArea.has(r.area)) roomByArea.set(r.area, r.name);
   const out: AvailableEntity[] = [];
   for (const e of ha.entities) {
     if (!e || typeof e.id !== "string") continue;
@@ -185,10 +257,20 @@ export function availableEntities(l: Layout, ha: HaData): AvailableEntity[] {
 }
 
 /** S4.7: one row of the room box: an entity in the room's area, and whether it is already drawn on the plan. */
-export interface HaBoxRow { id: string; name: string; placed: boolean }
+export interface HaBoxRow {
+  id: string;
+  name: string;
+  placed: boolean;
+}
 
 /** S4.7: the room box's five headings, in the order they are shown. */
-export interface HaBox { devices: HaBoxRow[]; helpers: HaBoxRow[]; automations: HaBoxRow[]; scripts: HaBoxRow[]; scenes: HaBoxRow[] }
+export interface HaBox {
+  devices: HaBoxRow[];
+  helpers: HaBoxRow[];
+  automations: HaBoxRow[];
+  scripts: HaBoxRow[];
+  scenes: HaBoxRow[];
+}
 
 /**
  * S4.7: every entity of HA area `areaId`, grouped for the room box. `automation.*`/`script.*`/`scene.*` are their own headings;
@@ -204,7 +286,12 @@ export function roomHaBox(ha: HaData | undefined, areaId: string, placed: Readon
     if (e.domain === "automation") box.automations.push(row);
     else if (e.domain === "script") box.scripts.push(row);
     else if (e.domain === "scene") box.scenes.push(row);
-    else if (e.domain === "group" || e.domain.startsWith("input_") || (e.domain === "light" && e.platform === "switch_as_x")) box.helpers.push(row);
+    else if (
+      e.domain === "group" ||
+      e.domain.startsWith("input_") ||
+      (e.domain === "light" && e.platform === "switch_as_x")
+    )
+      box.helpers.push(row);
     else box.devices.push(row);
   }
   const byName = (a: HaBoxRow, b: HaBoxRow) => a.name.localeCompare(b.name);
@@ -213,7 +300,11 @@ export function roomHaBox(ha: HaData | undefined, areaId: string, placed: Readon
 }
 
 /** What to write to put `entity` in the HA area `area`, or null when it is there, unknown, or `area` is empty. The device moves when the entity is its only one; otherwise the entity alone, so its siblings stay. */
-export function areaMove(ha: HaData, entity: string, area: string): { kind: "device" | "entity"; id: string; area: string } | null {
+export function areaMove(
+  ha: HaData,
+  entity: string,
+  area: string,
+): { kind: "device" | "entity"; id: string; area: string } | null {
   const e = entity && area ? ha.entities.find((x) => x.id === entity) : undefined;
   if (!e || (e.area ?? "") === area) return null;
   const alone = e.dev && ha.entities.filter((x) => x.dev === e.dev).length === 1;
@@ -235,10 +326,16 @@ export function applyHaNames(l: Layout, ha: HaData): { layout: Layout; changed: 
   let changed = 0;
   for (const f of Object.values(layout.floors)) {
     const t = nameIn(ha.floors, f.ha);
-    if (t !== undefined && t !== f.title) { f.title = t; changed++; }
+    if (t !== undefined && t !== f.title) {
+      f.title = t;
+      changed++;
+    }
     for (const r of f.rooms) {
       const n = nameIn(ha.areas, r.area);
-      if (n !== undefined && n !== r.name) { r.name = n; changed++; }
+      if (n !== undefined && n !== r.name) {
+        r.name = n;
+        changed++;
+      }
     }
   }
   return { layout, changed };
@@ -278,7 +375,8 @@ function asDeviceRow(main: HaData["entities"][number], nameOf: Map<string, strin
  */
 function asGangRow(e: HaData["entities"][number], deviceName?: string): HaData["entities"][number] {
   const own = e.name || e.id;
-  if (!deviceName || own.toLowerCase().includes(deviceName.toLowerCase())) return e.name === own ? e : { ...e, name: own };
+  if (!deviceName || own.toLowerCase().includes(deviceName.toLowerCase()))
+    return e.name === own ? e : { ...e, name: own };
   const name = `${deviceName} ${own}`;
   return { ...e, name };
 }
@@ -297,7 +395,19 @@ function byDevice(entities: HaData["entities"]): Map<string, HaData["entities"]>
 // Opus review, finding 7: camera, climate, media_player and vacuum rank above light and switch, so a camera with a
 // floodlight (a light entity on the same device) still reads as a camera, and a climate device with a boost switch
 // still reads as climate — see docs/DECISIONS.md.
-const DOMAIN_PRIORITY = ["camera", "climate", "media_player", "vacuum", "light", "switch", "cover", "fan", "lock", "binary_sensor", "sensor"];
+const DOMAIN_PRIORITY = [
+  "camera",
+  "climate",
+  "media_player",
+  "vacuum",
+  "light",
+  "switch",
+  "cover",
+  "fan",
+  "lock",
+  "binary_sensor",
+  "sensor",
+];
 
 /**
  * S8.6: "devices, not entities" — the one entity that best represents an HA device, for every list that adds a new
@@ -318,7 +428,10 @@ const DOMAIN_PRIORITY = ["camera", "climate", "media_player", "vacuum", "light",
 export function mainEntity(entities: HaData["entities"], deviceName?: string): HaData["entities"][number] | undefined {
   const live = entities.filter((e) => e && !e.cat);
   if (!live.length) return undefined;
-  const rank = (e: HaData["entities"][number]) => { const i = DOMAIN_PRIORITY.indexOf(e.domain); return i === -1 ? DOMAIN_PRIORITY.length : i; };
+  const rank = (e: HaData["entities"][number]) => {
+    const i = DOMAIN_PRIORITY.indexOf(e.domain);
+    return i === -1 ? DOMAIN_PRIORITY.length : i;
+  };
   const best = Math.min(...live.map(rank));
   const tied = live.filter((e) => rank(e) === best);
   if (tied.length === 1) return tied[0];
@@ -373,9 +486,20 @@ function motionEntities(ents: HaData["entities"]): HaData["entities"] {
  * every sibling's catalog entry, main's own or not, is still the caller's to fold into `merged` so it never shows a
  * second time as its own plain `catalog:` row (that part is `addCandidates`'s job, not this function's).
  */
-function deviceRows(ents: HaData["entities"], nameOf: Map<string, string>, deviceId: string, catalogOf: Map<string, CatalogEntry>, placedIds: ReadonlySet<string>): { entity: HaData["entities"][number]; catalogEntry?: CatalogEntry }[] {
-  const gangs = gangEntities(ents), motions = motionEntities(ents), deviceName = nameOf.get(deviceId);
-  const own = (list: HaData["entities"]) => list.filter((e) => !placedIds.has(e.id)).map((e) => ({ entity: asGangRow(e, deviceName), catalogEntry: catalogOf.get(e.id) }));
+function deviceRows(
+  ents: HaData["entities"],
+  nameOf: Map<string, string>,
+  deviceId: string,
+  catalogOf: Map<string, CatalogEntry>,
+  placedIds: ReadonlySet<string>,
+): { entity: HaData["entities"][number]; catalogEntry?: CatalogEntry }[] {
+  const gangs = gangEntities(ents),
+    motions = motionEntities(ents),
+    deviceName = nameOf.get(deviceId);
+  const own = (list: HaData["entities"]) =>
+    list
+      .filter((e) => !placedIds.has(e.id))
+      .map((e) => ({ entity: asGangRow(e, deviceName), catalogEntry: catalogOf.get(e.id) }));
   // Two or more motion zones are separate things on the plan, like gangs: one row each, placed one by one. A lone
   // motion entity is no zone, so it keeps the one-row-per-device rule below.
   const zones = motions.length >= 2 ? own(motions) : [];
@@ -384,7 +508,10 @@ function deviceRows(ents: HaData["entities"], nameOf: Map<string, string>, devic
     // The device's other face (its light, its camera) is still one row, unless it is itself a zone or something else of it is on the plan.
     const main = mainEntity(ents, deviceName);
     const rest = ents.filter((e) => !motions.includes(e));
-    const mainRow = main && !motions.includes(main) && !rest.some((e) => placedIds.has(e.id)) ? [{ entity: asDeviceRow(main, nameOf), catalogEntry: catalogOf.get(main.id) }] : [];
+    const mainRow =
+      main && !motions.includes(main) && !rest.some((e) => placedIds.has(e.id))
+        ? [{ entity: asDeviceRow(main, nameOf), catalogEntry: catalogOf.get(main.id) }]
+        : [];
     return [...mainRow, ...zones];
   }
   if (ents.some((e) => placedIds.has(e.id))) return []; // non-gang: any entity placed means the whole device is
@@ -487,14 +614,20 @@ export interface AddCandidate {
  * `l.floors`, which `pickAddDev` must switch to (Opus review finding 11: two floors can share a title, so matching
  * back from `floor` to a key by title comparison picks the wrong one — the key found here is unambiguous).
  */
-function locateEntity(l: Layout, ha: HaData | null, entityId: string, fallbackRoom?: string): { area?: string; room?: string; floor?: string; floorKey?: string } {
+function locateEntity(
+  l: Layout,
+  ha: HaData | null,
+  entityId: string,
+  fallbackRoom?: string,
+): { area?: string; room?: string; floor?: string; floorKey?: string } {
   const he = ha?.entities.find((e) => e?.id === entityId);
   const areaId = typeof he?.area === "string" && he.area ? he.area : undefined;
   const areaName = areaId ? nameIn(ha?.areas, areaId) : undefined;
   if (areaId) {
     for (const [key, f] of Object.entries(l.floors)) {
       const room = f.rooms.find((r) => r.area === areaId);
-      if (room) return { ...(areaName ? { area: areaName } : {}), room: room.name, floor: f.title || key, floorKey: key };
+      if (room)
+        return { ...(areaName ? { area: areaName } : {}), room: room.name, floor: f.title || key, floorKey: key };
     }
   }
   return { ...(areaName ? { area: areaName } : {}), ...(fallbackRoom ? { room: fallbackRoom } : {}) };
@@ -524,25 +657,61 @@ export function addCandidates(l: Layout, ha: HaData | null): AddCandidate[] {
       for (const row of deviceRows(ents, nameOf, devId, catalogOf, placedIds)) {
         if (row.catalogEntry) {
           merged.add(row.catalogEntry.id);
-          devCandidates.push({ key: `catalog:${row.catalogEntry.id}`, source: "catalog", id: row.catalogEntry.id, entity: row.catalogEntry.entity, name: row.entity.name, type: row.catalogEntry.type, ...locateEntity(l, ha, row.catalogEntry.entity, row.catalogEntry.room || undefined) });
+          devCandidates.push({
+            key: `catalog:${row.catalogEntry.id}`,
+            source: "catalog",
+            id: row.catalogEntry.id,
+            entity: row.catalogEntry.entity,
+            name: row.entity.name,
+            type: row.catalogEntry.type,
+            ...locateEntity(l, ha, row.catalogEntry.entity, row.catalogEntry.room || undefined),
+          });
         } else {
-          devCandidates.push({ key: `ha-dev:${row.entity.id}`, source: "ha", id: devId, entity: row.entity.id, name: row.entity.name, type: typeForEntity(row.entity, ha), ...locateEntity(l, ha, row.entity.id) });
+          devCandidates.push({
+            key: `ha-dev:${row.entity.id}`,
+            source: "ha",
+            id: devId,
+            entity: row.entity.id,
+            name: row.entity.name,
+            type: typeForEntity(row.entity, ha),
+            ...locateEntity(l, ha, row.entity.id),
+          });
         }
       }
       // S8.9 defect 3: outside the gang case, EVERY catalog entry among this device's entities is folded away here,
       // its main entity's own or not — a sibling's catalog entry (the power sensor, say) must never surface as its
       // own separate `catalog:` row just because it happened not to be the one `deviceRows` chose to place.
-      if (gangs.length < 2) for (const e of ents) { const c = catalogOf.get(e.id); if (c) merged.add(c.id); }
+      if (gangs.length < 2)
+        for (const e of ents) {
+          const c = catalogOf.get(e.id);
+          if (c) merged.add(c.id);
+        }
     }
   }
 
   for (const c of unplacedCatalog(l)) {
     if (merged.has(c.id)) continue;
-    out.push({ key: `catalog:${c.id}`, source: "catalog", id: c.id, entity: c.entity, name: c.name, type: c.type, ...locateEntity(l, ha, c.entity, c.room || undefined) });
+    out.push({
+      key: `catalog:${c.id}`,
+      source: "catalog",
+      id: c.id,
+      entity: c.entity,
+      name: c.name,
+      type: c.type,
+      ...locateEntity(l, ha, c.entity, c.room || undefined),
+    });
   }
   if (ha) {
     for (const e of unplacedHaEntities(l, ha).filter((e) => !e.dev)) {
-      out.push({ key: `ha:${e.id}`, source: "ha", id: e.id, entity: e.id, name: e.name || e.id, type: typeForEntity(e, ha), ...locateEntity(l, ha, e.id) });
+      out.push({
+        key: `ha:${e.id}`,
+        source: "ha",
+        id: e.id,
+        entity: e.id,
+        name: e.name || e.id,
+        type: typeForEntity(e, ha),
+        ...locateEntity(l, ha, e.id),
+      });
     }
   }
   out.push(...devCandidates);
@@ -570,11 +739,23 @@ export function haFloorIdsForPlanFloor(l: Layout, ha: HaData, floorKey: string):
 /** S8.7: lowercase `name`, split on runs of non-alphanumeric characters, drop generic stopwords. Used to score a switch's name against a light's own. */
 const NAME_STOPWORDS = new Set(["switch", "plug", "socket", "relay", "the", "and", "of"]);
 function nameTokens(name: string): Set<string> {
-  return new Set(name.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t && !NAME_STOPWORDS.has(t)));
+  return new Set(
+    name
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t && !NAME_STOPWORDS.has(t)),
+  );
 }
 
 /** S8.7: one row of `switchChoicesForLight` — a switch or plug the light panel may bind `bound` to. */
-export interface SwitchChoice { entity: string; name: string; area?: string; room?: string; suggested: boolean; source: "catalog" | "ha" }
+export interface SwitchChoice {
+  entity: string;
+  name: string;
+  area?: string;
+  room?: string;
+  suggested: boolean;
+  source: "catalog" | "ha";
+}
 
 /**
  * S8.7: the switches and plugs offered to power light `light` on plan floor `floorKey` — restricted to that floor
@@ -598,7 +779,8 @@ export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: st
   const seen = new Set<string>();
   const f = l.floors[floorKey];
   const areaOf = (entity: string): string | undefined => ha?.entities.find((e) => e?.id === entity)?.area ?? undefined;
-  const nameOf = (entity: string): string => ha?.entities.find((e) => e?.id === entity)?.name || l.catalog.find((c) => c.entity === entity)?.name || entity;
+  const nameOf = (entity: string): string =>
+    ha?.entities.find((e) => e?.id === entity)?.name || l.catalog.find((c) => c.entity === entity)?.name || entity;
   /** The plan room name for an HA area — this floor's own rooms first (the common case), any floor's otherwise (an off-floor `bound` value, so its room still reads sensibly). */
   const roomOf = (areaId: string | undefined, fallbackCatalogRoom?: string): string | undefined => {
     if (fallbackCatalogRoom) return fallbackCatalogRoom;
@@ -612,10 +794,18 @@ export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: st
   const add = (entity: string, name: string, area: string | undefined, room: string | undefined) => {
     if (!entity || entity === light.entity || seen.has(entity)) return;
     seen.add(entity);
-    out.push({ entity, name, area, room, suggested: false, source: ha?.entities.some((e) => e?.id === entity) ? "ha" : "catalog" });
+    out.push({
+      entity,
+      name,
+      area,
+      room,
+      suggested: false,
+      source: ha?.entities.some((e) => e?.id === entity) ? "ha" : "catalog",
+    });
   };
   for (const c of l.catalog) {
-    if (c.floor === floorKey && (c.type === "switch" || c.type === "plug")) add(c.entity, c.name, areaOf(c.entity), c.room || undefined);
+    if (c.floor === floorKey && (c.type === "switch" || c.type === "plug"))
+      add(c.entity, c.name, areaOf(c.entity), c.room || undefined);
   }
   if (ha) {
     const floorIds = haFloorIdsForPlanFloor(l, ha, floorKey);
@@ -634,7 +824,13 @@ export function switchChoicesForLight(l: Layout, ha: HaData | null, floorKey: st
       add(e.id, e.name || e.id, areaId, roomOf(areaId));
     }
   }
-  if (light.bound) add(light.bound, nameOf(light.bound), areaOf(light.bound), roomOf(areaOf(light.bound), l.catalog.find((c) => c.entity === light.bound)?.room));
+  if (light.bound)
+    add(
+      light.bound,
+      nameOf(light.bound),
+      areaOf(light.bound),
+      roomOf(areaOf(light.bound), l.catalog.find((c) => c.entity === light.bound)?.room),
+    );
 
   const lightArea = areaOf(light.entity);
   if (lightArea) {

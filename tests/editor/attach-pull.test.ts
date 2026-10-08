@@ -36,50 +36,93 @@ interface FieldCase {
 
 const FIELDS: FieldCase[] = [
   {
-    name: "door contact sensors (dsens)", entity: "binary_sensor.test_dsens", catalogType: "contact",
-    attach: (st, e) => st.attachEntity(e, (f) => { f.doors[2].sensors = [...(f.doors[2].sensors ?? []), e]; }),
+    name: "door contact sensors (dsens)",
+    entity: "binary_sensor.test_dsens",
+    catalogType: "contact",
+    attach: (st, e) =>
+      st.attachEntity(e, (f) => {
+        f.doors[2].sensors = [...(f.doors[2].sensors ?? []), e];
+      }),
     read: (l) => l.floors.ground.doors[2].sensors,
   },
   {
-    name: "door vibration sensors (dvibr)", entity: "binary_sensor.test_dvibr", catalogType: "vibration",
-    attach: (st, e) => st.attachEntity(e, (f) => { f.doors[2].vibration = [...(f.doors[2].vibration ?? []), e]; }),
+    name: "door vibration sensors (dvibr)",
+    entity: "binary_sensor.test_dvibr",
+    catalogType: "vibration",
+    attach: (st, e) =>
+      st.attachEntity(e, (f) => {
+        f.doors[2].vibration = [...(f.doors[2].vibration ?? []), e];
+      }),
     read: (l) => l.floors.ground.doors[2].vibration,
   },
   {
-    name: "door smart locks (dlocks)", entity: "lock.test_dlocks", catalogType: "lock",
-    attach: (st, e) => st.attachEntity(e, (f) => { f.doors[2].locks = [...(f.doors[2].locks ?? []), e]; }),
+    name: "door smart locks (dlocks)",
+    entity: "lock.test_dlocks",
+    catalogType: "lock",
+    attach: (st, e) =>
+      st.attachEntity(e, (f) => {
+        f.doors[2].locks = [...(f.doors[2].locks ?? []), e];
+      }),
     read: (l) => l.floors.ground.doors[2].locks,
   },
   {
-    name: "heater TRVs (htrv)", entity: "climate.test_htrv", catalogType: "climate", keepDeviceId: "heater-living",
-    attach: (st, e) => st.attachEntity(e, (f) => {
-      const d = f.devices.find((x) => x.id === "heater-living")!;
-      d.trvs = [...(d.trvs ?? []), e];
-    }, "heater-living"),
+    name: "heater TRVs (htrv)",
+    entity: "climate.test_htrv",
+    catalogType: "climate",
+    keepDeviceId: "heater-living",
+    attach: (st, e) =>
+      st.attachEntity(
+        e,
+        (f) => {
+          const d = f.devices.find((x) => x.id === "heater-living")!;
+          d.trvs = [...(d.trvs ?? []), e];
+        },
+        "heater-living",
+      ),
     read: (l) => (l.floors.ground.devices.find((d) => d.id === "heater-living") as { trvs?: string[] }).trvs,
   },
   {
-    name: "heater temperature sensors (hsens)", entity: "sensor.test_hsens", catalogType: "temp", keepDeviceId: "heater-living",
-    attach: (st, e) => st.attachEntity(e, (f) => {
-      const d = f.devices.find((x) => x.id === "heater-living")!;
-      d.tempSensors = [...(d.tempSensors ?? []), e];
-    }, "heater-living"),
-    read: (l) => (l.floors.ground.devices.find((d) => d.id === "heater-living") as { tempSensors?: string[] }).tempSensors,
+    name: "heater temperature sensors (hsens)",
+    entity: "sensor.test_hsens",
+    catalogType: "temp",
+    keepDeviceId: "heater-living",
+    attach: (st, e) =>
+      st.attachEntity(
+        e,
+        (f) => {
+          const d = f.devices.find((x) => x.id === "heater-living")!;
+          d.tempSensors = [...(d.tempSensors ?? []), e];
+        },
+        "heater-living",
+      ),
+    read: (l) =>
+      (l.floors.ground.devices.find((d) => d.id === "heater-living") as { tempSensors?: string[] }).tempSensors,
   },
   {
-    name: "ac linked entities (aclink)", entity: "climate.test_aclink", catalogType: "climate", keepDeviceId: "ac-test",
-    attach: (st, e) => st.attachEntity(e, (f) => {
-      const d = f.devices.find((x) => x.id === "ac-test")!;
-      d.linked = [...(d.linked ?? []), e];
-    }, "ac-test"),
+    name: "ac linked entities (aclink)",
+    entity: "climate.test_aclink",
+    catalogType: "climate",
+    keepDeviceId: "ac-test",
+    attach: (st, e) =>
+      st.attachEntity(
+        e,
+        (f) => {
+          const d = f.devices.find((x) => x.id === "ac-test")!;
+          d.linked = [...(d.linked ?? []), e];
+        },
+        "ac-test",
+      ),
     read: (l) => (l.floors.ground.devices.find((d) => d.id === "ac-test") as { linked?: string[] }).linked,
   },
   {
-    name: "unlinked attached entities (uuattach)", entity: "sensor.test_uuattach", catalogType: "other",
-    attach: (st, e) => st.attachEntity(e, (f) => {
-      const u = f.unlinked.find((x) => x.id === "unl-test")!;
-      u.attached = [...(u.attached ?? []), e];
-    }),
+    name: "unlinked attached entities (uuattach)",
+    entity: "sensor.test_uuattach",
+    catalogType: "other",
+    attach: (st, e) =>
+      st.attachEntity(e, (f) => {
+        const u = f.unlinked.find((x) => x.id === "unl-test")!;
+        u.attached = [...(u.attached ?? []), e];
+      }),
     read: (l) => l.floors.ground.unlinked.find((u) => u.id === "unl-test")?.attached,
   },
 ];
@@ -89,7 +132,14 @@ describe("S10.2: EditorState.attachEntity pulls a placed icon off the plan", () 
     describe(field.name, () => {
       it("pulls the icon on every floor in one undo step, and undo restores both", () => {
         const l = base();
-        const catalogEntry: CatalogEntry = { id: `cat-${field.entity}`, floor: "ground", room: "", type: field.catalogType, name: "Test sensor", entity: field.entity };
+        const catalogEntry: CatalogEntry = {
+          id: `cat-${field.entity}`,
+          floor: "ground",
+          room: "",
+          type: field.catalogType,
+          name: "Test sensor",
+          entity: field.entity,
+        };
         l.catalog.push(catalogEntry);
         // Placed twice — once on ground, once on "first" — so a single-floor bug (fixing only the current floor)
         // would leave one icon behind and fail the count below (finding 4: asymmetric values, not one happy path).
@@ -124,7 +174,14 @@ describe("S10.2: EditorState.attachEntity pulls a placed icon off the plan", () 
 
       it("attaching an entity that is not placed anywhere removes no icon, one undo step", () => {
         const l = base();
-        l.catalog.push({ id: `cat-${field.entity}`, floor: "ground", room: "", type: field.catalogType, name: "Test sensor", entity: field.entity });
+        l.catalog.push({
+          id: `cat-${field.entity}`,
+          floor: "ground",
+          room: "",
+          type: field.catalogType,
+          name: "Test sensor",
+          entity: field.entity,
+        });
         const st = new EditorState(l);
         const groundBefore = st.layout.floors.ground.devices.length;
         const firstBefore = st.layout.floors.first.devices.length;
@@ -140,7 +197,14 @@ describe("S10.2: EditorState.attachEntity pulls a placed icon off the plan", () 
       it("the device the entity is being attached to never pulls its own icon (keepDeviceId)", () => {
         if (!field.keepDeviceId) return; // door fields have no device icon of their own to guard
         const l = base();
-        l.catalog.push({ id: `cat-${field.entity}`, floor: "ground", room: "", type: field.catalogType, name: "Test sensor", entity: field.entity });
+        l.catalog.push({
+          id: `cat-${field.entity}`,
+          floor: "ground",
+          room: "",
+          type: field.catalogType,
+          name: "Test sensor",
+          entity: field.entity,
+        });
         const st = new EditorState(l);
         const own = st.layout.floors.ground.devices.find((d) => d.id === field.keepDeviceId)!;
         // A defensive check: even if the attached entity coincided with the device's own entity (never offered by
@@ -155,15 +219,30 @@ describe("S10.2: EditorState.attachEntity pulls a placed icon off the plan", () 
 
       it("keeps the layout valid after attaching, and after detaching again", () => {
         const l = base();
-        l.catalog.push({ id: `cat-${field.entity}`, floor: "ground", room: "", type: field.catalogType, name: "Test sensor", entity: field.entity });
+        l.catalog.push({
+          id: `cat-${field.entity}`,
+          floor: "ground",
+          room: "",
+          type: field.catalogType,
+          name: "Test sensor",
+          entity: field.entity,
+        });
         l.floors.ground.devices.push({ id: "dev-ground", type: field.catalogType, entity: field.entity, x: 10, y: 10 });
         const st = new EditorState(l);
         field.attach(st, field.entity);
         expect(validate(st.layout).ok).toBe(true);
         // detach: clear the list back to empty, same as the panel's Remove button (a plain edit, no attachEntity)
         st.edit((f) => {
-          for (const d of f.doors) { delete d.sensors; delete d.vibration; delete d.locks; }
-          for (const d of f.devices) { delete d.trvs; delete d.tempSensors; delete d.linked; }
+          for (const d of f.doors) {
+            delete d.sensors;
+            delete d.vibration;
+            delete d.locks;
+          }
+          for (const d of f.devices) {
+            delete d.trvs;
+            delete d.tempSensors;
+            delete d.linked;
+          }
           for (const u of f.unlinked) delete u.attached;
         });
         expect(validate(st.layout).ok).toBe(true);
@@ -174,27 +253,51 @@ describe("S10.2: EditorState.attachEntity pulls a placed icon off the plan", () 
 
   it("attaching '' does nothing and records no undo step", () => {
     const st = new EditorState(base());
-    const r = st.attachEntity("", (f) => { f.doors[2].sensors = ["x"]; });
+    const r = st.attachEntity("", (f) => {
+      f.doors[2].sensors = ["x"];
+    });
     expect(r).toEqual({ changed: false, pulled: false });
     expect(st.canUndo).toBe(false);
   });
 
   it("keeps the door selected by index across the pull, since doors and devices are separate arrays", () => {
     const l = base();
-    l.catalog.push({ id: "cat-sel", floor: "ground", room: "", type: "contact", name: "Test sensor", entity: "binary_sensor.test_sel" });
+    l.catalog.push({
+      id: "cat-sel",
+      floor: "ground",
+      room: "",
+      type: "contact",
+      name: "Test sensor",
+      entity: "binary_sensor.test_sel",
+    });
     l.floors.ground.devices.unshift({ id: "dev-sel", type: "contact", entity: "binary_sensor.test_sel", x: 10, y: 10 }); // shifts every device index by one
     const st = new EditorState(l);
     st.sel = { t: "door", i: 2 };
-    const r = st.attachEntity("binary_sensor.test_sel", (f) => { f.doors[2].sensors = ["binary_sensor.test_sel"]; });
+    const r = st.attachEntity("binary_sensor.test_sel", (f) => {
+      f.doors[2].sensors = ["binary_sensor.test_sel"];
+    });
     expect(r).toEqual({ changed: true, pulled: true });
     expect(st.sel).toEqual({ t: "door", i: 2 }); // untouched: a door selection does not live in the devices array
   });
 
   it("keeps a selected device's identity across the pull when its index shifts", () => {
     const l = base();
-    l.catalog.push({ id: "cat-shift", floor: "ground", room: "", type: "contact", name: "Test sensor", entity: "binary_sensor.test_shift" });
+    l.catalog.push({
+      id: "cat-shift",
+      floor: "ground",
+      room: "",
+      type: "contact",
+      name: "Test sensor",
+      entity: "binary_sensor.test_shift",
+    });
     // placed before heater-living, so removing it shifts every later device's index down by one
-    l.floors.ground.devices.unshift({ id: "dev-shift", type: "contact", entity: "binary_sensor.test_shift", x: 10, y: 10 });
+    l.floors.ground.devices.unshift({
+      id: "dev-shift",
+      type: "contact",
+      entity: "binary_sensor.test_shift",
+      x: 10,
+      y: 10,
+    });
     const st = new EditorState(l);
     const heaterIndex = st.layout.floors.ground.devices.findIndex((d) => d.id === "heater-living");
     st.sel = { t: "dev", i: heaterIndex };

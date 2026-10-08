@@ -28,21 +28,30 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 function hexToHsl(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   const [r, g, b] = m ? [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16) / 255) : [0, 0, 0];
-  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b),
+    l = (max + min) / 2;
   if (max === min) return [0, 0, l * 100];
   const d = max - min;
   const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  const h = max === r ? ((g - b) / d + (g < b ? 6 : 0)) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
   return [h * 60, s * 100, l * 100];
 }
 
 function hslToHex(h: number, s: number, l: number): string {
-  const S = clamp(s, 0, 100) / 100, L = clamp(l, 0, 100) / 100;
-  if (S === 0) { const v = Math.round(L * 255); return `#${[v, v, v].map((x) => x.toString(16).padStart(2, "0")).join("")}`; }
-  const q = L < 0.5 ? L * (1 + S) : L + S - L * S, p = 2 * L - q;
-  const H = ((h % 360) + 360) % 360 / 360;
+  const S = clamp(s, 0, 100) / 100,
+    L = clamp(l, 0, 100) / 100;
+  if (S === 0) {
+    const v = Math.round(L * 255);
+    return `#${[v, v, v].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
+  }
+  const q = L < 0.5 ? L * (1 + S) : L + S - L * S,
+    p = 2 * L - q;
+  const H = (((h % 360) + 360) % 360) / 360;
   const f = (t0: number) => {
-    let t = t0; if (t < 0) t += 1; if (t > 1) t -= 1;
+    let t = t0;
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
     if (t < 1 / 6) return p + (q - p) * 6 * t;
     if (t < 1 / 2) return q;
     if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
@@ -54,9 +63,21 @@ function hslToHex(h: number, s: number, l: number): string {
 
 /** One structural surface's position on the base ramp: 0 is the background, 1 is the strongest linework (an external wall). */
 const RAMP: [string, number][] = [
-  ["bg", 0], ["room", 0.08], ["garden", 0.14], ["water", 0.16], ["terrace", 0.18], ["pavement", 0.20], ["fill", 0.22],
-  ["fillLine", 0.30], ["idle", 0.42], ["sealed", 0.42], ["tread", 0.55], ["wallEdge", 0.55], ["wallFence", 0.55],
-  ["wall", 0.78], ["wallExternal", 0.92],
+  ["bg", 0],
+  ["room", 0.08],
+  ["garden", 0.14],
+  ["water", 0.16],
+  ["terrace", 0.18],
+  ["pavement", 0.2],
+  ["fill", 0.22],
+  ["fillLine", 0.3],
+  ["idle", 0.42],
+  ["sealed", 0.42],
+  ["tread", 0.55],
+  ["wallEdge", 0.55],
+  ["wallFence", 0.55],
+  ["wall", 0.78],
+  ["wallExternal", 0.92],
 ];
 
 /** A shade of `base` at ramp position `t` (0 background, 1 strongest line): lightness runs dark-to-light or light-to-dark
@@ -68,7 +89,20 @@ function shade(base: string, dark: boolean, t: number): string {
   return hslToHex(h, s, l);
 }
 
-const ON_DEVICES: DeviceType[] = ["light", "motion", "contact", "heater", "climate", "ac", "tv", "media", "cover", "plug", "computer", "speaker"];
+const ON_DEVICES: DeviceType[] = [
+  "light",
+  "motion",
+  "contact",
+  "heater",
+  "climate",
+  "ac",
+  "tv",
+  "media",
+  "cover",
+  "plug",
+  "computer",
+  "speaker",
+];
 
 /** S9.3 (Diego's brief, 2026-09-27): a TV is blue when on, in every theme, including the single-accent ones — the
  * one exception to "collapse to one accent" (theme-roles.ts's own header comment). Fixed, not read from `devices`:
@@ -81,43 +115,85 @@ const TV_BLUE = "#2c7fb8";
 /** Builds a full `--fp-*` token string from four roles, so a new theme is four colours and a lightness direction, not ~50
  * independent hexes to keep in step by hand. */
 export function rolesToTokens(roles: ThemeRoles): string {
-  const shades = Object.fromEntries(RAMP.map(([k, t]) => [k, shade(roles.base, roles.dark, t)])) as Record<string, string>;
+  const shades = Object.fromEntries(RAMP.map(([k, t]) => [k, shade(roles.base, roles.dark, t)])) as Record<
+    string,
+    string
+  >;
   const devFor = (t: DeviceType) => roles.devices?.[t] ?? roles.accent;
-  const acCool = roles.devices?.ac ?? roles.accent, acHeat = roles.devices?.ac ?? roles.accent;
+  const acCool = roles.devices?.ac ?? roles.accent,
+    acHeat = roles.devices?.ac ?? roles.accent;
   return [
-    `--fp-ink:${roles.fg}`, `--fp-bg:${shades.bg}`, `--fp-room:${shades.room}`, `--fp-room-empty:${roles.roomEmpty ?? "#d6d6d2"}`,
-    `--fp-garden:${shades.garden}`, `--fp-terrace:${shades.terrace}`, `--fp-pavement:${shades.pavement}`,
-    `--fp-wall:${shades.wall}`, `--fp-idle:${shades.idle}`,
-    `--fp-on:${roles.accent}`, `--fp-open:${roles.accent}`, `--fp-motion:${devFor("motion")}`, `--fp-heater:${devFor("heater")}`,
+    `--fp-ink:${roles.fg}`,
+    `--fp-bg:${shades.bg}`,
+    `--fp-room:${shades.room}`,
+    `--fp-room-empty:${roles.roomEmpty ?? "#d6d6d2"}`,
+    `--fp-garden:${shades.garden}`,
+    `--fp-terrace:${shades.terrace}`,
+    `--fp-pavement:${shades.pavement}`,
+    `--fp-wall:${shades.wall}`,
+    `--fp-idle:${shades.idle}`,
+    `--fp-on:${roles.accent}`,
+    `--fp-open:${roles.accent}`,
+    `--fp-motion:${devFor("motion")}`,
+    `--fp-heater:${devFor("heater")}`,
     // S9.1: an open door or window and its S8.13 alert line are red, as the brief asks. Fixed, not the contact
     // colour: here that collapses to the one accent, which made an open door orange in blueprint. `open_color`
     // (the card's own config, floorplan-studio-card.ts) overrides this on the host, never here.
     `--fp-open-door:#d64545`,
-    `--fp-door:${roles.fg}`, `--fp-glass:${roles.fg}`, `--fp-window:${roles.fg}`, `--fp-sealed:${shades.sealed}`,
-    `--fp-water:${shades.water}`, `--fp-fill:${shades.fill}`, `--fp-fill-line:${shades.fillLine}`,
+    `--fp-door:${roles.fg}`,
+    `--fp-glass:${roles.fg}`,
+    `--fp-window:${roles.fg}`,
+    `--fp-sealed:${shades.sealed}`,
+    `--fp-water:${shades.water}`,
+    `--fp-fill:${shades.fill}`,
+    `--fp-fill-line:${shades.fillLine}`,
     `--fp-tread:${shades.tread}`,
-    `--fp-dev-light:${devFor("light")}`, `--fp-dev-motion:${devFor("motion")}`, `--fp-dev-contact:${devFor("contact")}`,
-    `--fp-dev-heater:${devFor("heater")}`, `--fp-dev-climate:${devFor("climate")}`, `--fp-dev-ac-cool:${acCool}`,
-    `--fp-dev-ac-heat:${acHeat}`, `--fp-dev-tv:${TV_BLUE}`, `--fp-dev-media:${devFor("media")}`,
-    `--fp-dev-cover:${devFor("cover")}`, `--fp-dev-plug:${devFor("plug")}`, `--fp-dev-computer:${devFor("computer")}`,
-    `--fp-dev-camera:${shades.idle}`, `--fp-dev-garden:${shades.idle}`, `--fp-dev-person:${devFor("person")}`, `--fp-dev-radar:${devFor("radar")}`, `--fp-dev-vacuum:${devFor("vacuum")}`,
+    `--fp-dev-light:${devFor("light")}`,
+    `--fp-dev-motion:${devFor("motion")}`,
+    `--fp-dev-contact:${devFor("contact")}`,
+    `--fp-dev-heater:${devFor("heater")}`,
+    `--fp-dev-climate:${devFor("climate")}`,
+    `--fp-dev-ac-cool:${acCool}`,
+    `--fp-dev-ac-heat:${acHeat}`,
+    `--fp-dev-tv:${TV_BLUE}`,
+    `--fp-dev-media:${devFor("media")}`,
+    `--fp-dev-cover:${devFor("cover")}`,
+    `--fp-dev-plug:${devFor("plug")}`,
+    `--fp-dev-computer:${devFor("computer")}`,
+    `--fp-dev-camera:${shades.idle}`,
+    `--fp-dev-garden:${shades.idle}`,
+    `--fp-dev-person:${devFor("person")}`,
+    `--fp-dev-radar:${devFor("radar")}`,
+    `--fp-dev-vacuum:${devFor("vacuum")}`,
     // S9.4: speaker is a fixed blue in every theme, the same exception TV is (S9.3) — never derived from the role's own accent.
     `--fp-dev-speaker:#2c7fb8`,
-    `--fp-halo:${roles.fg}`, `--fp-alpha:.25`, `--fp-disc:${roles.fg}`, `--fp-disc-alpha:${roles.fgAlpha}`,
-    `--fp-outline:${shades.bg}`, `--fp-text:${roles.fg}`,
+    `--fp-halo:${roles.fg}`,
+    `--fp-alpha:.25`,
+    `--fp-disc:${roles.fg}`,
+    `--fp-disc-alpha:${roles.fgAlpha}`,
+    `--fp-outline:${shades.bg}`,
+    `--fp-text:${roles.fg}`,
     // warn/danger/primary and their on-dark/on-light text stay the same fixed pair in every theme, generated or not
     // (matching midnight and light before them): they are UI chrome, not "device on" state, and each already clears
     // 4.5:1 against its own fixed text colour - collapsing them into the accent broke that pairing (Opus review, 2026-09-22).
     // --fp-furniture is the same kind of fixed pair: a neutral grey for furniture lines, deliberately not shared with
     // --fp-idle, so changing idle-device colouring never moves furniture and vice versa (Diego, 2026-09-23).
-    `--fp-warn:#f28c28`, `--fp-danger:#b02a2a`, `--fp-primary:#1f6699`, `--fp-furniture:#79766e`,
-    `--fp-wall-external:${shades.wallExternal}`, `--fp-wall-fence:${shades.wallFence}`,
-    `--fp-wall-edge:${shades.wallEdge}`, `--fp-measure:${roles.line}`, `--fp-glow:${roles.accent}`, `--fp-aura:${roles.accent}`,
+    `--fp-warn:#f28c28`,
+    `--fp-danger:#b02a2a`,
+    `--fp-primary:#1f6699`,
+    `--fp-furniture:#79766e`,
+    `--fp-wall-external:${shades.wallExternal}`,
+    `--fp-wall-fence:${shades.wallFence}`,
+    `--fp-wall-edge:${shades.wallEdge}`,
+    `--fp-measure:${roles.line}`,
+    `--fp-glow:${roles.accent}`,
+    `--fp-aura:${roles.accent}`,
     `--fp-active:${roles.accent}`,
     // S7.6: the night overlay, one value for every theme for now: a deep blue at 45 %, dark enough to read as night on
     // paper and still leave a dark theme's rooms distinct from its background.
     `--fp-night:rgba(4,10,30,.45)`,
-    `--fp-on-dark:#fff`, `--fp-on-light:#2b2a27`,
+    `--fp-on-dark:#fff`,
+    `--fp-on-light:#2b2a27`,
   ].join(";");
 }
 

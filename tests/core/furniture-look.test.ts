@@ -8,9 +8,22 @@ import { renderFloor } from "../../src/core/render";
 
 const ground = (demo as unknown as Layout).floors.ground;
 const st = (state: string) => ({ state, attributes: {}, last_changed: "2026-09-19T10:00:00Z" });
-const piece = (symbol: string, entity?: string) => ({ id: `f-${symbol}`, symbol, x: 300, y: 300, rot: 0, w: 120, h: 40, ...(entity ? { entity } : {}) });
+const piece = (symbol: string, entity?: string) => ({
+  id: `f-${symbol}`,
+  symbol,
+  x: 300,
+  y: 300,
+  rot: 0,
+  w: 120,
+  h: 40,
+  ...(entity ? { entity } : {}),
+});
 const draw = (symbol: string, state?: string, view?: "2.5d") =>
-  renderFloor({ ...ground, furniture: [piece(symbol, state ? "media_player.x" : undefined)] } as any, { scale: 0.5, ...(view ? { view } : {}), ...(state ? { state: { "media_player.x": st(state) } } : {}) });
+  renderFloor({ ...ground, furniture: [piece(symbol, state ? "media_player.x" : undefined)] } as any, {
+    scale: 0.5,
+    ...(view ? { view } : {}),
+    ...(state ? { state: { "media_player.x": st(state) } } : {}),
+  });
 const waves = (html: string) => (html.match(/class="wave( w2)?"/g) ?? []).length;
 
 describe("S18.8 furniture is filled", () => {

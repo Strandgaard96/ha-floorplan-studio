@@ -22,14 +22,16 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   await el.updateComplete;
   return el;
 }
-const slider = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector<HTMLInputElement>('input[type="range"][aria-label="Tilt"]');
+const slider = (el: FloorplanStudioCard) =>
+  el.shadowRoot!.querySelector<HTMLInputElement>('input[type="range"][aria-label="Tilt"]');
 const drag = async (el: FloorplanStudioCard, value: string) => {
   const s = slider(el)!;
   s.value = value;
   s.dispatchEvent(new Event("input", { bubbles: true }));
   await el.updateComplete;
 };
-const box = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
+const box = (el: FloorplanStudioCard) =>
+  el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -82,7 +84,8 @@ describe("card tilt option and slider", () => {
     const el = await mount({ view: "2.5d" });
     const s = slider(el)!;
     expect([s.min, s.max].map(Number)).toEqual([0, 1]);
-    const before = el.shadowRoot!.querySelector("svg")!.innerHTML, boxBefore = box(el);
+    const before = el.shadowRoot!.querySelector("svg")!.innerHTML,
+      boxBefore = box(el);
     await drag(el, "1");
     expect(last().tilt).toBe(1);
     expect(el.shadowRoot!.querySelector("svg")!.innerHTML).not.toBe(before);
@@ -122,6 +125,8 @@ describe("card tilt option and slider", () => {
 
   it("the slider sits in the same group as the select, also when zoom is off", async () => {
     const el = await mount({ view: "2.5d", zoom: false });
-    expect(slider(el)!.closest(".fp-viewonly")).toBe(el.shadowRoot!.querySelector('select[aria-label="View"]')!.closest(".fp-viewonly"));
+    expect(slider(el)!.closest(".fp-viewonly")).toBe(
+      el.shadowRoot!.querySelector('select[aria-label="View"]')!.closest(".fp-viewonly"),
+    );
   });
 });

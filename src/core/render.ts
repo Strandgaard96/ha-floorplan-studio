@@ -11,16 +11,41 @@ import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
-import { DEVICE_SOLID, STEM_MIN_Z, furnitureLinked, furnitureMode, pieceDevice, deviceSolid, furnitureSolid, stairSolids, tallestDrawn, unlinkedSolid, wallSolids, wallsModeOf, type Proj, type Solid, type WallsMode } from "./solids";
+import {
+  DEVICE_SOLID,
+  STEM_MIN_Z,
+  furnitureLinked,
+  furnitureMode,
+  pieceDevice,
+  deviceSolid,
+  furnitureSolid,
+  stairSolids,
+  tallestDrawn,
+  unlinkedSolid,
+  wallSolids,
+  wallsModeOf,
+  type Proj,
+  type Solid,
+  type WallsMode,
+} from "./solids";
 import { deviceZ, edgeHeight, floorHeight, wallHeight } from "./heights";
 import type { Device, DeviceType, EdgeKind, Floor, Furniture, Layout, Pt, RoomKind, Stairs } from "./schema";
 
-export interface StateOverlay { [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string } }
+export interface StateOverlay {
+  [entityId: string]: { state: string; attributes: Record<string, unknown>; last_changed: string };
+}
 export interface RenderOpts {
   /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
   selectedRoom?: number;
-  scale: number; selection?: { t: string; i: number } | null; showNames?: boolean; filter?: DeviceType[];
-  state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
+  scale: number;
+  selection?: { t: string; i: number } | null;
+  showNames?: boolean;
+  filter?: DeviceType[];
+  state?: StateOverlay;
+  now?: number;
+  fade?: number;
+  roomGlow?: boolean;
+  editor?: boolean;
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
@@ -64,7 +89,8 @@ export const OBLIQUE = { rise: 0.55, skew: 0.3, cutaway: 90 };
 /** The tilt at which `obliqueFor` gives exactly `OBLIQUE`. */
 export const DEFAULT_TILT = 0.5;
 /** A tilt from untrusted input: finite numbers clamp to 0..1, anything else is the default. */
-export const clampTilt = (t: unknown): number => (typeof t === "number" && Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : DEFAULT_TILT);
+export const clampTilt = (t: unknown): number =>
+  typeof t === "number" && Number.isFinite(t) ? Math.min(1, Math.max(0, t)) : DEFAULT_TILT;
 /** Rise at tilt 1: steep side-on. Rise is linear in tilt, so the default (0.5) lands on OBLIQUE.rise, 0.55. */
 const MAX_RISE = 1.1;
 /** What a cutaway front wall may hide on screen (OBLIQUE.cutaway * OBLIQUE.rise). Held constant so interiors stay as
@@ -83,21 +109,65 @@ export function obliqueFor(tilt: unknown): { rise: number; skew: number; cutaway
  * role-generated presets; solarized is the bespoke Solarized palette; ha takes its neutrals straight from Home Assistant's own
  * CSS variables; coffee, a-team, space, cyberpunk, carpenter-brut and beach-house (2026-09-28, Diego's picks) are six more
  * role-generated presets, the same `rolesToTokens` four-colour system as blueprint/slate/terminal. */
-export const THEMES = ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha", "coffee", "a-team", "space", "cyberpunk", "carpenter-brut", "beach-house"] as const;
+export const THEMES = [
+  "blueprint",
+  "midnight",
+  "light",
+  "slate",
+  "terminal",
+  "solarized",
+  "ha",
+  "coffee",
+  "a-team",
+  "space",
+  "cyberpunk",
+  "carpenter-brut",
+  "beach-house",
+] as const;
 export type Theme = (typeof THEMES)[number];
 
 /** The `fill` attribute for a room or staircase that carries its own paint: a texture wins over a colour. Both are checked against a fixed list or a strict pattern, because the value goes into an attribute. */
 const paintAttr = (r: { color?: string; texture?: string; textureRot?: number; textureScale?: number }) =>
-  typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture) ? ` fill="url(#${texturePatternId(r.texture, normTextureRot(r.textureRot), normTextureScale(r.textureScale))})"` : typeof r.color === "string" && COLOR.test(r.color) ? ` fill="${r.color}"` : "";
+  typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture)
+    ? ` fill="url(#${texturePatternId(r.texture, normTextureRot(r.textureRot), normTextureScale(r.textureScale))})"`
+    : typeof r.color === "string" && COLOR.test(r.color)
+      ? ` fill="${r.color}"`
+      : "";
 
 /** The colour each device type has when `layout.colors` says nothing: the `--fp-dev-*` defaults below; types with none of their own use the idle grey. */
 export const DEVICE_COLOURS: Record<DeviceType, string> = {
-  heater: "#e8801a", light: "#e0a800", switch: "#8b8578", plug: "#2c7fb8", temp: "#8b8578", humidity: "#8b8578", motion: "#d64545",
-  contact: "#d64545", camera: "#4a4a48", climate: "#e8801a", ac: "#2c7fb8", tv: "#2c7fb8", computer: "#2c7fb8", media: "#2c7fb8",
-  cover: "#f28c28", battery: "#8b8578", inverter: "#8b8578", server: "#8b8578", access_point: "#8b8578",
-  lock: "#d64545", vibration: "#d64545", other: "#8b8578",
-  boiler: "#8b8578", car: "#8b8578", ups: "#8b8578", printer: "#8b8578", speaker: "#2c7fb8",
-  person: "#1b9e77", radar: "#6a3fbf", vacuum: "#2f8f8f", siren: "#b02a2a", alarm: "#b02a2a",
+  heater: "#e8801a",
+  light: "#e0a800",
+  switch: "#8b8578",
+  plug: "#2c7fb8",
+  temp: "#8b8578",
+  humidity: "#8b8578",
+  motion: "#d64545",
+  contact: "#d64545",
+  camera: "#4a4a48",
+  climate: "#e8801a",
+  ac: "#2c7fb8",
+  tv: "#2c7fb8",
+  computer: "#2c7fb8",
+  media: "#2c7fb8",
+  cover: "#f28c28",
+  battery: "#8b8578",
+  inverter: "#8b8578",
+  server: "#8b8578",
+  access_point: "#8b8578",
+  lock: "#d64545",
+  vibration: "#d64545",
+  other: "#8b8578",
+  boiler: "#8b8578",
+  car: "#8b8578",
+  ups: "#8b8578",
+  printer: "#8b8578",
+  speaker: "#2c7fb8",
+  person: "#1b9e77",
+  radar: "#6a3fbf",
+  vacuum: "#2f8f8f",
+  siren: "#b02a2a",
+  alarm: "#b02a2a",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
@@ -122,24 +192,91 @@ const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp
 // foreground colour for text/icons/detail, one line colour for the measurement grid, and one accent for anything "on" or
 // "live". Device colours default to the accent (Diego: "collapse to one accent"); a theme can override specific types via
 // `devices` when it wants them to stay distinct instead (see ThemeRoles in theme-roles.ts) - none of these three do.
-const BLUEPRINT_TOKENS = rolesToTokens({ base: "#1c3f73", fg: "#eef3fb", fgAlpha: .5, line: "#35d47a", accent: "#ff8a1f", dark: true });
-const SLATE_TOKENS = rolesToTokens({ base: "#9a9a96", fg: "#2b2a27", fgAlpha: .5, line: "#2f7a4a", accent: "#cc5500", dark: false });
-const TERMINAL_TOKENS = rolesToTokens({ base: "#0c1512", fg: "#35d47a", fgAlpha: .5, line: "#35d47a", accent: "#ffb000", dark: true });
+const BLUEPRINT_TOKENS = rolesToTokens({
+  base: "#1c3f73",
+  fg: "#eef3fb",
+  fgAlpha: 0.5,
+  line: "#35d47a",
+  accent: "#ff8a1f",
+  dark: true,
+});
+const SLATE_TOKENS = rolesToTokens({
+  base: "#9a9a96",
+  fg: "#2b2a27",
+  fgAlpha: 0.5,
+  line: "#2f7a4a",
+  accent: "#cc5500",
+  dark: false,
+});
+const TERMINAL_TOKENS = rolesToTokens({
+  base: "#0c1512",
+  fg: "#35d47a",
+  fgAlpha: 0.5,
+  line: "#35d47a",
+  accent: "#ffb000",
+  dark: true,
+});
 
 // Five more role-generated presets (2026-09-28, Diego's picks), the same four-colour system as the three above.
 // coffee's own base already carries a warm brown across bg/walls, so the default grey `roomEmpty` sits fine against
 // it; a-team/space/cyberpunk/carpenter-brut are dark and far more saturated, and the same fixed light grey read as a
 // hole punched in the plan (Diego, 2026-09-28) - each gets its own dark roomEmpty instead, a shade of its own base.
-const COFFEE_TOKENS = rolesToTokens({ base: "#2b1d14", fg: "#f3e5d0", fgAlpha: .5, line: "#a9713c", accent: "#f2a134", dark: true });
-const A_TEAM_TOKENS = rolesToTokens({ base: "#141414", fg: "#e8e8e8", fgAlpha: .5, line: "#cc1f1f", accent: "#d4af37", dark: true, roomEmpty: "#242424" });
-const SPACE_TOKENS = rolesToTokens({ base: "#050814", fg: "#eaf2ff", fgAlpha: .5, line: "#4fd8ff", accent: "#b14aff", dark: true, roomEmpty: "#141b33" });
-const CYBERPUNK_TOKENS = rolesToTokens({ base: "#0b0014", fg: "#00e5ff", fgAlpha: .5, line: "#ff2bd6", accent: "#f9f002", dark: true, roomEmpty: "#22093a" });
-const CARPENTER_BRUT_TOKENS = rolesToTokens({ base: "#170406", fg: "#ffd9e8", fgAlpha: .5, line: "#8f1022", accent: "#ff2f6e", dark: true, roomEmpty: "#2b0a10" });
+const COFFEE_TOKENS = rolesToTokens({
+  base: "#2b1d14",
+  fg: "#f3e5d0",
+  fgAlpha: 0.5,
+  line: "#a9713c",
+  accent: "#f2a134",
+  dark: true,
+});
+const A_TEAM_TOKENS = rolesToTokens({
+  base: "#141414",
+  fg: "#e8e8e8",
+  fgAlpha: 0.5,
+  line: "#cc1f1f",
+  accent: "#d4af37",
+  dark: true,
+  roomEmpty: "#242424",
+});
+const SPACE_TOKENS = rolesToTokens({
+  base: "#050814",
+  fg: "#eaf2ff",
+  fgAlpha: 0.5,
+  line: "#4fd8ff",
+  accent: "#b14aff",
+  dark: true,
+  roomEmpty: "#141b33",
+});
+const CYBERPUNK_TOKENS = rolesToTokens({
+  base: "#0b0014",
+  fg: "#00e5ff",
+  fgAlpha: 0.5,
+  line: "#ff2bd6",
+  accent: "#f9f002",
+  dark: true,
+  roomEmpty: "#22093a",
+});
+const CARPENTER_BRUT_TOKENS = rolesToTokens({
+  base: "#170406",
+  fg: "#ffd9e8",
+  fgAlpha: 0.5,
+  line: "#8f1022",
+  accent: "#ff2f6e",
+  dark: true,
+  roomEmpty: "#2b0a10",
+});
 
 // beach-house (2026-09-28, Diego's pick): a light theme, sand for the base (bg through walls), sea teal for the
 // measurement line, palm-green as the one accent for anything "on". fg is a driftwood-dark brown-grey, enough
 // contrast on sand without going as stark as pure black ink.
-const BEACH_HOUSE_TOKENS = rolesToTokens({ base: "#e3cd9c", fg: "#3a3226", fgAlpha: .5, line: "#1a7a8a", accent: "#2f9e44", dark: false });
+const BEACH_HOUSE_TOKENS = rolesToTokens({
+  base: "#e3cd9c",
+  fg: "#3a3226",
+  fgAlpha: 0.5,
+  line: "#1a7a8a",
+  accent: "#2f9e44",
+  dark: false,
+});
 
 /* Solarized (bespoke, not role-generated - Diego's call, 2026-09-22: real Solarized fidelity matters more here than reuse).
    The dark variant, base03 background, base1 body text; each device type keeps its own Solarized hue rather than collapsing
@@ -156,9 +293,28 @@ const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--f
    buttons in some themes, and the device colours carry meaning that must not move with a theme. */
 const haTokens = (base: string, fb: Record<string, string>) => `${base};
 --fp-ink:var(--primary-text-color,${fb.ink});--fp-text:var(--primary-text-color,${fb.text});--fp-bg:var(--card-background-color,${fb.bg});--fp-room:var(--secondary-background-color,${fb.room});--fp-wall:var(--primary-text-color,${fb.wall});--fp-wall-external:var(--primary-text-color,${fb.wallExternal});--fp-outline:var(--card-background-color,${fb.outline});--fp-disc:var(--card-background-color,${fb.disc});--fp-measure:var(--secondary-text-color,${fb.measure})`;
-const HA_LIGHT = haTokens(LIGHT_TOKENS, { ink: "#2b2a27", text: "#3a3a3a", bg: "#f4f0e6", room: "#e9e3d3", wall: "#2b2a27", wallExternal: "#1a1917", outline: "#fff", disc: "#fff", measure: "#3a3a3a" });
-const HA_DARK = haTokens(MIDNIGHT_TOKENS, { ink: "#d8e2f2", text: "#d8e2f2", bg: "#0d1522", room: "#14213a", wall: "#8fb4f0", wallExternal: "#b4cdf7", outline: "#0d1522", disc: "#14213a", measure: "#8fb4f0" });
-
+const HA_LIGHT = haTokens(LIGHT_TOKENS, {
+  ink: "#2b2a27",
+  text: "#3a3a3a",
+  bg: "#f4f0e6",
+  room: "#e9e3d3",
+  wall: "#2b2a27",
+  wallExternal: "#1a1917",
+  outline: "#fff",
+  disc: "#fff",
+  measure: "#3a3a3a",
+});
+const HA_DARK = haTokens(MIDNIGHT_TOKENS, {
+  ink: "#d8e2f2",
+  text: "#d8e2f2",
+  bg: "#0d1522",
+  room: "#14213a",
+  wall: "#8fb4f0",
+  wallExternal: "#b4cdf7",
+  outline: "#0d1522",
+  disc: "#14213a",
+  measure: "#8fb4f0",
+});
 
 /**
  * S8.9 (Diego, 2026-09-26): internal walls thicker than before, external walls thicker still, in plan cm. Named
@@ -173,7 +329,8 @@ const WALL_HALO_EXTRA = 2;
 
 /** Default colours. Hosts (card, editor) override the --fp-* variables. Kept out of the markup on purpose. */
 /** A room's motion border pulses this many times, each this many seconds, when its sensor trips. */
-export const MOTION_PULSES = 3, MOTION_PULSE_S = 1.4;
+export const MOTION_PULSES = 3,
+  MOTION_PULSE_S = 1.4;
 
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
@@ -458,7 +615,11 @@ const meets = (a: Box, b: Box) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[
 
 /** `p` turned clockwise by `deg` degrees about `pivot` (y points down, so this is the direction SVG's rotate() turns). */
 export function rotateAbout(p: Pt, deg: number, pivot: Pt): Pt {
-  const a = (deg * Math.PI) / 180, c = Math.cos(a), s = Math.sin(a), dx = p[0] - pivot[0], dy = p[1] - pivot[1];
+  const a = (deg * Math.PI) / 180,
+    c = Math.cos(a),
+    s = Math.sin(a),
+    dx = p[0] - pivot[0],
+    dy = p[1] - pivot[1];
   return [pivot[0] + dx * c - dy * s, pivot[1] + dx * s + dy * c];
 }
 
@@ -466,7 +627,8 @@ export function rotateAbout(p: Pt, deg: number, pivot: Pt): Pt {
 export function planPivot(l: Layout): Pt {
   const all = Object.values(l.floors).flatMap((f) => f.outline);
   if (!all.length) return [0, 0];
-  const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+  const xs = all.map((p) => p[0]),
+    ys = all.map((p) => p[1]);
   return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
 }
 
@@ -486,24 +648,38 @@ export const DOOR_ALERT_EXTRA = 16;
  * (S5.7, S8.13) — a device dragged or imported far outside the house must not balloon the view the way a real
  * garden structure should, so it stays off view exactly as before this fix. In "2.5d" the tallest drawn height widens the box
  * up and to the right too (heights count: a wall drawn 250 cm up must not be clipped). */
-export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt }, view: PlanView = "2d", tilt?: number): { x: number; y: number; w: number; h: number } {
+export function viewBoxFor(
+  f: Floor,
+  pad = 60,
+  rotate?: { deg: number; pivot: Pt },
+  view: PlanView = "2d",
+  tilt?: number,
+): { x: number; y: number; w: number; h: number } {
   const content = structuralPoints(f);
   if (!content.length) return { x: -pad, y: -pad, w: 1000 + 2 * pad, h: 1000 + 2 * pad };
   const turn = (p: Pt) => (rotate && rotate.deg % 360 ? rotateAbout(p, rotate.deg, rotate.pivot) : p);
   const boxes = content.map((p) => [turn(p), pad] as const);
   // Only a lamp or camera on or near the plan counts: one far outside it (a stray drag, a layout in mm) stays off
   // view, as before, instead of shrinking the house to a speck. Its centre is the one the aura is drawn at.
-  const cx = content.map((p) => p[0]), cy = content.map((p) => p[1]);
-  const near = (c: Pt, r: number) => c[0] >= Math.min(...cx) - r && c[0] <= Math.max(...cx) + r && c[1] >= Math.min(...cy) - r && c[1] <= Math.max(...cy) + r;
+  const cx = content.map((p) => p[0]),
+    cy = content.map((p) => p[1]);
+  const near = (c: Pt, r: number) =>
+    c[0] >= Math.min(...cx) - r &&
+    c[0] <= Math.max(...cx) + r &&
+    c[1] >= Math.min(...cy) - r &&
+    c[1] <= Math.max(...cy) + r;
   for (const d of f.devices) {
     const r = d.type === "light" ? LIGHT_REACH * fxScale(d) : d.type === "camera" ? DEVICE_REACH : 0;
     const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
     if (r && c.every(Number.isFinite) && near(c, r)) boxes.push([turn(c), r]);
   }
   // 2.5D: heights draw up and to the right on the screen, whatever the plan's own turn, so the box grows in the screen frame.
-  const ob = obliqueFor(tilt), tall = view === "2.5d" ? tallestDrawn(f) * ob.rise : 0;
-  const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)), y0 = Math.min(...boxes.map(([p, r]) => p[1] - r)) - tall;
-  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)) + tall * ob.skew, y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
+  const ob = obliqueFor(tilt),
+    tall = view === "2.5d" ? tallestDrawn(f) * ob.rise : 0;
+  const x0 = Math.min(...boxes.map(([p, r]) => p[0] - r)),
+    y0 = Math.min(...boxes.map(([p, r]) => p[1] - r)) - tall;
+  const x1 = Math.max(...boxes.map(([p, r]) => p[0] + r)) + tall * ob.skew,
+    y1 = Math.max(...boxes.map(([p, r]) => p[1] + r));
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
@@ -512,11 +688,17 @@ export function viewBoxFor(f: Floor, pad = 60, rotate?: { deg: number; pivot: Pt
  * their raw position (see its own comment); `contentPoints` below is the wider set that does include them. */
 function structuralPoints(f: Floor): Pt[] {
   const out: Pt[] = [];
-  const add = (p: unknown) => { if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) out.push([p[0], p[1]]); };
+  const add = (p: unknown) => {
+    if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) out.push([p[0], p[1]]);
+  };
   for (const p of f.outline ?? []) add(p);
   for (const r of f.rooms ?? []) for (const p of r.pts ?? []) add(p);
   for (const t of f.stairs ?? []) for (const p of t.pts ?? []) add(p);
-  for (const k of ["walls", "doors", "openings", "extras"] as const) for (const o of f[k] ?? []) { add(o.a); add(o.b); }
+  for (const k of ["walls", "doors", "openings", "extras"] as const)
+    for (const o of f[k] ?? []) {
+      add(o.a);
+      add(o.b);
+    }
   for (const m of f.furniture ?? []) add([m.x, m.y]);
   for (const u of f.unlinked ?? []) add([u.x, u.y]);
   return out;
@@ -526,13 +708,21 @@ function structuralPoints(f: Floor): Pt[] {
  * Only finite points; the editor's Re-center fits them all. */
 export function contentPoints(f: Floor): Pt[] {
   const out = structuralPoints(f);
-  const add = (p: unknown) => { if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) out.push([p[0], p[1]]); };
-  for (const d of f.devices ?? []) { if ("a" in d) { add(d.a); add(d.b); } else add([d.x, d.y]); }
+  const add = (p: unknown) => {
+    if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) out.push([p[0], p[1]]);
+  };
+  for (const d of f.devices ?? []) {
+    if ("a" in d) {
+      add(d.a);
+      add(d.b);
+    } else add([d.x, d.y]);
+  }
   return out;
 }
 
 /** Class of a room edge or free wall: wall is plain, boundary is dotted, the rest carry their kind. */
-const edgeClass = (kind: unknown) => `e${kind === "boundary" ? " nw" : kind === "wall" || kind === undefined ? "" : ` ${esc(String(kind))}`}`;
+const edgeClass = (kind: unknown) =>
+  `e${kind === "boundary" ? " nw" : kind === "wall" || kind === undefined ? "" : ` ${esc(String(kind))}`}`;
 const at = (p: Pt) => `${num(p[0])} ${num(p[1])}`;
 type Cls = "on" | "off" | "unavailable" | "danger";
 
@@ -548,7 +738,8 @@ function boundClassOf(d: Device, o: RenderOpts): Cls {
 /** A light that is on takes its icon fill from `attributes.rgb_color` when present; unset otherwise, so `.dev.on path`'s `var(--fp-dev-fill,var(--fp-on))` falls through to the flat colour. Untrusted `state`: a malformed value is silently ignored, not thrown on. */
 export function lightFill(s: StateOverlay[string] | undefined): string | null {
   const rgb = s?.attributes.rgb_color;
-  if (Array.isArray(rgb) && rgb.length === 3 && rgb.every((n) => typeof n === "number" && Number.isFinite(n))) return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+  if (Array.isArray(rgb) && rgb.length === 3 && rgb.every((n) => typeof n === "number" && Number.isFinite(n)))
+    return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
   return null;
 }
 
@@ -563,25 +754,51 @@ export function lightOpacity(s: StateOverlay[string] | undefined): number | null
 export function inside(p: Pt, poly: Pt[]): boolean {
   let in_ = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++)
-    if ((poly[i][1] > p[1]) !== (poly[j][1] > p[1]) && p[0] < ((poly[j][0] - poly[i][0]) * (p[1] - poly[i][1])) / (poly[j][1] - poly[i][1]) + poly[i][0]) in_ = !in_;
+    if (
+      poly[i][1] > p[1] !== poly[j][1] > p[1] &&
+      p[0] < ((poly[j][0] - poly[i][0]) * (p[1] - poly[i][1])) / (poly[j][1] - poly[i][1]) + poly[i][0]
+    )
+      in_ = !in_;
   return in_;
 }
 
 /** Which kinds of room can own a point: hold a lamp's light, take a sensor, show a readout. A zone is an overlay, a structure
  *  a building drawn on the plan, a fill a hatched patch; none of them is a room a person stands in. Every kind is a decision (finding 17). */
-export const ROOM_OWNS: Record<RoomKind, boolean> = { room: true, garden: true, pavement: true, terrace: true, water: true, fill: false, structure: false, zone: false };
+export const ROOM_OWNS: Record<RoomKind, boolean> = {
+  room: true,
+  garden: true,
+  pavement: true,
+  terrace: true,
+  water: true,
+  fill: false,
+  structure: false,
+  zone: false,
+};
 
 /** The index of the smallest room that may own point `p` (`ROOM_OWNS`), or -1; equal areas go to the highest index. The one rule behind a lamp's aura clip, the
  *  editor's Attach, a room's readout and Sensors section, and the card's room summary, so they cannot disagree about
  *  which room a thing is in. Layout is untrusted: a room with no usable ring is skipped, never a throw. */
 export function roomAt(f: Floor, p: Pt): number {
   if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return -1;
-  let best = -1, bestArea = Infinity;
+  let best = -1,
+    bestArea = Infinity;
   (Array.isArray(f.rooms) ? f.rooms : []).forEach((r, j) => {
     const g = r?.pts;
-    if (!r || !ROOM_OWNS[r.kind] || !Array.isArray(g) || g.length < 3 || !g.every((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])) || !inside(p, g)) return;
-    const a = Math.abs(g.reduce((n, q, k) => n + q[0] * g[(k + 1) % g.length][1] - g[(k + 1) % g.length][0] * q[1], 0)) / 2;
-    if (a <= bestArea) { best = j; bestArea = a; } // a tie goes to the later room: it is drawn on top, the one a tap reaches
+    if (
+      !r ||
+      !ROOM_OWNS[r.kind] ||
+      !Array.isArray(g) ||
+      g.length < 3 ||
+      !g.every((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1])) ||
+      !inside(p, g)
+    )
+      return;
+    const a =
+      Math.abs(g.reduce((n, q, k) => n + q[0] * g[(k + 1) % g.length][1] - g[(k + 1) % g.length][0] * q[1], 0)) / 2;
+    if (a <= bestArea) {
+      best = j;
+      bestArea = a;
+    } // a tie goes to the later room: it is drawn on top, the one a tap reaches
   });
   return best;
 }
@@ -676,7 +893,10 @@ export function personRoom(d: Device, rooms: Floor["rooms"], o: RenderOpts): num
   if (d.type !== "person" || typeof d.room !== "string") return -1;
   const s = o.state?.[d.room];
   if (!s) return -1;
-  const said = [s.state, s.attributes?.area_id, s.attributes?.area].filter((v): v is string => typeof v === "string").map((v) => v.trim().toLowerCase()).filter((v) => !NO_ROOM.has(v));
+  const said = [s.state, s.attributes?.area_id, s.attributes?.area]
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim().toLowerCase())
+    .filter((v) => !NO_ROOM.has(v));
   const usable = (r: Floor["rooms"][number]) => Array.isArray(r.pts) && r.pts.length >= 3;
   for (const v of said) {
     let i = rooms.findIndex((r) => usable(r) && typeof r.area === "string" && r.area.toLowerCase() === v);
@@ -717,11 +937,14 @@ export function pieceOn(o: RenderOpts, m: Furniture, plugs?: ReadonlyMap<string,
  * radius is a quarter of the piece's longer side (the ring grows to 2.4 times that), at least 15 cm, so a 10 cm deep tv still sends out a visible ring.
  */
 function furnitureWaves(o: RenderOpts, m: Furniture): string | null {
-  if ((m.symbol !== "tv" && m.symbol !== "speaker") || !m.entity || o.state?.[m.entity]?.state !== "playing") return null;
+  if ((m.symbol !== "tv" && m.symbol !== "speaker") || !m.entity || o.state?.[m.entity]?.state !== "playing")
+    return null;
   const r = num(Math.max(15, Math.max(m.w, m.h) / 4));
-  return `<g class="furn-waves" transform="translate(%AT%)">` +
+  return (
+    `<g class="furn-waves" transform="translate(%AT%)">` +
     `<circle class="wave" r="${r}" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
-    `<circle class="wave w2" r="${r}" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/></g>`;
+    `<circle class="wave w2" r="${r}" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/></g>`
+  );
 }
 
 /**
@@ -731,38 +954,58 @@ function furnitureWaves(o: RenderOpts, m: Furniture): string | null {
  * lines are drawn. The whole group is `data-s`.
  */
 function stairsGroup(t: Stairs, i: number, around?: FloorsAround): string {
-  const xs = t.pts.map((p) => p[0]), ys = t.pts.map((p) => p[1]);
-  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  const xs = t.pts.map((p) => p[0]),
+    ys = t.pts.map((p) => p[1]);
+  const x0 = Math.min(...xs),
+    x1 = Math.max(...xs),
+    y0 = Math.min(...ys),
+    y1 = Math.max(...ys);
+  const cx = (x0 + x1) / 2,
+    cy = (y0 + y1) / 2;
   const rot = typeof t.rot === "number" && Number.isFinite(t.rot) ? t.rot : 0;
   const steps = stairSteps(t);
   const round = t.shape === "round" && typeof t.dia === "number" && t.dia > 0;
   const inner = round && typeof t.inner === "number" && t.inner > 0 ? t.inner / 2 : 0;
   const g: string[] = [];
-  const dir = resolveStairDirection(t, around), treads: string[] = [];
+  const dir = resolveStairDirection(t, around),
+    treads: string[] = [];
   let outline = "";
   if (round) {
     const R = t.dia! / 2;
-    const hole = inner ? ` M${num(cx + inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx - inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx + inner)} ${num(cy)}Z` : "";
+    const hole = inner
+      ? ` M${num(cx + inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx - inner)} ${num(cy)}A${num(inner)} ${num(inner)} 0 1 0 ${num(cx + inner)} ${num(cy)}Z`
+      : "";
     outline = `d="M${t.pts.map((p) => `${num(p[0])} ${num(p[1])}`).join("L")}Z${hole}"`;
     g.push(`<path class="stairs room"${paintAttr(t)} fill-rule="evenodd" ${outline}/>`);
     for (let n = 1; n < steps; n++) {
       const a = (n * 2 * Math.PI) / steps;
-      treads.push(`<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`);
+      treads.push(
+        `<line class="tread" x1="${num(cx + inner * Math.cos(a))}" y1="${num(cy + inner * Math.sin(a))}" x2="${num(cx + R * Math.cos(a))}" y2="${num(cy + R * Math.sin(a))}"/>`,
+      );
     }
   } else {
     g.push(`<polygon class="stairs room"${paintAttr(t)} points="${pts(t.pts)}"/>`);
     // Treads run across the short side of the box, one every (long side / steps).
     const along = x1 - x0 > y1 - y0;
     for (let n = 1; n < steps; n++) {
-      if (along) { const x = x0 + ((x1 - x0) * n) / steps; treads.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`); }
-      else { const y = y0 + ((y1 - y0) * n) / steps; treads.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`); }
+      if (along) {
+        const x = x0 + ((x1 - x0) * n) / steps;
+        treads.push(`<line class="tread" x1="${num(x)}" y1="${num(y0)}" x2="${num(x)}" y2="${num(y1)}"/>`);
+      } else {
+        const y = y0 + ((y1 - y0) * n) / steps;
+        treads.push(`<line class="tread" x1="${num(x0)}" y1="${num(y)}" x2="${num(x1)}" y2="${num(y)}"/>`);
+      }
     }
   }
-  const marks = stairMarks({ x0, x1, y0, y1, steps, round: round ? { R: t.dia! / 2, r: inner } : undefined }, dir, outline);
+  const marks = stairMarks(
+    { x0, x1, y0, y1, steps, round: round ? { R: t.dia! / 2, r: inner } : undefined },
+    dir,
+    outline,
+  );
   g.push(marks.shade, ...treads, marks.arrow);
   t.pts.forEach((a, j) => {
-    const b = t.pts[(j + 1) % t.pts.length], e = !round && !rot ? ` data-e="s${i}:${j}"` : "";
+    const b = t.pts[(j + 1) % t.pts.length],
+      e = !round && !rot ? ` data-e="s${i}:${j}"` : "";
     g.push(`<line class="e se"${e} x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"/>`);
   });
   return `<g data-s="${i}" transform="rotate(${num(rot)} ${num(cx)} ${num(cy)})">${g.join("")}</g>`;
@@ -780,7 +1023,10 @@ const MOTION_WALL_REACH = WALL_WIDTH_EXTERNAL / 2 + WALL_HALO_EXTRA;
 function ringGap(p: Pt, ring: Pt[]): number {
   let best = Infinity;
   ring.forEach((a, j) => {
-    const b = ring[(j + 1) % ring.length], dx = b[0] - a[0], dy = b[1] - a[1], len2 = dx * dx + dy * dy;
+    const b = ring[(j + 1) % ring.length],
+      dx = b[0] - a[0],
+      dy = b[1] - a[1],
+      len2 = dx * dx + dy * dy;
     const t = len2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0;
     best = Math.min(best, Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy)));
   });
@@ -792,7 +1038,8 @@ export const DEFAULT_MOTION_FADE_S = 120;
 
 /** 0..1 from `fade` seconds (default 120) since `lastChanged`; 1 at that moment, 0 once they have passed. Unreadable time: just changed. */
 function fadeSince(lastChanged: string, fade: number, now: number): number {
-  const t = Date.parse(lastChanged), age = Number.isNaN(t) ? 0 : now - t;
+  const t = Date.parse(lastChanged),
+    age = Number.isNaN(t) ? 0 : now - t;
   return Math.max(0, Math.min(1, 1 - age / (fade * 1000)));
 }
 
@@ -812,14 +1059,31 @@ function motionFade(d: Device, o: RenderOpts, now: number): number {
  * a hash of the geometry (like the opening mask) so two cards drawing one floor mint the same id. Colour and
  * pointer-events come from the class (findings 9, 18); `radar` takes the radar colour.
  */
-function motionPerimeter(f: Floor, ring: Pt[], i: number, radar: boolean, strength: number, pulseAge: number | null = null, as?: { cls: string; data: string }): string {
+function motionPerimeter(
+  f: Floor,
+  ring: Pt[],
+  i: number,
+  radar: boolean,
+  strength: number,
+  pulseAge: number | null = null,
+  as?: { cls: string; data: string },
+): string {
   const reach = Math.max(...ring.map((a, j) => wallWidthAt(f, a, ring[(j + 1) % ring.length]))) + WALL_HALO_EXTRA;
-  const hide = reach + 2 * MOTION_GAP, band = hide + 2 * MOTION_LINE;
-  const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
-  const x = Math.min(...xs) - band, y = Math.min(...ys) - band;
-  const id = `fp-mp-${tag(`${pts(ring)}|${hide}${as ? `|${as.cls}` : ""}`)}`, points = pts(ring); // S11.3: the picked-room line is the same band under its own class and its own mask id
+  const hide = reach + 2 * MOTION_GAP,
+    band = hide + 2 * MOTION_LINE;
+  const xs = ring.map((p) => p[0]),
+    ys = ring.map((p) => p[1]);
+  const x = Math.min(...xs) - band,
+    y = Math.min(...ys) - band;
+  const id = `fp-mp-${tag(`${pts(ring)}|${hide}${as ? `|${as.cls}` : ""}`)}`,
+    points = pts(ring); // S11.3: the picked-room line is the same band under its own class and its own mask id
   const mask = `<mask id="${id}" maskUnits="userSpaceOnUse" x="${num(x)}" y="${num(y)}" width="${num(Math.max(...xs) + band - x)}" height="${num(Math.max(...ys) + band - y)}"><polygon points="${points}" fill="white"/><polygon points="${points}" fill="none" stroke="black" stroke-width="${num(hide)}" stroke-linejoin="round"/></mask>`;
-  const style = [strength < 1 ? `--fp-fade:${num(strength)}` : "", pulseAge !== null ? `--fp-pulse-age:${num(pulseAge)}s` : ""].filter(Boolean).join(";");
+  const style = [
+    strength < 1 ? `--fp-fade:${num(strength)}` : "",
+    pulseAge !== null ? `--fp-pulse-age:${num(pulseAge)}s` : "",
+  ]
+    .filter(Boolean)
+    .join(";");
   return `${mask}<polygon class="${as?.cls ?? "motion-perimeter"}${radar ? " radar" : ""}${pulseAge !== null ? " motion-pulse" : ""}" ${as?.data ?? "data-m"}="${i}" mask="url(#${id})" stroke-width="${num(band)}"${style ? ` style="${style}"` : ""} points="${points}"/>`;
 }
 
@@ -828,10 +1092,17 @@ export function polyCentre(p: Pt[]): Pt {
   const m: Pt = [p.reduce((s, q) => s + q[0], 0) / p.length, p.reduce((s, q) => s + q[1], 0) / p.length];
   if (!m.every(Number.isFinite) || inside(m, p)) return m;
   const xs: number[] = [];
-  for (let i = 0, j = p.length - 1; i < p.length; j = i++) if ((p[i][1] > m[1]) !== (p[j][1] > m[1])) xs.push(p[i][0] + ((m[1] - p[i][1]) * (p[j][0] - p[i][0])) / (p[j][1] - p[i][1]));
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++)
+    if (p[i][1] > m[1] !== p[j][1] > m[1])
+      xs.push(p[i][0] + ((m[1] - p[i][1]) * (p[j][0] - p[i][0])) / (p[j][1] - p[i][1]));
   xs.sort((a, b) => a - b);
-  let best: Pt = m, w = 0;
-  for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > w) { w = xs[i + 1] - xs[i]; best = [(xs[i] + xs[i + 1]) / 2, m[1]]; }
+  let best: Pt = m,
+    w = 0;
+  for (let i = 0; i + 1 < xs.length; i += 2)
+    if (xs[i + 1] - xs[i] > w) {
+      w = xs[i + 1] - xs[i];
+      best = [(xs[i] + xs[i + 1]) / 2, m[1]];
+    }
   return best;
 }
 
@@ -840,24 +1111,37 @@ export function polyCentre(p: Pt[]): Pt {
 
 export type SensorList = "temps" | "humidity" | "motion";
 /** The entity ids of a room's own sensor list. Layout is untrusted: a list that is not a list is empty, a non-text entry is dropped. */
-export const roomList = (r: Floor["rooms"][number], k: SensorList): string[] => (Array.isArray(r[k]) ? (r[k] as unknown[]).filter((e): e is string => typeof e === "string") : []);
+export const roomList = (r: Floor["rooms"][number], k: SensorList): string[] =>
+  Array.isArray(r[k]) ? (r[k] as unknown[]).filter((e): e is string => typeof e === "string") : [];
 const ATTACH_LIST: Partial<Record<DeviceType, SensorList>> = { temp: "temps", humidity: "humidity", motion: "motion" };
 /** S11.1: whether a device is a room's own sensor (in the room's temps, humidity or motion list). Such a sensor draws no icon (DECISIONS, S11.1). */
 export function attachedTest(f: Floor): (d: Device) => boolean {
   const attached: Record<SensorList, Set<string>> = { temps: new Set(), humidity: new Set(), motion: new Set() };
-  for (const r of f.rooms) for (const k of ["temps", "humidity", "motion"] as const) for (const e of roomList(r, k)) attached[k].add(e);
-  return (d) => { const k = ATTACH_LIST[d.type]; return !!k && attached[k].has(d.entity); };
+  for (const r of f.rooms)
+    for (const k of ["temps", "humidity", "motion"] as const) for (const e of roomList(r, k)) attached[k].add(e);
+  return (d) => {
+    const k = ATTACH_LIST[d.type];
+    return !!k && attached[k].has(d.entity);
+  };
 }
 /** S11.1: the readout of a room's own sensors: the mean temperature and humidity, as the plan prints them under the room's name. "" when nothing is readable. */
 export function roomReadout(r: Floor["rooms"][number], state: StateOverlay | undefined): string {
-  return [meanReading(roomList(r, "temps"), state), meanReading(roomList(r, "humidity"), state)].filter(Boolean).join(" · ");
+  return [meanReading(roomList(r, "temps"), state), meanReading(roomList(r, "humidity"), state)]
+    .filter(Boolean)
+    .join(" · ");
 }
 /** `layout.colors` as the custom properties the plan sets on a group (known types, strict colours only), so a device keeps its own colour. */
 export function deviceColourVars(colors: RenderOpts["colors"]): string[] {
-  return Object.entries(colors ?? {}).filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v)).map(([t, v]) => `--fp-dev-${t}:${v}`);
+  return Object.entries(colors ?? {})
+    .filter(([t, v]) => (DEVICE_TYPES as readonly string[]).includes(t) && typeof v === "string" && COLOR.test(v))
+    .map(([t, v]) => `--fp-dev-${t}:${v}`);
 }
 
-export interface RoomMotion { radar: boolean; on: boolean; v: number }
+export interface RoomMotion {
+  radar: boolean;
+  on: boolean;
+  v: number;
+}
 /**
  * The rooms with motion: room index to how it reads (radar colour, a sensor is on, strength 0..1). `pulsing` holds the
  * rooms whose own sensor tripped less than `MOTION_PULSES` pulses ago, with the age in seconds. The rule behind the
@@ -865,32 +1149,59 @@ export interface RoomMotion { radar: boolean; on: boolean; v: number }
  * room that holds it; one screwed into the wall line goes to the nearest room. The first sensor that is on in a room
  * names the colour, a fading one only lends strength. A room's own `motion` list joins the icon-made ring of the same room.
  */
-export function motionRooms(f: Floor, o: RenderOpts, now: number): { triggered: Map<number, RoomMotion>; pulsing: Map<number, number> } {
-  const isAttached = attachedTest(f), stateOf = (e: string) => (o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string" ? o.state[e] : undefined);
+export function motionRooms(
+  f: Floor,
+  o: RenderOpts,
+  now: number,
+): { triggered: Map<number, RoomMotion>; pulsing: Map<number, number> } {
+  const isAttached = attachedTest(f),
+    stateOf = (e: string) =>
+      o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string"
+        ? o.state[e]
+        : undefined;
   const listOf = roomList;
-  const ring = (r: { pts?: unknown }): Pt[] | null => Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) ? (r.pts as Pt[]) : null;
-  const ringArea = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
-  const rings = f.rooms.map(ring), areas = rings.map((p) => (p ? ringArea(p) : 0));
+  const ring = (r: { pts?: unknown }): Pt[] | null =>
+    Array.isArray(r.pts) &&
+    r.pts.length >= 3 &&
+    r.pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+      ? (r.pts as Pt[])
+      : null;
+  const ringArea = (p: Pt[]) =>
+    Math.abs(
+      p.reduce((s, a, i) => {
+        const b = p[(i + 1) % p.length];
+        return s + a[0] * b[1] - b[0] * a[1];
+      }, 0),
+    ) / 2;
+  const rings = f.rooms.map(ring),
+    areas = rings.map((p) => (p ? ringArea(p) : 0));
   const triggered = new Map<number, RoomMotion>();
   f.devices.forEach((d, i) => {
     if (!MOTION_TYPES.includes(d.type) || "a" in d || isAttached(d)) return; // an attached sensor lights its room through the room's own list, below
-    const cls = classOf(d, o), on = cls === "on", v = on ? 1 : motionFade(d, o, now);
+    const cls = classOf(d, o),
+      on = cls === "on",
+      v = on ? 1 : motionFade(d, o, now);
     if (v <= 0 || cls === "unavailable") return;
     const sel = o.selection?.t === "dev" && o.selection.i === i;
     if (o.filter && o.filter.length && !o.filter.includes(d.type) && !sel) return;
     const c: Pt = [d.x, d.y];
     if (!c.every(Number.isFinite)) return;
-    let at = -1, best = Infinity;
+    let at = -1,
+      best = Infinity;
     f.rooms.forEach((r, j) => {
       const p = rings[j];
       if (!p || r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
       const gap = inside(c, p) ? 0 : ringGap(c, p);
       if (gap > MOTION_WALL_REACH) return;
       const rank = (gap === 0 ? 0 : 1e9) + areas[j] + gap; // inside beats near; then the smaller room
-      if (rank < best) { best = rank; at = j; }
+      if (rank < best) {
+        best = rank;
+        at = j;
+      }
     });
     if (at < 0) return;
-    const t = triggered.get(at), mine = { radar: d.type === "radar", on, v };
+    const t = triggered.get(at),
+      mine = { radar: d.type === "radar", on, v };
     if (!t || (on && !t.on)) triggered.set(at, mine);
     else if (on === t.on) t.v = Math.max(t.v, v);
   });
@@ -900,12 +1211,17 @@ export function motionRooms(f: Floor, o: RenderOpts, now: number): { triggered: 
   f.rooms.forEach((r, j) => {
     const p = rings[j];
     if (!p || !ROOM_OWNS[r.kind]) return;
-    let on = false, v = 0, tripped = -Infinity;
+    let on = false,
+      v = 0,
+      tripped = -Infinity;
     for (const e of listOf(r, "motion")) {
       const s = stateOf(e);
       if (!s) continue;
-      if (s.state === "on") { on = true; tripped = Math.max(tripped, Date.parse(s.last_changed)); }
-      else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? DEFAULT_MOTION_FADE_S) > 0) v = Math.max(v, fadeSince(s.last_changed, o.fade ?? DEFAULT_MOTION_FADE_S, now));
+      if (s.state === "on") {
+        on = true;
+        tripped = Math.max(tripped, Date.parse(s.last_changed));
+      } else if (s.state !== "unavailable" && s.state !== "unknown" && (o.fade ?? DEFAULT_MOTION_FADE_S) > 0)
+        v = Math.max(v, fadeSince(s.last_changed, o.fade ?? DEFAULT_MOTION_FADE_S, now));
     }
     if (!on && v <= 0) return;
     // The age is of the newest sensor that is on. An unreadable time pulses nothing: it could not be told from a fresh trip on every redraw.
@@ -931,70 +1247,87 @@ export interface DeviceMarkup {
 }
 /** What a device icon wears, from the live state: the one place the plan (renderFloor) and the 3D overlay read it. `floorAt` is the device's floor point. */
 export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, floorAt: Pt): DeviceMarkup {
-    // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
-    const outdoor = (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(floorAt, r.pts));
-    const base = classOf(d, o), person = d.type === "person";
-    const cls = base + (outdoor ? " outdoor" : "") + personClass(d, o, base) + vacuumSpinClass(d, o) + (isSiren(d) && base === "on" ? " siren" : "");
-    const s = o.state?.[d.entity];
-    const style: string[] = [];
-    if (d.type === "motion" && s) {
-      style.push(`--fp-fade:${num(motionFade(d, o, now))}`);
+  // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
+  const outdoor =
+    (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(floorAt, r.pts));
+  const base = classOf(d, o),
+    person = d.type === "person";
+  const cls =
+    base +
+    (outdoor ? " outdoor" : "") +
+    personClass(d, o, base) +
+    vacuumSpinClass(d, o) +
+    (isSiren(d) && base === "on" ? " siren" : "");
+  const s = o.state?.[d.entity];
+  const style: string[] = [];
+  if (d.type === "motion" && s) {
+    style.push(`--fp-fade:${num(motionFade(d, o, now))}`);
+  }
+  // S2.2: a lit lamp's own colour and brightness, read from its own state (not the bound switch's) and set as
+  // custom properties the stylesheet consumes (`.dev.on path`), not literal fill/opacity attributes — so a
+  // future rule (S2.9's aura) can read the same `--fp-dev-fill` instead of a second, possibly different, source.
+  if (d.type === "light" && cls === "on" && s) {
+    const fill = lightFill(s);
+    if (fill) style.push(`--fp-dev-fill:${fill}`);
+    const opacity = lightOpacity(s);
+    if (opacity !== null) style.push(`--fp-dev-opacity:${num(opacity)}`);
+  }
+  // S14.8: a plug's draw as a fraction of the card's range; the stylesheet's `.dev-plug.on` rule turns it into a colour. Only with a readable sensor.
+  if (d.type === "plug" && base === "on" && o.plugHeat !== undefined) {
+    const w = plugWatts(d, o);
+    if (w !== null) {
+      const [from, to] = heatRange(o.plugHeat);
+      style.push(`--fp-heat:${num(Math.round(powerHeat(w, from, to) * 100) / 100)}`);
     }
-    // S2.2: a lit lamp's own colour and brightness, read from its own state (not the bound switch's) and set as
-    // custom properties the stylesheet consumes (`.dev.on path`), not literal fill/opacity attributes — so a
-    // future rule (S2.9's aura) can read the same `--fp-dev-fill` instead of a second, possibly different, source.
-    if (d.type === "light" && cls === "on" && s) {
-      const fill = lightFill(s);
-      if (fill) style.push(`--fp-dev-fill:${fill}`);
-      const opacity = lightOpacity(s);
-      if (opacity !== null) style.push(`--fp-dev-opacity:${num(opacity)}`);
-    }
-    // S14.8: a plug's draw as a fraction of the card's range; the stylesheet's `.dev-plug.on` rule turns it into a colour. Only with a readable sensor.
-    if (d.type === "plug" && base === "on" && o.plugHeat !== undefined) {
-      const w = plugWatts(d, o);
-      if (w !== null) { const [from, to] = heatRange(o.plugHeat); style.push(`--fp-heat:${num(Math.round(powerHeat(w, from, to) * 100) / 100)}`); }
-    }
-    // S14.3: the effect size, a fraction the rings and waves read (`--fp-fx`, default 1 in the stylesheet). Written only when it
-    // changes something, so a layout that never sets it is drawn byte for byte as before.
-    if (drawsEffect(d) && fxScale(d) !== 1) style.push(`--fp-fx:${num(fxScale(d))}`);
-    // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
-    const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
-    // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
-    const ping = (d.type === "motion" || d.type === "contact") && base === "on" ? `<circle class="ping" cx="12" cy="12" r="16"/>` : "";
-    // S9.4: a speaker or media device playing sends out two arcs, staggered — exactly "playing", not the generic
-    // .on class (a media_player can be "on" without playing, and that reads active but silent, not radiating).
-    // r=16, the halo's own radius (like .ping): a smaller arc sat entirely inside the halo's fill and never showed
-    // even at rest under reduced motion (Opus review, S9.4 shots) — the two together read as one ring, split so
-    // each can carry its own animation-delay and pulse out a beat apart.
-    // Opus review finding 8: two <circle> elements, not <path> semicircles — a circle's bounding box is always the
-    // square centred on (cx,cy), so transform-box:fill-box scales it about the halo's own centre, whatever it did
-    // for two independent semicircle paths (each one's bbox sits off to one side). pathLength="100" makes
-    // stroke-dasharray's numbers mean "percent of the circumference" regardless of r; "50 50" is half drawn, half
-    // gap, and the second arc's dashoffset of 50 puts its visible half opposite the first's, so the two read as
-    // two arcs on either side of the ring rather than one drawn twice in the same place.
-    const wave = (d.type === "speaker" || d.type === "media") && s?.state === "playing"
+  }
+  // S14.3: the effect size, a fraction the rings and waves read (`--fp-fx`, default 1 in the stylesheet). Written only when it
+  // changes something, so a layout that never sets it is drawn byte for byte as before.
+  if (drawsEffect(d) && fxScale(d) !== 1) style.push(`--fp-fx:${num(fxScale(d))}`);
+  // S7.8: an away person carries a small grey dot on the disc's edge, so away reads without relying on the fade alone.
+  const mark = person && cls.endsWith(" away") ? `<circle class="away-mark" cx="23" cy="1" r="4.5"/>` : "";
+  // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
+  const ping =
+    (d.type === "motion" || d.type === "contact") && base === "on"
+      ? `<circle class="ping" cx="12" cy="12" r="16"/>`
+      : "";
+  // S9.4: a speaker or media device playing sends out two arcs, staggered — exactly "playing", not the generic
+  // .on class (a media_player can be "on" without playing, and that reads active but silent, not radiating).
+  // r=16, the halo's own radius (like .ping): a smaller arc sat entirely inside the halo's fill and never showed
+  // even at rest under reduced motion (Opus review, S9.4 shots) — the two together read as one ring, split so
+  // each can carry its own animation-delay and pulse out a beat apart.
+  // Opus review finding 8: two <circle> elements, not <path> semicircles — a circle's bounding box is always the
+  // square centred on (cx,cy), so transform-box:fill-box scales it about the halo's own centre, whatever it did
+  // for two independent semicircle paths (each one's bbox sits off to one side). pathLength="100" makes
+  // stroke-dasharray's numbers mean "percent of the circumference" regardless of r; "50 50" is half drawn, half
+  // gap, and the second arc's dashoffset of 50 puts its visible half opposite the first's, so the two read as
+  // two arcs on either side of the ring rather than one drawn twice in the same place.
+  const wave =
+    (d.type === "speaker" || d.type === "media") && s?.state === "playing"
       ? `<circle class="wave" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-    // S14.3 (spec item 6): a siren that is on sends out two rings, twice the radius of a speaker's and a harder pulse; same circle trick as the waves.
-    const siren = isSiren(d) && base === "on"
+  // S14.3 (spec item 6): a siren that is on sends out two rings, twice the radius of a speaker's and a harder pulse; same circle trick as the waves.
+  const siren =
+    isSiren(d) && base === "on"
       ? `<circle class="siren-ring" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="siren-ring w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-    const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
+  const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}`;
   return { cls, base, style, icon, s };
 }
 
 export function renderFloor(f: Floor, o: RenderOpts): string {
   const k = 1 / (o.scale || 1);
-  const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null, planDeg = turn ? turn.deg : 0;
+  const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null,
+    planDeg = turn ? turn.deg : 0;
   /** Attribute that keeps a text upright in a turned plan: turns it back about its own anchor. */
   const up = (x: number, y: number) => (turn ? ` transform="rotate(${num(-planDeg)} ${num(x)} ${num(y)})"` : "");
   const out: string[] = [];
   const now = o.now ?? Date.now();
   // S11.1: sensors that belong to a room. Layout and state are untrusted: a list that is not a list is empty, a state is
   // read only if it is the overlay's own, and a reading counts only if it is a plain finite number.
-  const listOf = roomList, isAttached = attachedTest(f);
+  const listOf = roomList,
+    isAttached = attachedTest(f);
   /** An attached sensor draws no icon; the editor keeps it, so it can still be selected and moved (DECISIONS, S11.1). */
   const iconHidden = (d: Device) => !o.editor && isAttached(d);
   // 2.5D: the projection in the frame of the plan group. The screen-up lift is turned back by the plan's own turn, so
@@ -1003,7 +1336,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const scr = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
   const ob = obliqueFor(o.tilt);
   const lean = rotateAbout([ob.rise * ob.skew, -ob.rise], -planDeg, [0, 0]);
-  const px: Proj = { lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]], scr, rise: ob.rise, skew: ob.skew, cutaway: ob.cutaway };
+  const px: Proj = {
+    lift: (p, h) => [p[0] + h * lean[0], p[1] + h * lean[1]],
+    scr,
+    rise: ob.rise,
+    skew: ob.skew,
+    cutaway: ob.cutaway,
+  };
   /** Where a device's icon, and everything it carries, is drawn. 2.5D lifts a high mount (a ceiling light, a camera) to
    * where the real thing hangs; a person, a heater bar, a low device and all of 2D stay at `c`. The pin and stem stay
    * at `c`, on the floor. */
@@ -1017,14 +1356,28 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const solids: Solid[] = [];
   // S7.11: the scan to trace over, first so everything draws on top of it. Checked again here: the layout is untrusted.
   const tr = f.trace;
-  if (o.trace && tr?.on === true && typeof tr.src === "string" && tr.src.length <= MAX_TRACE_BYTES && TRACE_SRC.test(tr.src) && [tr.x, tr.y, tr.w, tr.rot, tr.alpha].every(Number.isFinite) && tr.w > 0)
-    out.push(`<image class="trace" href="${tr.src}" x="${num(tr.x)}" y="${num(tr.y)}" width="${num(tr.w)}" opacity="${num(Math.min(1, Math.max(0, tr.alpha)))}" transform="rotate(${num(tr.rot)} ${num(tr.x)} ${num(tr.y)})"/>`);
+  if (
+    o.trace &&
+    tr?.on === true &&
+    typeof tr.src === "string" &&
+    tr.src.length <= MAX_TRACE_BYTES &&
+    TRACE_SRC.test(tr.src) &&
+    [tr.x, tr.y, tr.w, tr.rot, tr.alpha].every(Number.isFinite) &&
+    tr.w > 0
+  )
+    out.push(
+      `<image class="trace" href="${tr.src}" x="${num(tr.x)}" y="${num(tr.y)}" width="${num(tr.w)}" opacity="${num(Math.min(1, Math.max(0, tr.alpha)))}" transform="rotate(${num(tr.rot)} ${num(tr.x)} ${num(tr.y)})"/>`,
+    );
 
   // One fixed id: two cards on a page declare the same pattern twice, and both are identical (see DECISIONS).
   const textured = [...f.rooms, ...(f.stairs ?? [])]
-    .filter((r): r is typeof r & { texture: string } => typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture))
+    .filter(
+      (r): r is typeof r & { texture: string } => typeof r.texture === "string" && TEXTURE_IDS.includes(r.texture),
+    )
     .map((r) => ({ id: r.texture, rot: normTextureRot(r.textureRot), scale: normTextureScale(r.textureScale) }));
-  const hatch = f.rooms.some((r) => r.kind === "fill") ? '<pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern>' : "";
+  const hatch = f.rooms.some((r) => r.kind === "fill")
+    ? '<pattern id="fp-hatch" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="12" height="12" fill="var(--fp-fill)"/><line x1="0" y1="0" x2="0" y2="12" stroke="var(--fp-fill-line)" stroke-width="2"/></pattern>'
+    : "";
   // S8.11: an opening cuts a real hole in the wall layer below (halo and stroke, every kind including external),
   // instead of painting a band over it, so a room's own fill or texture shows through. `openingWidths[i]` is the
   // same wallWidthAt(...) + OPENING_EXTRA the opening's own erase-line always used (S8.9 part 3): the widest wall or
@@ -1042,7 +1395,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // cut, and the erosion reaches past the opening's own span. "butt" cuts exactly at `a` and `b`, wider across only.
   // An open doorway (kind "open") is cut like an opening: it is a door that draws nothing, so the wall must not show through it.
   const doorways = f.doors.filter((d) => d.kind === "open");
-  const openingLines = [...f.openings, ...doorways].map((op) => `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${wallWidthAt(f, op.a, op.b) + OPENING_EXTRA}" stroke-linecap="butt"/>`);
+  const openingLines = [...f.openings, ...doorways].map(
+    (op) =>
+      `<line x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke="black" stroke-width="${wallWidthAt(f, op.a, op.b) + OPENING_EXTRA}" stroke-linecap="butt"/>`,
+  );
   const maskId = openingLines.length ? `fp-open-mask-${tag(openingLines.join(""))}` : "";
   // Opus review (2026-09-26): `<mask>` itself carries no x/y/width/height, so its region defaults to -10%/120% of
   // the *viewport*, measured from the coordinate system's own 0,0 — never from the viewBox's own x/y. A floor that
@@ -1053,7 +1409,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const openingMask = maskId
     ? `<mask id="${maskId}" maskUnits="userSpaceOnUse" x="-100000" y="-100000" width="200000" height="200000"><rect x="-100000" y="-100000" width="200000" height="200000" fill="white"/>${openingLines.join("")}</mask>`
     : "";
-  if (hatch || textured.length || openingMask) out.push(`<defs>${hatch}${texturePatterns(textured)}${openingMask}</defs>`);
+  if (hatch || textured.length || openingMask)
+    out.push(`<defs>${hatch}${texturePatterns(textured)}${openingMask}</defs>`);
   // S2.6: room_glow. A room glows when any light "in" it (point-in-polygon of the device's x,y; a light never has
   // a/b, only a heater does, but the same "a" in d guard the rest of the file uses is kept here too) is on. Untrusted
   // layout/state: a non-finite coordinate or a light outside every room's polygon is simply not counted, never thrown.
@@ -1065,22 +1422,42 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (d.type !== "light" || classOf(d, o) !== "on") continue;
       const c = "a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt);
       if (!c.every(Number.isFinite)) continue;
-      f.rooms.forEach((r, i) => { if (inside(c, r.pts)) glowRooms.add(i); });
+      f.rooms.forEach((r, i) => {
+        if (inside(c, r.pts)) glowRooms.add(i);
+      });
     }
   // Zones are painted after every other room so they sit on top whatever the array order (the editor picks the top polygon).
   // A room drawn inside a bigger one paints after it, whatever the array order, so a garden house never sits under its garden.
-  const ring = (r: { pts?: unknown }): Pt[] | null => Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) ? (r.pts as Pt[]) : null;
-  const ringArea = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
-  const rings = f.rooms.map(ring), areas = rings.map((p) => (p ? ringArea(p) : 0));
-  const depth = rings.map((p, i) => (p ? rings.reduce((n, q, j) => n + +(j !== i && !!q && areas[j] > areas[i] && p.every((v) => inside(v, q))), 0) : 0));
-  [...f.rooms.keys()].sort((a, b) => +(f.rooms[a].kind === "zone") - +(f.rooms[b].kind === "zone") || depth[a] - depth[b]).forEach((i) => {
-    const r = f.rooms[i];
-    if (r.kind === "fill" && !r.name) return;
-    const own = paintAttr(r);
-    const glow = o.roomGlow && glowRooms.has(i) ? " glow" : "";
-    const on = !r.area && entityOn(o, r.entity, plugs) ? " on" : "";
-    out.push(`<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`);
-  });
+  const ring = (r: { pts?: unknown }): Pt[] | null =>
+    Array.isArray(r.pts) &&
+    r.pts.length >= 3 &&
+    r.pts.every((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]))
+      ? (r.pts as Pt[])
+      : null;
+  const ringArea = (p: Pt[]) =>
+    Math.abs(
+      p.reduce((s, a, i) => {
+        const b = p[(i + 1) % p.length];
+        return s + a[0] * b[1] - b[0] * a[1];
+      }, 0),
+    ) / 2;
+  const rings = f.rooms.map(ring),
+    areas = rings.map((p) => (p ? ringArea(p) : 0));
+  const depth = rings.map((p, i) =>
+    p ? rings.reduce((n, q, j) => n + +(j !== i && !!q && areas[j] > areas[i] && p.every((v) => inside(v, q))), 0) : 0,
+  );
+  [...f.rooms.keys()]
+    .sort((a, b) => +(f.rooms[a].kind === "zone") - +(f.rooms[b].kind === "zone") || depth[a] - depth[b])
+    .forEach((i) => {
+      const r = f.rooms[i];
+      if (r.kind === "fill" && !r.name) return;
+      const own = paintAttr(r);
+      const glow = o.roomGlow && glowRooms.has(i) ? " glow" : "";
+      const on = !r.area && entityOn(o, r.entity, plugs) ? " on" : "";
+      out.push(
+        `<polygon data-r="${i}" class="room room-${esc(String(r.kind))}${r.kind === "water" ? " water" : ""}${glow}${on}"${own} points="${pts(r.pts)}"/>`,
+      );
+    });
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
 
@@ -1090,7 +1467,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   if (o.night)
     f.rooms.forEach((r, i) => {
       if (r.kind === "zone" || r.kind === "structure" || (r.kind === "fill" && !r.name)) return;
-      out.push(`<polygon data-night="${i}" class="room-night${glowRooms.has(i) ? " lit" : ""}" points="${pts(r.pts)}"/>`);
+      out.push(
+        `<polygon data-night="${i}" class="room-night${glowRooms.has(i) ? " lit" : ""}" points="${pts(r.pts)}"/>`,
+      );
     });
 
   // S2.8: every lit lamp's aura, drawn as one flat pass before any device group. S8.13: and before walls, doors,
@@ -1111,30 +1490,47 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const reach = num(LIGHT_REACH * fxScale(d)); // S14.3: the lamp's own effect size; 150 at the default
     // The light stays in the room it hangs in: clipped to the smallest real room holding the lamp (`roomAt`: a zone, a structure
     // and a fill are not rooms; a lamp in no room, a garden lamp say, keeps the free circle). The clip is the floor polygon.
-    const holder = roomAt(f, floorAt), own = holder < 0 ? null : ring(f.rooms[holder]);
+    const holder = roomAt(f, floorAt),
+      own = holder < 0 ? null : ring(f.rooms[holder]);
     if (own) {
       // The aura hangs with the lamp (`c`), so its clip takes the same lift off the floor.
-      const lift = c[0] !== floorAt[0] || c[1] !== floorAt[1] ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"` : "";
+      const lift =
+        c[0] !== floorAt[0] || c[1] !== floorAt[1]
+          ? ` transform="translate(${at([c[0] - floorAt[0], c[1] - floorAt[1]])})"`
+          : "";
       const cid = `fp-aura-${tag(`${pts(own)}${lift}`)}`;
       out.push(`<clipPath id="${cid}"${lift}><polygon points="${pts(own)}"/></clipPath>`);
-      out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})"${style}/>`);
+      out.push(
+        `<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}" clip-path="url(#${cid})"${style}/>`,
+      );
       return;
     }
     out.push(`<circle class="aura" cx="${num(c[0])}" cy="${num(c[1])}" r="${reach}"${style}/>`);
   });
 
-  const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [{ id: "o", pts: f.outline, wk: f.owk }, ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" }))];
+  const polys: { id: string; pts: Pt[]; wk?: EdgeKind[]; zone?: boolean }[] = [
+    { id: "o", pts: f.outline, wk: f.owk },
+    ...f.rooms.map((r, i) => ({ id: `r${i}`, pts: r.pts, wk: r.wk, zone: r.kind === "zone" })),
+  ];
   // Every edge has a white twin drawn first (the line version of the text outline), so a dark line stays visible on a dark floor.
-  const edgeLines: { cls: string; attr: string; a: Pt; b: Pt }[] = [], guides: typeof edgeLines = [];
+  const edgeLines: { cls: string; attr: string; a: Pt; b: Pt }[] = [],
+    guides: typeof edgeLines = [];
   for (const P of polys)
     P.pts.forEach((a, i) => {
       // The outline defaults external (the house perimeter, S1.52); a room with no wk yet is never valid, so "wall" is only a defensive fallback.
-      const b = P.pts[(i + 1) % P.pts.length], kind = P.zone ? "boundary" : P.wk ? P.wk[i] : P.id === "o" ? "external" : "wall";
-      if (kind === "none") { if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b }); return; } // not drawn: the editor keeps a faint guide so it can be picked again
+      const b = P.pts[(i + 1) % P.pts.length],
+        kind = P.zone ? "boundary" : P.wk ? P.wk[i] : P.id === "o" ? "external" : "wall";
+      if (kind === "none") {
+        if (o.editor) guides.push({ cls: "e none", attr: ` data-e="${P.id}:${i}"`, a, b });
+        return;
+      } // not drawn: the editor keeps a faint guide so it can be picked again
       if (x25 && !P.zone && edgeHeight(f, P.id === "o" ? null : f.rooms[Number(P.id.slice(1))], i) > 0) return; // a wall with height is drawn as a solid below
       edgeLines.push({ cls: edgeClass(kind), attr: ` data-e="${P.id}:${i}"`, a, b });
     });
-  f.walls.forEach((w, i) => { if (!(x25 && wallHeight(f, w) > 0)) edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b }); });
+  f.walls.forEach((w, i) => {
+    if (!(x25 && wallHeight(f, w) > 0))
+      edgeLines.push({ cls: edgeClass(w.kind), attr: ` data-w="${i}"`, a: w.a, b: w.b });
+  });
   const seg = (a: Pt, b: Pt) => `x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}"`;
   // S8.11: every halo and stroke line, of every kind (including external and the free-wall/outline lines above),
   // is what an opening's mask cuts a hole through — collected here instead of pushed straight to `out` so the whole
@@ -1166,8 +1562,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S11.3: the room the card has picked, a dashed line just inside its walls (the motion perimeter's band, under its own class),
   // drawn after the wall lines: a stroke on the room's own polygon sits under the wall halo and is not seen (finding 16).
   // No data-r: it is never a pick target.
-  const pickedAt = typeof o.selectedRoom === "number" ? o.selectedRoom : -1, pickedRing = pickedAt >= 0 && f.rooms[pickedAt] ? ring(f.rooms[pickedAt]) : null;
-  if (pickedRing) out.push(motionPerimeter(f, pickedRing, pickedAt, false, 1, null, { cls: "room-picked", data: "data-picked" }));
+  const pickedAt = typeof o.selectedRoom === "number" ? o.selectedRoom : -1,
+    pickedRing = pickedAt >= 0 && f.rooms[pickedAt] ? ring(f.rooms[pickedAt]) : null;
+  if (pickedRing)
+    out.push(motionPerimeter(f, pickedRing, pickedAt, false, 1, null, { cls: "room-picked", data: "data-picked" }));
 
   // A room with a triggered motion sensor (or radar) in it gets one thin line just inside its walls, for as long as the
   // sensor is on, and while a motion icon is still red from its fade (red icon and no border read as a bug, Diego
@@ -1176,27 +1574,53 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // nearest room. The first sensor that is on in a room names the colour, a fading one only lends strength. Same pass
   // as the ring above, after the wall lines, so the 2.5D solids below still cover it.
   const { triggered, pulsing } = motionRooms(f, o, now);
-  for (const i of [...triggered.keys()].sort((a, b) => a - b)) { const t = triggered.get(i)!; out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v, pulsing.get(i) ?? null)); }
+  for (const i of [...triggered.keys()].sort((a, b) => a - b)) {
+    const t = triggered.get(i)!;
+    out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v, pulsing.get(i) ?? null));
+  }
 
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
   if (x25) {
     solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state));
     f.furniture.forEach((m, i) => {
-      const mode = furnitureMode(m), sym = FURNITURE[m.symbol];
-      const s = mode !== "flat" && sym ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m)) : null;
+      const mode = furnitureMode(m),
+        sym = FURNITURE[m.symbol];
+      const s =
+        mode !== "flat" && sym
+          ? furnitureSolid(m, i, mode, pieceOn(o, m, plugs), sym.svg, px, furnitureWaves(o, m))
+          : null;
       if (s) solids.push(s);
     });
-    for (const u of f.unlinked ?? []) { const s = unlinkedSolid(u, px); if (s) solids.push(s); }
+    for (const u of f.unlinked ?? []) {
+      const s = unlinkedSolid(u, px);
+      if (s) solids.push(s);
+    }
     f.devices.forEach((d, i) => {
-      if (o.filter && o.filter.length && !o.filter.includes(d.type) && !(o.selection?.t === "dev" && o.selection.i === i)) return;
+      if (
+        o.filter &&
+        o.filter.length &&
+        !o.filter.includes(d.type) &&
+        !(o.selection?.t === "dev" && o.selection.i === i)
+      )
+        return;
       const s = deviceSolid(f, d, classOf(d, o), px);
       if (s) solids.push(s);
     });
     for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
     // What lies below the floor (a stairwell) goes first: nothing standing on the floor is ever drawn under it.
-    out.push(...solids.filter((s) => s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));
-    out.push(...solids.filter((s) => !s.under).sort((a, b) => a.key - b.key).map((s) => s.svg));
+    out.push(
+      ...solids
+        .filter((s) => s.under)
+        .sort((a, b) => a.key - b.key)
+        .map((s) => s.svg),
+    );
+    out.push(
+      ...solids
+        .filter((s) => !s.under)
+        .sort((a, b) => a.key - b.key)
+        .map((s) => s.svg),
+    );
   }
 
   // S7.1: no text overprints another text or a device icon. Every text is placed against one list of boxes, in the screen
@@ -1207,16 +1631,24 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // none free it keeps its first one regardless, so nothing is ever dropped (a name longer than its room, say).
   const placed: Box[] = [];
   const toScreen = (p: Pt): Pt => (turn ? rotateAbout(p, turn.deg, turn.pivot) : p);
-  const cs = Math.cos((planDeg * Math.PI) / 180), sn = Math.sin((planDeg * Math.PI) / 180);
+  const cs = Math.cos((planDeg * Math.PI) / 180),
+    sn = Math.sin((planDeg * Math.PI) / 180);
   /** The plan point that shows `dx` right of and `dy` below `a` on the screen: the screen vector turned back into the plan. */
-  const screenOff = (a: Pt, dx: number, dy: number): Pt => (planDeg ? [a[0] + dx * cs + dy * sn, a[1] - dx * sn + dy * cs] : [a[0] + dx, a[1] + dy]);
-  const textBox = (a: Pt, size: number, len: number): Box => { const [x, y] = toScreen(a), w = len * 0.6 * size; return [x - w / 2, y - 0.75 * size, w, size]; };
+  const screenOff = (a: Pt, dx: number, dy: number): Pt =>
+    planDeg ? [a[0] + dx * cs + dy * sn, a[1] - dx * sn + dy * cs] : [a[0] + dx, a[1] + dy];
+  const textBox = (a: Pt, size: number, len: number): Box => {
+    const [x, y] = toScreen(a),
+      w = len * 0.6 * size;
+    return [x - w / 2, y - 0.75 * size, w, size];
+  };
   const place = (cands: Pt[], size: number, text: unknown): Pt => {
-    const len = String(text).length, at = cands.find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? cands[0];
+    const len = String(text).length,
+      at = cands.find((c) => !placed.some((q) => meets(textBox(c, size, len), q))) ?? cands[0];
     placed.push(textBox(at, size, len));
     return at;
   };
-  const inPoly = inside, centroid = polyCentre;
+  const inPoly = inside,
+    centroid = polyCentre;
   /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way.
    * The ones inside the room come first: a name goes to the next room only when no spot in its own is free.
    * `avoid` are smaller rooms drawn inside this one (a pond in a garden): a name on one hides under its fill. */
@@ -1227,7 +1659,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const ins = all.filter(ok);
     return [...ins, ...all.filter((c, i) => !ok(c, i))];
   };
-  const disc = (c: Pt, r: number) => { const [x, y] = toScreen(c); placed.push([x - r, y - r, 2 * r, 2 * r]); };
+  const disc = (c: Pt, r: number) => {
+    const [x, y] = toScreen(c);
+    placed.push([x - r, y - r, 2 * r, 2 * r]);
+  };
   // S7.8: a person whose room sensor names a room stands at that room's centroid, the same point its name is tried at
   // first. Several in one room stand on a ring round it, in device order, far enough apart that their 16k discs never
   // touch: the chord between neighbours is 2R sin(pi/n) >= 34k. The icon is placed here, before any text, so the room's
@@ -1249,12 +1684,23 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (c.every(Number.isFinite)) others.push(iconAt(d, c));
   });
   for (const [r, who] of byRoom) {
-    const c0 = centroid(f.rooms[r].pts), n = who.length;
+    const c0 = centroid(f.rooms[r].pts),
+      n = who.length;
     if (!c0.every(Number.isFinite)) continue;
     const R = n > 1 ? Math.max(20 * k, (17 * k) / Math.sin(Math.PI / n)) : 0;
-    const ring = (c: Pt) => who.map((_, j): Pt => { const a = (2 * Math.PI * j) / n - Math.PI / 2; return [c[0] + R * Math.cos(a), c[1] + R * Math.sin(a)]; });
+    const ring = (c: Pt) =>
+      who.map((_, j): Pt => {
+        const a = (2 * Math.PI * j) / n - Math.PI / 2;
+        return [c[0] + R * Math.cos(a), c[1] + R * Math.sin(a)];
+      });
     const free = (ps: Pt[]) => ps.every((p) => others.every((q) => Math.hypot(p[0] - q[0], p[1] - q[1]) >= 32 * k));
-    const spots = [c0, screenOff(c0, 0, 40 * k), screenOff(c0, 0, -40 * k), screenOff(c0, 40 * k, 0), screenOff(c0, -40 * k, 0)].map(ring);
+    const spots = [
+      c0,
+      screenOff(c0, 0, 40 * k),
+      screenOff(c0, 0, -40 * k),
+      screenOff(c0, 40 * k, 0),
+      screenOff(c0, -40 * k, 0),
+    ].map(ring);
     (spots.find(free) ?? spots[0]).forEach((p, j) => personAt.set(who[j], p));
   }
   const centreOf = (d: Device, i: number): Pt => personAt.get(i) ?? ("a" in d ? mid(d.a, d.b) : ([d.x, d.y] as Pt));
@@ -1272,15 +1718,28 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // S7.15: doors are obstacles too, so a name never runs across one (the demo's "Garden pond" sat on the garage
   // door). A door's box is its line, in the screen frame, widened by half its 22-unit stroke on every side.
   for (const d of f.doors) {
-    const [ax, ay] = toScreen(d.a), [bx, by] = toScreen(d.b), h = DOOR_HIT_WIDTH / 2;
-    if ([ax, ay, bx, by].every(Number.isFinite)) placed.push([Math.min(ax, bx) - h, Math.min(ay, by) - h, Math.abs(bx - ax) + 2 * h, Math.abs(by - ay) + 2 * h]);
+    const [ax, ay] = toScreen(d.a),
+      [bx, by] = toScreen(d.b),
+      h = DOOR_HIT_WIDTH / 2;
+    if ([ax, ay, bx, by].every(Number.isFinite))
+      placed.push([Math.min(ax, bx) - h, Math.min(ay, by) - h, Math.abs(bx - ax) + 2 * h, Math.abs(by - ay) + 2 * h]);
   }
   const named = (r: Floor["rooms"][number]) => !!r.name && r.kind !== "fill";
-  const area = (p: Pt[]) => Math.abs(p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0)) / 2;
+  const area = (p: Pt[]) =>
+    Math.abs(
+      p.reduce((s, a, i) => {
+        const b = p[(i + 1) % p.length];
+        return s + a[0] * b[1] - b[0] * a[1];
+      }, 0),
+    ) / 2;
   /** The width of the room along the screen row through `a`, on the stretch that holds `a`; 0 when the row misses the room. */
   const chordAt = (poly: Pt[], a: Pt): number => {
-    const sp = poly.map(toScreen), [ax, ay] = toScreen(a), xs: number[] = [];
-    for (let i = 0, j = sp.length - 1; i < sp.length; j = i++) if ((sp[i][1] > ay) !== (sp[j][1] > ay)) xs.push(sp[i][0] + ((ay - sp[i][1]) * (sp[j][0] - sp[i][0])) / (sp[j][1] - sp[i][1]));
+    const sp = poly.map(toScreen),
+      [ax, ay] = toScreen(a),
+      xs: number[] = [];
+    for (let i = 0, j = sp.length - 1; i < sp.length; j = i++)
+      if (sp[i][1] > ay !== sp[j][1] > ay)
+        xs.push(sp[i][0] + ((ay - sp[i][1]) * (sp[j][0] - sp[i][0])) / (sp[j][1] - sp[i][1]));
     xs.sort((p, q) => p - q);
     for (let i = 0; i + 1 < xs.length; i += 2) if (ax >= xs[i] && ax <= xs[i + 1]) return xs[i + 1] - xs[i];
     return 0;
@@ -1290,40 +1749,72 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
    * still too wide: just outside the room, above or below, on a leader line back to the anchor. Never dropped. */
   type Label = { at: Pt; size: number; from?: Pt };
   const placeName = (r: Floor["rooms"][number], base: number, floor: number): Label => {
-    const mine = area(r.pts), inner = f.rooms.filter((q) => q !== r && named(q) && q.kind !== "zone" && area(q.pts) < mine).map((q) => q.pts);
-    const anchor = centroid(r.pts), len = String(r.name).length, room = chordAt(r.pts, anchor);
+    const mine = area(r.pts),
+      inner = f.rooms.filter((q) => q !== r && named(q) && q.kind !== "zone" && area(q.pts) < mine).map((q) => q.pts);
+    const anchor = centroid(r.pts),
+      len = String(r.name).length,
+      room = chordAt(r.pts, anchor);
     const size = Math.max(floor, Math.min(base, room / (len * 0.6)));
-    if (!anchor.every(Number.isFinite) || len * 0.6 * size <= room) return { at: place(rows(anchor, r.pts, inner), size, r.name), size };
-    const ys = r.pts.map((p) => toScreen(p)[1]), ay = toScreen(anchor)[1];
-    const above = screenOff(anchor, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay), below = screenOff(anchor, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay);
+    if (!anchor.every(Number.isFinite) || len * 0.6 * size <= room)
+      return { at: place(rows(anchor, r.pts, inner), size, r.name), size };
+    const ys = r.pts.map((p) => toScreen(p)[1]),
+      ay = toScreen(anchor)[1];
+    const above = screenOff(anchor, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay),
+      below = screenOff(anchor, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay);
     // The leader is one more thing that must not run across another text: its own thin box counts too.
-    const leaderBox = (c: Pt): Box => { const [x, y] = toScreen(anchor), cy = toScreen(c)[1]; return [x - k / 2, Math.min(y, cy), k, Math.abs(cy - y)]; };
+    const leaderBox = (c: Pt): Box => {
+      const [x, y] = toScreen(anchor),
+        cy = toScreen(c)[1];
+      return [x - k / 2, Math.min(y, cy), k, Math.abs(cy - y)];
+    };
     const free = (c: Pt) => !placed.some((q) => meets(textBox(c, size, len), q));
-    const at = [below, above].find((c) => free(c) && !placed.some((q) => meets(leaderBox(c), q))) ?? [below, above].find(free) ?? below;
+    const at =
+      [below, above].find((c) => free(c) && !placed.some((q) => meets(leaderBox(c), q))) ??
+      [below, above].find(free) ??
+      below;
     placed.push(textBox(at, size, len));
     return { at, size, from: anchor };
   };
-  const nameAt: Label[] = [], zoneAt: Label[] = [];
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, 11 * k, 7 * k); });
-  f.rooms.forEach((r, i) => { if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 8 * k, 6 * k); });
+  const nameAt: Label[] = [],
+    zoneAt: Label[] = [];
+  f.rooms.forEach((r, i) => {
+    if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, 11 * k, 7 * k);
+  });
+  f.rooms.forEach((r, i) => {
+    if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 8 * k, 6 * k);
+  });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
   // S8.9 part 3: the opening's own stroke must cover whichever wall it is on, now that walls no longer share one width.
-  f.openings.forEach((op, i) => out.push(`<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke-width="${openingWidths[i]}"/>`));
+  f.openings.forEach((op, i) =>
+    out.push(
+      `<line class="opening" x1="${num(op.a[0])}" y1="${num(op.a[1])}" x2="${num(op.b[0])}" y2="${num(op.b[1])}" stroke-width="${openingWidths[i]}"/>`,
+    ),
+  );
   f.extras.forEach((x, i) => {
-    const mx = Math.min(x.a[0], x.b[0]), my = Math.min(x.a[1], x.b[1]), w = Math.abs(x.a[0] - x.b[0]), h = Math.abs(x.a[1] - x.b[1]);
-    out.push(w && h
-      ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
-      : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`);
+    const mx = Math.min(x.a[0], x.b[0]),
+      my = Math.min(x.a[1], x.b[1]),
+      w = Math.abs(x.a[0] - x.b[0]),
+      h = Math.abs(x.a[1] - x.b[1]);
+    out.push(
+      w && h
+        ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
+        : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`,
+    );
     const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * k, x.name);
-    if (showText) out.push(`<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`);
+    if (showText)
+      out.push(
+        `<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`,
+      );
   });
 
   f.furniture.forEach((m, i) => {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
-    out.push(`<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`);
+    out.push(
+      `<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`,
+    );
     const waves = furnitureWaves(o, m);
     if (waves) out.push(waves.replace("%AT%", `${num(m.x)} ${num(m.y)}`));
   });
@@ -1338,50 +1829,91 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
     const { open, alarm: vibrating, cover: coverOpen } = doorStateOf(d, o.state);
-    const sel = o.selection?.t === "door" && o.selection.i === i, doorway = d.kind === "open";
+    const sel = o.selection?.t === "door" && o.selection.i === i,
+      doorway = d.kind === "open";
     // S14.5: a tripped doorway is a solid alert band (`band`: no dash, no pulse), not an open door's look.
     const tripped = doorway && (open || vibrating || coverOpen);
-    const cls = ["door", `door-${esc(String(d.kind))}`, d.kind === "slit" ? "door-window" : "", vibrating ? "alarm" : "", open ? "open" : "", coverOpen ? "cover-open" : "", tripped ? "band" : ""].filter(Boolean).join(" ");
+    const cls = [
+      "door",
+      `door-${esc(String(d.kind))}`,
+      d.kind === "slit" ? "door-window" : "",
+      vibrating ? "alarm" : "",
+      open ? "open" : "",
+      coverOpen ? "cover-open" : "",
+      tripped ? "band" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
     // 2.5D: the wall is already cut open above, so the floor line is only a threshold, thin enough to see through the gap.
     // It keeps every class (open, alarm, cover-open) and its alert line, so a door's state still shows.
     // A slit window is the window mark drawn as a thin band (SLIT_BAND of the wall), so it reads as a slit at a glance.
-    const w = x25 ? DOOR_THRESHOLD_25D : d.kind === "slit" ? wallWidthAt(f, d.a, d.b) * SLIT_BAND : wallWidthAt(f, d.a, d.b);
+    const w = x25
+      ? DOOR_THRESHOLD_25D
+      : d.kind === "slit"
+        ? wallWidthAt(f, d.a, d.b) * SLIT_BAND
+        : wallWidthAt(f, d.a, d.b);
     const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
     // S8.9 part 2 + finding 3: the visible line is now as thin as the internal wall it sits on (10 cm, or 20 on an
     // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as
     // it always was. It shares data-d with the visible line, so hitOf() (editor-app.ts) finds the same door either way.
     // S8.13: an open contact door gets a wide pulsing line under its own, so it reads from across the room.
     // S10.3: a vibrating door gets the same line - open or vibrating (or both) is still only ever one alert line.
-    if ((open || vibrating) && !doorway) out.push(`<line class="door-alert" ${seg} stroke-width="${w + DOOR_ALERT_EXTRA}"/>`);
-    out.push(`<line data-d="${i}" class="door-hit${doorway ? " door-hit-open" : ""}" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`);
+    if ((open || vibrating) && !doorway)
+      out.push(`<line class="door-alert" ${seg} stroke-width="${w + DOOR_ALERT_EXTRA}"/>`);
+    out.push(
+      `<line data-d="${i}" class="door-hit${doorway ? " door-hit-open" : ""}" ${seg} stroke-width="${DOOR_HIT_WIDTH}"/>`,
+    );
     // A doorway draws nothing of its own: only its state (open, vibrating, cover open) or the editor's selection shows a line.
     if (doorway && !sel && !open && !vibrating && !coverOpen) return;
-    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
+    out.push(
+      `<line data-d="${i}" class="${cls}${sel ? " sel" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`,
+    );
   });
 
   f.rooms.forEach((r, i) => {
     if (!showText || !r.name || r.kind === "fill") return;
-    const zone = r.kind === "zone", { at: [x, y], size, from } = (zone ? zoneAt : nameAt)[i];
+    const zone = r.kind === "zone",
+      {
+        at: [x, y],
+        size,
+        from,
+      } = (zone ? zoneAt : nameAt)[i];
     // The leader runs from the room's anchor to the edge of the text box nearest it, and is drawn under the text.
     if (from) {
-      const down = toScreen([x, y])[1] > toScreen(from)[1], [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
-      out.push(`<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`);
+      const down = toScreen([x, y])[1] > toScreen(from)[1],
+        [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
+      out.push(
+        `<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`,
+      );
     }
-    out.push(zone
-      ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
-      : `<text class="lbl" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`);
+    out.push(
+      zone
+        ? `<text class="lbl zone" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}">${esc(r.name)}</text>`
+        : `<text class="lbl" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" font-weight="600" opacity=".5">${esc(r.name)}</text>`,
+    );
   });
 
   // S11.1: the readout of a room's own sensors, a small line under its name (or at its anchor when it has none). Placed like
   // every other text, so it moves off a name or an icon; nothing readable draws nothing, never "NaN".
   f.rooms.forEach((r, i) => {
     if (!showText || !ROOM_OWNS[r.kind]) return;
-    const text = [meanReading(listOf(r, "temps"), o.state), meanReading(listOf(r, "humidity"), o.state)].filter(Boolean).join(" · ");
+    const text = [meanReading(listOf(r, "temps"), o.state), meanReading(listOf(r, "humidity"), o.state)]
+      .filter(Boolean)
+      .join(" · ");
     if (!text) return;
-    const lab = nameAt[i], base = lab?.at ?? centroid(r.pts), size = lab?.size ?? 0, vs = 10 * k;
+    const lab = nameAt[i],
+      base = lab?.at ?? centroid(r.pts),
+      size = lab?.size ?? 0,
+      vs = 10 * k;
     if (!base.every(Number.isFinite)) return;
-    const [vx, vy] = place([screenOff(base, 0, 0.25 * size + k + 0.75 * vs), screenOff(base, 0, -0.75 * size - k - 0.25 * vs)], vs, text);
-    out.push(`<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
+    const [vx, vy] = place(
+      [screenOff(base, 0, 0.25 * size + k + 0.75 * vs), screenOff(base, 0, -0.75 * size - k - 0.25 * vs)],
+      vs,
+      text,
+    );
+    out.push(
+      `<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`,
+    );
   });
 
   f.devices.forEach((d, i) => {
@@ -1411,18 +1943,27 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // Camera: a 120 degree, 100 cm cone about "up" (-90 degrees), in plan units (the group is scaled by k). It comes first, so the icon covers its tip.
     let cone = "";
     if (d.type === "camera") {
-      const R = DEVICE_REACH / k, p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
+      const R = DEVICE_REACH / k,
+        p = (deg: number) => at([12 + R * Math.cos((deg * Math.PI) / 180), 12 + R * Math.sin((deg * Math.PI) / 180)]);
       cone = `<path class="cone" d="M12 12L${p(-150)}A${num(R)} ${num(R)} 0 0 1 ${p(-30)}Z"/>`;
     }
     // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) is drawn where the real thing hangs (`c`,
     // lifted), with its aura, cone, rings and text. A small pin stays on the floor under it and a thin stem joins the
     // two. The tap target is the lifted icon. A person walks about and a heater bar lies on the floor: neither lifts.
-    if (c !== floorAt) out.push(`<line class="stem" x1="${num(floorAt[0])}" y1="${num(floorAt[1])}" x2="${num(c[0])}" y2="${num(c[1])}"/><circle class="stem-top" cx="${num(floorAt[0])}" cy="${num(floorAt[1])}" r="${num(3 * k)}"/>`);
+    if (c !== floorAt)
+      out.push(
+        `<line class="stem" x1="${num(floorAt[0])}" y1="${num(floorAt[1])}" x2="${num(c[0])}" y2="${num(c[1])}"/><circle class="stem-top" cx="${num(floorAt[0])}" cy="${num(floorAt[1])}" r="${num(3 * k)}"/>`,
+      );
     // The bar draws first so the icon group (fix/heater-bar-under-icon), with its white disc and halo, always paints on top of it.
     // S2.5: the bar carries the same on/off/unavailable class as the icon, so it goes orange only while heating (classOf already reads hvac_action).
-    if ("a" in d) out.push(`<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`);
+    if ("a" in d)
+      out.push(
+        `<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`,
+      );
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
-    out.push(`<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`);
+    out.push(
+      `<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}</g>`,
+    );
     // S7.9: a radar's targets. Each pair's x (mm, right of the sensor) and y (mm, ahead of it) is turned by the
     // sensor's own `rot` the same way a plan point turns (SVG's own clockwise convention: rot 0 keeps "ahead" up),
     // converted to centimetres, then added to the sensor's own position — the world point a target dot is drawn
@@ -1432,11 +1973,18 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // blank reading is not a number here and a pair at exactly 0/0 is "no target", never a dot on the sensor itself.
     if (d.type === "radar" && Array.isArray(d.targets)) {
       const rad = (rot * Math.PI) / 180;
-      const mm = (e: string) => { const s = String(o.state?.[e]?.state ?? "").trim(); return s === "" ? NaN : Number(s) / 10; }; // mm to cm
+      const mm = (e: string) => {
+        const s = String(o.state?.[e]?.state ?? "").trim();
+        return s === "" ? NaN : Number(s) / 10;
+      }; // mm to cm
       for (const t of d.targets) {
-        const xl = mm(t.x), yl = mm(t.y);
+        const xl = mm(t.x),
+          yl = mm(t.y);
         if (!Number.isFinite(xl) || !Number.isFinite(yl) || (xl === 0 && yl === 0)) continue;
-        const p: Pt = [floorAt[0] + xl * Math.cos(rad) + yl * Math.sin(rad), floorAt[1] + xl * Math.sin(rad) - yl * Math.cos(rad)];
+        const p: Pt = [
+          floorAt[0] + xl * Math.cos(rad) + yl * Math.sin(rad),
+          floorAt[1] + xl * Math.sin(rad) - yl * Math.cos(rad),
+        ];
         if (!inside(p, f.outline)) continue;
         out.push(`<circle class="target" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(6 * k)}"/>`);
       }
@@ -1446,12 +1994,28 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       // an integration can report an empty string, a comma decimal or a word, and printing "not-a-number °C" is worse than saying nothing.
       const bad = !/^-?\d+(\.\d+)?$/.test(s.state.trim()) || !Number.isFinite(Number(s.state));
       const unit = typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "";
-      const text = bad ? "–" : s.state + unit, vs = 11 * k, gap = 16 * k + 2 * k; // 2k clear of the 16k disc
+      const text = bad ? "–" : s.state + unit,
+        vs = 11 * k,
+        gap = 16 * k + 2 * k; // 2k clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
-      const [vx, vy] = place([screenOff(c, 0, gap + 0.75 * vs), screenOff(c, 0, -gap - 0.25 * vs), screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs)], vs, text);
-      if (showText) out.push(`<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`);
+      const [vx, vy] = place(
+        [
+          screenOff(c, 0, gap + 0.75 * vs),
+          screenOff(c, 0, -gap - 0.25 * vs),
+          screenOff(c, gap + (text.length * 0.6 * vs) / 2, 0.25 * vs),
+        ],
+        vs,
+        text,
+      );
+      if (showText)
+        out.push(
+          `<text class="val" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`,
+        );
     }
-    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    if (showText && (o.showNames || sel))
+      out.push(
+        `<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`,
+      );
   });
 
   // S4.25: an unlinked appliance. Flat idle-grey icon (no on/off state), an optional per-instance colour override,
@@ -1466,7 +2030,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const style = u.color && COLOR.test(u.color) ? ` style="--fp-dev-fill:${u.color}"` : "";
     const label = u.name ?? u.id;
     // A speaker or TV linked to a media player shows that player: playing is on, with the same two waves a speaker device draws.
-    const player = playerOf(u), playing = !!player && o.state?.[player]?.state === "playing";
+    const player = playerOf(u),
+      playing = !!player && o.state?.[player]?.state === "playing";
     const waves = playing
       ? `<circle class="wave" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="wave w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
@@ -1476,20 +2041,31 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // placed object like furniture: `rot` turns the glyph itself, and it turns again with the plan when the
     // plan is rotated (no counter-rotation) — found by looking at the render (npm run shots), not by the unit
     // test alone: a copy of the device's "icon stays upright" logic left `rot` with no visible effect at all.
-    out.push(`<g data-u="${i}" class="dev unl${playing ? ` on dev-${u.type}` : ""}${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`);
-    if (showText && (o.showNames || sel)) out.push(`<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`);
+    out.push(
+      `<g data-u="${i}" class="dev unl${playing ? ` on dev-${u.type}` : ""}${sel ? " sel" : ""}"${style} transform="translate(${at([u.x - 12 * uk, u.y - 12 * uk])}) scale(${num(uk)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"><title>${esc(String(u.type))}: ${esc(label)}</title>${icon}</g>`,
+    );
+    if (showText && (o.showNames || sel))
+      out.push(
+        `<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`,
+      );
   });
 
   if (o.editor)
-    for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
+    for (const P of polys)
+      P.pts.forEach((p, j) =>
+        out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`),
+      );
   const body = out.join("\n");
-  const turned = turn ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>` : body;
+  const turned = turn
+    ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>`
+    : body;
   // Custom properties inherit, so one style on a group reaches every device. Only known types and strict #rrggbb go in: the value ends up in an attribute.
   const vars = deviceColourVars(o.colors);
   const coloured = vars.length ? `<g class="dev-colours" style="${vars.join(";")}">${turned}</g>` : turned;
   // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
   // it lands in an attribute, and a caller's stray string must not.
   const night = o.night ? ' class="night"' : "";
-  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme)) return night ? `<g${night}>${coloured}</g>` : coloured;
+  if (!o.theme || !(THEMES as readonly string[]).includes(o.theme))
+    return night ? `<g${night}>${coloured}</g>` : coloured;
   return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}${night}>${coloured}</g>`;
 }

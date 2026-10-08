@@ -12,9 +12,20 @@ export interface SceneHass {
   entities?: Record<string, { area_id?: string | null; device_id?: string | null } | undefined>;
   devices?: Record<string, { area_id?: string | null } | undefined>;
 }
-export interface HaSceneRow { entity: string; name: string }
-export interface SceneCall { domain: string; service: string; data: Record<string, unknown> }
-export interface RoomSceneMenu { ha: HaSceneRow[]; custom: { id: string; name: string; confirm: boolean }[]; lights: string[] }
+export interface HaSceneRow {
+  entity: string;
+  name: string;
+}
+export interface SceneCall {
+  domain: string;
+  service: string;
+  data: Record<string, unknown>;
+}
+export interface RoomSceneMenu {
+  ha: HaSceneRow[];
+  custom: { id: string; name: string; confirm: boolean }[];
+  lights: string[];
+}
 
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
@@ -56,12 +67,20 @@ export function customCalls(scene: RoomScene | null | undefined): SceneCall[] {
     const domain = it.entity.split(".")[0] as string;
     if (!(SCENE_DOMAINS as readonly string[]).includes(domain)) continue;
     const id = { entity_id: it.entity };
-    const add = (service: string, extra: Record<string, unknown> = {}) => calls.push({ domain, service, data: { ...id, ...extra } });
-    if (it.on !== true) { add(domain === "cover" ? "close_cover" : "turn_off"); continue; }
+    const add = (service: string, extra: Record<string, unknown> = {}) =>
+      calls.push({ domain, service, data: { ...id, ...extra } });
+    if (it.on !== true) {
+      add(domain === "cover" ? "close_cover" : "turn_off");
+      continue;
+    }
     switch (domain) {
-      case "cover": if (fin(it.position)) add("set_cover_position", { position: it.position }); else add("open_cover"); break;
+      case "cover":
+        if (fin(it.position)) add("set_cover_position", { position: it.position });
+        else add("open_cover");
+        break;
       case "climate": {
-        const hvac = typeof it.hvac === "string" && it.hvac, t = fin(it.temperature);
+        const hvac = typeof it.hvac === "string" && it.hvac,
+          t = fin(it.temperature);
         if (hvac) add("set_hvac_mode", { hvac_mode: it.hvac });
         if (t) add("set_temperature", { temperature: it.temperature });
         if (!hvac && !t) add("turn_on");
@@ -99,7 +118,9 @@ export function presetCalls(which: "on" | "off", lights: string[]): SceneCall[] 
     const d = e.split(".")[0] ?? "";
     (by[d === "light" || d === "switch" ? d : "homeassistant"] as string[]).push(e);
   }
-  return Object.entries(by).filter(([, ids]) => ids.length).map(([domain, ids]) => ({ domain, service, data: { entity_id: ids } }));
+  return Object.entries(by)
+    .filter(([, ids]) => ids.length)
+    .map(([domain, ids]) => ({ domain, service, data: { entity_id: ids } }));
 }
 
 /** What the Room section lists for `f.rooms[index]`. All three empty: show no scene section. */
@@ -107,8 +128,15 @@ export function roomScenes(f: Floor, index: number, hass: SceneHass | null | und
   const room = Number.isInteger(index) ? f.rooms[index] : undefined;
   if (!isObj(room)) return { ha: [], custom: [], lights: [] };
   const custom = (Array.isArray(room.scenes) ? room.scenes : []).flatMap((s: unknown) =>
-    isObj(s) && typeof s.id === "string" && s.id && typeof s.name === "string" && s.name.trim() ? [{ id: s.id, name: s.name, confirm: sceneNeedsConfirm(s as unknown as RoomScene) }] : []);
-  const lights = [...new Set((roomSummary(f, index, undefined, {})?.devices ?? []).filter((d) => d.type === "light").map((d) => d.entity))];
+    isObj(s) && typeof s.id === "string" && s.id && typeof s.name === "string" && s.name.trim()
+      ? [{ id: s.id, name: s.name, confirm: sceneNeedsConfirm(s as unknown as RoomScene) }]
+      : [],
+  );
+  const lights = [
+    ...new Set(
+      (roomSummary(f, index, undefined, {})?.devices ?? []).filter((d) => d.type === "light").map((d) => d.entity),
+    ),
+  ];
   return { ha: haScenesFor(room, hass), custom, lights };
 }
 

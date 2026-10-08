@@ -16,7 +16,9 @@ class LiveKeep extends Directive {
     super(info);
     if (info.type !== PartType.PROPERTY) throw new Error("liveKeep binds a property, like lit's live");
   }
-  render(value: unknown): unknown { return value; }
+  render(value: unknown): unknown {
+    return value;
+  }
   override update(part: PropertyPart, [value]: [unknown]): unknown {
     const el = part.element as HTMLElement;
     if (this.bound !== el) {
@@ -24,7 +26,8 @@ class LiveKeep extends Directive {
       el.addEventListener("input", () => typing.add(el));
       el.addEventListener("change", () => typing.delete(el)); // a commit: show what was kept, clamped or refused
     }
-    if (part.name === "value" && typing.has(el) && (el.getRootNode() as Document | ShadowRoot).activeElement === el) return noChange;
+    if (part.name === "value" && typing.has(el) && (el.getRootNode() as Document | ShadowRoot).activeElement === el)
+      return noChange;
     if ((el as unknown as Record<string, unknown>)[part.name] === value) return noChange;
     setCommittedValue(part); // lit skips a write equal to its last one; the DOM has drifted, so force it (as `live` does)
     return value;

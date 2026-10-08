@@ -36,28 +36,75 @@ const now = () => new Date().toISOString();
 const st = (state, attributes = {}) => ({ state, attributes, last_changed: now() });
 const STATES = {
   off: {
-    "light.demo_kitchen": "off", "light.demo_living": "off", "light.demo_bedroom": "off", "switch.demo_hall": "off",
-    "switch.demo_tv_plug": "off", "binary_sensor.demo_hall_motion": "off", "climate.demo_living": "off",
-    "media_player.demo_office": "idle", "camera.demo_hall": "idle", "sensor.demo_living_temperature": "21.5",
-    "sensor.demo_bedroom_temperature": "19", "sensor.demo_bathroom_humidity": "54",
+    "light.demo_kitchen": "off",
+    "light.demo_living": "off",
+    "light.demo_bedroom": "off",
+    "switch.demo_hall": "off",
+    "switch.demo_tv_plug": "off",
+    "binary_sensor.demo_hall_motion": "off",
+    "climate.demo_living": "off",
+    "media_player.demo_office": "idle",
+    "camera.demo_hall": "idle",
+    "sensor.demo_living_temperature": "21.5",
+    "sensor.demo_bedroom_temperature": "19",
+    "sensor.demo_bathroom_humidity": "54",
   },
   on: {
-    "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }], "light.demo_living": "on", "light.demo_bedroom": "on",
-    "switch.demo_hall": "on", "switch.demo_tv_plug": "on", "binary_sensor.demo_hall_motion": "on", "climate.demo_living": "heat",
-    "media_player.demo_office": "playing", "camera.demo_hall": "streaming", "sensor.demo_living_temperature": "23.5",
+    "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }],
+    "light.demo_living": "on",
+    "light.demo_bedroom": "on",
+    "switch.demo_hall": "on",
+    "switch.demo_tv_plug": "on",
+    "binary_sensor.demo_hall_motion": "on",
+    "climate.demo_living": "heat",
+    "media_player.demo_office": "playing",
+    "camera.demo_hall": "streaming",
+    "sensor.demo_living_temperature": "23.5",
     "sensor.demo_bedroom_temperature": "12,5", // a comma decimal: must read as no value, never as a number (S2.5)
     "sensor.demo_bathroom_humidity": "unavailable",
   },
-  gone: Object.fromEntries(Object.keys({
-    "light.demo_kitchen": 0, "light.demo_living": 0, "light.demo_bedroom": 0, "switch.demo_hall": 0, "switch.demo_tv_plug": 0,
-    "binary_sensor.demo_hall_motion": 0, "climate.demo_living": 0, "media_player.demo_office": 0, "camera.demo_hall": 0,
-    "sensor.demo_living_temperature": 0, "sensor.demo_bedroom_temperature": 0, "sensor.demo_bathroom_humidity": 0,
-  }).map((k) => [k, "unavailable"])),
+  gone: Object.fromEntries(
+    Object.keys({
+      "light.demo_kitchen": 0,
+      "light.demo_living": 0,
+      "light.demo_bedroom": 0,
+      "switch.demo_hall": 0,
+      "switch.demo_tv_plug": 0,
+      "binary_sensor.demo_hall_motion": 0,
+      "climate.demo_living": 0,
+      "media_player.demo_office": 0,
+      "camera.demo_hall": 0,
+      "sensor.demo_living_temperature": 0,
+      "sensor.demo_bedroom_temperature": 0,
+      "sensor.demo_bathroom_humidity": 0,
+    }).map((k) => [k, "unavailable"]),
+  ),
 };
 // S7.6: after sunset, every device at rest but the kitchen light, so one room stays bright and the rest go dark.
-STATES.night = { ...STATES.off, "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }], "sun.sun": "below_horizon" };
+STATES.night = {
+  ...STATES.off,
+  "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }],
+  "sun.sun": "below_horizon",
+};
 // S14.2: the popup shots show the Living light with every control a colour lamp has (brightness, colour temperature, colour).
-const lamp = (hass, on) => on ? { ...hass, states: { ...hass.states, "light.demo_living": st("on", { friendly_name: "Living light", supported_color_modes: ["color_temp", "hs"], brightness: 128, min_color_temp_kelvin: 2200, max_color_temp_kelvin: 6500, color_temp_kelvin: 3000, hs_color: [30, 60] }) } } : hass;
+const lamp = (hass, on) =>
+  on
+    ? {
+        ...hass,
+        states: {
+          ...hass.states,
+          "light.demo_living": st("on", {
+            friendly_name: "Living light",
+            supported_color_modes: ["color_temp", "hs"],
+            brightness: 128,
+            min_color_temp_kelvin: 2200,
+            max_color_temp_kelvin: 6500,
+            color_temp_kelvin: 3000,
+            hs_color: [30, 60],
+          }),
+        },
+      }
+    : hass;
 function hassFor(which, dark) {
   const states = {};
   for (const [id, v] of Object.entries(STATES[which])) states[id] = Array.isArray(v) ? st(v[0], v[1]) : st(v);
@@ -67,68 +114,196 @@ function hassFor(which, dark) {
 // S2.13: the monitored types on their own, on the ground floor, beside the demo's devices. Grey on the disc, in every theme.
 const MON = ["battery", "inverter", "server", "access_point"];
 const monLayout = structuredClone(layout);
-MON.forEach((t, i) => monLayout.floors.ground.devices.push({ id: `mon-${t}`, type: t, entity: `sensor.demo_${t}`, x: 500 + i * 70, y: 500 }));
+MON.forEach((t, i) =>
+  monLayout.floors.ground.devices.push({
+    id: `mon-${t}`,
+    type: t,
+    entity: `sensor.demo_${t}`,
+    x: 500 + i * 70,
+    y: 500,
+  }),
+);
 // S7.8: a person with a room sensor. Off: away, at the placed spot. On: home, and the sensor names the Kitchen, so the
 // icon stands beside the kitchen light, not on it. Gone: unavailable. The demo's own Alex (first floor) has no sensor.
-monLayout.floors.ground.devices.push({ id: "mon-person", type: "person", entity: "person.demo_sam", name: "Sam", x: 770, y: 500, room: "sensor.demo_sam_room" });
-Object.assign(STATES.off, { "person.demo_sam": "not_home", "sensor.demo_sam_room": "not_home", "person.demo_alex": "not_home" });
+monLayout.floors.ground.devices.push({
+  id: "mon-person",
+  type: "person",
+  entity: "person.demo_sam",
+  name: "Sam",
+  x: 770,
+  y: 500,
+  room: "sensor.demo_sam_room",
+});
+Object.assign(STATES.off, {
+  "person.demo_sam": "not_home",
+  "sensor.demo_sam_room": "not_home",
+  "person.demo_alex": "not_home",
+});
 Object.assign(STATES.on, { "person.demo_sam": "home", "sensor.demo_sam_room": "Kitchen", "person.demo_alex": "home" });
-Object.assign(STATES.gone, { "person.demo_sam": "unavailable", "sensor.demo_sam_room": "unavailable", "person.demo_alex": "unavailable" });
+Object.assign(STATES.gone, {
+  "person.demo_sam": "unavailable",
+  "sensor.demo_sam_room": "unavailable",
+  "person.demo_alex": "unavailable",
+});
 // The demo's own radar (first floor, Office) gets the same on/off/gone treatment as the ground floor's mon-radar,
 // so the first-floor shots show it doing something too, not permanently idle for want of a state.
-Object.assign(STATES.off, { "binary_sensor.demo_office_radar_occupancy": "off", "sensor.demo_office_radar_target_1_x": "unavailable", "sensor.demo_office_radar_target_1_y": "unavailable" });
-Object.assign(STATES.on, { "binary_sensor.demo_office_radar_occupancy": "on", "sensor.demo_office_radar_target_1_x": "0", "sensor.demo_office_radar_target_1_y": "1000" });
-Object.assign(STATES.gone, { "binary_sensor.demo_office_radar_occupancy": "unavailable", "sensor.demo_office_radar_target_1_x": "unavailable", "sensor.demo_office_radar_target_1_y": "unavailable" });
+Object.assign(STATES.off, {
+  "binary_sensor.demo_office_radar_occupancy": "off",
+  "sensor.demo_office_radar_target_1_x": "unavailable",
+  "sensor.demo_office_radar_target_1_y": "unavailable",
+});
+Object.assign(STATES.on, {
+  "binary_sensor.demo_office_radar_occupancy": "on",
+  "sensor.demo_office_radar_target_1_x": "0",
+  "sensor.demo_office_radar_target_1_y": "1000",
+});
+Object.assign(STATES.gone, {
+  "binary_sensor.demo_office_radar_occupancy": "unavailable",
+  "sensor.demo_office_radar_target_1_x": "unavailable",
+  "sensor.demo_office_radar_target_1_y": "unavailable",
+});
 // S7.9: an mmWave radar in Living, rot 180 (facing south into the room), with two tracked targets. Off: no one
 // home, the presence sensor is off and the target sensors read unavailable, so no dot is drawn — the fade rule
 // alone would not show that, only the missing-dot check does. On: presence on, two targets at different spots.
 monLayout.floors.ground.devices.push({
-  id: "mon-radar", type: "radar", entity: "binary_sensor.demo_radar_presence", name: "Living radar", x: 250, y: 60, rot: 180,
-  targets: [{ x: "sensor.demo_radar_t1_x", y: "sensor.demo_radar_t1_y" }, { x: "sensor.demo_radar_t2_x", y: "sensor.demo_radar_t2_y" }],
+  id: "mon-radar",
+  type: "radar",
+  entity: "binary_sensor.demo_radar_presence",
+  name: "Living radar",
+  x: 250,
+  y: 60,
+  rot: 180,
+  targets: [
+    { x: "sensor.demo_radar_t1_x", y: "sensor.demo_radar_t1_y" },
+    { x: "sensor.demo_radar_t2_x", y: "sensor.demo_radar_t2_y" },
+  ],
 });
-Object.assign(STATES.off, { "binary_sensor.demo_radar_presence": "off", "sensor.demo_radar_t1_x": "unavailable", "sensor.demo_radar_t1_y": "unavailable", "sensor.demo_radar_t2_x": "unavailable", "sensor.demo_radar_t2_y": "unavailable" });
-Object.assign(STATES.on, { "binary_sensor.demo_radar_presence": "on", "sensor.demo_radar_t1_x": "0", "sensor.demo_radar_t1_y": "2000", "sensor.demo_radar_t2_x": "-1000", "sensor.demo_radar_t2_y": "1000" });
-Object.assign(STATES.gone, { "binary_sensor.demo_radar_presence": "unavailable", "sensor.demo_radar_t1_x": "unavailable", "sensor.demo_radar_t1_y": "unavailable", "sensor.demo_radar_t2_x": "unavailable", "sensor.demo_radar_t2_y": "unavailable" });
+Object.assign(STATES.off, {
+  "binary_sensor.demo_radar_presence": "off",
+  "sensor.demo_radar_t1_x": "unavailable",
+  "sensor.demo_radar_t1_y": "unavailable",
+  "sensor.demo_radar_t2_x": "unavailable",
+  "sensor.demo_radar_t2_y": "unavailable",
+});
+Object.assign(STATES.on, {
+  "binary_sensor.demo_radar_presence": "on",
+  "sensor.demo_radar_t1_x": "0",
+  "sensor.demo_radar_t1_y": "2000",
+  "sensor.demo_radar_t2_x": "-1000",
+  "sensor.demo_radar_t2_y": "1000",
+});
+Object.assign(STATES.gone, {
+  "binary_sensor.demo_radar_presence": "unavailable",
+  "sensor.demo_radar_t1_x": "unavailable",
+  "sensor.demo_radar_t1_y": "unavailable",
+  "sensor.demo_radar_t2_x": "unavailable",
+  "sensor.demo_radar_t2_y": "unavailable",
+});
 // S7.10: a vacuum in the Hall. Off: docked (idle grey, no spin). On: cleaning (active colour, spinning). Gone: unavailable.
-monLayout.floors.ground.devices.push({ id: "mon-vacuum", type: "vacuum", entity: "vacuum.demo_hall", name: "Hall vacuum", x: 440, y: 550 });
+monLayout.floors.ground.devices.push({
+  id: "mon-vacuum",
+  type: "vacuum",
+  entity: "vacuum.demo_hall",
+  name: "Hall vacuum",
+  x: 440,
+  y: 550,
+});
 // S9.3: a tv device, on/off like a switch (its own entity, distinct from the media_player the demo already draws
 // as type "media" — that one's states are "idle"/"playing", not "on"/"off"). Nothing in the demo layout had a
 // "tv" device before, so the shots never showed one; without this a screen-shot review can never catch a fixed
 // TV blue regressing (CLAUDE.md finding 16).
-monLayout.floors.ground.devices.push({ id: "mon-tv", type: "tv", entity: "media_player.demo_tv", name: "Hall TV", x: 510, y: 550 });
+monLayout.floors.ground.devices.push({
+  id: "mon-tv",
+  type: "tv",
+  entity: "media_player.demo_tv",
+  name: "Hall TV",
+  x: 510,
+  y: 550,
+});
 Object.assign(STATES.off, { "media_player.demo_tv": "off" });
 Object.assign(STATES.on, { "media_player.demo_tv": "on" });
 Object.assign(STATES.gone, { "media_player.demo_tv": "unavailable" });
 // Objects in 2.5D: a TV on the Living room's north wall (it stands against the wall and shows its screen), and a speaker
 // standing in the room (a cabinet with two drivers). The Hall TV above is on the south wall, so it shows its back.
-monLayout.floors.ground.devices.push({ id: "mon-tv-living", type: "tv", entity: "media_player.demo_tv_living", name: "Living TV", x: 400, y: 70 });
-monLayout.floors.ground.devices.push({ id: "mon-speaker", type: "speaker", entity: "media_player.demo_sonos", name: "Sonos", x: 440, y: 300 });
+monLayout.floors.ground.devices.push({
+  id: "mon-tv-living",
+  type: "tv",
+  entity: "media_player.demo_tv_living",
+  name: "Living TV",
+  x: 400,
+  y: 70,
+});
+monLayout.floors.ground.devices.push({
+  id: "mon-speaker",
+  type: "speaker",
+  entity: "media_player.demo_sonos",
+  name: "Sonos",
+  x: 440,
+  y: 300,
+});
 Object.assign(STATES.off, { "media_player.demo_tv_living": "off", "media_player.demo_sonos": "idle" });
 Object.assign(STATES.on, { "media_player.demo_tv_living": "on", "media_player.demo_sonos": "playing" });
 Object.assign(STATES.gone, { "media_player.demo_tv_living": "unavailable", "media_player.demo_sonos": "unavailable" });
 // S18.12: a tv, speaker and computer piece with an entity (tracking it) beside the same three without one, in the Kitchen.
 // Idle, the linked ones must read blue and the plain ones grey; on, linked ones go amber (and the tv and speaker send waves).
-const pc = (id, symbol, x, y, entity) => ({ id, symbol, x, y, rot: 0, w: symbol === "tv" ? 120 : symbol === "speaker" ? 25 : 120, h: symbol === "tv" ? 10 : symbol === "speaker" ? 25 : 60, ...(entity ? { entity } : {}) });
+const pc = (id, symbol, x, y, entity) => ({
+  id,
+  symbol,
+  x,
+  y,
+  rot: 0,
+  w: symbol === "tv" ? 120 : symbol === "speaker" ? 25 : 120,
+  h: symbol === "tv" ? 10 : symbol === "speaker" ? 25 : 60,
+  ...(entity ? { entity } : {}),
+});
 monLayout.floors.ground.furniture.push(
-  pc("shot-tv-linked", "tv", 560, 40, "media_player.shot_tv"), pc("shot-tv-plain", "tv", 720, 40),
-  pc("shot-sp-linked", "speaker", 540, 100, "media_player.shot_sp"), pc("shot-sp-plain", "speaker", 620, 100),
-  pc("shot-pc-linked", "computer", 580, 160, "switch.shot_pc"), pc("shot-pc-plain", "computer", 720, 160));
+  pc("shot-tv-linked", "tv", 560, 40, "media_player.shot_tv"),
+  pc("shot-tv-plain", "tv", 720, 40),
+  pc("shot-sp-linked", "speaker", 540, 100, "media_player.shot_sp"),
+  pc("shot-sp-plain", "speaker", 620, 100),
+  pc("shot-pc-linked", "computer", 580, 160, "switch.shot_pc"),
+  pc("shot-pc-plain", "computer", 720, 160),
+);
 Object.assign(STATES.off, { "media_player.shot_tv": "off", "media_player.shot_sp": "idle", "switch.shot_pc": "off" });
-Object.assign(STATES.on, { "media_player.shot_tv": "playing", "media_player.shot_sp": "playing", "switch.shot_pc": "on" });
-Object.assign(STATES.gone, { "media_player.shot_tv": "unavailable", "media_player.shot_sp": "unavailable", "switch.shot_pc": "unavailable" });
+Object.assign(STATES.on, {
+  "media_player.shot_tv": "playing",
+  "media_player.shot_sp": "playing",
+  "switch.shot_pc": "on",
+});
+Object.assign(STATES.gone, {
+  "media_player.shot_tv": "unavailable",
+  "media_player.shot_sp": "unavailable",
+  "switch.shot_pc": "unavailable",
+});
 // S18.14: a siren (rings while on), a siren-typed device on a plain entity (danger colour, no rings) and an alarm panel
 // (armed = danger red, disarmed = idle), in the Hall beside the vacuum. Off, on and gone, like the rest.
 monLayout.floors.ground.devices.push(
   { id: "mon-siren", type: "siren", entity: "siren.demo_hall", name: "Hall siren", x: 360, y: 550 },
   { id: "mon-siren-plain", type: "siren", entity: "switch.demo_horn", name: "Horn", x: 360, y: 500 },
-  { id: "mon-alarm", type: "alarm", entity: "alarm_control_panel.demo_home", name: "Alarm panel", x: 290, y: 550 });
-Object.assign(STATES.off, { "siren.demo_hall": "off", "switch.demo_horn": "off", "alarm_control_panel.demo_home": "disarmed" });
-Object.assign(STATES.on, { "siren.demo_hall": "on", "switch.demo_horn": "on", "alarm_control_panel.demo_home": "armed_away" });
-Object.assign(STATES.gone, { "siren.demo_hall": "unavailable", "switch.demo_horn": "unavailable", "alarm_control_panel.demo_home": "unavailable" });
+  { id: "mon-alarm", type: "alarm", entity: "alarm_control_panel.demo_home", name: "Alarm panel", x: 290, y: 550 },
+);
+Object.assign(STATES.off, {
+  "siren.demo_hall": "off",
+  "switch.demo_horn": "off",
+  "alarm_control_panel.demo_home": "disarmed",
+});
+Object.assign(STATES.on, {
+  "siren.demo_hall": "on",
+  "switch.demo_horn": "on",
+  "alarm_control_panel.demo_home": "armed_away",
+});
+Object.assign(STATES.gone, {
+  "siren.demo_hall": "unavailable",
+  "switch.demo_horn": "unavailable",
+  "alarm_control_panel.demo_home": "unavailable",
+});
 // S8.13: an open contact door and window draw their alert line in "on"; closed in "off", unknown in "gone".
 Object.assign(STATES.off, { "binary_sensor.demo_front_door": "off", "binary_sensor.demo_bedroom_window": "off" });
 Object.assign(STATES.on, { "binary_sensor.demo_front_door": "on", "binary_sensor.demo_bedroom_window": "on" });
-Object.assign(STATES.gone, { "binary_sensor.demo_front_door": "unavailable", "binary_sensor.demo_bedroom_window": "unavailable" });
+Object.assign(STATES.gone, {
+  "binary_sensor.demo_front_door": "unavailable",
+  "binary_sensor.demo_bedroom_window": "unavailable",
+});
 Object.assign(STATES.off, { "vacuum.demo_hall": "docked" });
 Object.assign(STATES.on, { "vacuum.demo_hall": "cleaning" });
 Object.assign(STATES.gone, { "vacuum.demo_hall": "unavailable" });
@@ -145,38 +320,96 @@ STATES.heating = { ...STATES.on, "climate.demo_living": ["heat", { hvac_action: 
 // Plugs are active only while they draw power (Diego, 2026-10). The TV plug is switched on and draws 35 W: active.
 // A second plug is switched on and idles at 0.4 W: grey, not blue. Off: both switched off, 0 W. Gone: unavailable.
 monLayout.floors.ground.devices.find((d) => d.id === "plug-living").power = "sensor.demo_tv_plug_power";
-monLayout.floors.ground.devices.push({ id: "mon-plug-idle", type: "plug", entity: "switch.demo_idle_plug", name: "Idle plug", power: "sensor.demo_idle_plug_power", x: 60, y: 400 });
+monLayout.floors.ground.devices.push({
+  id: "mon-plug-idle",
+  type: "plug",
+  entity: "switch.demo_idle_plug",
+  name: "Idle plug",
+  power: "sensor.demo_idle_plug_power",
+  x: 60,
+  y: 400,
+});
 const watts = (n) => ["" + n, { unit_of_measurement: "W", device_class: "power" }];
-Object.assign(STATES.off, { "sensor.demo_tv_plug_power": watts(0), "switch.demo_idle_plug": "off", "sensor.demo_idle_plug_power": watts(0) });
-Object.assign(STATES.on, { "sensor.demo_tv_plug_power": watts(35), "switch.demo_idle_plug": "on", "sensor.demo_idle_plug_power": watts(0.4) });
-Object.assign(STATES.gone, { "sensor.demo_tv_plug_power": "unavailable", "switch.demo_idle_plug": "unavailable", "sensor.demo_idle_plug_power": "unavailable" });
+Object.assign(STATES.off, {
+  "sensor.demo_tv_plug_power": watts(0),
+  "switch.demo_idle_plug": "off",
+  "sensor.demo_idle_plug_power": watts(0),
+});
+Object.assign(STATES.on, {
+  "sensor.demo_tv_plug_power": watts(35),
+  "switch.demo_idle_plug": "on",
+  "sensor.demo_idle_plug_power": watts(0.4),
+});
+Object.assign(STATES.gone, {
+  "sensor.demo_tv_plug_power": "unavailable",
+  "switch.demo_idle_plug": "unavailable",
+  "sensor.demo_idle_plug_power": "unavailable",
+});
 // A curtain (a cover) in the Hall: open it is drawn idle like closed, never orange (Diego, 2026-10). Closed in "off",
 // open in "on", unavailable in "gone".
-monLayout.floors.ground.devices.push({ id: "mon-curtain", type: "cover", entity: "cover.demo_curtain", name: "Hall curtain", x: 200, y: 550 });
+monLayout.floors.ground.devices.push({
+  id: "mon-curtain",
+  type: "cover",
+  entity: "cover.demo_curtain",
+  name: "Hall curtain",
+  x: 200,
+  y: 550,
+});
 Object.assign(STATES.off, { "cover.demo_curtain": "closed" });
 Object.assign(STATES.on, { "cover.demo_curtain": "open" });
 Object.assign(STATES.gone, { "cover.demo_curtain": "unavailable" });
 // Only the Hall's motion sensor on: its room gets the thin inner line. With the curtain open and the kitchen light on
 // beside it, so one picture shows the line, an idle open cover and a lit lamp.
-STATES.motion = { ...STATES.off, "binary_sensor.demo_hall_motion": "on", "cover.demo_curtain": "open", "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }] };
+STATES.motion = {
+  ...STATES.off,
+  "binary_sensor.demo_hall_motion": "on",
+  "cover.demo_curtain": "open",
+  "light.demo_kitchen": ["on", { rgb_color: [255, 170, 60] }],
+};
 
 // S11.1: sensors that belong to a room. Living owns two temperature sensors (their mean shows under the name, and the
 // loose icon is gone), a humidity sensor and the Hall's motion sensor; the Kitchen owns one that reads unavailable, so
 // it shows nothing. Built on a clone: demo/layout.json stays as it is.
 const roomLayout = structuredClone(monLayout);
 const rg = roomLayout.floors.ground.rooms;
-Object.assign(rg.find((r) => r.name === "Living"), { temps: ["sensor.demo_living_temperature", "sensor.demo_living_temp2"], humidity: ["sensor.demo_living_humidity"] });
-Object.assign(rg.find((r) => r.name === "Hall"), { motion: ["binary_sensor.demo_hall_motion"] });
-Object.assign(rg.find((r) => r.name === "Kitchen"), { temps: ["sensor.demo_kitchen_temp"], motion: ["binary_sensor.demo_kitchen_motion"] });
-STATES.roomsensors = { ...STATES.off, "sensor.demo_living_temperature": ["21", { unit_of_measurement: "°C" }], "sensor.demo_living_temp2": ["22.4", { unit_of_measurement: "°C" }], "sensor.demo_living_humidity": ["48", { unit_of_measurement: "%" }], "binary_sensor.demo_hall_motion": "on", "sensor.demo_kitchen_temp": "unavailable", "binary_sensor.demo_kitchen_motion": "unavailable" };
+Object.assign(
+  rg.find((r) => r.name === "Living"),
+  { temps: ["sensor.demo_living_temperature", "sensor.demo_living_temp2"], humidity: ["sensor.demo_living_humidity"] },
+);
+Object.assign(
+  rg.find((r) => r.name === "Hall"),
+  { motion: ["binary_sensor.demo_hall_motion"] },
+);
+Object.assign(
+  rg.find((r) => r.name === "Kitchen"),
+  { temps: ["sensor.demo_kitchen_temp"], motion: ["binary_sensor.demo_kitchen_motion"] },
+);
+STATES.roomsensors = {
+  ...STATES.off,
+  "sensor.demo_living_temperature": ["21", { unit_of_measurement: "°C" }],
+  "sensor.demo_living_temp2": ["22.4", { unit_of_measurement: "°C" }],
+  "sensor.demo_living_humidity": ["48", { unit_of_measurement: "%" }],
+  "binary_sensor.demo_hall_motion": "on",
+  "sensor.demo_kitchen_temp": "unavailable",
+  "binary_sensor.demo_kitchen_motion": "unavailable",
+};
 
 // S13: floor textures in 3D, on a clone. The lit Kitchen wears the lightest wood (the case that could saturate), Living a
 // checkerboard turned 30 degrees at 150%, the Hall dark wood.
 const texLayout = structuredClone(roomLayout);
 const tg = texLayout.floors.ground.rooms;
-Object.assign(tg.find((r) => r.name === "Kitchen"), { texture: "wood-light" });
-Object.assign(tg.find((r) => r.name === "Living"), { texture: "checker-classic", textureRot: 30, textureScale: 1.5 });
-Object.assign(tg.find((r) => r.name === "Hall"), { texture: "wood-dark" });
+Object.assign(
+  tg.find((r) => r.name === "Kitchen"),
+  { texture: "wood-light" },
+);
+Object.assign(
+  tg.find((r) => r.name === "Living"),
+  { texture: "checker-classic", textureRot: 30, textureScale: 1.5 },
+);
+Object.assign(
+  tg.find((r) => r.name === "Hall"),
+  { texture: "wood-dark" },
+);
 
 const shots = [];
 const errors = [];
@@ -188,7 +421,8 @@ const browser = await chromium.launch();
 try {
   // Themes: blueprint (the default), light, and Home Assistant's own, drawn under stand-in HA variables in a light and a dark set.
   const HA_VARS = {
-    light: "--primary-text-color:#212121;--secondary-text-color:#727272;--card-background-color:#ffffff;--secondary-background-color:#e5e5e5",
+    light:
+      "--primary-text-color:#212121;--secondary-text-color:#727272;--card-background-color:#ffffff;--secondary-background-color:#e5e5e5",
     dark: "--primary-text-color:#e1e1e1;--secondary-text-color:#9b9b9b;--card-background-color:#1c1c1c;--secondary-background-color:#282828",
   };
   const THEMES = [
@@ -198,77 +432,344 @@ try {
     { id: "ha-dark", theme: "ha", dark: true, vars: HA_VARS.dark, page: "#111111" },
   ];
   const cardShots = [];
-  for (const floor of Object.keys(layout.floors)) for (const which of Object.keys(STATES)) for (const t of THEMES) {
-    if (which === "night" || which === "vibrating" || which === "motion" || which === "roomsensors" || which === "heating") continue; // below: ground floor only, two themes each
-    cardShots.push({ name: `card-${floor}-${which}-${t.id}`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
-  }
+  for (const floor of Object.keys(layout.floors))
+    for (const which of Object.keys(STATES))
+      for (const t of THEMES) {
+        if (
+          which === "night" ||
+          which === "vibrating" ||
+          which === "motion" ||
+          which === "roomsensors" ||
+          which === "heating"
+        )
+          continue; // below: ground floor only, two themes each
+        cardShots.push({
+          name: `card-${floor}-${which}-${t.id}`,
+          floor,
+          which,
+          dark: t.dark,
+          theme: t.theme,
+          vars: t.vars,
+          page: t.page,
+        });
+      }
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
-    cardShots.push({ name: `card-ground-night-${t.id}`, floor: "ground", which: "night", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
+    cardShots.push({
+      name: `card-ground-night-${t.id}`,
+      floor: "ground",
+      which: "night",
+      dark: t.dark,
+      theme: t.theme,
+      vars: t.vars,
+      page: t.page,
+    });
   // S10.3: the front door's vibration sensor only exists on the ground floor's monLayout clone, so this shot is
   // ground-only, same restriction as night above.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
-    cardShots.push({ name: `card-ground-vibrating-${t.id}`, floor: "ground", which: "vibrating", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page });
+    cardShots.push({
+      name: `card-ground-vibrating-${t.id}`,
+      floor: "ground",
+      which: "vibrating",
+      dark: t.dark,
+      theme: t.theme,
+      vars: t.vars,
+      page: t.page,
+    });
   // The motion perimeter: ground floor, 2D and 2.5D, a dark and a light theme, at 3x so the line can be judged.
-  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const view of ["2d", "2.5d"])
-    cardShots.push({ name: `card-ground-motion-${t.id}${view === "2.5d" ? "-2-5d" : ""}`, floor: "ground", which: "motion", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view, dpr: 3 });
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    for (const view of ["2d", "2.5d"])
+      cardShots.push({
+        name: `card-ground-motion-${t.id}${view === "2.5d" ? "-2-5d" : ""}`,
+        floor: "ground",
+        which: "motion",
+        dark: t.dark,
+        theme: t.theme,
+        vars: t.vars,
+        page: t.page,
+        view,
+        dpr: 3,
+      });
   // S11.1: a room's own sensors: the readout under the name, no icons for them, the Hall's border; 2D and 2.5D, at 2x.
-  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const view of ["2d", "2.5d"])
-    cardShots.push({ name: `card-ground-roomsensors-${t.id}${view === "2.5d" ? "-2-5d" : ""}`, floor: "ground", which: "roomsensors", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view, dpr: 2, rooms: true });
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    for (const view of ["2d", "2.5d"])
+      cardShots.push({
+        name: `card-ground-roomsensors-${t.id}${view === "2.5d" ? "-2-5d" : ""}`,
+        floor: "ground",
+        which: "roomsensors",
+        dark: t.dark,
+        theme: t.theme,
+        vars: t.vars,
+        page: t.page,
+        view,
+        dpr: 2,
+        rooms: true,
+      });
   // S11.3/S11.4: the Living room picked by a real click, the room section and the filtered list in the left panel, with the lamp's
   // details open; blueprint and light, at 375 px (the list is folded by default there) and at 1000 px, and in 2.5D once.
-  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [375, 1000])
-    cardShots.push({ name: `card-ground-roompicked-${t.id}-${width}px`, floor: "ground", which: "roomsensors", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, rooms: true, pick: 0 });
-  cardShots.push({ name: "card-ground-roompicked-blueprint-2-5d", floor: "ground", which: "roomsensors", dark: false, theme: "blueprint", vars: "", page: "#0d1522", width: 1000, dpr: 2, rooms: true, pick: 0, view: "2.5d" });
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    for (const width of [375, 1000])
+      cardShots.push({
+        name: `card-ground-roompicked-${t.id}-${width}px`,
+        floor: "ground",
+        which: "roomsensors",
+        dark: t.dark,
+        theme: t.theme,
+        vars: t.vars,
+        page: t.page,
+        width,
+        dpr: 2,
+        rooms: true,
+        pick: 0,
+      });
+  cardShots.push({
+    name: "card-ground-roompicked-blueprint-2-5d",
+    floor: "ground",
+    which: "roomsensors",
+    dark: false,
+    theme: "blueprint",
+    vars: "",
+    page: "#0d1522",
+    width: 1000,
+    dpr: 2,
+    rooms: true,
+    pick: 0,
+    view: "2.5d",
+  });
   // S20.2: a floor pill pressed by a real click: the pill's ring and the floor's panel with its All off, at 1000 and 375 px.
-  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [375, 1000])
-    cardShots.push({ name: `card-ground-floorpicked-${t.id}-${width}px`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, cfg: { floor: "all" }, pill: "Ground" });
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    for (const width of [375, 1000])
+      cardShots.push({
+        name: `card-ground-floorpicked-${t.id}-${width}px`,
+        floor: "ground",
+        which: "on",
+        dark: t.dark,
+        theme: t.theme,
+        vars: t.vars,
+        page: t.page,
+        width,
+        dpr: 2,
+        cfg: { floor: "all" },
+        pill: "Ground",
+      });
   // 2.5D: both floors, at rest and lit, in the default, a light and a dark theme (the three that read differently).
-  for (const floor of Object.keys(layout.floors)) for (const which of ["off", "on"]) for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
-    cardShots.push({ name: `card-${floor}-${which}-${t.id}-2-5d`, floor, which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d" });
+  for (const floor of Object.keys(layout.floors))
+    for (const which of ["off", "on"])
+      for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
+        cardShots.push({
+          name: `card-${floor}-${which}-${t.id}-2-5d`,
+          floor,
+          which,
+          dark: t.dark,
+          theme: t.theme,
+          vars: t.vars,
+          page: t.page,
+          view: "2.5d",
+        });
   // Tilt 0 (top-down), the default and 1 (side-on) on both floors, lit, blueprint; and the cards with no text.
   const bp = THEMES[0];
-  for (const floor of Object.keys(layout.floors)) for (const tilt of [0, 0.5, 1])
-    cardShots.push({ name: `card-${floor}-on-blueprint-tilt-${String(tilt).replace(".", "-")}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", cfg: { tilt } });
-  for (const floor of Object.keys(layout.floors)) for (const view of ["2d", "2.5d"])
-    cardShots.push({ name: `card-${floor}-on-blueprint-${view.replace(".", "-")}-labels-off`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view, cfg: { labels: false } });
+  for (const floor of Object.keys(layout.floors))
+    for (const tilt of [0, 0.5, 1])
+      cardShots.push({
+        name: `card-${floor}-on-blueprint-tilt-${String(tilt).replace(".", "-")}`,
+        floor,
+        which: "on",
+        dark: bp.dark,
+        theme: bp.theme,
+        vars: bp.vars,
+        page: bp.page,
+        view: "2.5d",
+        cfg: { tilt },
+      });
+  for (const floor of Object.keys(layout.floors))
+    for (const view of ["2d", "2.5d"])
+      cardShots.push({
+        name: `card-${floor}-on-blueprint-${view.replace(".", "-")}-labels-off`,
+        floor,
+        which: "on",
+        dark: bp.dark,
+        theme: bp.theme,
+        vars: bp.vars,
+        page: bp.page,
+        view,
+        cfg: { labels: false },
+      });
   // The card turned by the user (config `rotation`, the same path the rotate buttons end on): 2D at 45 and 90, 2.5D at
   // 45 and 180 (the lift must still point up the screen), both floors; and the toolbar on a 375 px card, which wraps.
   for (const floor of Object.keys(layout.floors)) {
-    for (const rotation of [45, 90]) cardShots.push({ name: `card-${floor}-on-blueprint-rot-${rotation}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, cfg: { rotation } });
-    for (const rotation of [45, 180]) cardShots.push({ name: `card-${floor}-on-blueprint-2-5d-rot-${rotation}`, floor, which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", cfg: { rotation } });
+    for (const rotation of [45, 90])
+      cardShots.push({
+        name: `card-${floor}-on-blueprint-rot-${rotation}`,
+        floor,
+        which: "on",
+        dark: bp.dark,
+        theme: bp.theme,
+        vars: bp.vars,
+        page: bp.page,
+        cfg: { rotation },
+      });
+    for (const rotation of [45, 180])
+      cardShots.push({
+        name: `card-${floor}-on-blueprint-2-5d-rot-${rotation}`,
+        floor,
+        which: "on",
+        dark: bp.dark,
+        theme: bp.theme,
+        vars: bp.vars,
+        page: bp.page,
+        view: "2.5d",
+        cfg: { rotation },
+      });
   }
   // Radiator, speaker and TV solids: ground floor, lit and at rest, tilt 0.5 and 1, turned 0 and 90, light and blueprint.
-  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const tilt of [0.5, 1]) for (const rotation of [0, 90]) for (const which of ["off", "on", "heating"])
-    cardShots.push({ name: `card-ground-${which}-${t.id}-solids-tilt-${String(tilt).replace(".", "-")}-rot-${rotation}`, floor: "ground", which, dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, view: "2.5d", cfg: { tilt, rotation, active_list: false }, dpr: 2 });
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    for (const tilt of [0.5, 1])
+      for (const rotation of [0, 90])
+        for (const which of ["off", "on", "heating"])
+          cardShots.push({
+            name: `card-ground-${which}-${t.id}-solids-tilt-${String(tilt).replace(".", "-")}-rot-${rotation}`,
+            floor: "ground",
+            which,
+            dark: t.dark,
+            theme: t.theme,
+            vars: t.vars,
+            page: t.page,
+            view: "2.5d",
+            cfg: { tilt, rotation, active_list: false },
+            dpr: 2,
+          });
   // S14.2: the popup after a real tap on the Living light (light: brightness, colour temperature and colour sliders) and on the
   // plug (its confirm step), light and dark, wide and narrow; and the hover tooltip with a real mouse over the light.
-  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const width of [900, 375]) {
-    cardShots.push({ name: `card-ground-popup-${t.id}-${width}px`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, cfg: { active_list: false }, tap: 0 });
-    cardShots.push({ name: `card-ground-popup-confirm-${t.id}-${width}px`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, width, dpr: 2, cfg: { active_list: false }, tap: 3, tap2: true });
-  }
-  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) cardShots.push({ name: `card-ground-tooltip-${t.id}`, floor: "ground", which: "on", dark: t.dark, theme: t.theme, vars: t.vars, page: t.page, dpr: 2, cfg: { active_list: false }, hover: 0 });
-  cardShots.push({ name: "card-ground-on-blueprint-2-5d-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375 });
-  cardShots.push({ name: "card-ground-on-blueprint-2-5d-rot-45-375px", floor: "ground", which: "on", dark: bp.dark, theme: bp.theme, vars: bp.vars, page: bp.page, view: "2.5d", width: 375, cfg: { rotation: 45 } });
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    for (const width of [900, 375]) {
+      cardShots.push({
+        name: `card-ground-popup-${t.id}-${width}px`,
+        floor: "ground",
+        which: "on",
+        dark: t.dark,
+        theme: t.theme,
+        vars: t.vars,
+        page: t.page,
+        width,
+        dpr: 2,
+        cfg: { active_list: false },
+        tap: 0,
+      });
+      cardShots.push({
+        name: `card-ground-popup-confirm-${t.id}-${width}px`,
+        floor: "ground",
+        which: "on",
+        dark: t.dark,
+        theme: t.theme,
+        vars: t.vars,
+        page: t.page,
+        width,
+        dpr: 2,
+        cfg: { active_list: false },
+        tap: 3,
+        tap2: true,
+      });
+    }
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    cardShots.push({
+      name: `card-ground-tooltip-${t.id}`,
+      floor: "ground",
+      which: "on",
+      dark: t.dark,
+      theme: t.theme,
+      vars: t.vars,
+      page: t.page,
+      dpr: 2,
+      cfg: { active_list: false },
+      hover: 0,
+    });
+  cardShots.push({
+    name: "card-ground-on-blueprint-2-5d-375px",
+    floor: "ground",
+    which: "on",
+    dark: bp.dark,
+    theme: bp.theme,
+    vars: bp.vars,
+    page: bp.page,
+    view: "2.5d",
+    width: 375,
+  });
+  cardShots.push({
+    name: "card-ground-on-blueprint-2-5d-rot-45-375px",
+    floor: "ground",
+    which: "on",
+    dark: bp.dark,
+    theme: bp.theme,
+    vars: bp.vars,
+    page: bp.page,
+    view: "2.5d",
+    width: 375,
+    cfg: { rotation: 45 },
+  });
   for (const s of cardShots) {
-    const ctx = await browser.newContext({ viewport: { width: s.width ?? 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", ...(s.dpr ? { deviceScaleFactor: s.dpr } : {}) });
+    const ctx = await browser.newContext({
+      viewport: { width: s.width ?? 900, height: 700 },
+      colorScheme: "light",
+      reducedMotion: "reduce",
+      ...(s.dpr ? { deviceScaleFactor: s.dpr } : {}),
+    });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
-    page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
-    await page.setContent(`<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${s.page};${s.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
+    page.on("console", (m) => {
+      if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`);
+    });
+    await page.setContent(
+      `<!doctype html><meta charset="utf-8"><body style="margin:0;padding:12px;background:${s.page};${s.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`,
+    );
     await page.addScriptTag({ content: cardJs, type: "module" });
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-    await page.evaluate(([config, hass]) => {
-      const el = document.getElementById("c");
-      el.setConfig(config); el.hass = hass;
-      return el.updateComplete;
-    }, [{ layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.theme, ...(s.view ? { view: s.view } : {}), ...(s.cfg ?? {}) }, lamp(hassFor(s.which, s.dark), s.tap === 0 || s.hover === 0)]);
+    await page.evaluate(
+      ([config, hass]) => {
+        const el = document.getElementById("c");
+        el.setConfig(config);
+        el.hass = hass;
+        return el.updateComplete;
+      },
+      [
+        {
+          layout: s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout,
+          floor: s.floor,
+          theme: s.theme,
+          ...(s.view ? { view: s.view } : {}),
+          ...(s.cfg ?? {}),
+        },
+        lamp(hassFor(s.which, s.dark), s.tap === 0 || s.hover === 0),
+      ],
+    );
     if (s.pick !== undefined) {
       // A real click on bare floor, found with elementFromPoint (CLAUDE.md finding 3), then the first details chevron.
-      await page.evaluate(([reg]) => { const el = document.getElementById("c"); el.hass = { ...el.hass, ...reg }; return el.updateComplete; },
-        [{ entities: { "light.demo_living": { entity_id: "light.demo_living", device_id: "d1" } }, devices: { d1: { id: "d1", manufacturer: "Signify", model: "Hue white ambiance", sw_version: "1.88.1", area_id: "living" } }, areas: { living: { area_id: "living", name: "Living" } } }]);
+      await page.evaluate(
+        ([reg]) => {
+          const el = document.getElementById("c");
+          el.hass = { ...el.hass, ...reg };
+          return el.updateComplete;
+        },
+        [
+          {
+            entities: { "light.demo_living": { entity_id: "light.demo_living", device_id: "d1" } },
+            devices: {
+              d1: {
+                id: "d1",
+                manufacturer: "Signify",
+                model: "Hue white ambiance",
+                sw_version: "1.88.1",
+                area_id: "living",
+              },
+            },
+            areas: { living: { area_id: "living", name: "Living" } },
+          },
+        ],
+      );
       const at = await page.evaluate((i) => {
-        const sr = document.getElementById("c").shadowRoot, poly = sr.querySelector(`svg polygon[data-r="${i}"]`), r = poly.getBoundingClientRect();
-        for (let y = r.top + 6; y < r.bottom; y += 6) for (let x = r.left + 6; x < r.right; x += 6) if (sr.elementFromPoint(x, y) === poly) return { x, y };
+        const sr = document.getElementById("c").shadowRoot,
+          poly = sr.querySelector(`svg polygon[data-r="${i}"]`),
+          r = poly.getBoundingClientRect();
+        for (let y = r.top + 6; y < r.bottom; y += 6)
+          for (let x = r.left + 6; x < r.right; x += 6) if (sr.elementFromPoint(x, y) === poly) return { x, y };
         return null;
       }, s.pick);
       if (!at) errors.push(`${s.name}: no bare floor to click in room ${s.pick}`);
@@ -287,16 +788,28 @@ try {
       // Real mouse at the icon's own spot (CLAUDE.md finding 3), after checking the icon is the top element there.
       const i = s.tap ?? s.hover;
       const at = await page.evaluate((i) => {
-        const sr = document.getElementById("c").shadowRoot, r = sr.querySelector(`svg g[data-x="${i}"]`).getBoundingClientRect();
-        for (let a = 4; a < 12; a++) for (let b = 4; b < 12; b++) { const x = r.left + (r.width * a) / 16, y = r.top + (r.height * b) / 16; if (sr.elementFromPoint(x, y)?.closest(`g[data-x="${i}"]`)) return { x, y }; }
+        const sr = document.getElementById("c").shadowRoot,
+          r = sr.querySelector(`svg g[data-x="${i}"]`).getBoundingClientRect();
+        for (let a = 4; a < 12; a++)
+          for (let b = 4; b < 12; b++) {
+            const x = r.left + (r.width * a) / 16,
+              y = r.top + (r.height * b) / 16;
+            if (sr.elementFromPoint(x, y)?.closest(`g[data-x="${i}"]`)) return { x, y };
+          }
         return null;
       }, i);
       if (!at) errors.push(`${s.name}: icon ${i} is covered`);
-      else if (s.hover !== undefined) { await page.mouse.move(at.x + 30, at.y + 30); await page.mouse.move(at.x, at.y, { steps: 4 }); await page.locator("floorplan-studio-card").locator(".fp-tip").waitFor(); }
-      else {
+      else if (s.hover !== undefined) {
+        await page.mouse.move(at.x + 30, at.y + 30);
+        await page.mouse.move(at.x, at.y, { steps: 4 });
+        await page.locator("floorplan-studio-card").locator(".fp-tip").waitFor();
+      } else {
         await page.mouse.click(at.x, at.y);
         await page.locator("floorplan-studio-card").locator(".fp-pop").waitFor();
-        if (s.tap2) { await page.locator("floorplan-studio-card").locator(".fp-pop-do").click(); await page.locator("floorplan-studio-card").locator(".fp-pop-confirm, .fp-pop-cancel").first().waitFor(); }
+        if (s.tap2) {
+          await page.locator("floorplan-studio-card").locator(".fp-pop-do").click();
+          await page.locator("floorplan-studio-card").locator(".fp-pop-confirm, .fp-pop-cancel").first().waitFor();
+        }
       }
     }
     const nodes = await page.evaluate(() => document.getElementById("c").shadowRoot.querySelectorAll("svg *").length);
@@ -310,21 +823,73 @@ try {
   // (a real mouse drag), at 2x, with the demo's devices lit.
   const ORIGIN = "http://fp.test";
   const shots3d = [];
-  for (const floor of Object.keys(layout.floors)) for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) for (const orbit of [false, true])
-    shots3d.push({ name: `card-${floor}-on-${t.id}-3d${orbit ? "-orbit" : ""}`, floor, t, orbit });
+  for (const floor of Object.keys(layout.floors))
+    for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+      for (const orbit of [false, true])
+        shots3d.push({ name: `card-${floor}-on-${t.id}-3d${orbit ? "-orbit" : ""}`, floor, t, orbit });
   // S12.4: a room picked with a real click, the Active list open (the pick ring, the room section, the model clear of the list).
-  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) shots3d.push({ name: `card-ground-on-${t.id}-3d-picked`, floor: "ground", t, orbit: false, pick: true });
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    shots3d.push({ name: `card-ground-on-${t.id}-3d-picked`, floor: "ground", t, orbit: false, pick: true });
   // S12.5: live state in 3D. Heating: every device on, the Living radiator heating, the Hall's motion edge (the Hall has a
   // `motion` list in roomLayout), a lit kitchen lamp; and night: only the kitchen lamp lit, so one room glows and the rest go dark.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) {
-    shots3d.push({ name: `card-ground-heating-${t.id}-3d`, floor: "ground", t, orbit: false, which: "heating", rooms: true });
-    shots3d.push({ name: `card-ground-heating-${t.id}-3d-orbit`, floor: "ground", t, orbit: true, which: "heating", rooms: true });
-    shots3d.push({ name: `card-ground-night-${t.id}-3d`, floor: "ground", t, orbit: false, which: "night", rooms: true });
-    shots3d.push({ name: `card-ground-night-${t.id}-3d-orbit`, floor: "ground", t, orbit: true, which: "night", rooms: true });
+    shots3d.push({
+      name: `card-ground-heating-${t.id}-3d`,
+      floor: "ground",
+      t,
+      orbit: false,
+      which: "heating",
+      rooms: true,
+    });
+    shots3d.push({
+      name: `card-ground-heating-${t.id}-3d-orbit`,
+      floor: "ground",
+      t,
+      orbit: true,
+      which: "heating",
+      rooms: true,
+    });
+    shots3d.push({
+      name: `card-ground-night-${t.id}-3d`,
+      floor: "ground",
+      t,
+      orbit: false,
+      which: "night",
+      rooms: true,
+    });
+    shots3d.push({
+      name: `card-ground-night-${t.id}-3d-orbit`,
+      floor: "ground",
+      t,
+      orbit: true,
+      which: "night",
+      rooms: true,
+    });
     // S13: textured floors, by day and with the kitchen lamp lit at night (its light on the walls).
-    shots3d.push({ name: `card-ground-textured-${t.id}-3d`, floor: "ground", t, orbit: false, which: "heating", tex: true });
-    shots3d.push({ name: `card-ground-textured-night-${t.id}-3d`, floor: "ground", t, orbit: false, which: "night", tex: true });
-    shots3d.push({ name: `card-ground-textured-night-${t.id}-3d-orbit`, floor: "ground", t, orbit: true, which: "night", tex: true });
+    shots3d.push({
+      name: `card-ground-textured-${t.id}-3d`,
+      floor: "ground",
+      t,
+      orbit: false,
+      which: "heating",
+      tex: true,
+    });
+    shots3d.push({
+      name: `card-ground-textured-night-${t.id}-3d`,
+      floor: "ground",
+      t,
+      orbit: false,
+      which: "night",
+      tex: true,
+    });
+    shots3d.push({
+      name: `card-ground-textured-night-${t.id}-3d-orbit`,
+      floor: "ground",
+      t,
+      orbit: true,
+      which: "night",
+      tex: true,
+    });
   }
   // S14.2: the popup after a real tap on the Living light in 3D, and the hover tooltip.
   for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light")) {
@@ -332,32 +897,65 @@ try {
     shots3d.push({ name: `card-ground-tooltip-${t.id}-3d`, floor: "ground", t, orbit: false, hover: 0 });
   }
   for (const s of shots3d) {
-    const ctx = await browser.newContext({ viewport: { width: 900, height: 700 }, colorScheme: "light", reducedMotion: "reduce", deviceScaleFactor: 2 });
+    const ctx = await browser.newContext({
+      viewport: { width: 900, height: 700 },
+      colorScheme: "light",
+      reducedMotion: "reduce",
+      deviceScaleFactor: 2,
+    });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${s.name}: ${e}`));
-    page.on("console", (m) => { if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`); });
+    page.on("console", (m) => {
+      if (m.type() === "error") errors.push(`${s.name}: console.error ${m.text()}`);
+    });
     await page.route("**/*", (route) => {
       const url = new URL(route.request().url());
       if (url.origin !== ORIGIN) return route.abort();
-      if (url.pathname === "/") return route.fulfill({ contentType: "text/html", body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${s.t.page};${s.t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>` });
+      if (url.pathname === "/")
+        return route.fulfill({
+          contentType: "text/html",
+          body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${s.t.page};${s.t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`,
+        });
       const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
       if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
       return route.fulfill({ contentType: "text/javascript", body: readFileSync(resolve(DIST, m[1])) });
     });
     await page.goto(`${ORIGIN}/`);
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-    await page.evaluate(([config, hass]) => {
-      const el = document.getElementById("c");
-      el.setConfig(config); el.hass = hass;
-      return el.updateComplete;
-    }, [{ layout: s.tex ? texLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout, floor: s.floor, theme: s.t.theme, view: "3d", active_list: !!s.pick }, lamp(hassFor(s.which ?? "on", s.t.dark), s.tap === 0 || s.hover === 0)]);
+    await page.evaluate(
+      ([config, hass]) => {
+        const el = document.getElementById("c");
+        el.setConfig(config);
+        el.hass = hass;
+        return el.updateComplete;
+      },
+      [
+        {
+          layout: s.tex ? texLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout,
+          floor: s.floor,
+          theme: s.t.theme,
+          view: "3d",
+          active_list: !!s.pick,
+        },
+        lamp(hassFor(s.which ?? "on", s.t.dark), s.tap === 0 || s.hover === 0),
+      ],
+    );
     const holder = page.locator("floorplan-studio-card").locator(".fp-3d");
-    try { await page.waitForFunction(() => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1, null, { timeout: 15000 }); }
-    catch { errors.push(`${s.name}: the 3D view never drew a frame (WebGL missing, or the chunk failed)`); }
+    try {
+      await page.waitForFunction(
+        () => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1,
+        null,
+        { timeout: 15000 },
+      );
+    } catch {
+      errors.push(`${s.name}: the 3D view never drew a frame (WebGL missing, or the chunk failed)`);
+    }
     if (s.orbit) {
       const b = await holder.boundingBox();
       await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
-      await page.mouse.down(); await page.mouse.move(b.x + b.width / 2 + 160, b.y + b.height / 2 - 40, { steps: 8 }); await page.mouse.up();
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width / 2 + 160, b.y + b.height / 2 - 40, { steps: 8 });
+      await page.mouse.up();
       await page.waitForTimeout(300);
     }
     if (s.pick) {
@@ -365,21 +963,32 @@ try {
       const at = await page.evaluate(() => globalThis.__fp3d.project(60, 60, 1));
       await page.mouse.click(at.x, at.y);
       await page.waitForTimeout(800);
-      if (!(await holder.getAttribute("data-ring"))) errors.push(`${s.name}: the click at ${at.x},${at.y} picked no room`);
+      if (!(await holder.getAttribute("data-ring")))
+        errors.push(`${s.name}: the click at ${at.x},${at.y} picked no room`);
     }
     if (s.tap !== undefined || s.hover !== undefined) {
       await page.waitForTimeout(800); // the camera settles after its first frame
       const at = await page.evaluate((i) => globalThis.__fp3d.where("device", i), s.tap ?? s.hover);
-      if (s.hover !== undefined) { await page.mouse.move(at.x + 60, at.y + 60); await page.mouse.move(at.x, at.y, { steps: 4 }); await page.locator("floorplan-studio-card").locator(".fp-tip").waitFor(); }
-      else { await page.mouse.click(at.x, at.y); await page.locator("floorplan-studio-card").locator(".fp-pop").waitFor(); }
-    } else     await page.mouse.move(0, 0);
+      if (s.hover !== undefined) {
+        await page.mouse.move(at.x + 60, at.y + 60);
+        await page.mouse.move(at.x, at.y, { steps: 4 });
+        await page.locator("floorplan-studio-card").locator(".fp-tip").waitFor();
+      } else {
+        await page.mouse.click(at.x, at.y);
+        await page.locator("floorplan-studio-card").locator(".fp-pop").waitFor();
+      }
+    } else await page.mouse.move(0, 0);
     await page.locator("floorplan-studio-card").screenshot({ path: `${OUT}/${s.name}.png` });
     shots.push(s.name);
     await ctx.close();
   }
   for (const theme of ["blueprint", "light", "ha"]) {
     const name = `editor-${theme}`;
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: "light", reducedMotion: "reduce" });
+    const ctx = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      colorScheme: "light",
+      reducedMotion: "reduce",
+    });
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
     await page.addInitScript((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
@@ -394,17 +1003,21 @@ try {
 }
 
 // Compare with the baseline byte for byte. Same machine, same build, same pixels: any difference is a change.
-const same = (n) => existsSync(`${BASE}/${n}.png`) && readFileSync(`${BASE}/${n}.png`).equals(readFileSync(`${OUT}/${n}.png`));
+const same = (n) =>
+  existsSync(`${BASE}/${n}.png`) && readFileSync(`${BASE}/${n}.png`).equals(readFileSync(`${OUT}/${n}.png`));
 const hasBase = existsSync(BASE);
 const changed = hasBase ? shots.filter((n) => !same(n)) : [];
 const cell = (n) => {
   const tag = !hasBase ? "" : !existsSync(`${BASE}/${n}.png`) ? " <b>NEW</b>" : same(n) ? "" : " <b>CHANGED</b>";
   return `<figure><img src="${n}.png" alt="${n}"><figcaption>${n}${tag}</figcaption></figure>`;
 };
-writeFileSync(`${OUT}/index.html`, `<!doctype html><meta charset="utf-8"><title>floorplan shots</title>
+writeFileSync(
+  `${OUT}/index.html`,
+  `<!doctype html><meta charset="utf-8"><title>floorplan shots</title>
 <style>body{font:13px system-ui;margin:16px}section{display:flex;flex-wrap:wrap;gap:12px}figure{margin:0;width:440px}img{width:100%;border:1px solid #ccc}b{color:#c33}</style>
 <h1>floorplan shots</h1>${hasBase ? `<p>${changed.length} of ${shots.length} differ from shots/baseline.</p>` : "<p>No baseline yet: run with --accept once you have looked.</p>"}
-<section>${shots.map(cell).join("")}</section>`);
+<section>${shots.map(cell).join("")}</section>`,
+);
 
 if (args.has("--accept")) {
   rmSync(BASE, { recursive: true, force: true });
@@ -414,7 +1027,8 @@ if (args.has("--accept")) {
 }
 
 console.log(`${shots.length} images in ${OUT}/ (open ${OUT}/index.html)`);
-if (hasBase && !args.has("--accept")) console.log(changed.length ? `differs from baseline: ${changed.join(", ")}` : "identical to baseline");
+if (hasBase && !args.has("--accept"))
+  console.log(changed.length ? `differs from baseline: ${changed.join(", ")}` : "identical to baseline");
 if (errors.length) {
   console.error(`\n${errors.length} problem(s):\n${errors.join("\n")}`);
   process.exit(1);

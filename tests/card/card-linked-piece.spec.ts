@@ -14,12 +14,33 @@ const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 // Living (room 0) is 500 x 400 cm. A linked tv at (120, 150) and an unlinked one at (330, 230): clear of every demo device.
 const layout = structuredClone(demo);
 layout.floors.ground.furniture.push(
-  { id: "tv-linked", symbol: "tv", x: 120, y: 150, rot: 0, w: 120, h: 50, name: "Big screen", entity: "media_player.demo_tv" },
+  {
+    id: "tv-linked",
+    symbol: "tv",
+    x: 120,
+    y: 150,
+    rot: 0,
+    w: 120,
+    h: 50,
+    name: "Big screen",
+    entity: "media_player.demo_tv",
+  },
   { id: "tv-plain", symbol: "tv", x: 330, y: 230, rot: 0, w: 120, h: 50 },
 );
-const LINKED = layout.floors.ground.furniture.length - 2, PLAIN = LINKED + 1;
-const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-07T09:30:15Z" });
-const STATES = (tv: string) => ({ "light.demo_living": st("on"), "light.demo_kitchen": st("off"), "switch.demo_hall": st("off"), "switch.demo_tv_plug": st("on"), "media_player.demo_tv": st(tv, { friendly_name: "Living TV" }) });
+const LINKED = layout.floors.ground.furniture.length - 2,
+  PLAIN = LINKED + 1;
+const st = (state: string, attributes: Record<string, unknown> = {}) => ({
+  state,
+  attributes,
+  last_changed: "2026-10-07T09:30:15Z",
+});
+const STATES = (tv: string) => ({
+  "light.demo_living": st("on"),
+  "light.demo_kitchen": st("off"),
+  "switch.demo_hall": st("off"),
+  "switch.demo_tv_plug": st("on"),
+  "media_player.demo_tv": st(tv, { friendly_name: "Living TV" }),
+});
 
 async function boot(page: Page, tv = "playing", width = 1280, view = "2d") {
   await page.setViewportSize({ width, height: 900 });
@@ -29,11 +50,21 @@ async function boot(page: Page, tv = "playing", width = 1280, view = "2d") {
   await page.evaluate(
     ([config, states]) => {
       const w = window as unknown as { __calls: string[]; __info: string[] };
-      w.__calls = []; w.__info = [];
-      const el = document.getElementById("card") as unknown as HTMLElement & { setConfig(c: unknown): void; hass: unknown; updateComplete: Promise<unknown> };
+      w.__calls = [];
+      w.__info = [];
+      const el = document.getElementById("card") as unknown as HTMLElement & {
+        setConfig(c: unknown): void;
+        hass: unknown;
+        updateComplete: Promise<unknown>;
+      };
       el.addEventListener("hass-more-info", (e) => w.__info.push((e as CustomEvent).detail.entityId));
       el.setConfig(config);
-      el.hass = { states, callService: (d: string, s: string, data: { entity_id: string }) => { w.__calls.push(`${d}.${s} ${data.entity_id}`); } };
+      el.hass = {
+        states,
+        callService: (d: string, s: string, data: { entity_id: string }) => {
+          w.__calls.push(`${d}.${s} ${data.entity_id}`);
+        },
+      };
       return el.updateComplete;
     },
     [{ layout, floor: "ground", view }, STATES(tv)] as const,
@@ -42,13 +73,18 @@ async function boot(page: Page, tv = "playing", width = 1280, view = "2d") {
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
 const infos = (page: Page) => page.evaluate(() => (window as unknown as { __info: string[] }).__info);
-const picked = (page: Page) => card(page).evaluate((el) => [...el.shadowRoot!.querySelectorAll("svg polygon.room-picked")].map((p) => Number(p.getAttribute("data-picked"))));
+const picked = (page: Page) =>
+  card(page).evaluate((el) =>
+    [...el.shadowRoot!.querySelectorAll("svg polygon.room-picked")].map((p) => Number(p.getAttribute("data-picked"))),
+  );
 
 /** The centre of piece `i`, checked to be the real top element there (the piece's own group, not the room under it). */
 async function piecePoint(page: Page, i: number) {
   const p = await card(page).evaluate((el, i) => {
     const g = el.shadowRoot!.querySelector<SVGGElement>(`svg g[data-f="${i}"]`)!;
-    const r = g.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2;
+    const r = g.getBoundingClientRect(),
+      x = r.x + r.width / 2,
+      y = r.y + r.height / 2;
     return { x, y, hit: !!el.shadowRoot!.elementFromPoint(x, y)?.closest(`g[data-f="${i}"]`) };
   }, i);
   expect(p.hit, `piece ${i} is the top element at its centre`).toBe(true);
@@ -58,8 +94,13 @@ async function piecePoint(page: Page, i: number) {
 test.describe("a linked tv piece in the card", () => {
   test("a playing one is in the Active list under its own name; an unlinked one never is", async ({ page }) => {
     await boot(page, "playing");
-    const rows = (await card(page).locator("css=.fp-active-body .fp-active-row").allTextContents()).map((s) => s.replace(/\s+/g, " ").trim());
-    expect(rows.some((r) => r.startsWith("Big screen")), rows.join("|")).toBe(true);
+    const rows = (await card(page).locator("css=.fp-active-body .fp-active-row").allTextContents()).map((s) =>
+      s.replace(/\s+/g, " ").trim(),
+    );
+    expect(
+      rows.some((r) => r.startsWith("Big screen")),
+      rows.join("|"),
+    ).toBe(true);
   });
 
   test("its Active row is more-info too, as its tap on the plan is", async ({ page }) => {
@@ -74,7 +115,17 @@ test.describe("a linked tv piece in the card", () => {
     await boot(page, "paused");
     await expect(card(page).locator(`css=svg g[data-f="${LINKED}"]`)).toHaveClass(/\bon\b/);
     await expect(card(page).locator(`css=svg g[data-f="${PLAIN}"]`)).not.toHaveClass(/\bon\b/);
-    await card(page).evaluate((el) => { const e = el as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> }; e.hass = { ...e.hass, states: { ...e.hass.states, "media_player.demo_tv": { state: "off", attributes: {}, last_changed: "2026-10-07T10:00:00Z" } } }; return e.updateComplete; });
+    await card(page).evaluate((el) => {
+      const e = el as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> };
+      e.hass = {
+        ...e.hass,
+        states: {
+          ...e.hass.states,
+          "media_player.demo_tv": { state: "off", attributes: {}, last_changed: "2026-10-07T10:00:00Z" },
+        },
+      };
+      return e.updateComplete;
+    });
     await expect(card(page).locator(`css=svg g[data-f="${LINKED}"]`)).not.toHaveClass(/\bon\b/);
   });
 
@@ -119,8 +170,11 @@ test.describe("a linked tv piece in the card", () => {
     await boot(page, "paused");
     // bare floor of room 0, away from the pieces
     const f = await card(page).evaluate((el) => {
-      const poly = el.shadowRoot!.querySelector<SVGPolygonElement>('svg polygon[data-r="0"]')!, r = poly.getBoundingClientRect();
-      for (let y = r.top + 6; y < r.bottom; y += 6) for (let x = r.left + 6; x < r.right; x += 6) if (el.shadowRoot!.elementFromPoint(x, y) === poly) return { x, y };
+      const poly = el.shadowRoot!.querySelector<SVGPolygonElement>('svg polygon[data-r="0"]')!,
+        r = poly.getBoundingClientRect();
+      for (let y = r.top + 6; y < r.bottom; y += 6)
+        for (let x = r.left + 6; x < r.right; x += 6)
+          if (el.shadowRoot!.elementFromPoint(x, y) === poly) return { x, y };
       return null;
     });
     await page.mouse.click(f!.x, f!.y);

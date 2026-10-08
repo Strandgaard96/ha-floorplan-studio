@@ -12,19 +12,61 @@ const LIGHT: Device = { id: "l1", type: "light", entity: "light.demo_living", x:
 const SWITCH: Device = { id: "s1", type: "switch", entity: "switch.demo_hall", x: 200, y: 100 };
 const CAMERA: Device = { id: "c1", type: "camera", entity: "camera.demo_hall", x: 300, y: 100 };
 const MEDIA: Device = { id: "m1", type: "media", entity: "media_player.demo_office", x: 400, y: 100 };
-const SENSOR_DOOR: Door = { id: "d1", name: "Front door", kind: "door", a: [0, 0], b: [100, 0], sensors: ["binary_sensor.demo_front_door"] };
-const COVER_DOOR: Door = { id: "d2", name: "Garage door", kind: "door", a: [0, 100], b: [100, 100], cover: "cover.demo_garage_door" };
+const SENSOR_DOOR: Door = {
+  id: "d1",
+  name: "Front door",
+  kind: "door",
+  a: [0, 0],
+  b: [100, 0],
+  sensors: ["binary_sensor.demo_front_door"],
+};
+const COVER_DOOR: Door = {
+  id: "d2",
+  name: "Garage door",
+  kind: "door",
+  a: [0, 100],
+  b: [100, 100],
+  cover: "cover.demo_garage_door",
+};
 const COVER_AND_SENSOR_DOOR: Door = {
-  id: "d6", name: "Garage door", kind: "door", a: [0, 500], b: [100, 500],
-  cover: "cover.demo_garage_door", sensors: ["binary_sensor.demo_garage_contact"],
+  id: "d6",
+  name: "Garage door",
+  kind: "door",
+  a: [0, 500],
+  b: [100, 500],
+  cover: "cover.demo_garage_door",
+  sensors: ["binary_sensor.demo_garage_contact"],
 };
 const MULTI_DOOR: Door = {
-  id: "d4", name: "Side door", kind: "door", a: [0, 300], b: [100, 300],
-  sensors: ["binary_sensor.side_contact"], vibration: ["binary_sensor.side_vibration"],
+  id: "d4",
+  name: "Side door",
+  kind: "door",
+  a: [0, 300],
+  b: [100, 300],
+  sensors: ["binary_sensor.side_contact"],
+  vibration: ["binary_sensor.side_vibration"],
 };
 const NOTHING_DOOR: Door = { id: "d5", name: "Bare door", kind: "door", a: [0, 400], b: [100, 400] };
-const TWO_ATTACHED: Unlinked = { id: "u1", type: "other", name: "Water heater", x: 100, y: 100, rot: 0, scale: 1, attached: ["sensor.wh_temp", "sensor.wh_pressure"] };
-const ONE_ATTACHED: Unlinked = { id: "u2", type: "other", name: "Fuse box", x: 200, y: 100, rot: 0, scale: 1, attached: ["sensor.fuse_box"] };
+const TWO_ATTACHED: Unlinked = {
+  id: "u1",
+  type: "other",
+  name: "Water heater",
+  x: 100,
+  y: 100,
+  rot: 0,
+  scale: 1,
+  attached: ["sensor.wh_temp", "sensor.wh_pressure"],
+};
+const ONE_ATTACHED: Unlinked = {
+  id: "u2",
+  type: "other",
+  name: "Fuse box",
+  x: 200,
+  y: 100,
+  rot: 0,
+  scale: 1,
+  attached: ["sensor.fuse_box"],
+};
 const NONE_ATTACHED: Unlinked = { id: "u3", type: "other", name: "Bookshelf", x: 300, y: 100, rot: 0, scale: 1 };
 
 const NS = "http://www.w3.org/2000/svg";
@@ -71,17 +113,32 @@ type Opts = NonNullable<Parameters<typeof bindDeviceActions>[4]>;
 /** Everything a test needs: the svg, the host with its spies, the binder already bound, and a `tap` / `hold` helper. */
 function rig(o: { devices?: Device[]; doors?: Door[]; unlinked?: Unlinked; opts?: Opts; count?: number }) {
   vi.useFakeTimers();
-  const callService = vi.fn(), moreInfo = vi.fn(), openPopup = vi.fn(), openChooser = vi.fn();
-  const svg = o.doors ? doorSvgFixture(o.doors.length) : svgFixture(o.unlinked ? 1 : (o.devices?.length ?? 1), o.unlinked ? "data-u" : "data-x");
+  const callService = vi.fn(),
+    moreInfo = vi.fn(),
+    openPopup = vi.fn(),
+    openChooser = vi.fn();
+  const svg = o.doors
+    ? doorSvgFixture(o.doors.length)
+    : svgFixture(o.unlinked ? 1 : (o.devices?.length ?? 1), o.unlinked ? "data-u" : "data-x");
   const host = Object.assign(document.createElement("div"), { hass: { states: {}, callService } as unknown as Hass });
   host.addEventListener("hass-more-info", moreInfo);
   const unbind = bindDeviceActions(
-    svg, host, (i) => o.devices?.[i], (i) => o.doors?.[i],
+    svg,
+    host,
+    (i) => o.devices?.[i],
+    (i) => o.doors?.[i],
     { openPopup, openChooser, getUnlinked: () => o.unlinked, ...o.opts },
   );
   const el = (i = 0) => svg.querySelector(`[data-x="${i}"], [data-d="${i}"], [data-u="${i}"]`)!;
-  const tap = (i = 0, ms = 50) => { pointer(el(i), "pointerdown"); vi.advanceTimersByTime(ms); pointer(el(i), "pointerup"); };
-  const hold = (i = 0) => { pointer(el(i), "pointerdown"); vi.advanceTimersByTime(HOLD_MS); };
+  const tap = (i = 0, ms = 50) => {
+    pointer(el(i), "pointerdown");
+    vi.advanceTimersByTime(ms);
+    pointer(el(i), "pointerup");
+  };
+  const hold = (i = 0) => {
+    pointer(el(i), "pointerdown");
+    vi.advanceTimersByTime(HOLD_MS);
+  };
   const detail = () => (moreInfo.mock.calls[0]![0] as CustomEvent).detail;
   return { svg, host, callService, moreInfo, openPopup, openChooser, unbind, el, tap, hold, detail };
 }
@@ -151,7 +208,7 @@ describe("actions: a tap opens the popup and operates nothing (S14.2)", () => {
     expect(r.openPopup).toHaveBeenCalledTimes(2);
   });
 
-  it("a tap on the inner path resolves through closest(\"g[data-x]\") (CLAUDE.md finding 3)", () => {
+  it('a tap on the inner path resolves through closest("g[data-x]") (CLAUDE.md finding 3)', () => {
     const r = rig({ devices: [LIGHT, SWITCH] });
     const path = r.el(1).querySelector("path")!;
     pointer(path, "pointerdown");
@@ -208,7 +265,8 @@ describe("actions: a tap opens the popup and operates nothing (S14.2)", () => {
 // A camera, media player or speaker has no toggle (NO_TOGGLE): the popup shows name, state and More info only. That
 // is the popup's business (popup.ts); the binder's is to ask for it, the same as for any device.
 describe("actions: devices without a toggle ask for the popup too", () => {
-  it.each([CAMERA,
+  it.each([
+    CAMERA,
     { id: "b", type: "battery", entity: "sensor.b", x: 1, y: 1 } as Device,
     { id: "i", type: "inverter", entity: "sensor.i", x: 1, y: 1 } as Device,
     { id: "sv", type: "server", entity: "sensor.sv", x: 1, y: 1 } as Device,
@@ -228,13 +286,16 @@ describe("actions: devices without a toggle ask for the popup too", () => {
     MEDIA,
     { id: "sp", type: "speaker", entity: "media_player.kitchen", x: 1, y: 1 } as Device,
     { id: "tv", type: "tv", entity: "media_player.lounge_tv", x: 1, y: 1 } as Device,
-  ])("$type with a media_player: a tap opens that player's more-info at once, with no popup (Diego, 2026-10-07)", (dev) => {
-    const r = rig({ devices: [dev] });
-    r.tap();
-    expect(r.openPopup).not.toHaveBeenCalled();
-    expect(r.detail()).toEqual({ entityId: dev.entity });
-    expect(r.callService).not.toHaveBeenCalled();
-  });
+  ])(
+    "$type with a media_player: a tap opens that player's more-info at once, with no popup (Diego, 2026-10-07)",
+    (dev) => {
+      const r = rig({ devices: [dev] });
+      r.tap();
+      expect(r.openPopup).not.toHaveBeenCalled();
+      expect(r.detail()).toEqual({ entityId: dev.entity });
+      expect(r.callService).not.toHaveBeenCalled();
+    },
+  );
 
   it("a tv on a switch (no media_player) still gets the popup, so its toggle stays reachable", () => {
     const dev = { id: "tv2", type: "tv", entity: "switch.tv_plug", x: 1, y: 1 } as Device;
@@ -250,7 +311,15 @@ describe("actions: devices without a toggle ask for the popup too", () => {
   });
 
   it("a heater with two TRVs: a tap asks for the popup, a HOLD opens more-info for the heater's own entity", () => {
-    const dev: Device = { id: "h1", type: "heater", entity: "climate.demo_heater", name: "Living room heater", a: [0, 0], b: [10, 0], trvs: ["climate.trv1", "climate.trv2"] };
+    const dev: Device = {
+      id: "h1",
+      type: "heater",
+      entity: "climate.demo_heater",
+      name: "Living room heater",
+      a: [0, 0],
+      b: [10, 0],
+      trvs: ["climate.trv1", "climate.trv2"],
+    };
     const r = rig({ devices: [dev] });
     r.tap();
     expect(r.openPopup).toHaveBeenCalledTimes(1);
@@ -263,7 +332,14 @@ describe("actions: devices without a toggle ask for the popup too", () => {
   });
 
   it("a light with a bound switch: a hold opens more-info for the light alone, never the chooser", () => {
-    const dev: Device = { id: "l1", type: "light", entity: "light.demo_living", bound: "switch.demo_living", x: 100, y: 100 };
+    const dev: Device = {
+      id: "l1",
+      type: "light",
+      entity: "light.demo_living",
+      bound: "switch.demo_living",
+      x: 100,
+      y: 100,
+    };
     const r = rig({ devices: [dev] });
     r.hold();
     expect(r.detail()).toEqual({ entityId: "light.demo_living" });
@@ -396,7 +472,7 @@ describe("actions: doors (S2.3, S2.7, S14.2)", () => {
     expect(r.callService).not.toHaveBeenCalled();
   });
 
-  it("a tap on the door's inner <title> still resolves via closest(\"line[data-d]\")", () => {
+  it('a tap on the door\'s inner <title> still resolves via closest("line[data-d]")', () => {
     const r = rig({ doors: [SENSOR_DOOR] });
     const title = r.el().querySelector("title")!;
     pointer(title, "pointerdown");
@@ -424,7 +500,10 @@ describe("actions: doors (S2.3, S2.7, S14.2)", () => {
   it("a hold on a door with two entities opens the chooser with both", () => {
     const r = rig({ doors: [MULTI_DOOR] });
     r.hold();
-    expect(r.openChooser).toHaveBeenCalledWith("Side door", ["binary_sensor.side_contact", "binary_sensor.side_vibration"]);
+    expect(r.openChooser).toHaveBeenCalledWith("Side door", [
+      "binary_sensor.side_contact",
+      "binary_sensor.side_vibration",
+    ]);
     expect(r.openPopup).not.toHaveBeenCalled();
   });
 
@@ -448,13 +527,19 @@ describe("actions: doors (S2.3, S2.7, S14.2)", () => {
   });
 
   it("entitiesOfDoor includes the cover entity", () => {
-    expect(entitiesOfDoor(COVER_AND_SENSOR_DOOR)).toEqual(["cover.demo_garage_door", "binary_sensor.demo_garage_contact"]);
+    expect(entitiesOfDoor(COVER_AND_SENSOR_DOOR)).toEqual([
+      "cover.demo_garage_door",
+      "binary_sensor.demo_garage_contact",
+    ]);
   });
 
   it("a HOLD on a door with a cover and a sensor opens the chooser, cover row included, not the popup", () => {
     const r = rig({ doors: [COVER_AND_SENSOR_DOOR] });
     r.hold();
-    expect(r.openChooser).toHaveBeenCalledWith("Garage door", ["cover.demo_garage_door", "binary_sensor.demo_garage_contact"]);
+    expect(r.openChooser).toHaveBeenCalledWith("Garage door", [
+      "cover.demo_garage_door",
+      "binary_sensor.demo_garage_contact",
+    ]);
     pointer(r.el(), "pointerup");
     expect(r.openPopup).not.toHaveBeenCalled(); // the hold consumed the gesture
   });
@@ -506,7 +591,7 @@ describe("actions: an unlinked appliance (g[data-u]) with attached entities", ()
     expect(r.openPopup).not.toHaveBeenCalled();
   });
 
-  it("a tap on the inner path still resolves via closest(\"g[data-u]\") (CLAUDE.md finding 3)", () => {
+  it('a tap on the inner path still resolves via closest("g[data-u]") (CLAUDE.md finding 3)', () => {
     const r = rig({ unlinked: ONE_ATTACHED });
     const path = r.el().querySelector("path")!;
     pointer(path, "pointerdown");
@@ -535,7 +620,10 @@ describe("actions: opts.resolve (S12.4, the 3D view picks with a ray)", () => {
     r.unbind();
     let answer: Element | null = r.el(1);
     const openPopup = vi.fn();
-    const unbind = bindDeviceActions(r.svg, r.host, (i) => [LIGHT, SWITCH][i], undefined, { openPopup, resolve: () => answer });
+    const unbind = bindDeviceActions(r.svg, r.host, (i) => [LIGHT, SWITCH][i], undefined, {
+      openPopup,
+      resolve: () => answer,
+    });
     pointer(r.svg, "pointerdown"); // the target is the svg itself, which carries no data-x
     pointer(r.svg, "pointerup");
     expect(openPopup).toHaveBeenCalledTimes(1);
@@ -554,14 +642,26 @@ describe("actions: opts.resolve (S12.4, the 3D view picks with a ray)", () => {
 });
 
 describe("actions: a speaker or TV object linked to a media player stands in for the player", () => {
-  const obj = (type: Unlinked["type"], attached?: string[]): Unlinked => ({ id: "u9", type, name: "Object", x: 10, y: 10, rot: 0, scale: 1, ...(attached ? { attached } : {}) });
-  it.each(["speaker", "tv"] as const)("a tap on a %s with a media_player opens that player's more-info and no popup", (type) => {
-    const r = rig({ unlinked: obj(type, ["sensor.noise", "media_player.living"]) });
-    r.tap();
-    expect(r.detail()).toEqual({ entityId: "media_player.living" });
-    expect(r.openPopup).not.toHaveBeenCalled();
-    expect(r.callService).not.toHaveBeenCalled();
+  const obj = (type: Unlinked["type"], attached?: string[]): Unlinked => ({
+    id: "u9",
+    type,
+    name: "Object",
+    x: 10,
+    y: 10,
+    rot: 0,
+    scale: 1,
+    ...(attached ? { attached } : {}),
   });
+  it.each(["speaker", "tv"] as const)(
+    "a tap on a %s with a media_player opens that player's more-info and no popup",
+    (type) => {
+      const r = rig({ unlinked: obj(type, ["sensor.noise", "media_player.living"]) });
+      r.tap();
+      expect(r.detail()).toEqual({ entityId: "media_player.living" });
+      expect(r.openPopup).not.toHaveBeenCalled();
+      expect(r.callService).not.toHaveBeenCalled();
+    },
+  );
   it("a hold does the same", () => {
     const r = rig({ unlinked: obj("speaker", ["media_player.living"]) });
     r.hold();

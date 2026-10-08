@@ -35,14 +35,37 @@ export interface ActiveDevice {
  *   access_point, boiler, car, ups, printer, other). A radar is "on" like a motion sensor (`MOTION_TYPES`).
  */
 export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "always" | "cleaning" | "never"> = {
-  light: "on", motion: "on", contact: "on", heater: "on", climate: "on", ac: "on", tv: "on", media: "on",
-  plug: "on", computer: "on", person: "on", speaker: "on",
+  light: "on",
+  motion: "on",
+  contact: "on",
+  heater: "on",
+  climate: "on",
+  ac: "on",
+  tv: "on",
+  media: "on",
+  plug: "on",
+  computer: "on",
+  person: "on",
+  speaker: "on",
   camera: "always",
   vacuum: "cleaning",
-  cover: "on", switch: "never", temp: "never", humidity: "never", battery: "never", inverter: "never", server: "never",
-  access_point: "never", lock: "never", vibration: "never", other: "never", boiler: "never", car: "never",
-  ups: "never", printer: "never",
-  siren: "on", alarm: "on", // a sounding siren; an alarm panel that is armed or triggered
+  cover: "on",
+  switch: "never",
+  temp: "never",
+  humidity: "never",
+  battery: "never",
+  inverter: "never",
+  server: "never",
+  access_point: "never",
+  lock: "never",
+  vibration: "never",
+  other: "never",
+  boiler: "never",
+  car: "never",
+  ups: "never",
+  printer: "never",
+  siren: "on",
+  alarm: "on", // a sounding siren; an alarm panel that is armed or triggered
   radar: "on", // a radar that sees someone is motion like any other (MOTION_TYPES); it was "never" until 0.12.24
 };
 
@@ -60,11 +83,22 @@ export const ACTIVE_LIST_RULE: Record<DeviceType, "on" | "always" | "cleaning" |
  *  `--fp-room` in every theme, so the camera row borrows it instead of a plan token never meant for this
  *  background. */
 const COLOR_VAR: Partial<Record<DeviceType, string>> = {
-  light: "--fp-dev-light", motion: "--fp-dev-motion", contact: "--fp-dev-contact", heater: "--fp-dev-heater",
-  climate: "--fp-dev-climate", tv: "--fp-dev-tv", media: "--fp-dev-media",
-  plug: "--fp-dev-plug", computer: "--fp-dev-computer", camera: "--fp-ink", person: "--fp-dev-person",
-  vacuum: "--fp-dev-vacuum", speaker: "--fp-dev-speaker", radar: "--fp-dev-radar",
-  siren: "--fp-danger", alarm: "--fp-danger", // no token of their own: the danger red every theme already has
+  light: "--fp-dev-light",
+  motion: "--fp-dev-motion",
+  contact: "--fp-dev-contact",
+  heater: "--fp-dev-heater",
+  climate: "--fp-dev-climate",
+  tv: "--fp-dev-tv",
+  media: "--fp-dev-media",
+  plug: "--fp-dev-plug",
+  computer: "--fp-dev-computer",
+  camera: "--fp-ink",
+  person: "--fp-dev-person",
+  vacuum: "--fp-dev-vacuum",
+  speaker: "--fp-dev-speaker",
+  radar: "--fp-dev-radar",
+  siren: "--fp-danger",
+  alarm: "--fp-danger", // no token of their own: the danger red every theme already has
 };
 
 /** What `renderFloor` takes besides state, so the list reads a plug exactly as the plan does. */
@@ -105,7 +139,13 @@ export function nameFor(d: Device, state: StateOverlay | undefined): string {
  *  the list when it is on, under the door's own name, so pulling a sensor off the plan into a door (S10.3's other
  *  half) never makes it vanish from here. `field` picks which of the door's own entity lists to read; `placed` is
  *  every entity that already has a device icon somewhere in the layout, so that one is never listed twice. */
-function doorAttachedRows(door: Door, field: "sensors" | "vibration", state: StateOverlay | undefined, placed: ReadonlySet<string>, floorKey: string): ActiveDevice[] {
+function doorAttachedRows(
+  door: Door,
+  field: "sensors" | "vibration",
+  state: StateOverlay | undefined,
+  placed: ReadonlySet<string>,
+  floorKey: string,
+): ActiveDevice[] {
   const type: DeviceType = field === "sensors" ? "contact" : "vibration";
   const list = door[field];
   if (!Array.isArray(list)) return [];
@@ -132,10 +172,19 @@ export function activeDevices(layout: Layout, state: StateOverlay | undefined, o
   // A linked tv, speaker or computer piece is listed as the device of its type; an entity already listed (a device, or another piece) is not repeated.
   const listed = new Set(placed);
   for (const [floorKey, floor] of Object.entries(layout.floors)) {
-    const pieces = (floor.furniture ?? []).flatMap((m) => { const d = pieceDevice(m); return d && !listed.has(d.entity) && listed.add(d.entity) ? [d] : []; });
+    const pieces = (floor.furniture ?? []).flatMap((m) => {
+      const d = pieceDevice(m);
+      return d && !listed.has(d.entity) && listed.add(d.entity) ? [d] : [];
+    });
     for (const d of [...floor.devices, ...pieces]) {
       if (!isActive(d, state, opts)) continue;
-      out.push({ entity: d.entity, name: nameFor(d, state), type: d.type, floor: floorKey, colorVar: colorVarFor(d, state) });
+      out.push({
+        entity: d.entity,
+        name: nameFor(d, state),
+        type: d.type,
+        floor: floorKey,
+        colorVar: colorVarFor(d, state),
+      });
     }
     for (const door of floor.doors ?? []) {
       out.push(...doorAttachedRows(door, "sensors", state, placed, floorKey));

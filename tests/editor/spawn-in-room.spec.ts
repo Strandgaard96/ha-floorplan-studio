@@ -5,9 +5,13 @@ import type { Layout } from "../../src/core/schema";
 // ABOVE the texture (it was reported as lost). Real page.mouse at real coordinates (finding 3); the layout is read back from the editor.
 
 const EDITOR = "floorplan-studio-editor";
-const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
+const layoutOf = (page: Page) =>
+  page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const ground = async (page: Page) => (await layoutOf(page)).floors.ground;
-const middle = (pts: number[][]) => [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+const middle = (pts: number[][]) => [
+  pts.reduce((s, p) => s + p[0], 0) / pts.length,
+  pts.reduce((s, p) => s + p[1], 0) / pts.length,
+];
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -27,13 +31,16 @@ async function addFurniture(page: Page, symbol: string) {
   await page.locator("#addFurn").selectOption(symbol);
 }
 
-test("a tree added with the Kitchen selected lands in the middle of the Kitchen, above its texture", async ({ page }) => {
+test("a tree added with the Kitchen selected lands in the middle of the Kitchen, above its texture", async ({
+  page,
+}) => {
   const before = await ground(page);
   const k = before.rooms.findIndex((r) => r.name === "Kitchen");
   await pickRoom(page, k);
   await addFurniture(page, "tree");
   const after = await ground(page);
-  const m = middle(before.rooms[k].pts), t = after.furniture[after.furniture.length - 1];
+  const m = middle(before.rooms[k].pts),
+    t = after.furniture[after.furniture.length - 1];
   expect(t.symbol).toBe("tree");
   // The demo kitchen's light stands on its middle, so the tree is nudged 40 cm right, never stacked on it; still inside the room.
   expect(Math.hypot(t.x - m[0], t.y - m[1])).toBeLessThanOrEqual(45);
@@ -41,7 +48,8 @@ test("a tree added with the Kitchen selected lands in the middle of the Kitchen,
   // drawn after (above) every room fill in the same svg
   const order = await page.evaluate((tag) => {
     const svg = document.querySelector(tag)!.shadowRoot?.querySelector("svg") ?? document.querySelector(`${tag} svg`)!;
-    const all = [...svg.querySelectorAll("*")], tree = svg.querySelector("g[data-f]:last-of-type") ?? [...svg.querySelectorAll("g[data-f]")].pop()!;
+    const all = [...svg.querySelectorAll("*")],
+      tree = svg.querySelector("g[data-f]:last-of-type") ?? [...svg.querySelectorAll("g[data-f]")].pop()!;
     const rooms = [...svg.querySelectorAll("polygon[data-r]")];
     return rooms.every((r) => all.indexOf(r) < all.indexOf(tree));
   }, EDITOR);
@@ -57,7 +65,8 @@ test("with no room selected the spot is unchanged: outside the house", async ({ 
 
 test("an unlinked object also goes to the selected room's middle", async ({ page }) => {
   const before = await ground(page);
-  const k = before.rooms.findIndex((r) => r.name === "Kitchen"), m = middle(before.rooms[k].pts);
+  const k = before.rooms.findIndex((r) => r.name === "Kitchen"),
+    m = middle(before.rooms[k].pts);
   await pickRoom(page, k);
   await page.locator('details.menu > summary:text-is("Add")').click();
   await page.locator("#addUnlDev").selectOption("speaker");

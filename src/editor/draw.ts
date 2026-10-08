@@ -9,8 +9,16 @@ import { newId, slug, type Sel } from "./state";
 
 export type DrawKind = "room" | "zone" | "water" | "outline" | "wall" | "opening" | "extra";
 /** S4.2: the HA area a room or zone is drawn for, from "Areas not on the plan". */
-export interface AreaPreset { id: string; name: string }
-export interface Shape { kind: DrawKind; wall: WallKind; pts: Pt[]; area?: AreaPreset }
+export interface AreaPreset {
+  id: string;
+  name: string;
+}
+export interface Shape {
+  kind: DrawKind;
+  wall: WallKind;
+  pts: Pt[];
+  area?: AreaPreset;
+}
 export type ClickResult = "add" | "ignore" | "finish";
 
 const POLYGONS: readonly DrawKind[] = ["room", "zone", "water", "outline"];
@@ -20,11 +28,19 @@ const SAME = 1; // cm: a click this close to the last point is the second click 
 
 export class Draw {
   points: Pt[] = [];
-  constructor(readonly kind: DrawKind, readonly wall: WallKind = "wall", readonly area?: AreaPreset) {}
+  constructor(
+    readonly kind: DrawKind,
+    readonly wall: WallKind = "wall",
+    readonly area?: AreaPreset,
+  ) {}
 
-  get polygon() { return POLYGONS.includes(this.kind); }
+  get polygon() {
+    return POLYGONS.includes(this.kind);
+  }
   /** Points a shape needs before it can finish. */
-  get min() { return this.polygon ? 3 : 2; }
+  get min() {
+    return this.polygon ? 3 : 2;
+  }
 
   /**
    * Adds `pt`. `raw` is the pointer before snapping: a click within `closeTh` of the first point,
@@ -35,25 +51,36 @@ export class Draw {
     const n = this.points.length;
     if (this.polygon && n && dist(raw, this.points[0]) <= closeTh) return n >= 3 ? "finish" : "ignore";
     // Walls chain, but a click back on the first corner closes the loop exactly there. (S1.48)
-    if (this.kind === "wall" && n >= 3 && dist(raw, this.points[0]) <= closeTh) { this.points.push([this.points[0][0], this.points[0][1]]); return "finish"; }
+    if (this.kind === "wall" && n >= 3 && dist(raw, this.points[0]) <= closeTh) {
+      this.points.push([this.points[0][0], this.points[0][1]]);
+      return "finish";
+    }
     if (n && dist(pt, this.points[n - 1]) < SAME) return "ignore";
     this.points.push([pt[0], pt[1]]);
     return SEGMENTS.includes(this.kind) && this.points.length === 2 ? "finish" : "add";
   }
 
-  backspace(): boolean { return this.points.pop() !== undefined; }
-  cancel() { this.points = []; }
+  backspace(): boolean {
+    return this.points.pop() !== undefined;
+  }
+  cancel() {
+    this.points = [];
+  }
 
   /** The finished shape, or null when there are too few points. Either way the points are cleared. */
   finish(): Shape | null {
     const pts = this.points;
     this.points = [];
     if (pts.length < this.min) return null;
-    return this.area ? { kind: this.kind, wall: this.wall, pts, area: this.area } : { kind: this.kind, wall: this.wall, pts };
+    return this.area
+      ? { kind: this.kind, wall: this.wall, pts, area: this.area }
+      : { kind: this.kind, wall: this.wall, pts };
   }
 
   /** The dashed path to draw: the points so far and the pointer. Null before the first point. */
-  rubber(pt: Pt): Pt[] | null { return this.points.length ? [...this.points, pt] : null; }
+  rubber(pt: Pt): Pt[] | null {
+    return this.points.length ? [...this.points, pt] : null;
+  }
 }
 
 /**
@@ -69,7 +96,8 @@ export function roomKindFor(kinds: readonly WallKind[]): RoomKind {
 
 /** The floor with `s` added, and what to select. Does not touch `f`. */
 export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; sel: Sel; note?: string } {
-  const g = structuredClone(f), pts = s.pts.map((p): Pt => [p[0], p[1]]);
+  const g = structuredClone(f),
+    pts = s.pts.map((p): Pt => [p[0], p[1]]);
   let sel: Sel = null;
   if (s.kind === "outline") {
     // owk must track the outline point for point (Opus review): kept when the redraw has the same
@@ -79,21 +107,39 @@ export function applyShape(f: Floor, floor: string, s: Shape): { floor: Floor; s
     g.outline = pts;
     sel = { t: "edge", poly: "o", i: 0 };
   } else if (s.kind === "room" || s.kind === "zone" || s.kind === "water") {
-    const name = s.area?.name ?? `New ${s.kind}`, dotted = s.kind !== "room";
-    g.rooms.push({ id: newId(g, floor, "room"), name, area: s.kind === "water" ? "" : s.area?.id ?? slug(name), kind: s.kind, pts, wk: pts.map((): WallKind => (dotted ? "boundary" : "wall")) });
+    const name = s.area?.name ?? `New ${s.kind}`,
+      dotted = s.kind !== "room";
+    g.rooms.push({
+      id: newId(g, floor, "room"),
+      name,
+      area: s.kind === "water" ? "" : (s.area?.id ?? slug(name)),
+      kind: s.kind,
+      pts,
+      wk: pts.map((): WallKind => (dotted ? "boundary" : "wall")),
+    });
     sel = { t: "room", i: g.rooms.length - 1 };
   } else if (s.kind === "wall") {
-    for (let i = 1; i < pts.length; i++) g.walls.push({ id: newId(g, floor, "wall"), a: pts[i - 1], b: [pts[i][0], pts[i][1]], kind: s.wall });
+    for (let i = 1; i < pts.length; i++)
+      g.walls.push({ id: newId(g, floor, "wall"), a: pts[i - 1], b: [pts[i][0], pts[i][1]], kind: s.wall });
     sel = { t: "wall", i: g.walls.length - 1 };
     // A loop the last wall closes becomes a room, a zone or a garden, and its walls go. (S1.48)
     const loop = closedLoop(g, g.walls.length - 1, 2, pts[0]);
     const n = pts.length - 1;
-    if (!loop && n > MAX_RING && dist(pts[0], pts[n]) <= 2) return { floor: g, sel, note: `${n} walls, too many to make a room (max ${MAX_RING})` };
+    if (!loop && n > MAX_RING && dist(pts[0], pts[n]) <= 2)
+      return { floor: g, sel, note: `${n} walls, too many to make a room (max ${MAX_RING})` };
     if (loop) {
-      const kinds = loop.walls.map((i) => g.walls[i].kind), kind = roomKindFor(kinds);
+      const kinds = loop.walls.map((i) => g.walls[i].kind),
+        kind = roomKindFor(kinds);
       // Walls come in walking order, so wall k is the edge from corner k to corner k+1.
       g.walls = g.walls.filter((_, i) => !loop.walls.includes(i));
-      g.rooms.push({ id: newId(g, floor, "room"), name: `New ${kind}`, area: "", kind, pts: loop.pts, wk: kinds as EdgeKind[] });
+      g.rooms.push({
+        id: newId(g, floor, "room"),
+        name: `New ${kind}`,
+        area: "",
+        kind,
+        pts: loop.pts,
+        wk: kinds as EdgeKind[],
+      });
       sel = { t: "room", i: g.rooms.length - 1 };
       const note = `${kind === "room" ? "Room" : kind === "zone" ? "Zone" : "Garden"} created from ${kinds.length} walls`;
       const h = kind === "zone" ? g : loop.pts.reduce((x, p) => stitch(x, p), g);

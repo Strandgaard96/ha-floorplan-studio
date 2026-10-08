@@ -8,16 +8,28 @@ describe("switchControls", () => {
       { platform: "state", entity_id: "switch.demo_hall", to: "on", id: "on" },
       { platform: "state", entity_id: "switch.demo_hall", to: "off", id: "off" },
     ]);
-    expect(cfg.action).toEqual([{ choose: [
-      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: ["light.a", "light.b"] } }] },
-      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: ["light.a", "light.b"] } }] },
-    ] }]);
+    expect(cfg.action).toEqual([
+      {
+        choose: [
+          {
+            conditions: [{ condition: "trigger", id: "on" }],
+            sequence: [{ service: "homeassistant.turn_on", target: { entity_id: ["light.a", "light.b"] } }],
+          },
+          {
+            conditions: [{ condition: "trigger", id: "off" }],
+            sequence: [{ service: "homeassistant.turn_off", target: { entity_id: ["light.a", "light.b"] } }],
+          },
+        ],
+      },
+    ]);
     expect(cfg.alias).toContain("switch.demo_hall");
   });
 
   it("break it: refuses a switch that targets itself, and an empty target list", () => {
     expect(() => switchControls("switch.demo_hall", ["switch.demo_hall"])).toThrow("A switch cannot control itself.");
-    expect(() => switchControls("switch.demo_hall", ["light.a", "switch.demo_hall"])).toThrow("A switch cannot control itself.");
+    expect(() => switchControls("switch.demo_hall", ["light.a", "switch.demo_hall"])).toThrow(
+      "A switch cannot control itself.",
+    );
     expect(() => switchControls("switch.demo_hall", [])).toThrow(/at least one/);
   });
 });
@@ -29,10 +41,20 @@ describe("motionLights", () => {
       { platform: "state", entity_id: "binary_sensor.hall_motion_group", to: "on", id: "on" },
       { platform: "state", entity_id: "binary_sensor.hall_motion_group", to: "off", for: { seconds: 300 }, id: "off" },
     ]);
-    expect(cfg.action).toEqual([{ choose: [
-      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "light.hall_group" } }] },
-      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "light.hall_group" } }] },
-    ] }]);
+    expect(cfg.action).toEqual([
+      {
+        choose: [
+          {
+            conditions: [{ condition: "trigger", id: "on" }],
+            sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "light.hall_group" } }],
+          },
+          {
+            conditions: [{ condition: "trigger", id: "off" }],
+            sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "light.hall_group" } }],
+          },
+        ],
+      },
+    ]);
   });
 
   it("break it: refuses a zero or negative delay", () => {
@@ -48,10 +70,20 @@ describe("schedule", () => {
       { platform: "time", at: "07:30", id: "on" },
       { platform: "time", at: "23:00", id: "off" },
     ]);
-    expect(cfg.action).toEqual([{ choose: [
-      { conditions: [{ condition: "trigger", id: "on" }], sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "light.demo_living" } }] },
-      { conditions: [{ condition: "trigger", id: "off" }], sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "light.demo_living" } }] },
-    ] }]);
+    expect(cfg.action).toEqual([
+      {
+        choose: [
+          {
+            conditions: [{ condition: "trigger", id: "on" }],
+            sequence: [{ service: "homeassistant.turn_on", target: { entity_id: "light.demo_living" } }],
+          },
+          {
+            conditions: [{ condition: "trigger", id: "off" }],
+            sequence: [{ service: "homeassistant.turn_off", target: { entity_id: "light.demo_living" } }],
+          },
+        ],
+      },
+    ]);
   });
 
   it("break it: rejects a malformed time", () => {

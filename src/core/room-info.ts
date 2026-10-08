@@ -19,18 +19,58 @@ export { meanReading };
  *  four types a person would flip by hand toggle; everything else opens more-info, as `NO_TOGGLE` (actions.ts) does
  *  for the plan, and a test holds the two together: no type toggles here that the plan refuses to toggle. */
 export const ROOM_ROW_TAP: Record<DeviceType, "toggle" | "more-info"> = {
-  light: "toggle", switch: "toggle", plug: "toggle", cover: "toggle",
-  motion: "more-info", contact: "more-info", heater: "more-info", climate: "more-info", ac: "more-info", tv: "more-info",
-  media: "more-info", speaker: "more-info", computer: "more-info", person: "more-info", camera: "more-info", vacuum: "more-info",
-  temp: "more-info", humidity: "more-info", battery: "more-info", inverter: "more-info", server: "more-info", access_point: "more-info",
-  lock: "more-info", vibration: "more-info", other: "more-info", boiler: "more-info", car: "more-info", ups: "more-info",
-  printer: "more-info", radar: "more-info", siren: "more-info", alarm: "more-info",
+  light: "toggle",
+  switch: "toggle",
+  plug: "toggle",
+  cover: "toggle",
+  motion: "more-info",
+  contact: "more-info",
+  heater: "more-info",
+  climate: "more-info",
+  ac: "more-info",
+  tv: "more-info",
+  media: "more-info",
+  speaker: "more-info",
+  computer: "more-info",
+  person: "more-info",
+  camera: "more-info",
+  vacuum: "more-info",
+  temp: "more-info",
+  humidity: "more-info",
+  battery: "more-info",
+  inverter: "more-info",
+  server: "more-info",
+  access_point: "more-info",
+  lock: "more-info",
+  vibration: "more-info",
+  other: "more-info",
+  boiler: "more-info",
+  car: "more-info",
+  ups: "more-info",
+  printer: "more-info",
+  radar: "more-info",
+  siren: "more-info",
+  alarm: "more-info",
 };
 
 /** `colorVar`: the `--fp-*` property the row's icon takes (its on colour while on, the panel's own ink while off, finding 9). */
 /** `piece`: the row is a linked furniture piece (`pieceDevice`) and `index` is its index in `furniture`, not in `devices`. */
-export interface RoomDeviceRow { index: number; piece?: true; entity: string; name: string; type: DeviceType; state: string; on: boolean; colorVar: string }
-export interface RoomSensorRow { entity: string; name: string; kind: "temps" | "humidity" | "motion"; state: string }
+export interface RoomDeviceRow {
+  index: number;
+  piece?: true;
+  entity: string;
+  name: string;
+  type: DeviceType;
+  state: string;
+  on: boolean;
+  colorVar: string;
+}
+export interface RoomSensorRow {
+  entity: string;
+  name: string;
+  kind: "temps" | "humidity" | "motion";
+  state: string;
+}
 export interface RoomSummary {
   name: string;
   /** Square metres from the room's own points; null when they are not a polygon. */
@@ -52,14 +92,19 @@ export interface RoomSummary {
 }
 
 const NO_STATE = "no state";
-const finite = (p: unknown): p is Pt => Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]);
-const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((e): e is string => typeof e === "string" && e.length > 0) : []);
+const finite = (p: unknown): p is Pt =>
+  Array.isArray(p) && p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]);
+const strings = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((e): e is string => typeof e === "string" && e.length > 0) : [];
 
 /** The polygon's area in m² (the plan is in cm), to 0.1; null for anything that is not a ring of three finite points.
  *  From the points, not the room's `area` field: that one is a Home Assistant area id, not a size. */
 export function roomAreaM2(pts: unknown): number | null {
   if (!Array.isArray(pts) || pts.length < 3 || !pts.every(finite)) return null;
-  const twice = pts.reduce((s: number, a: Pt, i: number) => { const b = pts[(i + 1) % pts.length] as Pt; return s + a[0] * b[1] - b[0] * a[1]; }, 0);
+  const twice = pts.reduce((s: number, a: Pt, i: number) => {
+    const b = pts[(i + 1) % pts.length] as Pt;
+    return s + a[0] * b[1] - b[0] * a[1];
+  }, 0);
   return Math.round(Math.abs(twice) / 2 / 1000) / 10; // cm² to m² is /10 000; /1000 then /10 rounds to 0.1
 }
 
@@ -78,14 +123,19 @@ export function formatChanged(iso: unknown): string {
 }
 
 const centre = (d: Device): Pt | null => {
-  const p: unknown = "a" in d && "b" in d ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2] : [(d as { x: number }).x, (d as { y: number }).y];
+  const p: unknown =
+    "a" in d && "b" in d
+      ? [(d.a[0] + d.b[0]) / 2, (d.a[1] + d.b[1]) / 2]
+      : [(d as { x: number }).x, (d as { y: number }).y];
   return finite(p) ? p : null;
 };
 
 /** Doors and windows whose line lies on one of the room's edges (`onEdge`, the same test the editor uses). */
 function doorsOf(f: Floor, ring: Pt[]): Door[] {
   const hit = new Set<number>();
-  ring.forEach((a, i) => { for (const d of onEdge(f, a, ring[(i + 1) % ring.length]!).doors) hit.add(d); });
+  ring.forEach((a, i) => {
+    for (const d of onEdge(f, a, ring[(i + 1) % ring.length]!).doors) hit.add(d);
+  });
   return [...hit].sort((a, b) => a - b).flatMap((i) => (f.doors[i] ? [f.doors[i]!] : []));
 }
 
@@ -94,11 +144,24 @@ const SENSOR_KINDS = ["temps", "humidity", "motion"] as const;
 const ringOf = (r: Room): Pt[] => (Array.isArray(r.pts) && r.pts.length >= 3 && r.pts.every(finite) ? r.pts : []);
 
 /** The summary of `f.rooms[index]`, or null when there is no such room. */
-export function roomSummary(f: Floor, index: number, state: StateOverlay | undefined, opts: ActiveOpts): RoomSummary | null {
+export function roomSummary(
+  f: Floor,
+  index: number,
+  state: StateOverlay | undefined,
+  opts: ActiveOpts,
+): RoomSummary | null {
   const r: Room | undefined = Number.isInteger(index) ? f.rooms[index] : undefined;
   if (!r) return null;
   // A device counts in the one room `roomAt` gives it (the smallest), so a closet's lamp is not also the hall's.
-  return summarise(f, [r], (at) => at === index, typeof r.name === "string" ? r.name : "", roomAreaM2(ringOf(r)), state, opts);
+  return summarise(
+    f,
+    [r],
+    (at) => at === index,
+    typeof r.name === "string" ? r.name : "",
+    roomAreaM2(ringOf(r)),
+    state,
+    opts,
+  );
 }
 
 /** S20.2: the same summary for a whole floor: every room's sensors and doors, and every device and linked piece on the
@@ -109,7 +172,15 @@ export function floorSummary(f: Floor, state: StateOverlay | undefined, opts: Ac
   return summarise(f, rooms, () => true, typeof f.title === "string" ? f.title : "", null, state, opts);
 }
 
-function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean, name: string, areaM2: number | null, state: StateOverlay | undefined, opts: ActiveOpts): RoomSummary {
+function summarise(
+  f: Floor,
+  rooms: Room[],
+  member: (roomAt: number) => boolean,
+  name: string,
+  areaM2: number | null,
+  state: StateOverlay | undefined,
+  opts: ActiveOpts,
+): RoomSummary {
   const lists = {
     temps: [...new Set(rooms.flatMap((r) => strings(r.temps)))],
     humidity: [...new Set(rooms.flatMap((r) => strings(r.humidity)))],
@@ -126,7 +197,15 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
     // point would put it in the wrong room, so a person never has a row here.
     if (!c || d.type === "person" || typeof d.entity !== "string" || !d.entity || !member(roomAt(f, c))) return;
     const on = classOf(d, { scale: 1, state, ...opts }) === "on";
-    devices.push({ index: i, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
+    devices.push({
+      index: i,
+      entity: d.entity,
+      name: nameFor(d, state),
+      type: d.type,
+      state: stateText(state, d.entity),
+      on,
+      colorVar: on ? colorVarFor(d, state) : "--fp-ink",
+    });
     for (const e of entitiesOfDevice(d)) entities.add(e);
     if (d.type === "light" && on) {
       lightsOn.push(nameFor(d, state));
@@ -141,9 +220,19 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
   const plugs = new Map(f.devices.filter((d) => d.type === "plug" && d.entity).map((d) => [d.entity, d]));
   (f.furniture ?? []).forEach((m, i) => {
     const d = pieceDevice(m);
-    if (!d || !finite([m.x, m.y]) || !member(roomAt(f, [m.x, m.y])) || devices.some((r) => r.entity === d.entity)) return;
+    if (!d || !finite([m.x, m.y]) || !member(roomAt(f, [m.x, m.y])) || devices.some((r) => r.entity === d.entity))
+      return;
     const on = pieceOn({ scale: 1, state, ...opts }, m, plugs);
-    devices.push({ index: i, piece: true, entity: d.entity, name: nameFor(d, state), type: d.type, state: stateText(state, d.entity), on, colorVar: on ? colorVarFor(d, state) : "--fp-ink" });
+    devices.push({
+      index: i,
+      piece: true,
+      entity: d.entity,
+      name: nameFor(d, state),
+      type: d.type,
+      state: stateText(state, d.entity),
+      on,
+      colorVar: on ? colorVarFor(d, state) : "--fp-ink",
+    });
     entities.add(d.entity);
   });
 
@@ -153,18 +242,34 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
       entities.add(e);
       if (devices.some((d) => d.entity === e)) continue; // it has an icon on the plan: that row already lists it
       const friendly = stateOf(state, e)?.attributes?.friendly_name;
-      sensors.push({ entity: e, name: typeof friendly === "string" && friendly ? friendly : e, kind, state: stateText(state, e) });
+      sensors.push({
+        entity: e,
+        name: typeof friendly === "string" && friendly ? friendly : e,
+        kind,
+        state: stateText(state, e),
+      });
     }
   }
 
   const openings: string[] = [];
-  for (const door of new Set(rooms.flatMap((r) => { const ring = ringOf(r); return ring.length ? doorsOf(f, ring) : []; }))) {
+  for (const door of new Set(
+    rooms.flatMap((r) => {
+      const ring = ringOf(r);
+      return ring.length ? doorsOf(f, ring) : [];
+    }),
+  )) {
     for (const e of entitiesOfDoor(door)) entities.add(e);
     if (doorStateOf(door, state).open) openings.push(door.name || door.kind);
   }
 
-  const seen = lists.motion.flatMap((e) => { const s = stateOf(state, e); return s && s.state !== "unavailable" && s.state !== "unknown" ? [s] : []; });
-  const stamp = (s: { last_changed: string }) => { const t = Date.parse(s.last_changed); return Number.isFinite(t) ? t : -Infinity; };
+  const seen = lists.motion.flatMap((e) => {
+    const s = stateOf(state, e);
+    return s && s.state !== "unavailable" && s.state !== "unknown" ? [s] : [];
+  });
+  const stamp = (s: { last_changed: string }) => {
+    const t = Date.parse(s.last_changed);
+    return Number.isFinite(t) ? t : -Infinity;
+  };
   const newest = (list: typeof seen) => list.reduce((best, s) => (stamp(s) > stamp(best) ? s : best));
   const lit = seen.filter((s) => s.state === "on");
   const motion = seen.length ? { on: lit.length > 0, since: newest(lit.length ? lit : seen).last_changed } : null;
@@ -174,7 +279,13 @@ function summarise(f: Floor, rooms: Room[], member: (roomAt: number) => boolean,
     areaM2,
     temperature: meanReading(lists.temps, state),
     humidity: meanReading(lists.humidity, state),
-    motion, openings, lightsOn, lightsOnEntities: [...lightsOnEntities], devices, sensors, entities,
+    motion,
+    openings,
+    lightsOn,
+    lightsOnEntities: [...lightsOnEntities],
+    devices,
+    sensors,
+    entities,
   };
 }
 
@@ -193,10 +304,17 @@ export function filterToRoom<T extends { entity: string }>(items: T[], s: RoomSu
 export interface InfoHass {
   states?: StateOverlay;
   entities?: Record<string, { device_id?: string | null; area_id?: string | null } | undefined>;
-  devices?: Record<string, { manufacturer?: string | null; model?: string | null; sw_version?: string | null; area_id?: string | null } | undefined>;
+  devices?: Record<
+    string,
+    | { manufacturer?: string | null; model?: string | null; sw_version?: string | null; area_id?: string | null }
+    | undefined
+  >;
   areas?: Record<string, { name?: string | null } | undefined>;
 }
-export interface InfoRow { label: string; value: string }
+export interface InfoRow {
+  label: string;
+  value: string;
+}
 
 const own = <T>(map: Record<string, T> | undefined, key: string): T | undefined =>
   key && map && typeof map === "object" && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined;
@@ -207,7 +325,9 @@ export function deviceInfo(entity: string, hass: InfoHass): InfoRow[] {
   const device = own(hass.devices, text(reg?.device_id));
   const areaId = text(reg?.area_id) || text(device?.area_id);
   const rows: InfoRow[] = [];
-  const add = (label: string, value: string) => { if (value) rows.push({ label, value }); };
+  const add = (label: string, value: string) => {
+    if (value) rows.push({ label, value });
+  };
   if (device && typeof device === "object") {
     add("Manufacturer", text(device.manufacturer));
     add("Model", text(device.model));

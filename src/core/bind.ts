@@ -83,7 +83,8 @@ export function attachedEntities(l: Layout): Set<string> {
  *  placed as its own icon (`bound` is not an attachment, see `attachedEntities`); an attached sensor is not offered
  *  again until it is detached. */
 export function unplacedCatalog(l: Layout): CatalogEntry[] {
-  const placed = placedEntities(l), attached = attachedEntities(l);
+  const placed = placedEntities(l),
+    attached = attachedEntities(l);
   return l.catalog.filter((c) => !placed.has(c.entity) && !attached.has(c.entity));
 }
 

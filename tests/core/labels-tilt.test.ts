@@ -6,20 +6,67 @@ import { DEFAULT_TILT, OBLIQUE, clampTilt, obliqueFor, renderFloor, viewBoxFor }
 const L = demo as unknown as Layout;
 const ground = L.floors.ground;
 const STATE = {
-  "sensor.demo_living_temperature": { state: "21.5", attributes: { unit_of_measurement: "°C" }, last_changed: "2026-10-02T10:00:00Z" },
+  "sensor.demo_living_temperature": {
+    state: "21.5",
+    attributes: { unit_of_measurement: "°C" },
+    last_changed: "2026-10-02T10:00:00Z",
+  },
 };
 
 /** One floor per text-producing kind, so a new kind of text must be added here (CLAUDE.md finding 17). */
-const sq = (x: number, y: number, s: number): [number, number][] => [[x, y], [x + s, y], [x + s, y + s], [x, y + s]];
-const base = (o: object) => ({ title: "T", outline: sq(0, 0, 600), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o }) as unknown as typeof ground;
+const sq = (x: number, y: number, s: number): [number, number][] => [
+  [x, y],
+  [x + s, y],
+  [x + s, y + s],
+  [x, y + s],
+];
+const base = (o: object) =>
+  ({
+    title: "T",
+    outline: sq(0, 0, 600),
+    rooms: [],
+    walls: [],
+    stairs: [],
+    doors: [],
+    openings: [],
+    extras: [],
+    devices: [],
+    furniture: [],
+    unlinked: [],
+    ...o,
+  }) as unknown as typeof ground;
 const KINDS: Record<string, { floor: typeof ground; opts?: object; marker: RegExp }> = {
-  "room name": { floor: base({ rooms: [{ id: "r", name: "Living", kind: "room", pts: sq(0, 0, 600) }] }), marker: /class="lbl"/ },
-  "zone name": { floor: base({ rooms: [{ id: "z", name: "Corner", kind: "zone", pts: sq(100, 100, 300) }] }), marker: /class="lbl zone"/ },
-  "room name with leader": { floor: base({ rooms: [{ id: "r", name: "A very long room name indeed", kind: "room", pts: sq(0, 0, 60) }] }), marker: /class="lbl-leader"/ },
-  "extra name": { floor: base({ extras: [{ id: "e", name: "Shed", a: [100, 100], b: [300, 300] }] }), marker: />Shed</ },
-  "device name": { floor: base({ devices: [{ id: "d", type: "light", entity: "light.x", name: "Lamp", x: 300, y: 300 }] }), opts: { showNames: true }, marker: />Lamp</ },
-  "unlinked name": { floor: base({ unlinked: [{ id: "u", type: "tv", name: "Telly", x: 300, y: 300, rot: 0, scale: 1 }] }), opts: { showNames: true }, marker: />Telly</ },
-  "sensor value": { floor: base({ devices: [{ id: "t", type: "temp", entity: "sensor.demo_living_temperature", x: 300, y: 300 }] }), opts: { state: STATE }, marker: /class="val"/ },
+  "room name": {
+    floor: base({ rooms: [{ id: "r", name: "Living", kind: "room", pts: sq(0, 0, 600) }] }),
+    marker: /class="lbl"/,
+  },
+  "zone name": {
+    floor: base({ rooms: [{ id: "z", name: "Corner", kind: "zone", pts: sq(100, 100, 300) }] }),
+    marker: /class="lbl zone"/,
+  },
+  "room name with leader": {
+    floor: base({ rooms: [{ id: "r", name: "A very long room name indeed", kind: "room", pts: sq(0, 0, 60) }] }),
+    marker: /class="lbl-leader"/,
+  },
+  "extra name": {
+    floor: base({ extras: [{ id: "e", name: "Shed", a: [100, 100], b: [300, 300] }] }),
+    marker: />Shed</,
+  },
+  "device name": {
+    floor: base({ devices: [{ id: "d", type: "light", entity: "light.x", name: "Lamp", x: 300, y: 300 }] }),
+    opts: { showNames: true },
+    marker: />Lamp</,
+  },
+  "unlinked name": {
+    floor: base({ unlinked: [{ id: "u", type: "tv", name: "Telly", x: 300, y: 300, rot: 0, scale: 1 }] }),
+    opts: { showNames: true },
+    marker: />Telly</,
+  },
+  "sensor value": {
+    floor: base({ devices: [{ id: "t", type: "temp", entity: "sensor.demo_living_temperature", x: 300, y: 300 }] }),
+    opts: { state: STATE },
+    marker: /class="val"/,
+  },
 };
 
 describe("labels option", () => {
@@ -43,7 +90,15 @@ describe("labels option", () => {
   it("the whole demo has no text left with labels false, in both views and rotated", () => {
     for (const fl of Object.values(L.floors))
       for (const view of ["2d", "2.5d"] as const) {
-        const html = renderFloor(fl, { scale: 0.5, showNames: true, state: STATE, view, labels: false, selection: { t: "dev", i: 0 }, rotate: { deg: 30, pivot: [0, 0] } });
+        const html = renderFloor(fl, {
+          scale: 0.5,
+          showNames: true,
+          state: STATE,
+          view,
+          labels: false,
+          selection: { t: "dev", i: 0 },
+          rotate: { deg: 30, pivot: [0, 0] },
+        });
         expect(html).not.toContain("<text");
         expect(html).not.toContain("lbl");
       }
@@ -53,7 +108,8 @@ describe("labels option", () => {
     const withText = renderFloor(ground, { scale: 0.5, state: STATE });
     const without = renderFloor(ground, { scale: 0.5, state: STATE, labels: false });
     const count = (s: string, re: RegExp) => (s.match(re) ?? []).length;
-    for (const re of [/data-x="/g, /data-d="/g, /class="room[ "]/g]) expect(count(without, re)).toBe(count(withText, re));
+    for (const re of [/data-x="/g, /data-d="/g, /class="room[ "]/g])
+      expect(count(without, re)).toBe(count(withText, re));
     expect(count(without, /data-x="/g)).toBeGreaterThan(0);
     expect(without.length).toBeLessThan(withText.length);
   });
@@ -92,7 +148,9 @@ describe("tilt mapping", () => {
   });
 
   it("default tilt output is byte-identical to no tilt", () => {
-    expect(renderFloor(ground, { scale: 0.5, view: "2.5d", tilt: DEFAULT_TILT })).toBe(renderFloor(ground, { scale: 0.5, view: "2.5d" }));
+    expect(renderFloor(ground, { scale: 0.5, view: "2.5d", tilt: DEFAULT_TILT })).toBe(
+      renderFloor(ground, { scale: 0.5, view: "2.5d" }),
+    );
     expect(viewBoxFor(ground, 60, undefined, "2.5d", DEFAULT_TILT)).toEqual(viewBoxFor(ground, 60, undefined, "2.5d"));
   });
 
@@ -105,7 +163,8 @@ describe("tilt mapping", () => {
     const f = { ...structuredClone(ground), height: 400 } as typeof ground;
     const flat = viewBoxFor(f, 60);
     for (const t of [0, 0.25, 0.5, 1]) {
-      const o = obliqueFor(t), b = viewBoxFor(f, 60, undefined, "2.5d", t);
+      const o = obliqueFor(t),
+        b = viewBoxFor(f, 60, undefined, "2.5d", t);
       expect(flat.y - b.y).toBeCloseTo(400 * o.rise, 6);
       expect(b.w - flat.w).toBeCloseTo(400 * o.rise * o.skew, 6);
     }
@@ -116,14 +175,26 @@ describe("tilt mapping", () => {
     for (const t of [0, 0.5, 1]) {
       const b = viewBoxFor(ground, 0, undefined, "2.5d", t);
       const html = renderFloor(ground, { scale: 1, view: "2.5d", tilt: t });
-      const polys = [...html.matchAll(/<polygon class="(?:ws|bs|bt|glass)[^"]*" points="([^"]+)"/g)].flatMap((m) => m[1].trim().split(/\s+/).map((p) => p.split(",").map(Number)));
-      const tops = [...html.matchAll(/<line class="eh?[^"]* top" x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)"/g)].flatMap((m) => [[+m[1], +m[2]], [+m[3], +m[4]]]);
+      const polys = [...html.matchAll(/<polygon class="(?:ws|bs|bt|glass)[^"]*" points="([^"]+)"/g)].flatMap((m) =>
+        m[1]
+          .trim()
+          .split(/\s+/)
+          .map((p) => p.split(",").map(Number)),
+      );
+      const tops = [
+        ...html.matchAll(/<line class="eh?[^"]* top" x1="([-\d.]+)" y1="([-\d.]+)" x2="([-\d.]+)" y2="([-\d.]+)"/g),
+      ].flatMap((m) => [
+        [+m[1], +m[2]],
+        [+m[3], +m[4]],
+      ]);
       expect(polys.length).toBeGreaterThan(0);
       expect(tops.length).toBeGreaterThan(0);
       const eps = 1e-2;
       for (const [x, y] of [...polys, ...tops]) {
-        expect(x).toBeGreaterThanOrEqual(b.x - eps); expect(x).toBeLessThanOrEqual(b.x + b.w + eps);
-        expect(y).toBeGreaterThanOrEqual(b.y - eps); expect(y).toBeLessThanOrEqual(b.y + b.h + eps);
+        expect(x).toBeGreaterThanOrEqual(b.x - eps);
+        expect(x).toBeLessThanOrEqual(b.x + b.w + eps);
+        expect(y).toBeGreaterThanOrEqual(b.y - eps);
+        expect(y).toBeLessThanOrEqual(b.y + b.h + eps);
       }
       // The box is tight on top: the highest wall top is the box's own top edge, so nothing is wasted either.
       expect(Math.min(...tops.map((p) => p[1]))).toBeGreaterThanOrEqual(b.y - eps);
@@ -134,8 +205,17 @@ describe("tilt mapping", () => {
     const area = (html: string, cls: string) => {
       let sum = 0;
       for (const m of html.matchAll(new RegExp(`<polygon class="${cls}[^"]*" points="([^"]+)"`, "g"))) {
-        const q = m[1].trim().split(/\s+/).map((p) => p.split(",").map(Number));
-        sum += Math.abs(q.reduce((s, a, i) => { const c = q[(i + 1) % q.length]; return s + a[0] * c[1] - c[0] * a[1]; }, 0)) / 2;
+        const q = m[1]
+          .trim()
+          .split(/\s+/)
+          .map((p) => p.split(",").map(Number));
+        sum +=
+          Math.abs(
+            q.reduce((s, a, i) => {
+              const c = q[(i + 1) % q.length];
+              return s + a[0] * c[1] - c[0] * a[1];
+            }, 0),
+          ) / 2;
       }
       return sum;
     };

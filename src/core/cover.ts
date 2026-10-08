@@ -9,8 +9,16 @@ import type { StateOverlay } from "./render";
  * (finding 17); a class missing here, or no class at all, reads as a curtain: idle.
  */
 export const COVER_CLASSES: Record<string, boolean> = {
-  garage: true, gate: true, door: true,
-  awning: false, blind: false, curtain: false, damper: false, shade: false, shutter: false, window: false,
+  garage: true,
+  gate: true,
+  door: true,
+  awning: false,
+  blind: false,
+  curtain: false,
+  damper: false,
+  shade: false,
+  shutter: false,
+  window: false,
 };
 const LIVE = new Set(["open", "opening", "closing"]);
 

@@ -2,8 +2,58 @@ import { describe, it, expect } from "vitest";
 import { DEVICE_ICONS, FURNITURE } from "../../src/core/icons";
 import type { DeviceType, FurnitureSymbol } from "../../src/core/schema";
 
-const DEVICE_TYPES: DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm"];
-const SYMBOLS: FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];
+const DEVICE_TYPES: DeviceType[] = [
+  "heater",
+  "light",
+  "switch",
+  "plug",
+  "temp",
+  "humidity",
+  "motion",
+  "contact",
+  "camera",
+  "climate",
+  "ac",
+  "tv",
+  "computer",
+  "media",
+  "cover",
+  "battery",
+  "inverter",
+  "server",
+  "access_point",
+  "lock",
+  "vibration",
+  "other",
+  "boiler",
+  "car",
+  "ups",
+  "printer",
+  "speaker",
+  "person",
+  "radar",
+  "vacuum",
+  "siren",
+  "alarm",
+];
+const SYMBOLS: FurnitureSymbol[] = [
+  "table",
+  "sofa",
+  "bed",
+  "cabinet",
+  "chair",
+  "sink",
+  "toilet",
+  "shower",
+  "bathtub",
+  "tv",
+  "computer",
+  "speaker",
+  "tree",
+  "patio-wood",
+  "patio-concrete",
+  "car",
+];
 
 describe("icons", () => {
   it("has an MDI path for every device type and nothing else", () => {
@@ -18,7 +68,9 @@ describe("icons", () => {
   });
 
   it("S7.8: draws a person with the MDI account path", () => {
-    expect(DEVICE_ICONS.person).toBe("M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z");
+    expect(DEVICE_ICONS.person).toBe(
+      "M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z",
+    );
   });
 
   it("S7.9: draws a radar with its own sweep-wedge path, not borrowed from another type", () => {

@@ -17,7 +17,8 @@ export interface DoorState {
  * are none of these: a dead sensor never paints an opening red. State is untrusted; a missing entry reads closed.
  */
 export function doorStateOf(d: Door, state: StateOverlay | undefined): DoorState {
-  const on = (list: unknown, want: string) => Array.isArray(list) && list.some((e) => typeof e === "string" && state?.[e]?.state === want);
+  const on = (list: unknown, want: string) =>
+    Array.isArray(list) && list.some((e) => typeof e === "string" && state?.[e]?.state === want);
   const curtain = d.kind === "window" || d.kind === "glass" || d.kind === "slit";
   return {
     open: on(d.sensors, "on") || on(d.locks, "unlocked"),

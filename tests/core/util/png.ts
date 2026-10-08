@@ -14,7 +14,10 @@ export interface DecodedPng {
 const SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 function paeth(a: number, b: number, c: number): number {
-  const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c);
+  const p = a + b - c,
+    pa = Math.abs(p - a),
+    pb = Math.abs(p - b),
+    pc = Math.abs(p - c);
   return pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
 }
 
@@ -22,7 +25,10 @@ function paeth(a: number, b: number, c: number): number {
 export function decodePng(buf: Buffer): DecodedPng {
   if (!buf.subarray(0, 8).equals(SIGNATURE)) throw new Error("not a PNG");
   let offset = 8;
-  let width = 0, height = 0, bitDepth = 0, colorType = 0;
+  let width = 0,
+    height = 0,
+    bitDepth = 0,
+    colorType = 0;
   const idat: Buffer[] = [];
   while (offset < buf.length) {
     const len = buf.readUInt32BE(offset);
@@ -60,12 +66,23 @@ export function decodePng(buf: Buffer): DecodedPng {
       const c = y > 0 && x >= channels ? out[prevRowStart + x - channels] : 0;
       let val: number;
       switch (filter) {
-        case 0: val = v; break;
-        case 1: val = v + a; break;
-        case 2: val = v + b; break;
-        case 3: val = v + Math.floor((a + b) / 2); break;
-        case 4: val = v + paeth(a, b, c); break;
-        default: throw new Error(`unsupported filter type ${filter}`);
+        case 0:
+          val = v;
+          break;
+        case 1:
+          val = v + a;
+          break;
+        case 2:
+          val = v + b;
+          break;
+        case 3:
+          val = v + Math.floor((a + b) / 2);
+          break;
+        case 4:
+          val = v + paeth(a, b, c);
+          break;
+        default:
+          throw new Error(`unsupported filter type ${filter}`);
       }
       out[rowStart + x] = val & 0xff;
     }
@@ -75,8 +92,10 @@ export function decodePng(buf: Buffer): DecodedPng {
 
 /** The [r, g, b, a] at (x, y) (a is 255 when the PNG has no alpha channel). Coordinates are truncated to integers. */
 export function pixelAt(png: DecodedPng, x: number, y: number): [number, number, number, number] {
-  const px = Math.trunc(x), py = Math.trunc(y);
-  if (px < 0 || py < 0 || px >= png.width || py >= png.height) throw new Error(`(${px}, ${py}) is outside the ${png.width}x${png.height} image`);
+  const px = Math.trunc(x),
+    py = Math.trunc(y);
+  if (px < 0 || py < 0 || px >= png.width || py >= png.height)
+    throw new Error(`(${px}, ${py}) is outside the ${png.width}x${png.height} image`);
   const i = (py * png.width + px) * png.channels;
   return [png.data[i], png.data[i + 1], png.data[i + 2], png.channels === 4 ? png.data[i + 3] : 255];
 }

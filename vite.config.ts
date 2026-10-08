@@ -10,11 +10,17 @@ const version = JSON.parse(readFileSync("custom_components/floorplan_studio/mani
 // and never asks again). The name is only known after the build, so the card holds a placeholder and this puts the name in.
 const chunkName = () => ({
   name: "fp-chunk-name",
-  generateBundle(_o: unknown, bundle: Record<string, { type: string; fileName: string; isEntry?: boolean; code?: string }>) {
-    const chunk = Object.values(bundle).find((c) => c.type === "chunk" && !c.isEntry && /^floorplan-studio-3d-.+\.js$/.test(c.fileName));
+  generateBundle(
+    _o: unknown,
+    bundle: Record<string, { type: string; fileName: string; isEntry?: boolean; code?: string }>,
+  ) {
+    const chunk = Object.values(bundle).find(
+      (c) => c.type === "chunk" && !c.isEntry && /^floorplan-studio-3d-.+\.js$/.test(c.fileName),
+    );
     if (!chunk) return;
     for (const c of Object.values(bundle)) {
-      if (c.type === "chunk" && c.isEntry && c.code?.includes("__FP3D_CHUNK__")) c.code = c.code.replace('"__FP3D_CHUNK__"', JSON.stringify(chunk.fileName));
+      if (c.type === "chunk" && c.isEntry && c.code?.includes("__FP3D_CHUNK__"))
+        c.code = c.code.replace('"__FP3D_CHUNK__"', JSON.stringify(chunk.fileName));
     }
   },
 });
@@ -25,7 +31,10 @@ export default defineConfig(({ mode }) => {
     plugins: [trimThree(), chunkName()],
     // `__FP3D_TEST__` is a compile-time flag: only the test build (FP3D_TEST=1, made by scripts/build.mjs for the Playwright specs)
     // keeps the 3D view's test hook; in the shipped build the code is dropped.
-    define: { __FP_VERSION__: JSON.stringify(version), __FP3D_TEST__: process.env.FP3D_TEST === "1" ? "true" : "false" },
+    define: {
+      __FP_VERSION__: JSON.stringify(version),
+      __FP3D_TEST__: process.env.FP3D_TEST === "1" ? "true" : "false",
+    },
     build: {
       outDir: process.env.FP_OUT ?? "dist",
       emptyOutDir: false,

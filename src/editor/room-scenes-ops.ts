@@ -39,11 +39,22 @@ export function removeScene(r: Room, id: string): boolean {
 
 /** The room's explicit Home Assistant scene list: `scene.*` only, first occurrence wins, capped; empty deletes the key. */
 export function setRoomHaScenes(r: Room, next: string[]): void {
-  const list = [...new Set(next.filter((e) => typeof e === "string" && e.startsWith("scene.")))].slice(0, MAX_HA_SCENES);
-  if (list.length) r.haScenes = list; else delete r.haScenes;
+  const list = [...new Set(next.filter((e) => typeof e === "string" && e.startsWith("scene.")))].slice(
+    0,
+    MAX_HA_SCENES,
+  );
+  if (list.length) r.haScenes = list;
+  else delete r.haScenes;
 }
 
-const FIELD_RANGE: Record<string, [number, number]> = { brightness: [1, 100], kelvin: [1000, 10000], percentage: [0, 100], position: [0, 100], temperature: [5, 35], volume: [0, 100] };
+const FIELD_RANGE: Record<string, [number, number]> = {
+  brightness: [1, 100],
+  kelvin: [1000, 10000],
+  percentage: [0, 100],
+  position: [0, 100],
+  temperature: [5, 35],
+  volume: [0, 100],
+};
 
 /** One draft item cleaned for storage: a known type only, only the fields that type may set, only when on, numbers clamped, text trimmed. */
 export function cleanSceneItem(it: SceneItem): SceneItem | null {
@@ -51,12 +62,19 @@ export function cleanSceneItem(it: SceneItem): SceneItem | null {
   if (!(SCENE_DOMAINS as readonly string[]).includes(domain)) return null;
   const out: SceneItem = { entity: it.entity, on: it.on === true };
   if (!out.on) return out;
-  const src = it as unknown as Record<string, unknown>, dst = out as unknown as Record<string, unknown>;
+  const src = it as unknown as Record<string, unknown>,
+    dst = out as unknown as Record<string, unknown>;
   for (const f of SCENE_FIELDS[domain as (typeof SCENE_DOMAINS)[number]]) {
     const v = src[f];
-    if (f === "hs") { if (Array.isArray(v) && v.length === 2 && v.every((n) => Number.isFinite(n))) dst.hs = [Math.min(360, Math.max(0, v[0])), Math.min(100, Math.max(0, v[1]))]; }
-    else if (f === "hvac" || f === "source") { if (typeof v === "string" && v.trim()) dst[f] = v.trim().slice(0, 80); }
-    else if (typeof v === "number" && Number.isFinite(v)) { const [lo, hi] = FIELD_RANGE[f]; dst[f] = Math.min(hi, Math.max(lo, Math.round(v * 10) / 10)); }
+    if (f === "hs") {
+      if (Array.isArray(v) && v.length === 2 && v.every((n) => Number.isFinite(n)))
+        dst.hs = [Math.min(360, Math.max(0, v[0])), Math.min(100, Math.max(0, v[1]))];
+    } else if (f === "hvac" || f === "source") {
+      if (typeof v === "string" && v.trim()) dst[f] = v.trim().slice(0, 80);
+    } else if (typeof v === "number" && Number.isFinite(v)) {
+      const [lo, hi] = FIELD_RANGE[f];
+      dst[f] = Math.min(hi, Math.max(lo, Math.round(v * 10) / 10));
+    }
   }
   return out;
 }
@@ -65,17 +83,33 @@ export function cleanSceneItem(it: SceneItem): SceneItem | null {
  * S17.3: the designer's Save. `id` null makes a new scene. A name is required (the reason comes back, nothing changes), the items are
  * cleaned by `cleanSceneItem` (duplicates and unknown types dropped, capped) and a scene with none left is refused. Call inside one `commit`.
  */
-export function saveScene(r: Room, id: string | null, name: string, items: SceneItem[]): { ok: true; id: string } | { ok: false; reason: string } {
+export function saveScene(
+  r: Room,
+  id: string | null,
+  name: string,
+  items: SceneItem[],
+): { ok: true; id: string } | { ok: false; reason: string } {
   const t = name.trim().slice(0, MAX_NAME);
   if (!t) return { ok: false, reason: "Give the scene a name." };
   const seen = new Set<string>();
-  const clean = items.flatMap((it) => { const c = cleanSceneItem(it); if (!c || seen.has(c.entity)) return []; seen.add(c.entity); return [c]; }).slice(0, MAX_SCENE_ITEMS);
+  const clean = items
+    .flatMap((it) => {
+      const c = cleanSceneItem(it);
+      if (!c || seen.has(c.entity)) return [];
+      seen.add(c.entity);
+      return [c];
+    })
+    .slice(0, MAX_SCENE_ITEMS);
   if (!clean.length) return { ok: false, reason: "Pick at least one device." };
   const list = r.scenes ?? [];
   const old = id === null ? undefined : find(r, id);
   if (id !== null && !old) return { ok: false, reason: "That scene is gone." };
   if (list.some((s) => s !== old && s.name === t)) return { ok: false, reason: `A scene called ${t} exists already.` };
-  if (old) { old.name = t; old.items = clean; return { ok: true, id: old.id }; }
+  if (old) {
+    old.name = t;
+    old.items = clean;
+    return { ok: true, id: old.id };
+  }
   if (list.length >= MAX_ROOM_SCENES) return { ok: false, reason: `A room keeps at most ${MAX_ROOM_SCENES} scenes.` };
   let n = list.length + 1;
   while (list.some((s) => s.id === `scene-${n}`)) n++;

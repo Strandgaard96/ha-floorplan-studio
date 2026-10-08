@@ -29,10 +29,14 @@ const PAGE = `<!DOCTYPE html><html><body>
 </div>
 </body></html>`;
 
-const stroke = (page: import("@playwright/test").Page, id: string) => page.locator(`#${id}`).evaluate((el) => getComputedStyle(el).stroke);
-const bg = (page: import("@playwright/test").Page, id: string) => page.locator(`#${id}`).evaluate((el) => getComputedStyle(el).backgroundColor);
+const stroke = (page: import("@playwright/test").Page, id: string) =>
+  page.locator(`#${id}`).evaluate((el) => getComputedStyle(el).stroke);
+const bg = (page: import("@playwright/test").Page, id: string) =>
+  page.locator(`#${id}`).evaluate((el) => getComputedStyle(el).backgroundColor);
 
-test("S2.12: with no data-theme the plan is blueprint, and a nested light or blueprint group wins over whatever it sits in, under either OS scheme", async ({ page }) => {
+test("S2.12: with no data-theme the plan is blueprint, and a nested light or blueprint group wins over whatever it sits in, under either OS scheme", async ({
+  page,
+}) => {
   for (const os of ["dark", "light"] as const) {
     await page.emulateMedia({ colorScheme: os });
     await page.setContent(PAGE);
@@ -47,7 +51,9 @@ test("S2.12: with no data-theme the plan is blueprint, and a nested light or blu
   }
 });
 
-test("S2.12: theme ha reads Home Assistant's variables, falls back to plain light or dark without them, and leaves meaning colours alone", async ({ page }) => {
+test("S2.12: theme ha reads Home Assistant's variables, falls back to plain light or dark without them, and leaves meaning colours alone", async ({
+  page,
+}) => {
   await page.setContent(PAGE);
   // No HA variables: light fallback, and the dark mode fallback for data-mode="dark".
   expect(await stroke(page, "haWall")).toBe(LIGHT.wall);
@@ -75,16 +81,22 @@ test("S2.12: theme ha reads Home Assistant's variables, falls back to plain ligh
 const TV_BLUE = "#2c7fb8";
 const SOLARIZED_BLUE = "#268bd2"; // Solarized's own blue
 
-test("S9.3 Opus review CSS pair: --fp-dev-tv is a fixed blue in every theme, not the theme's accent", async ({ page }) => {
+test("S9.3 Opus review CSS pair: --fp-dev-tv is a fixed blue in every theme, not the theme's accent", async ({
+  page,
+}) => {
   const page_ = `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.map(
     (t) => `<g data-theme="${t}" data-mode="dark" id="t-${t}"><line/></g>`,
   ).join("")}</svg></body></html>`;
   await page.setContent(page_);
   for (const t of THEMES) {
-    const tv = await page.locator(`#t-${t}`).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-dev-tv").trim());
+    const tv = await page
+      .locator(`#t-${t}`)
+      .evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-dev-tv").trim());
     expect(tv, t).toBe(t === "solarized" ? SOLARIZED_BLUE : TV_BLUE);
     if (t !== "solarized") {
-      const accent = await page.locator(`#t-${t}`).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-on").trim());
+      const accent = await page
+        .locator(`#t-${t}`)
+        .evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-on").trim());
       expect(tv, `${t}: tv must not collapse to the theme accent`).not.toBe(accent);
     }
   }
@@ -94,11 +106,15 @@ test("S9.3 Opus review CSS pair: --fp-dev-tv is a fixed blue in every theme, not
 // slate, terminal) collapse the contact colour to their one accent, so an open door there fell back to orange or
 // green. --fp-open-door is a fixed red in every theme instead: Solarized's own red, the light theme's red elsewhere.
 test("S9.1 Opus review CSS pair: --fp-open-door is red in every theme, never the theme's accent", async ({ page }) => {
-  await page.setContent(`<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.map(
-    (t) => `<g data-theme="${t}" data-mode="dark" id="t-${t}"><line/></g>`,
-  ).join("")}</svg></body></html>`);
+  await page.setContent(
+    `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.map(
+      (t) => `<g data-theme="${t}" data-mode="dark" id="t-${t}"><line/></g>`,
+    ).join("")}</svg></body></html>`,
+  );
   for (const t of THEMES) {
-    const door = await page.locator(`#t-${t}`).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-open-door").trim());
+    const door = await page
+      .locator(`#t-${t}`)
+      .evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-open-door").trim());
     expect(door, t).toBe(t === "solarized" ? "#dc322f" : "#d64545");
   }
 });

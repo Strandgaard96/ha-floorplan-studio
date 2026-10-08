@@ -9,8 +9,23 @@ import { COVER_CLASSES, coverActive } from "../../src/core/cover";
 // A cover is active (open, opening, closing) only when HA says its device_class is a garage door, a gate or a door.
 // HA's CoverDeviceClass members (homeassistant.components.cover): awning, blind, curtain, damper, door, garage, gate,
 // shade, shutter, window. Each is a decision in COVER_CLASSES; this test walks the union (finding 17).
-const WANT: Record<string, boolean> = { awning: false, blind: false, curtain: false, damper: false, door: true, garage: true, gate: true, shade: false, shutter: false, window: false };
-const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-09-19T10:00:00Z" });
+const WANT: Record<string, boolean> = {
+  awning: false,
+  blind: false,
+  curtain: false,
+  damper: false,
+  door: true,
+  garage: true,
+  gate: true,
+  shade: false,
+  shutter: false,
+  window: false,
+};
+const st = (state: string, attributes: Record<string, unknown> = {}) => ({
+  state,
+  attributes,
+  last_changed: "2026-09-19T10:00:00Z",
+});
 const cover: Device = { id: "c", type: "cover", entity: "cover.c", x: 50, y: 50 } as Device;
 const ground = (demo as unknown as Layout).floors.ground;
 
@@ -26,12 +41,28 @@ describe("a cover is active only when it is a garage door, a gate or a door", ()
         expect(classOf(cover, { scale: 1, state }), `${cls} ${s}`).toBe(active && live ? "on" : "off");
         expect(coverActive(state["cover.c"]), `${cls} ${s}`).toBe(active && live);
       }
-      expect(classOf(cover, { scale: 1, state: { "cover.c": st("unavailable", { device_class: cls }) } }), `${cls} unavailable`).toBe("unavailable");
-      expect(classOf(cover, { scale: 1, state: { "cover.c": st("unknown", { device_class: cls }) } }), `${cls} unknown`).toBe("unavailable");
+      expect(
+        classOf(cover, { scale: 1, state: { "cover.c": st("unavailable", { device_class: cls }) } }),
+        `${cls} unavailable`,
+      ).toBe("unavailable");
+      expect(
+        classOf(cover, { scale: 1, state: { "cover.c": st("unknown", { device_class: cls }) } }),
+        `${cls} unknown`,
+      ).toBe("unavailable");
     }
   });
   it("no device class, or junk, is a curtain: never active (hostile attributes included)", () => {
-    for (const attrs of [{}, { device_class: null }, { device_class: 5 }, { device_class: "" }, { device_class: "GARAGE " }, { device_class: "__proto__" }, { device_class: "constructor" }, { device_class: ["garage"] }, { device_class: { a: 1 } }]) {
+    for (const attrs of [
+      {},
+      { device_class: null },
+      { device_class: 5 },
+      { device_class: "" },
+      { device_class: "GARAGE " },
+      { device_class: "__proto__" },
+      { device_class: "constructor" },
+      { device_class: ["garage"] },
+      { device_class: { a: 1 } },
+    ]) {
       expect(classOf(cover, { scale: 1, state: { "cover.c": st("open", attrs) } }), JSON.stringify(attrs)).toBe("off");
     }
     expect(coverActive(undefined)).toBe(false);
@@ -40,21 +71,70 @@ describe("a cover is active only when it is a garage door, a gate or a door", ()
   });
   it("the Active list agrees with the plan: a gate is listed while open, a curtain beside it is not", () => {
     const gate = { ...cover, id: "g", entity: "cover.gate" } as Device;
-    const l = { version: 2, unit: "cm", north: 0, catalog: [], floors: { f: { ...ground, rooms: [], doors: [], devices: [cover, gate] } } } as unknown as Layout;
-    const state = { "cover.c": st("open", { device_class: "curtain" }), "cover.gate": st("open", { device_class: "gate" }) };
+    const l = {
+      version: 2,
+      unit: "cm",
+      north: 0,
+      catalog: [],
+      floors: { f: { ...ground, rooms: [], doors: [], devices: [cover, gate] } },
+    } as unknown as Layout;
+    const state = {
+      "cover.c": st("open", { device_class: "curtain" }),
+      "cover.gate": st("open", { device_class: "gate" }),
+    };
     expect(activeDevices(l, state).map((a) => a.entity)).toEqual(["cover.gate"]);
     expect(activeDevices(l, { ...state, "cover.gate": st("closed", { device_class: "gate" }) })).toEqual([]);
     expect(activeDevices(l, { ...state, "cover.gate": st("unavailable", { device_class: "gate" }) })).toEqual([]);
   });
   it("a garage cover draws on, in the cover colour; a curtain draws idle, with no halo tint", () => {
-    const draw = (state: StateOverlay) => renderFloor({ ...ground, rooms: [], devices: [cover], doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [] } as typeof ground, { scale: 0.5, state });
+    const draw = (state: StateOverlay) =>
+      renderFloor(
+        {
+          ...ground,
+          rooms: [],
+          devices: [cover],
+          doors: [],
+          walls: [],
+          openings: [],
+          furniture: [],
+          stairs: [],
+          extras: [],
+        } as typeof ground,
+        { scale: 0.5, state },
+      );
     expect(draw({ "cover.c": st("open", { device_class: "garage" }) })).toMatch(/<g data-x="0" class="[^"]*\bon\b/);
-    expect(draw({ "cover.c": st("open", { device_class: "curtain" }) })).not.toMatch(/<g data-x="0" class="[^"]*\bon\b/);
+    expect(draw({ "cover.c": st("open", { device_class: "curtain" }) })).not.toMatch(
+      /<g data-x="0" class="[^"]*\bon\b/,
+    );
     expect(FLOORPLAN_CSS).toContain(".dev-cover.on{--fp-dev:var(--fp-dev-cover)}");
   });
   it("a room that shows a cover entity follows the same rule", () => {
-    const room = { name: "Garage", kind: "room", pts: [[0, 0], [200, 0], [200, 200], [0, 200]], entity: "cover.c" };
-    const draw = (state: StateOverlay) => renderFloor({ ...ground, rooms: [room], devices: [], doors: [], walls: [], openings: [], furniture: [], stairs: [], extras: [] } as unknown as typeof ground, { scale: 0.5, state, roomGlow: true });
+    const room = {
+      name: "Garage",
+      kind: "room",
+      pts: [
+        [0, 0],
+        [200, 0],
+        [200, 200],
+        [0, 200],
+      ],
+      entity: "cover.c",
+    };
+    const draw = (state: StateOverlay) =>
+      renderFloor(
+        {
+          ...ground,
+          rooms: [room],
+          devices: [],
+          doors: [],
+          walls: [],
+          openings: [],
+          furniture: [],
+          stairs: [],
+          extras: [],
+        } as unknown as typeof ground,
+        { scale: 0.5, state, roomGlow: true },
+      );
     expect(draw({ "cover.c": st("open", { device_class: "garage" }) })).toMatch(/class="room[^"]*\bon\b/);
     expect(draw({ "cover.c": st("open", { device_class: "curtain" }) })).not.toMatch(/class="room[^"]*\bon\b/);
   });

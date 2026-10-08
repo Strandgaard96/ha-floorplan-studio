@@ -5,8 +5,15 @@ import { demo, open, holder, drawn } from "./helpers-3d";
 test("3D: layout.colors reaches the 3D box and the icons inside it", async ({ page }) => {
   await open(page, { layout: { ...structuredClone(demo), colors: { light: "#123456" } }, floor: "ground", view: "3d" });
   await drawn(page);
-  expect(await holder(page).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-dev-light").trim())).toBe("#123456");
-  expect(await holder(page).evaluate((el) => { const i = el.querySelector(".fp3-dev"); return i ? getComputedStyle(i).getPropertyValue("--fp-dev-light").trim() : "no icon"; })).toBe("#123456");
+  expect(await holder(page).evaluate((el) => getComputedStyle(el).getPropertyValue("--fp-dev-light").trim())).toBe(
+    "#123456",
+  );
+  expect(
+    await holder(page).evaluate((el) => {
+      const i = el.querySelector(".fp3-dev");
+      return i ? getComputedStyle(i).getPropertyValue("--fp-dev-light").trim() : "no icon";
+    }),
+  ).toBe("#123456");
 });
 
 test("3D: a layout with no colours leaves the box on the theme's own colour", async ({ page }) => {
@@ -23,14 +30,29 @@ test("3D: a layout with no colours leaves the box on the theme's own colour", as
 test("3D: a lit lamp's pool takes its colour from the layout.colors entry", async ({ context }) => {
   const poolOf = async (colors?: Record<string, string>) => {
     const page = await context.newPage(); // a page per layout: `open` routes the page once
-    await open(page, { layout: { ...structuredClone(demo), ...(colors ? { colors } : {}) }, floor: "ground", view: "3d" });
+    await open(page, {
+      layout: { ...structuredClone(demo), ...(colors ? { colors } : {}) },
+      floor: "ground",
+      view: "3d",
+    });
     await page.evaluate(() => {
       const el = document.getElementById("card") as unknown as { hass: unknown };
-      el.hass = { states: { "light.demo_living": { state: "on", attributes: {}, last_changed: new Date(Date.now() - 600000).toISOString() } }, callService: () => undefined };
+      el.hass = {
+        states: {
+          "light.demo_living": {
+            state: "on",
+            attributes: {},
+            last_changed: new Date(Date.now() - 600000).toISOString(),
+          },
+        },
+        callService: () => undefined,
+      };
     });
     await drawn(page);
     type Hook = { __fp3d: { live(): { pools: { visible: boolean; colour: string }[] } } };
-    await expect.poll(() => page.evaluate(() => (window as unknown as Hook).__fp3d.live().pools.some((p) => p.visible))).toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as Hook).__fp3d.live().pools.some((p) => p.visible)))
+      .toBe(true);
     const c = await page.evaluate(() => (window as unknown as Hook).__fp3d.live().pools.find((p) => p.visible)!.colour);
     await page.close();
     return [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)); // r, g, b

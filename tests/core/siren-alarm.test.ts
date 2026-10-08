@@ -17,20 +17,31 @@ const ent = (id: string, domain: string, dc?: string): Ent => ({ id, name: id, d
 const st = (state: string) => ({ state, attributes: {}, last_changed: "2026-10-07T10:00:00Z" });
 const ground = (demo as unknown as Layout).floors.ground;
 const draw = (type: string, entity: string, state: string) =>
-  renderFloor({ ...structuredClone(ground), devices: [{ id: `${type}-x`, type, entity, x: 400, y: 300 }] } as never, { scale: 0.5, now: Date.parse("2026-10-07T10:00:05Z"), fade: 10, state: { [entity]: st(state) } as StateOverlay });
+  renderFloor({ ...structuredClone(ground), devices: [{ id: `${type}-x`, type, entity, x: 400, y: 300 }] } as never, {
+    scale: 0.5,
+    now: Date.parse("2026-10-07T10:00:05Z"),
+    fade: 10,
+    state: { [entity]: st(state) } as StateOverlay,
+  });
 const group = (html: string) => html.match(/<g data-x="0"[^>]*>.*?<\/g>/s)![0];
 
 describe("siren and alarm are device types", () => {
   it("are members of DEVICE_TYPES, once", () => {
-    for (const t of ["siren", "alarm"]) expect(DEVICE_TYPES.filter((x) => x === t), t).toHaveLength(1);
+    for (const t of ["siren", "alarm"])
+      expect(
+        DEVICE_TYPES.filter((x) => x === t),
+        t,
+      ).toHaveLength(1);
   });
   it("validate accepts them and migrate keeps them; a made-up type still fails", () => {
     for (const t of ["siren", "alarm"]) {
-      const l = structuredClone(demo) as any; l.floors.ground.devices.push({ id: "x1", type: t, entity: "x.y", x: 10, y: 10 });
+      const l = structuredClone(demo) as any;
+      l.floors.ground.devices.push({ id: "x1", type: t, entity: "x.y", x: 10, y: 10 });
       expect(validate(l).ok, t).toBe(true);
       expect(migrate(l).floors.ground.devices.at(-1)?.type, t).toBe(t);
     }
-    const bad = structuredClone(demo) as any; bad.floors.ground.devices.push({ id: "x1", type: "klaxon", entity: "x.y", x: 10, y: 10 });
+    const bad = structuredClone(demo) as any;
+    bad.floors.ground.devices.push({ id: "x1", type: "klaxon", entity: "x.y", x: 10, y: 10 });
     expect(validate(bad).ok).toBe(false);
   });
   it("siren.* is a siren and alarm_control_panel.* is an alarm, not other or media", () => {
@@ -65,19 +76,31 @@ describe("siren and alarm are device types", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.dev-siren\.on\{--fp-dev:var\(--fp-danger\)\}/);
   });
   it("an alarm is on while armed or triggered, off when disarmed, and wears the danger colour", () => {
-    for (const s of ["armed_home", "armed_away", "armed_night", "arming", "pending", "triggered"]) expect(group(draw("alarm", "alarm_control_panel.home", s)), s).toContain("dev-alarm on");
+    for (const s of ["armed_home", "armed_away", "armed_night", "arming", "pending", "triggered"])
+      expect(group(draw("alarm", "alarm_control_panel.home", s)), s).toContain("dev-alarm on");
     expect(group(draw("alarm", "alarm_control_panel.home", "disarmed"))).toContain("dev-alarm off");
     expect(group(draw("alarm", "alarm_control_panel.home", "unavailable"))).toContain("dev-alarm unavailable");
     expect(FLOORPLAN_CSS).toMatch(/\.dev-alarm\.on\{--fp-dev:var\(--fp-danger\)\}/);
   });
   it("the Active list shows an armed alarm and a sounding siren with the danger token, and not a disarmed one", () => {
-    const l = { ...structuredClone(demo), floors: { f: { ...structuredClone(ground), devices: [
-      { id: "a", type: "alarm", entity: "alarm_control_panel.home", x: 0, y: 0 }, { id: "s", type: "siren", entity: "siren.hall", x: 10, y: 0 },
-    ] } } } as unknown as Layout;
+    const l = {
+      ...structuredClone(demo),
+      floors: {
+        f: {
+          ...structuredClone(ground),
+          devices: [
+            { id: "a", type: "alarm", entity: "alarm_control_panel.home", x: 0, y: 0 },
+            { id: "s", type: "siren", entity: "siren.hall", x: 10, y: 0 },
+          ],
+        },
+      },
+    } as unknown as Layout;
     const items = activeDevices(l, { "alarm_control_panel.home": st("armed_away"), "siren.hall": st("on") });
     expect(items.map((i) => i.entity).sort()).toEqual(["alarm_control_panel.home", "siren.hall"]);
     for (const i of items) expect(i.colorVar).toBe("--fp-danger");
     expect(activeDevices(l, { "alarm_control_panel.home": st("disarmed"), "siren.hall": st("off") })).toEqual([]);
-    expect(colorVarFor({ id: "s", type: "siren", entity: "siren.hall", x: 0, y: 0 } as never, undefined)).toBe("--fp-danger");
+    expect(colorVarFor({ id: "s", type: "siren", entity: "siren.hall", x: 0, y: 0 } as never, undefined)).toBe(
+      "--fp-danger",
+    );
   });
 });

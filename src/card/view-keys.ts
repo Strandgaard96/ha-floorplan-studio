@@ -6,7 +6,16 @@
 export const PAN_STEP = 0.1;
 
 /** The arrows pan, + and - zoom, [ and ] turn the plan (Diego, 2026-10-07; the arrows used to zoom and turn it). */
-export type ViewKey = "zoomIn" | "zoomOut" | "panLeft" | "panRight" | "panUp" | "panDown" | "rotateLeft" | "rotateRight" | "reset";
+export type ViewKey =
+  | "zoomIn"
+  | "zoomOut"
+  | "panLeft"
+  | "panRight"
+  | "panUp"
+  | "panDown"
+  | "rotateLeft"
+  | "rotateRight"
+  | "reset";
 
 /** Arrows, + - [ ] and Space, plain or with Alt or Shift. Ctrl and Cmd belong to the browser and the OS (Cmd-Left is "back",
  * Ctrl-Arrow switches desktops), so a chord with either is never a view key. Auto-repeat is fine: holding an arrow
@@ -14,16 +23,29 @@ export type ViewKey = "zoomIn" | "zoomOut" | "panLeft" | "panRight" | "panUp" | 
 export function viewKeyOf(ev: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey">): ViewKey | null {
   if (ev.ctrlKey || ev.metaKey) return null;
   switch (ev.key) {
-    case "ArrowUp": return "panUp";
-    case "ArrowDown": return "panDown";
-    case "+": case "=": return "zoomIn"; // "=" is the same key without Shift
-    case "-": case "_": return "zoomOut";
-    case "[": return "rotateLeft";
-    case "]": return "rotateRight";
-    case "ArrowLeft": return "panLeft";
-    case "ArrowRight": return "panRight";
-    case " ": case "Spacebar": return "reset";
-    default: return null;
+    case "ArrowUp":
+      return "panUp";
+    case "ArrowDown":
+      return "panDown";
+    case "+":
+    case "=":
+      return "zoomIn"; // "=" is the same key without Shift
+    case "-":
+    case "_":
+      return "zoomOut";
+    case "[":
+      return "rotateLeft";
+    case "]":
+      return "rotateRight";
+    case "ArrowLeft":
+      return "panLeft";
+    case "ArrowRight":
+      return "panRight";
+    case " ":
+    case "Spacebar":
+      return "reset";
+    default:
+      return null;
   }
 }
 
@@ -37,7 +59,11 @@ export function isSaveChord(ev: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey
 export function takesTyping(el: unknown): boolean {
   if (!(el instanceof Element)) return false;
   // The attribute as well as isContentEditable: it is the same fact, and jsdom (the unit tests) has no isContentEditable.
-  if ((el instanceof HTMLElement && el.isContentEditable) || el.closest('[contenteditable]:not([contenteditable="false"])')) return true;
+  if (
+    (el instanceof HTMLElement && el.isContentEditable) ||
+    el.closest('[contenteditable]:not([contenteditable="false"])')
+  )
+    return true;
   const tag = el.tagName;
   if (tag === "SELECT" || tag === "TEXTAREA") return true;
   if (tag !== "INPUT") return false;
@@ -52,7 +78,14 @@ export function takesSpace(el: unknown): boolean {
   if (takesTyping(el)) return true;
   if (el.tagName === "BUTTON" || el.tagName === "SUMMARY" || el.tagName === "A" || el.tagName === "INPUT") return true;
   const role = el.getAttribute("role");
-  return role === "button" || role === "menuitem" || role === "checkbox" || role === "option" || role === "switch" || role === "tab";
+  return (
+    role === "button" ||
+    role === "menuitem" ||
+    role === "checkbox" ||
+    role === "option" ||
+    role === "switch" ||
+    role === "tab"
+  );
 }
 
 /** Whether a key event is for the view at all, given where it started: `path[0]` is the real target even inside a

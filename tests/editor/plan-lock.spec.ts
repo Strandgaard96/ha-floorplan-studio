@@ -5,9 +5,13 @@ import type { Layout } from "../../src/core/schema";
 // adding a wall are refused with a message, and unticking gives everything back. Real page.mouse at real coordinates (finding 3).
 
 const EDITOR = "floorplan-studio-editor";
-const layoutOf = (page: Page) => page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
+const layoutOf = (page: Page) =>
+  page.evaluate((tag) => JSON.parse(JSON.stringify((document.querySelector(tag) as any).layout)) as Layout, EDITOR);
 const g = async (page: Page) => (await layoutOf(page)).floors.ground;
-const centre = async (page: Page, sel: string) => { const b = (await page.locator(sel).first().boundingBox())!; return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+const centre = async (page: Page, sel: string) => {
+  const b = (await page.locator(sel).first().boundingBox())!;
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+};
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -28,7 +32,9 @@ test("a plan with rooms opens fixed, and the switch is loud: ticked, red, with a
   expect(await label.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
 });
 
-test("adding furniture while the plan is fixed shows a red banner with a close button, and adds nothing", async ({ page }) => {
+test("adding furniture while the plan is fixed shows a red banner with a close button, and adds nothing", async ({
+  page,
+}) => {
   const before = (await g(page)).furniture.length;
   await page.locator('details.menu > summary:text-is("Add")').click();
   await page.locator("#addFurn").selectOption("tree");
@@ -53,7 +59,9 @@ test("a banner closes itself after 20 seconds, not before", async ({ page }) => 
   await expect(page.locator("#status")).toHaveCount(0);
 });
 
-test("fixed: a door drag changes nothing, a device drag moves the device, then unticked the door moves again", async ({ page }) => {
+test("fixed: a door drag changes nothing, a device drag moves the device, then unticked the door moves again", async ({
+  page,
+}) => {
   await page.locator("#fixPlan").check();
   const before = await g(page);
   const room = await centre(page, `${EDITOR} svg line.door[data-d="0"]`); // a door: rooms of the demo share corners and a press on one pans

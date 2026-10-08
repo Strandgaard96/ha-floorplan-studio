@@ -7,16 +7,10 @@
     }
   },
   "postCreateCommand": "pip install uv && uv sync && npm ci && mkdir -p /tmp/ha-config && ln -sfn ${containerWorkspaceFolder}/custom_components /tmp/ha-config/custom_components && printf 'http:\\nfrontend:\\nlogger:\\n  default: warning\\n  logs:\\n    custom_components.floorplan_studio: debug\\n' > /tmp/ha-config/configuration.yaml",
-  "forwardPorts": [
-    8123
-  ],
+  "forwardPorts": [8123],
   "customizations": {
     "vscode": {
-      "extensions": [
-        "ms-python.python",
-        "charliermarsh.ruff",
-        "oxc.oxc-vscode"
-      ]
+      "extensions": ["ms-python.python", "charliermarsh.ruff", "oxc.oxc-vscode"]
     }
   }
 }

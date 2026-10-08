@@ -29,10 +29,14 @@ function chunk(type: string, data: Buffer): Buffer {
 
 /** A hand-built 2x2 RGBA PNG: red, green / blue, and a half-transparent white, so no two pixels share a channel. */
 function makeTestPng(): Buffer {
-  const width = 2, height = 2, channels = 4;
+  const width = 2,
+    height = 2,
+    channels = 4;
   const pixels = [
-    [255, 0, 0, 255], [0, 255, 0, 255],
-    [0, 0, 255, 255], [255, 255, 255, 128],
+    [255, 0, 0, 255],
+    [0, 255, 0, 255],
+    [0, 0, 255, 255],
+    [255, 255, 255, 128],
   ];
   const stride = width * channels;
   const raw = Buffer.alloc(height * (stride + 1));
@@ -41,7 +45,10 @@ function makeTestPng(): Buffer {
     for (let x = 0; x < width; x++) {
       const [r, g, b, a] = pixels[y * width + x];
       const o = y * (stride + 1) + 1 + x * channels;
-      raw[o] = r; raw[o + 1] = g; raw[o + 2] = b; raw[o + 3] = a;
+      raw[o] = r;
+      raw[o + 1] = g;
+      raw[o + 2] = b;
+      raw[o + 3] = a;
     }
   }
   const ihdr = Buffer.alloc(13);
@@ -49,7 +56,9 @@ function makeTestPng(): Buffer {
   ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; // bit depth
   ihdr[9] = 6; // colour type: RGBA
-  ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0; // compression, filter, interlace
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0; // compression, filter, interlace
   const idat = deflateSync(raw);
   return Buffer.concat([
     Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),

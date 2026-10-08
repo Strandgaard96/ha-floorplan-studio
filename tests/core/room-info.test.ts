@@ -3,55 +3,134 @@ import type { Device, DeviceType, Door, Floor, Pt } from "../../src/core/schema"
 import { DEVICE_TYPES } from "../../src/core/schema";
 import { FLOORPLAN_CSS, renderFloor, type StateOverlay } from "../../src/core/render";
 import { NO_TOGGLE } from "../../src/card/actions";
-import { ROOM_ROW_TAP, deviceInfo, filterToRoom, floorSummary, formatChanged, meanReading, roomAreaM2, roomSummary } from "../../src/core/room-info";
+import {
+  ROOM_ROW_TAP,
+  deviceInfo,
+  filterToRoom,
+  floorSummary,
+  formatChanged,
+  meanReading,
+  roomAreaM2,
+  roomSummary,
+} from "../../src/core/room-info";
 
 // S11.3 and S11.4 (spec docs/specs/room-sensors.md, criteria 5 and 6). Pure builders: what the card's left panel shows.
-const st = (state: string, attributes: Record<string, unknown> = {}, last_changed = "2026-10-04T10:00:00Z") => ({ state, attributes, last_changed });
-const sq = (x: number, y: number, w: number, h: number): Pt[] => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-const dev = (type: DeviceType, entity: string, x: number, y: number, extra: Record<string, unknown> = {}): Device => ({ id: entity, type, entity, name: entity.split(".")[1], x, y, ...extra }) as Device;
-const room = (name: string, pts: Pt[], extra: Record<string, unknown> = {}) => ({ id: name, name, area: "", kind: "room", pts, wk: ["wall", "wall", "wall", "wall"], ...extra });
-const door = (id: string, name: string, kind: string, a: Pt, b: Pt, extra: Record<string, unknown> = {}) => ({ id, name, kind, a, b, ...extra }) as unknown as Door;
+const st = (state: string, attributes: Record<string, unknown> = {}, last_changed = "2026-10-04T10:00:00Z") => ({
+  state,
+  attributes,
+  last_changed,
+});
+const sq = (x: number, y: number, w: number, h: number): Pt[] => [
+  [x, y],
+  [x + w, y],
+  [x + w, y + h],
+  [x, y + h],
+];
+const dev = (type: DeviceType, entity: string, x: number, y: number, extra: Record<string, unknown> = {}): Device =>
+  ({ id: entity, type, entity, name: entity.split(".")[1], x, y, ...extra }) as Device;
+const room = (name: string, pts: Pt[], extra: Record<string, unknown> = {}) => ({
+  id: name,
+  name,
+  area: "",
+  kind: "room",
+  pts,
+  wk: ["wall", "wall", "wall", "wall"],
+  ...extra,
+});
+const door = (id: string, name: string, kind: string, a: Pt, b: Pt, extra: Record<string, unknown> = {}) =>
+  ({ id, name, kind, a, b, ...extra }) as unknown as Door;
 
 // Living: 450 x 320 cm = 14.4 m2 (deliberately not square and not round). Study: 350 x 320 = 11.2 m2, to its right.
-const floor = (devices: Device[], extra: Record<string, unknown> = {}): Floor => ({
-  title: "Ground", outline: [], walls: [], stairs: [], openings: [], extras: [], furniture: [], unlinked: [], devices,
-  rooms: [
-    room("Living", sq(0, 0, 450, 320), { temps: ["sensor.t1", "sensor.t2"], humidity: ["sensor.h1"], motion: ["binary_sensor.m1"] }),
-    room("Study", sq(450, 0, 350, 320)),
-  ],
-  doors: [
-    door("d1", "Hall door", "door", [450, 100], [450, 180], { sensors: ["binary_sensor.hall_contact"] }), // shared wall: borders both rooms
-    door("d2", "Big window", "window", [100, 0], [300, 0], { sensors: ["binary_sensor.win"] }), // Living's top edge, closed
-    door("d3", "Study window", "window", [500, 320], [700, 320], { sensors: ["binary_sensor.study_win"] }), // Study only, open
-    door("d4", "Back door", "door", [0, 100], [0, 200], { locks: ["lock.back"] }), // Living only, unlocked
-  ],
-  ...extra,
-}) as unknown as Floor;
+const floor = (devices: Device[], extra: Record<string, unknown> = {}): Floor =>
+  ({
+    title: "Ground",
+    outline: [],
+    walls: [],
+    stairs: [],
+    openings: [],
+    extras: [],
+    furniture: [],
+    unlinked: [],
+    devices,
+    rooms: [
+      room("Living", sq(0, 0, 450, 320), {
+        temps: ["sensor.t1", "sensor.t2"],
+        humidity: ["sensor.h1"],
+        motion: ["binary_sensor.m1"],
+      }),
+      room("Study", sq(450, 0, 350, 320)),
+    ],
+    doors: [
+      door("d1", "Hall door", "door", [450, 100], [450, 180], { sensors: ["binary_sensor.hall_contact"] }), // shared wall: borders both rooms
+      door("d2", "Big window", "window", [100, 0], [300, 0], { sensors: ["binary_sensor.win"] }), // Living's top edge, closed
+      door("d3", "Study window", "window", [500, 320], [700, 320], { sensors: ["binary_sensor.study_win"] }), // Study only, open
+      door("d4", "Back door", "door", [0, 100], [0, 200], { locks: ["lock.back"] }), // Living only, unlocked
+    ],
+    ...extra,
+  }) as unknown as Floor;
 
 const DEVICES = [
-  dev("light", "light.lamp", 100, 100), dev("light", "light.floor", 200, 100), dev("switch", "switch.fan", 300, 100),
-  dev("camera", "camera.cam", 50, 250), dev("person", "person.diego", 60, 60), dev("light", "light.desk", 600, 100),
-  dev("motion", "binary_sensor.placed_motion", 150, 250), dev("heater", "climate.rad", 0, 0, { a: [10, 300], b: [110, 300], trvs: ["climate.trv"] }),
+  dev("light", "light.lamp", 100, 100),
+  dev("light", "light.floor", 200, 100),
+  dev("switch", "switch.fan", 300, 100),
+  dev("camera", "camera.cam", 50, 250),
+  dev("person", "person.diego", 60, 60),
+  dev("light", "light.desk", 600, 100),
+  dev("motion", "binary_sensor.placed_motion", 150, 250),
+  dev("heater", "climate.rad", 0, 0, { a: [10, 300], b: [110, 300], trvs: ["climate.trv"] }),
 ];
 const STATE: StateOverlay = {
-  "sensor.t1": st("21", { unit_of_measurement: "°C" }), "sensor.t2": st("22.4", { unit_of_measurement: "°C" }), "sensor.h1": st("48", { unit_of_measurement: "%" }),
+  "sensor.t1": st("21", { unit_of_measurement: "°C" }),
+  "sensor.t2": st("22.4", { unit_of_measurement: "°C" }),
+  "sensor.h1": st("48", { unit_of_measurement: "%" }),
   "binary_sensor.m1": st("on", {}, "2026-10-04T09:30:00Z"),
-  "light.lamp": st("on", { friendly_name: "Lamp (HA)" }), "light.floor": st("off"), "switch.fan": st("on"), "light.desk": st("on"),
-  "binary_sensor.hall_contact": st("on"), "binary_sensor.win": st("off"), "binary_sensor.study_win": st("on"), "lock.back": st("unlocked"),
-  "camera.cam": st("idle"), "person.diego": st("home"),
+  "light.lamp": st("on", { friendly_name: "Lamp (HA)" }),
+  "light.floor": st("off"),
+  "switch.fan": st("on"),
+  "light.desk": st("on"),
+  "binary_sensor.hall_contact": st("on"),
+  "binary_sensor.win": st("off"),
+  "binary_sensor.study_win": st("on"),
+  "lock.back": st("unlocked"),
+  "camera.cam": st("idle"),
+  "person.diego": st("home"),
 };
-const sum = (state: StateOverlay | undefined = STATE, f: Floor = floor(DEVICES), i = 0) => roomSummary(f, i, state, {})!;
+const sum = (state: StateOverlay | undefined = STATE, f: Floor = floor(DEVICES), i = 0) =>
+  roomSummary(f, i, state, {})!;
 
 describe("roomAreaM2", () => {
   it("is the polygon's area in square metres from its points (the plan is in cm)", () => {
     expect(roomAreaM2(sq(0, 0, 450, 320))).toBe(14.4);
-    expect(roomAreaM2([[0, 0], [300, 0], [0, 200]])).toBe(3); // a triangle, winding the other way round too
-    expect(roomAreaM2([[0, 0], [0, 200], [300, 0]])).toBe(3);
+    expect(
+      roomAreaM2([
+        [0, 0],
+        [300, 0],
+        [0, 200],
+      ]),
+    ).toBe(3); // a triangle, winding the other way round too
+    expect(
+      roomAreaM2([
+        [0, 0],
+        [0, 200],
+        [300, 0],
+      ]),
+    ).toBe(3);
   });
   it("is null for junk, never NaN", () => {
     expect(roomAreaM2(5)).toBeNull();
-    expect(roomAreaM2([[0, 0], [1, 1]])).toBeNull();
-    expect(roomAreaM2([[0, 0], [1, NaN], [5, 5]])).toBeNull();
+    expect(
+      roomAreaM2([
+        [0, 0],
+        [1, 1],
+      ]),
+    ).toBeNull();
+    expect(
+      roomAreaM2([
+        [0, 0],
+        [1, NaN],
+        [5, 5],
+      ]),
+    ).toBeNull();
   });
 });
 
@@ -67,7 +146,11 @@ describe("meanReading", () => {
 });
 
 describe("meanReading with mixed units (Opus review of Sprint 11)", () => {
-  const mix = { "sensor.c": st("21", { unit_of_measurement: "°C" }), "sensor.f": st("70", { unit_of_measurement: "°F" }), "sensor.c2": st("22", { unit_of_measurement: "°C" }) };
+  const mix = {
+    "sensor.c": st("21", { unit_of_measurement: "°C" }),
+    "sensor.f": st("70", { unit_of_measurement: "°F" }),
+    "sensor.c2": st("22", { unit_of_measurement: "°C" }),
+  };
   it("averages only the readings in the first unit seen, never a bare mean of Celsius and Fahrenheit", () => {
     expect(meanReading(["sensor.c", "sensor.f"], mix)).toBe("21 °C");
     expect(meanReading(["sensor.f", "sensor.c"], mix)).toBe("70 °F");
@@ -85,7 +168,10 @@ describe("roomSummary", () => {
   });
   it("reports motion on, with when it changed", () => {
     expect(sum().motion).toEqual({ on: true, since: "2026-10-04T09:30:00Z" });
-    expect(sum({ ...STATE, "binary_sensor.m1": st("off", {}, "2026-10-04T11:00:00Z") }).motion).toEqual({ on: false, since: "2026-10-04T11:00:00Z" });
+    expect(sum({ ...STATE, "binary_sensor.m1": st("off", {}, "2026-10-04T11:00:00Z") }).motion).toEqual({
+      on: false,
+      since: "2026-10-04T11:00:00Z",
+    });
   });
   it("has no motion line for a room with no motion sensor", () => {
     expect(sum(STATE, floor(DEVICES), 1).motion).toBeNull();
@@ -99,12 +185,24 @@ describe("roomSummary", () => {
   });
   it("lists the devices standing in the room, in plan order, not a person, not another room's", () => {
     const rows = sum().devices;
-    expect(rows.map((r) => r.entity)).toEqual(["light.lamp", "light.floor", "switch.fan", "camera.cam", "binary_sensor.placed_motion", "climate.rad"]);
+    expect(rows.map((r) => r.entity)).toEqual([
+      "light.lamp",
+      "light.floor",
+      "switch.fan",
+      "camera.cam",
+      "binary_sensor.placed_motion",
+      "climate.rad",
+    ]);
     expect(rows[0]).toMatchObject({ index: 0, name: "lamp", type: "light", state: "on", on: true });
     expect(rows[1]).toMatchObject({ state: "off", on: false });
   });
   it("lists the room's own sensors as rows too, since they have no icon on the plan", () => {
-    expect(sum().sensors.map((r) => [r.entity, r.kind, r.state])).toEqual([["sensor.t1", "temps", "21 °C"], ["sensor.t2", "temps", "22.4 °C"], ["sensor.h1", "humidity", "48 %"], ["binary_sensor.m1", "motion", "on"]]);
+    expect(sum().sensors.map((r) => [r.entity, r.kind, r.state])).toEqual([
+      ["sensor.t1", "temps", "21 °C"],
+      ["sensor.t2", "temps", "22.4 °C"],
+      ["sensor.h1", "humidity", "48 %"],
+      ["binary_sensor.m1", "motion", "on"],
+    ]);
   });
   it("lists a sensor the room owns that also has an icon once, as a device, not again as a sensor", () => {
     const s = sum(STATE, floor([...DEVICES, dev("temp", "sensor.t1", 20, 20)]));
@@ -123,8 +221,23 @@ describe("roomSummary", () => {
   it("copes with unavailable states and an empty room", () => {
     const empty = floor([], { rooms: [room("Void", sq(0, 0, 100, 100))], doors: [] });
     const s = roomSummary(empty, 0, {}, {})!;
-    expect(s).toMatchObject({ name: "Void", areaM2: 1, temperature: "", humidity: "", motion: null, openings: [], lightsOn: [], devices: [], sensors: [] });
-    const dead = sum({ ...STATE, "sensor.t1": st("unavailable"), "sensor.t2": st("unavailable"), "binary_sensor.m1": st("unavailable") });
+    expect(s).toMatchObject({
+      name: "Void",
+      areaM2: 1,
+      temperature: "",
+      humidity: "",
+      motion: null,
+      openings: [],
+      lightsOn: [],
+      devices: [],
+      sensors: [],
+    });
+    const dead = sum({
+      ...STATE,
+      "sensor.t1": st("unavailable"),
+      "sensor.t2": st("unavailable"),
+      "binary_sensor.m1": st("unavailable"),
+    });
     expect(dead.temperature).toBe("");
     expect(dead.motion).toBeNull();
   });
@@ -141,11 +254,22 @@ describe("roomSummary", () => {
 
 describe("filterToRoom", () => {
   const rows = [
-    { entity: "light.lamp" }, { entity: "light.desk" }, { entity: "binary_sensor.m1" }, { entity: "climate.trv" },
-    { entity: "binary_sensor.hall_contact" }, { entity: "binary_sensor.study_win" }, { entity: "lock.back" },
+    { entity: "light.lamp" },
+    { entity: "light.desk" },
+    { entity: "binary_sensor.m1" },
+    { entity: "climate.trv" },
+    { entity: "binary_sensor.hall_contact" },
+    { entity: "binary_sensor.study_win" },
+    { entity: "lock.back" },
   ];
   it("keeps the room's devices, its own sensors, a device's attached entities and its doors' sensors; drops the rest", () => {
-    expect(filterToRoom(rows, sum()).map((r) => r.entity)).toEqual(["light.lamp", "binary_sensor.m1", "climate.trv", "binary_sensor.hall_contact", "lock.back"]);
+    expect(filterToRoom(rows, sum()).map((r) => r.entity)).toEqual([
+      "light.lamp",
+      "binary_sensor.m1",
+      "climate.trv",
+      "binary_sensor.hall_contact",
+      "lock.back",
+    ]);
   });
   it("keeps nothing for an empty room, and the order of the input", () => {
     const empty = roomSummary(floor([], { rooms: [room("Void", sq(0, 0, 100, 100))], doors: [] }), 0, {}, {})!;
@@ -160,7 +284,9 @@ describe("a tap on a room row", () => {
     for (const t of DEVICE_TYPES) if (ROOM_ROW_TAP[t] === "toggle") expect(NO_TOGGLE.has(t), t).toBe(false);
   });
   it("toggles light, switch, plug and cover, and opens more-info for the rest", () => {
-    expect(DEVICE_TYPES.filter((t) => ROOM_ROW_TAP[t] === "toggle")).toEqual(DEVICE_TYPES.filter((t) => ["light", "switch", "plug", "cover"].includes(t)));
+    expect(DEVICE_TYPES.filter((t) => ROOM_ROW_TAP[t] === "toggle")).toEqual(
+      DEVICE_TYPES.filter((t) => ["light", "switch", "plug", "cover"].includes(t)),
+    );
   });
 });
 
@@ -171,53 +297,109 @@ describe("deviceInfo (S11.4)", () => {
   const hass = {
     states: { "light.lamp": st("on", {}, "2026-10-04T09:30:15Z") } as StateOverlay,
     entities: { "light.lamp": { entity_id: "light.lamp", device_id: "dev1" } },
-    devices: { dev1: { id: "dev1", manufacturer: "Signify", model: "Hue white", sw_version: "1.88.1", area_id: "living" } },
+    devices: {
+      dev1: { id: "dev1", manufacturer: "Signify", model: "Hue white", sw_version: "1.88.1", area_id: "living" },
+    },
     areas: { living: { area_id: "living", name: "Living room" } },
   };
   const asMap = (rows: { label: string; value: string }[]) => Object.fromEntries(rows.map((r) => [r.label, r.value]));
   it("gives manufacturer, model, firmware, area, entity, state and last changed from the registry", () => {
     const rows = deviceInfo("light.lamp", hass);
-    expect(rows.map((r) => r.label)).toEqual(["Manufacturer", "Model", "Firmware", "Area", "Entity", "State", "Last changed"]);
-    expect(asMap(rows)).toMatchObject({ Manufacturer: "Signify", Model: "Hue white", Firmware: "1.88.1", Area: "Living room", Entity: "light.lamp", State: "on" });
+    expect(rows.map((r) => r.label)).toEqual([
+      "Manufacturer",
+      "Model",
+      "Firmware",
+      "Area",
+      "Entity",
+      "State",
+      "Last changed",
+    ]);
+    expect(asMap(rows)).toMatchObject({
+      Manufacturer: "Signify",
+      Model: "Hue white",
+      Firmware: "1.88.1",
+      Area: "Living room",
+      Entity: "light.lamp",
+      State: "on",
+    });
     expect(asMap(rows)["Last changed"]).toBe(formatChanged("2026-10-04T09:30:15Z"));
   });
   it("shows only entity, state and last changed when the registry has no entry", () => {
-    expect(deviceInfo("light.lamp", { states: hass.states }).map((r) => r.label)).toEqual(["Entity", "State", "Last changed"]);
-    expect(deviceInfo("light.lamp", { ...hass, entities: {} }).map((r) => r.label)).toEqual(["Entity", "State", "Last changed"]);
-    expect(deviceInfo("light.lamp", { ...hass, devices: {} }).map((r) => r.label)).toEqual(["Entity", "State", "Last changed"]);
+    expect(deviceInfo("light.lamp", { states: hass.states }).map((r) => r.label)).toEqual([
+      "Entity",
+      "State",
+      "Last changed",
+    ]);
+    expect(deviceInfo("light.lamp", { ...hass, entities: {} }).map((r) => r.label)).toEqual([
+      "Entity",
+      "State",
+      "Last changed",
+    ]);
+    expect(deviceInfo("light.lamp", { ...hass, devices: {} }).map((r) => r.label)).toEqual([
+      "Entity",
+      "State",
+      "Last changed",
+    ]);
   });
   it("drops a field the registry has as null or empty, and takes the entity's own area over its device's", () => {
-    const h = { ...hass, devices: { dev1: { id: "dev1", manufacturer: null, model: "", sw_version: null, area_id: "living" } } };
+    const h = {
+      ...hass,
+      devices: { dev1: { id: "dev1", manufacturer: null, model: "", sw_version: null, area_id: "living" } },
+    };
     expect(deviceInfo("light.lamp", h).map((r) => r.label)).toEqual(["Area", "Entity", "State", "Last changed"]);
-    const own = { ...hass, entities: { "light.lamp": { entity_id: "light.lamp", device_id: "dev1", area_id: "kitchen" } }, areas: { ...hass.areas, kitchen: { area_id: "kitchen", name: "Kitchen" } } };
+    const own = {
+      ...hass,
+      entities: { "light.lamp": { entity_id: "light.lamp", device_id: "dev1", area_id: "kitchen" } },
+      areas: { ...hass.areas, kitchen: { area_id: "kitchen", name: "Kitchen" } },
+    };
     expect(asMap(deviceInfo("light.lamp", own)).Area).toBe("Kitchen");
   });
   it("says so when the entity has no state, and never prints NaN or undefined", () => {
     const rows = deviceInfo("light.gone", { states: {} });
     expect(asMap(rows)).toEqual({ Entity: "light.gone", State: "no state", "Last changed": "unknown" });
-    expect(JSON.stringify(deviceInfo("light.lamp", { states: { "light.lamp": st("on", {}, "garbage") }, devices: { x: 5 }, entities: { "light.lamp": { device_id: "x" } } } as never))).not.toMatch(/NaN|undefined|Invalid/);
+    expect(
+      JSON.stringify(
+        deviceInfo("light.lamp", {
+          states: { "light.lamp": st("on", {}, "garbage") },
+          devices: { x: 5 },
+          entities: { "light.lamp": { device_id: "x" } },
+        } as never),
+      ),
+    ).not.toMatch(/NaN|undefined|Invalid/);
   });
   it("does not throw on a hostile registry", () => {
-    const evil = { states: hass.states, entities: { "light.lamp": { device_id: "__proto__" } }, devices: { dev1: { manufacturer: { x: 1 }, model: 7, area_id: "constructor" } }, areas: 5 };
+    const evil = {
+      states: hass.states,
+      entities: { "light.lamp": { device_id: "__proto__" } },
+      devices: { dev1: { manufacturer: { x: 1 }, model: 7, area_id: "constructor" } },
+      areas: 5,
+    };
     expect(() => deviceInfo("light.lamp", evil as never)).not.toThrow();
   });
   it("adds a unit to a sensor's state", () => {
-    expect(asMap(deviceInfo("sensor.t", { states: { "sensor.t": st("21.5", { unit_of_measurement: "°C" }) } })).State).toBe("21.5 °C");
+    expect(
+      asMap(deviceInfo("sensor.t", { states: { "sensor.t": st("21.5", { unit_of_measurement: "°C" }) } })).State,
+    ).toBe("21.5 °C");
   });
 });
 
 describe("formatChanged", () => {
   it("is ISO date and 24-hour time in the local zone", () => {
-    const d = new Date("2026-10-04T09:30:15Z"), p = (n: number) => String(n).padStart(2, "0");
-    expect(formatChanged("2026-10-04T09:30:15Z")).toBe(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`);
+    const d = new Date("2026-10-04T09:30:15Z"),
+      p = (n: number) => String(n).padStart(2, "0");
+    expect(formatChanged("2026-10-04T09:30:15Z")).toBe(
+      `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+    );
     expect(formatChanged("nonsense")).toBe("unknown");
     expect(formatChanged(undefined)).toBe("unknown");
   });
 });
 
 describe("renderFloor: the room the card has picked (S11.3)", () => {
-  const html = (selectedRoom?: number) => renderFloor(floor(DEVICES), { scale: 0.5, state: STATE, ...(selectedRoom === undefined ? {} : { selectedRoom }) });
-  const rings = (h: string) => [...h.matchAll(/<polygon class="room-picked" data-picked="(\d+)"[^>]*>/g)].map((m) => Number(m[1]));
+  const html = (selectedRoom?: number) =>
+    renderFloor(floor(DEVICES), { scale: 0.5, state: STATE, ...(selectedRoom === undefined ? {} : { selectedRoom }) });
+  const rings = (h: string) =>
+    [...h.matchAll(/<polygon class="room-picked" data-picked="(\d+)"[^>]*>/g)].map((m) => Number(m[1]));
   const dataR = (h: string) => [...h.matchAll(/<polygon data-r="(\d+)"/g)].length;
   it("draws one outline ring for that room, after the walls, and never a second pick target", () => {
     expect(rings(html(1))).toEqual([1]);
@@ -226,15 +408,32 @@ describe("renderFloor: the room the card has picked (S11.3)", () => {
     expect(html(1).indexOf('class="room-picked"')).toBeGreaterThan(html(1).lastIndexOf('<line class="e'));
   });
   it("does not disturb the motion perimeter's own markup or mask id when both are drawn for one room", () => {
-    const withMotion = (n?: number) => renderFloor(floor(DEVICES), { scale: 0.5, state: STATE, ...(n === undefined ? {} : { selectedRoom: n }) });
+    const withMotion = (n?: number) =>
+      renderFloor(floor(DEVICES), { scale: 0.5, state: STATE, ...(n === undefined ? {} : { selectedRoom: n }) });
     const ids = [...withMotion(0).matchAll(/<mask id="([^"]+)"/g)].map((m) => m[1]);
     expect(new Set(ids).size, "no mask id is minted twice").toBe(ids.length);
-    expect([...withMotion(0).matchAll(/class="motion-perimeter[^"]*"/g)].length).toBe([...withMotion().matchAll(/class="motion-perimeter[^"]*"/g)].length);
+    expect([...withMotion(0).matchAll(/class="motion-perimeter[^"]*"/g)].length).toBe(
+      [...withMotion().matchAll(/class="motion-perimeter[^"]*"/g)].length,
+    );
   });
   it("draws nothing when none is picked, or the index is not a room, or the room has no ring", () => {
     expect(rings(html())).toEqual([]);
     expect(rings(html(7))).toEqual([]);
-    expect(rings(renderFloor(floor(DEVICES, { rooms: [room("Bad", [[0, 0], [1, 1]])] }), { scale: 0.5, selectedRoom: 0 }))).toEqual([]);
+    expect(
+      rings(
+        renderFloor(
+          floor(DEVICES, {
+            rooms: [
+              room("Bad", [
+                [0, 0],
+                [1, 1],
+              ]),
+            ],
+          }),
+          { scale: 0.5, selectedRoom: 0 },
+        ),
+      ),
+    ).toEqual([]);
   });
   it("is drawn by the shared path, with a style rule for it", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.room-picked\{/);
@@ -246,8 +445,21 @@ describe("room rows: a piece whose entity a plug device also uses (S19.B)", () =
   // The plug sits in the Study, the tv piece in the Living room, so the row's own-room dedupe does not hide it. The plug idles at 0.5 W
   // (below the 2 W threshold), so the plan shows both off while the switch itself says "on", which a tv rule would call on.
   const plug = dev("plug", "switch.tv_plug", 600, 100, { power: "sensor.tv_watts" });
-  const piece = { id: "tv1", symbol: "tv", x: 100, y: 200, rot: 0, w: 100, h: 10, entity: "switch.tv_plug", name: "Telly" };
-  const state: StateOverlay = { "switch.tv_plug": st("on"), "sensor.tv_watts": st("0.5", { unit_of_measurement: "W" }) };
+  const piece = {
+    id: "tv1",
+    symbol: "tv",
+    x: 100,
+    y: 200,
+    rot: 0,
+    w: 100,
+    h: 10,
+    entity: "switch.tv_plug",
+    name: "Telly",
+  };
+  const state: StateOverlay = {
+    "switch.tv_plug": st("on"),
+    "sensor.tv_watts": st("0.5", { unit_of_measurement: "W" }),
+  };
   it("reads off, as the plan draws it, while the plug idles", () => {
     const f = floor([plug], { furniture: [piece] });
     const row = roomSummary(f, 0, state, {})!.devices.find((d) => d.piece)!;
@@ -279,7 +491,16 @@ describe("floorSummary (S20.2): the same rules over every room of the floor", ()
     expect(roomSummary(f, 1, state, {})!.lightsOnEntities).toEqual(["light.desk"]);
   });
   it("lists every device of the floor but a person, and owns their entities", () => {
-    expect(s.devices.map((r) => r.entity)).toEqual(["light.lamp", "light.floor", "switch.fan", "camera.cam", "light.desk", "binary_sensor.placed_motion", "climate.rad", "light.yard"]);
+    expect(s.devices.map((r) => r.entity)).toEqual([
+      "light.lamp",
+      "light.floor",
+      "switch.fan",
+      "camera.cam",
+      "light.desk",
+      "binary_sensor.placed_motion",
+      "climate.rad",
+      "light.yard",
+    ]);
     expect(s.entities.has("climate.trv")).toBe(true);
     expect(s.entities.has("person.diego")).toBe(false);
   });
@@ -289,7 +510,17 @@ describe("floorSummary (S20.2): the same rules over every room of the floor", ()
     expect(s.openings).toEqual(["Hall door", "Back door", "Study window"]); // each door once, though the Hall door borders both rooms
   });
   it("lists a linked piece anywhere on the floor, once", () => {
-    const piece = { id: "tv1", symbol: "tv", x: 600, y: 200, rot: 0, w: 100, h: 10, entity: "media_player.tv", name: "Telly" };
+    const piece = {
+      id: "tv1",
+      symbol: "tv",
+      x: 600,
+      y: 200,
+      rot: 0,
+      w: 100,
+      h: 10,
+      entity: "media_player.tv",
+      name: "Telly",
+    };
     const g = floorSummary(floor(DEVICES, { furniture: [piece] }), { ...STATE, "media_player.tv": st("playing") }, {});
     expect(g.devices.filter((r) => r.piece).map((r) => [r.entity, r.on])).toEqual([["media_player.tv", true]]);
   });
@@ -310,7 +541,9 @@ describe("review fixes to the summaries (S20)", () => {
     expect(floorSummary(f, state, {}).lightsOnEntities).toEqual(["light.plain"]);
   });
   it("a sensor a room lists twice appears once, as a row and in the mean", () => {
-    const f = floor([], { rooms: [room("Living", sq(0, 0, 450, 320), { temps: ["sensor.t1", "sensor.t1", "sensor.t2"] })] });
+    const f = floor([], {
+      rooms: [room("Living", sq(0, 0, 450, 320), { temps: ["sensor.t1", "sensor.t1", "sensor.t2"] })],
+    });
     const s = roomSummary(f, 0, STATE, {})!;
     expect(s.sensors.map((r) => r.entity)).toEqual(["sensor.t1", "sensor.t2"]);
     expect(s.temperature).toBe("21.7 °C"); // (21 + 22.4) / 2, not (21 + 21 + 22.4) / 3 = 21.5

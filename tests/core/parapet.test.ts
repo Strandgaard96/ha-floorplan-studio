@@ -8,8 +8,24 @@ import { WALL_LABELS } from "../../src/editor/panels";
 
 // The parapet (2026-10-06): a balcony's half wall. 120 cm tall, as thick as an external wall (20 cm).
 const floor = (o: Partial<Floor> = {}): Floor => ({
-  title: "T", outline: [[0, 0], [600, 0], [600, 500], [0, 500]], owk: ["external", "external", "external", "external"], rooms: [],
-  walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [], ...o,
+  title: "T",
+  outline: [
+    [0, 0],
+    [600, 0],
+    [600, 500],
+    [0, 500],
+  ],
+  owk: ["external", "external", "external", "external"],
+  rooms: [],
+  walls: [],
+  stairs: [],
+  doors: [],
+  openings: [],
+  extras: [],
+  devices: [],
+  furniture: [],
+  unlinked: [],
+  ...o,
 });
 const ys = (s: Solid) => (s.shape as { base: number[][] }).base.map((p) => p[1]);
 const top = (s: Solid) => (s.shape as { z1: number }).z1;
@@ -33,7 +49,10 @@ describe("parapet wall kind", () => {
   });
 
   it("is 20 cm thick in 3D, like an external wall, and 120 high", () => {
-    const f = floor({ owk: ["external", "external", "external", "external"], walls: [{ id: "p", a: [100, 200], b: [300, 200], kind: "parapet" }] });
+    const f = floor({
+      owk: ["external", "external", "external", "external"],
+      walls: [{ id: "p", a: [100, 200], b: [300, 200], kind: "parapet" }],
+    });
     const s = buildScene(f).solids.find((s) => s.ref.poly === "w" && s.ref.index === 0)!;
     expect([Math.min(...ys(s)), Math.max(...ys(s))]).toEqual([190, 210]);
     expect(top(s)).toBe(120);

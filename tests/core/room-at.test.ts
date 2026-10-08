@@ -7,16 +7,55 @@ import { roomSummary } from "../../src/core/room-info";
 // Opus review of Sprint 11, finding 2: one rule for "the room a point belongs to", used by the lamp aura clip, the
 // editor's Attach, the readout, the Sensors section and the card's room summary. The smallest room that is not a
 // zone, a structure or a fill.
-const sq = (x: number, y: number, w: number, h: number): Pt[] => [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-const room = (name: string, pts: Pt[], extra: Record<string, unknown> = {}) => ({ id: name, name, area: "", kind: "room", pts, wk: ["wall", "wall", "wall", "wall"], ...extra });
-const dev = (type: DeviceType, entity: string, x: number, y: number): Device => ({ id: entity, type, entity, name: entity.split(".")[1], x, y }) as Device;
+const sq = (x: number, y: number, w: number, h: number): Pt[] => [
+  [x, y],
+  [x + w, y],
+  [x + w, y + h],
+  [x, y + h],
+];
+const room = (name: string, pts: Pt[], extra: Record<string, unknown> = {}) => ({
+  id: name,
+  name,
+  area: "",
+  kind: "room",
+  pts,
+  wk: ["wall", "wall", "wall", "wall"],
+  ...extra,
+});
+const dev = (type: DeviceType, entity: string, x: number, y: number): Device =>
+  ({ id: entity, type, entity, name: entity.split(".")[1], x, y }) as Device;
 const floor = (rooms: unknown[], devices: Device[] = []): Floor =>
-  ({ title: "G", outline: [], walls: [], stairs: [], openings: [], extras: [], furniture: [], unlinked: [], doors: [], devices, rooms }) as unknown as Floor;
-const st = (state: string, attributes: Record<string, unknown> = {}) => ({ state, attributes, last_changed: "2026-10-04T10:00:00Z" });
+  ({
+    title: "G",
+    outline: [],
+    walls: [],
+    stairs: [],
+    openings: [],
+    extras: [],
+    furniture: [],
+    unlinked: [],
+    doors: [],
+    devices,
+    rooms,
+  }) as unknown as Floor;
+const st = (state: string, attributes: Record<string, unknown> = {}) => ({
+  state,
+  attributes,
+  last_changed: "2026-10-04T10:00:00Z",
+});
 
 describe("roomAt", () => {
   it("decides every RoomKind (finding 17): who may own a point", () => {
-    const owns: Record<RoomKind, boolean> = { room: true, garden: true, pavement: true, terrace: true, water: true, fill: false, structure: false, zone: false };
+    const owns: Record<RoomKind, boolean> = {
+      room: true,
+      garden: true,
+      pavement: true,
+      terrace: true,
+      water: true,
+      fill: false,
+      structure: false,
+      zone: false,
+    };
     expect(Object.keys(ROOM_OWNS).sort()).toEqual([...ROOM_KINDS].sort());
     for (const k of ROOM_KINDS) {
       expect(ROOM_OWNS[k], k).toBe(owns[k]);
@@ -25,7 +64,12 @@ describe("roomAt", () => {
     }
   });
   it("takes the smallest owning room, skipping a smaller structure, zone or fill on top", () => {
-    const f = floor([room("Hall", sq(0, 0, 400, 400)), room("Closet", sq(10, 10, 100, 100)), room("Box", sq(40, 40, 40, 40), { kind: "structure" }), room("Z", sq(45, 45, 20, 20), { kind: "zone" })]);
+    const f = floor([
+      room("Hall", sq(0, 0, 400, 400)),
+      room("Closet", sq(10, 10, 100, 100)),
+      room("Box", sq(40, 40, 40, 40), { kind: "structure" }),
+      room("Z", sq(45, 45, 20, 20), { kind: "zone" }),
+    ]);
     expect(roomAt(f, [50, 50])).toBe(1);
     expect(roomAt(f, [300, 300])).toBe(0);
     expect(roomAt(f, [900, 900])).toBe(-1);
@@ -35,7 +79,18 @@ describe("roomAt", () => {
     expect(roomAt(f, [50, 50])).toBe(1);
   });
   it("never throws on junk", () => {
-    const f = floor([{ kind: "room", pts: 5 }, { kind: "room", pts: [[NaN, 1], [1, 1], [1, 2]] }, room("Ok", sq(0, 0, 10, 10))]);
+    const f = floor([
+      { kind: "room", pts: 5 },
+      {
+        kind: "room",
+        pts: [
+          [NaN, 1],
+          [1, 1],
+          [1, 2],
+        ],
+      },
+      room("Ok", sq(0, 0, 10, 10)),
+    ]);
     expect(roomAt(f, [5, 5])).toBe(2);
     expect(roomAt(f, [NaN, 5])).toBe(-1);
   });
@@ -52,7 +107,10 @@ describe("the surfaces that follow the rule", () => {
     expect(new RegExp(`<clipPath id="${id}"[^>]*><polygon points="0,0 400,0 400,400 0,400"`).test(html)).toBe(true);
   });
   it("a lamp whose only holder is a structure keeps the free circle", () => {
-    const html = renderFloor(floor([room("Box", sq(40, 40, 60, 40), { kind: "structure" })], [lamp]), { scale: 0.5, state: on });
+    const html = renderFloor(floor([room("Box", sq(40, 40, 60, 40), { kind: "structure" })], [lamp]), {
+      scale: 0.5,
+      state: on,
+    });
     expect(html).toMatch(/<circle class="aura" cx="60" cy="60" r="150"\/>/);
   });
   it("a structure draws no readout, as it has no Sensors section", () => {

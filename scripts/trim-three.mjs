@@ -45,7 +45,10 @@ export function trimThree() {
       let out = code;
       for (const p of PATCHES) {
         const n = out.split(p.from).length - 1;
-        if (n !== 1) throw new Error(`trim-three: expected one match for "${p.from}" (${p.why}), found ${n}. three.js changed: update scripts/trim-three.mjs.`);
+        if (n !== 1)
+          throw new Error(
+            `trim-three: expected one match for "${p.from}" (${p.why}), found ${n}. three.js changed: update scripts/trim-three.mjs.`,
+          );
         out = out.replace(p.from, p.to);
       }
       return { code: out + STANDINS, map: null };

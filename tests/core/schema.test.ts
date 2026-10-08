@@ -16,7 +16,10 @@ describe("validate", () => {
 
   it("rejects a polygon with fewer than 3 points", () => {
     const l = clone();
-    l.floors.ground.rooms[0].pts = [[0, 0], [1, 1]];
+    l.floors.ground.rooms[0].pts = [
+      [0, 0],
+      [1, 1],
+    ];
     l.floors.ground.rooms[0].wk = ["wall", "wall"];
     expect(errorsOf(l).join("\n")).toMatch(/room-ground-1.*at least 3 points/);
   });
@@ -54,13 +57,16 @@ describe("validate", () => {
 
   it("rejects a room area that is not text, and a device entity that is missing or not an entity id (Opus review)", () => {
     for (const bad of [5, {}, [], null, true]) {
-      const l = clone(); l.floors.ground.rooms[0].area = bad;
+      const l = clone();
+      l.floors.ground.rooms[0].area = bad;
       expect(errorsOf(l).join("\n"), String(bad)).toMatch(/room-ground-1 area must be text/);
     }
-    const ok = clone(); ok.floors.ground.rooms[0].area = ""; // empty is a custom shape: drawn rooms have no area
+    const ok = clone();
+    ok.floors.ground.rooms[0].area = ""; // empty is a custom shape: drawn rooms have no area
     expect(validate(ok).ok).toBe(true);
     for (const bad of [5, {}, "nodot", null, undefined]) {
-      const l = clone(); l.floors.ground.devices[0].entity = bad;
+      const l = clone();
+      l.floors.ground.devices[0].entity = bad;
       expect(errorsOf(l).join("\n"), String(bad)).toMatch(/entity must be an entity id/);
     }
   });
@@ -94,7 +100,8 @@ describe("validate", () => {
   });
 
   it("accepts a device with an empty entity: a fitting on the plan that is not in Home Assistant yet", () => {
-    const l = clone(); l.floors.ground.devices[0].entity = "";
+    const l = clone();
+    l.floors.ground.devices[0].entity = "";
     expect(validate(l).ok).toBe(true);
     l.floors.ground.devices[0].bound = "";
     expect(errorsOf(l).join("\n")).toMatch(/bound must be an entity id/);
@@ -136,8 +143,16 @@ describe("validate", () => {
   });
 
   it("rotate: accepts 0 and every multiple of 45 below 360, or none; rejects 30, 360, -45, 45.5 and text", () => {
-    for (const r of [0, 45, 90, 315, undefined]) { const l = clone() as any; l.rotate = r; expect(errorsOf(l), String(r)).toEqual([]); }
-    for (const r of [30, 360, -45, 45.5, "45", null, NaN]) { const l = clone() as any; l.rotate = r; expect(errorsOf(l).join("\n"), String(r)).toMatch(/rotate must be a multiple of 45/); }
+    for (const r of [0, 45, 90, 315, undefined]) {
+      const l = clone() as any;
+      l.rotate = r;
+      expect(errorsOf(l), String(r)).toEqual([]);
+    }
+    for (const r of [30, 360, -45, 45.5, "45", null, NaN]) {
+      const l = clone() as any;
+      l.rotate = r;
+      expect(errorsOf(l).join("\n"), String(r)).toMatch(/rotate must be a multiple of 45/);
+    }
   });
 
   it("rejects a wrong version and a non-object", () => {
@@ -191,7 +206,8 @@ describe("validate bound", () => {
     expect(errorsOf(clone())).toEqual([]);
   });
   it("rejects bound that is not an entity id", () => {
-    const l = clone(); light(l).bound = "nodot";
+    const l = clone();
+    light(l).bound = "nodot";
     expect(has(l, /bound must be an entity id/)).toBe(true);
     light(l).bound = 5;
     expect(has(l, /bound must be an entity id/)).toBe(true);
@@ -203,7 +219,8 @@ describe("validate bound", () => {
     expect(has(l, /bound is only allowed on a light/)).toBe(true);
   });
   it("rejects bound equal to entity", () => {
-    const l = clone(); light(l).bound = light(l).entity;
+    const l = clone();
+    light(l).bound = light(l).entity;
     expect(has(l, /bound must differ from entity/)).toBe(true);
   });
   it("accepts two lights on one switch, and that switch as a device of its own (S1.32)", () => {
@@ -236,25 +253,79 @@ describe("validate bound", () => {
     it("accepts a zone with no wall edge and a water polygon", () => {
       const l = clone();
       l.floors.ground.rooms.push(
-        { id: "z1", name: "Nook", area: "nook", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "boundary", "boundary"] },
-        { id: "w1", name: "Pond", area: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "boundary", "boundary"] },
+        {
+          id: "z1",
+          name: "Nook",
+          area: "nook",
+          kind: "zone",
+          pts: [
+            [10, 10],
+            [60, 10],
+            [60, 60],
+          ],
+          wk: ["boundary", "boundary", "boundary"],
+        },
+        {
+          id: "w1",
+          name: "Pond",
+          area: "",
+          kind: "water",
+          pts: [
+            [10, 10],
+            [60, 10],
+            [60, 60],
+          ],
+          wk: ["boundary", "boundary", "boundary"],
+        },
       );
       expect(errorsOf(l)).toEqual([]);
     });
     it("accepts water with wall flags, like a room", () => {
       const l = clone();
-      l.floors.ground.rooms.push({ id: "w1", name: "Pool", area: "", kind: "water", pts: [[10, 10], [60, 10], [60, 60]], wk: ["wall", "wall", "wall"] });
+      l.floors.ground.rooms.push({
+        id: "w1",
+        name: "Pool",
+        area: "",
+        kind: "water",
+        pts: [
+          [10, 10],
+          [60, 10],
+          [60, 60],
+        ],
+        wk: ["wall", "wall", "wall"],
+      });
       expect(errorsOf(l)).toEqual([]);
     });
     it("rejects a zone with a wall edge", () => {
       const l = clone();
-      l.floors.ground.rooms.push({ id: "z1", name: "Nook", area: "nook", kind: "zone", pts: [[10, 10], [60, 10], [60, 60]], wk: ["boundary", "wall", "boundary"] });
+      l.floors.ground.rooms.push({
+        id: "z1",
+        name: "Nook",
+        area: "nook",
+        kind: "zone",
+        pts: [
+          [10, 10],
+          [60, 10],
+          [60, 60],
+        ],
+        wk: ["boundary", "wall", "boundary"],
+      });
       expect(errorsOf(l).join("\n")).toMatch(/z1.*zone.*wall/);
     });
     it("rejects a zone or water polygon with fewer than 3 points", () => {
       for (const kind of ["zone", "water"]) {
         const l = clone();
-        l.floors.ground.rooms.push({ id: "q1", name: "Q", area: "", kind, pts: [[0, 0], [1, 1]], wk: ["boundary", "boundary"] });
+        l.floors.ground.rooms.push({
+          id: "q1",
+          name: "Q",
+          area: "",
+          kind,
+          pts: [
+            [0, 0],
+            [1, 1],
+          ],
+          wk: ["boundary", "boundary"],
+        });
         expect(errorsOf(l).join("\n")).toMatch(/q1.*at least 3 points/);
       }
     });
@@ -276,20 +347,65 @@ describe("wall kinds", () => {
     for (const k of ["wall", "boundary", "external", "fence", "edge"]) expect(errorsOf(withKind(k)), k).toEqual([]);
   });
   it("rejects garden, an empty kind, a missing kind and a non-string kind", () => {
-    for (const k of ["garden", "", undefined, 3, null, "Fence"]) expect(errorsOf(withKind(k)).join("\n"), String(k)).toMatch(/w1 kind must be one of wall, boundary, external, fence, edge, parapet/);
+    for (const k of ["garden", "", undefined, 3, null, "Fence"])
+      expect(errorsOf(withKind(k)).join("\n"), String(k)).toMatch(
+        /w1 kind must be one of wall, boundary, external, fence, edge, parapet/,
+      );
   });
 });
 
 describe("names are strings (review S1.5, finding 5)", () => {
   const BAD = [{ a: 1 }, 5, ["x"], null, true];
   const fixtures: [string, (l: any, v: unknown) => void, RegExp][] = [
-    ["room.name", (l, v) => { l.floors.ground.rooms[0].name = v; }, /room-ground-1.*name/],
-    ["zone.name", (l, v) => { l.floors.ground.rooms[3].name = v; }, /room-ground-4.*name/],
-    ["water.name", (l, v) => { l.floors.ground.rooms[6].name = v; }, /room-ground-7.*name/],
-    ["stairs.name", (l, v) => { l.floors.ground.stairs[0].name = v; }, /stairs-ground-1.*name/],
-    ["extra.name", (l, v) => { l.floors.ground.extras.push({ id: "x1", name: v, a: [0, 0], b: [10, 10] }); }, /x1.*name/],
-    ["door.name", (l, v) => { l.floors.ground.doors[0].name = v; }, /door-ground-1.*name/],
-    ["device.name", (l, v) => { l.floors.ground.devices[0].name = v; }, /light-living.*name/],
+    [
+      "room.name",
+      (l, v) => {
+        l.floors.ground.rooms[0].name = v;
+      },
+      /room-ground-1.*name/,
+    ],
+    [
+      "zone.name",
+      (l, v) => {
+        l.floors.ground.rooms[3].name = v;
+      },
+      /room-ground-4.*name/,
+    ],
+    [
+      "water.name",
+      (l, v) => {
+        l.floors.ground.rooms[6].name = v;
+      },
+      /room-ground-7.*name/,
+    ],
+    [
+      "stairs.name",
+      (l, v) => {
+        l.floors.ground.stairs[0].name = v;
+      },
+      /stairs-ground-1.*name/,
+    ],
+    [
+      "extra.name",
+      (l, v) => {
+        l.floors.ground.extras.push({ id: "x1", name: v, a: [0, 0], b: [10, 10] });
+      },
+      /x1.*name/,
+    ],
+    [
+      "door.name",
+      (l, v) => {
+        l.floors.ground.doors[0].name = v;
+      },
+      /door-ground-1.*name/,
+    ],
+    [
+      "device.name",
+      (l, v) => {
+        l.floors.ground.devices[0].name = v;
+      },
+      /light-living.*name/,
+    ],
   ];
   for (const [what, set, re] of fixtures)
     for (const bad of BAD)
@@ -311,16 +427,23 @@ describe("room kinds (S1.14)", () => {
   });
   it("accepts pavement and garden, rejects outdoor and names the eight", () => {
     const l = clone();
-    for (const k of ["pavement", "garden"]) { l.floors.ground.rooms[0].kind = k; expect(errorsOf(l)).toEqual([]); }
+    for (const k of ["pavement", "garden"]) {
+      l.floors.ground.rooms[0].kind = k;
+      expect(errorsOf(l)).toEqual([]);
+    }
     l.floors.ground.rooms[0].kind = "outdoor";
     expect(errorsOf(l).join("\n")).toContain("room, garden, pavement, fill, terrace, structure, zone, water");
   });
 });
 
 describe("room colour (S1.16)", () => {
-  const withColor = (c: unknown) => { const l = clone(); l.floors.ground.rooms[0].color = c; return errorsOf(l).join("\n"); };
+  const withColor = (c: unknown) => {
+    const l = clone();
+    l.floors.ground.rooms[0].color = c;
+    return errorsOf(l).join("\n");
+  };
   it("rejects anything but #rrggbb and accepts upper case", () => {
-    for (const bad of ["red", "#abc", "#aabbcc; x", "#aabbccdd", "aabbcc", 5, null, "\"><script>"])
+    for (const bad of ["red", "#abc", "#aabbcc; x", "#aabbccdd", "aabbcc", 5, null, '"><script>'])
       expect(withColor(bad)).toMatch(/room-ground-1 color must be a colour like #aabbcc/);
     expect(withColor("#AABBCC")).toBe("");
     expect(withColor("#aabbcc")).toBe("");
@@ -328,47 +451,107 @@ describe("room colour (S1.16)", () => {
 });
 
 describe("room wk (S1.17)", () => {
-  const errs = (fn: (l: any) => void) => { const l = clone(); fn(l); return errorsOf(l).join("\n"); };
+  const errs = (fn: (l: any) => void) => {
+    const l = clone();
+    fn(l);
+    return errorsOf(l).join("\n");
+  };
   it("the demo has wk and validates", () => {
     // S1.52: room-ground-1's north and west edges lie on the house perimeter, external; its two inner edges stay wall.
     expect(clone().floors.ground.rooms[0].wk).toEqual(["external", "wall", "wall", "external"]);
   });
   it("rejects a wk of the wrong length, an unknown kind, and a missing wk", () => {
-    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall"]; })).toMatch(/room-ground-1.*wk must have 4 entries/);
-    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall", "wall", "moat", "wall"]; })).toMatch(/room-ground-1.*wk.*one of wall, boundary, external, fence, edge, parapet/);
-    expect(errs((l) => { delete l.floors.ground.rooms[0].wk; })).toMatch(/room-ground-1.*wk must have 4 entries/);
+    expect(
+      errs((l) => {
+        l.floors.ground.rooms[0].wk = ["wall"];
+      }),
+    ).toMatch(/room-ground-1.*wk must have 4 entries/);
+    expect(
+      errs((l) => {
+        l.floors.ground.rooms[0].wk = ["wall", "wall", "moat", "wall"];
+      }),
+    ).toMatch(/room-ground-1.*wk.*one of wall, boundary, external, fence, edge, parapet/);
+    expect(
+      errs((l) => {
+        delete l.floors.ground.rooms[0].wk;
+      }),
+    ).toMatch(/room-ground-1.*wk must have 4 entries/);
   });
   it("accepts every wall kind on a room edge", () => {
-    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["wall", "boundary", "external", "fence"]; })).toBe("");
-    expect(errs((l) => { l.floors.ground.rooms[0].wk = ["edge", "edge", "edge", "edge"]; })).toBe("");
+    expect(
+      errs((l) => {
+        l.floors.ground.rooms[0].wk = ["wall", "boundary", "external", "fence"];
+      }),
+    ).toBe("");
+    expect(
+      errs((l) => {
+        l.floors.ground.rooms[0].wk = ["edge", "edge", "edge", "edge"];
+      }),
+    ).toBe("");
   });
   it("a zone must be boundary on every edge", () => {
-    expect(errs((l) => { l.floors.ground.rooms[3].wk[1] = "wall"; })).toMatch(/room-ground-4.*zone.*wk/);
-    expect(errs((l) => { l.floors.ground.rooms[3].wk[1] = "fence"; })).toMatch(/room-ground-4.*zone.*wk/);
+    expect(
+      errs((l) => {
+        l.floors.ground.rooms[3].wk[1] = "wall";
+      }),
+    ).toMatch(/room-ground-4.*zone.*wk/);
+    expect(
+      errs((l) => {
+        l.floors.ground.rooms[3].wk[1] = "fence";
+      }),
+    ).toMatch(/room-ground-4.*zone.*wk/);
   });
 });
 
 describe("outline owk (S1.52)", () => {
-  const errs = (fn: (l: any) => void) => { const l = clone(); fn(l); return errorsOf(l).join("\n"); };
+  const errs = (fn: (l: any) => void) => {
+    const l = clone();
+    fn(l);
+    return errorsOf(l).join("\n");
+  };
   it("the demo has owk of external on every outline edge and validates", () => {
     expect(clone().floors.ground.owk).toEqual(["external", "external", "external", "external"]);
     expect(errorsOf(clone())).toEqual([]);
   });
   it("is optional: a layout with no owk still validates (migrate fills it)", () => {
-    expect(errs((l) => { delete l.floors.ground.owk; })).toBe("");
+    expect(
+      errs((l) => {
+        delete l.floors.ground.owk;
+      }),
+    ).toBe("");
   });
   it("rejects a wrong length, an unknown kind, and a non-array", () => {
-    expect(errs((l) => { l.floors.ground.owk = ["external"]; })).toMatch(/ground:.*owk must have 4 entries/);
-    expect(errs((l) => { l.floors.ground.owk = ["external", "external", "moat", "external"]; })).toMatch(/ground:.*owk entries must be one of wall, boundary, external, fence, edge, parapet/);
-    expect(errs((l) => { l.floors.ground.owk = "external"; })).toMatch(/ground:.*owk must have 4 entries/);
+    expect(
+      errs((l) => {
+        l.floors.ground.owk = ["external"];
+      }),
+    ).toMatch(/ground:.*owk must have 4 entries/);
+    expect(
+      errs((l) => {
+        l.floors.ground.owk = ["external", "external", "moat", "external"];
+      }),
+    ).toMatch(/ground:.*owk entries must be one of wall, boundary, external, fence, edge, parapet/);
+    expect(
+      errs((l) => {
+        l.floors.ground.owk = "external";
+      }),
+    ).toMatch(/ground:.*owk must have 4 entries/);
   });
   it("accepts every wall kind, including none", () => {
-    expect(errs((l) => { l.floors.ground.owk = ["wall", "boundary", "fence", "none"]; })).toBe("");
+    expect(
+      errs((l) => {
+        l.floors.ground.owk = ["wall", "boundary", "fence", "none"];
+      }),
+    ).toBe("");
   });
 });
 
 describe("device rot (S1.23)", () => {
-  const withRot = (v: unknown) => { const l = clone(); l.floors.ground.devices[0].rot = v; return errorsOf(l).join("\n"); };
+  const withRot = (v: unknown) => {
+    const l = clone();
+    l.floors.ground.devices[0].rot = v;
+    return errorsOf(l).join("\n");
+  };
   it("accepts a finite number in [0, 360)", () => {
     for (const ok of [0, 90, 359.5]) expect(withRot(ok)).toBe("");
     expect(errorsOf(clone())).toEqual([]); // absent is fine
@@ -380,7 +563,11 @@ describe("device rot (S1.23)", () => {
 });
 
 describe("room free (S1.24)", () => {
-  const withFree = (v: unknown) => { const l = clone(); (l.floors.ground.rooms[0] as unknown as Record<string, unknown>).free = v; return errorsOf(l).join("\n"); };
+  const withFree = (v: unknown) => {
+    const l = clone();
+    (l.floors.ground.rooms[0] as unknown as Record<string, unknown>).free = v;
+    return errorsOf(l).join("\n");
+  };
   it("accepts a boolean, or none", () => {
     expect(withFree(true)).toBe("");
     expect(withFree(false)).toBe("");
@@ -396,7 +583,10 @@ describe("wall, door and opening locked (S4.9)", () => {
     const l = clone();
     const base: Record<string, unknown> = { id: "x1", a: [0, 0], b: [10, 0] };
     if (list === "walls") base.kind = "wall";
-    if (list === "doors") { base.name = "x"; base.kind = "door"; }
+    if (list === "doors") {
+      base.name = "x";
+      base.kind = "door";
+    }
     if (v !== "absent") base.locked = v;
     (l.floors.ground[list] as unknown[]).push(base);
     return errorsOf(l).join("\n");
@@ -439,42 +629,123 @@ describe("furniture and unlinked locked (S4.31)", () => {
 });
 
 describe("stairs shape, steps, rotation and diameters (S1.25)", () => {
-  const withStairs = (patch: (t: any) => void) => { const l = clone(); patch(l.floors.ground.stairs[0]); return errorsOf(l).join("\n"); };
-  const round = (t: any) => { t.shape = "round"; t.dia = 200; t.inner = 60; };
+  const withStairs = (patch: (t: any) => void) => {
+    const l = clone();
+    patch(l.floors.ground.stairs[0]);
+    return errorsOf(l).join("\n");
+  };
+  const round = (t: any) => {
+    t.shape = "round";
+    t.dia = 200;
+    t.inner = 60;
+  };
   it("lists the shapes", () => expect([...STAIR_SHAPES]).toEqual(["straight", "round"]));
   it("accepts the demo stairs, a round stair, and an inner of 0 or dia - 40", () => {
     expect(withStairs(() => {})).toBe("");
     expect(withStairs(round)).toBe("");
-    expect(withStairs((t) => { round(t); t.inner = 0; })).toBe("");
-    expect(withStairs((t) => { round(t); t.inner = 160; })).toBe("");
+    expect(
+      withStairs((t) => {
+        round(t);
+        t.inner = 0;
+      }),
+    ).toBe("");
+    expect(
+      withStairs((t) => {
+        round(t);
+        t.inner = 160;
+      }),
+    ).toBe("");
   });
   it("rejects a shape outside the list", () => {
-    for (const v of ["curved", "", undefined, 3]) expect(withStairs((t) => { t.shape = v; }), String(v)).toMatch(/stairs-ground-1.*shape/);
+    for (const v of ["curved", "", undefined, 3])
+      expect(
+        withStairs((t) => {
+          t.shape = v;
+        }),
+        String(v),
+      ).toMatch(/stairs-ground-1.*shape/);
   });
   it("rejects steps that are not an integer in [2, 40]", () => {
-    for (const v of [1, 41, 3.5, "12", NaN, undefined]) expect(withStairs((t) => { t.steps = v; }), String(v)).toMatch(/stairs-ground-1.*steps/);
-    for (const v of [2, 40]) expect(withStairs((t) => { t.steps = v; }), String(v)).toBe("");
+    for (const v of [1, 41, 3.5, "12", NaN, undefined])
+      expect(
+        withStairs((t) => {
+          t.steps = v;
+        }),
+        String(v),
+      ).toMatch(/stairs-ground-1.*steps/);
+    for (const v of [2, 40])
+      expect(
+        withStairs((t) => {
+          t.steps = v;
+        }),
+        String(v),
+      ).toBe("");
   });
   it("rejects a rot outside [0, 360)", () => {
-    for (const v of [-1, 360, Infinity, "0", undefined]) expect(withStairs((t) => { t.rot = v; }), String(v)).toMatch(/stairs-ground-1.*rot/);
-    expect(withStairs((t) => { t.rot = 359.5; })).toBe("");
+    for (const v of [-1, 360, Infinity, "0", undefined])
+      expect(
+        withStairs((t) => {
+          t.rot = v;
+        }),
+        String(v),
+      ).toMatch(/stairs-ground-1.*rot/);
+    expect(
+      withStairs((t) => {
+        t.rot = 359.5;
+      }),
+    ).toBe("");
   });
   it("rejects dia or inner on a straight stair", () => {
-    expect(withStairs((t) => { t.dia = 200; })).toMatch(/stairs-ground-1.*dia/);
-    expect(withStairs((t) => { t.inner = 0; })).toMatch(/stairs-ground-1.*inner/);
+    expect(
+      withStairs((t) => {
+        t.dia = 200;
+      }),
+    ).toMatch(/stairs-ground-1.*dia/);
+    expect(
+      withStairs((t) => {
+        t.inner = 0;
+      }),
+    ).toMatch(/stairs-ground-1.*inner/);
   });
   it("rejects a round stair with no dia, or a dia under 40", () => {
-    expect(withStairs((t) => { round(t); delete t.dia; })).toMatch(/stairs-ground-1.*dia/);
-    expect(withStairs((t) => { round(t); t.dia = 39; t.inner = 0; })).toMatch(/stairs-ground-1.*dia/);
-    expect(withStairs((t) => { round(t); t.dia = NaN; })).toMatch(/stairs-ground-1.*dia/);
+    expect(
+      withStairs((t) => {
+        round(t);
+        delete t.dia;
+      }),
+    ).toMatch(/stairs-ground-1.*dia/);
+    expect(
+      withStairs((t) => {
+        round(t);
+        t.dia = 39;
+        t.inner = 0;
+      }),
+    ).toMatch(/stairs-ground-1.*dia/);
+    expect(
+      withStairs((t) => {
+        round(t);
+        t.dia = NaN;
+      }),
+    ).toMatch(/stairs-ground-1.*dia/);
   });
   it("rejects an inner outside [0, dia - 40]", () => {
-    for (const v of [-1, 161, NaN, "5"]) expect(withStairs((t) => { round(t); t.inner = v; }), String(v)).toMatch(/stairs-ground-1.*inner/);
+    for (const v of [-1, 161, NaN, "5"])
+      expect(
+        withStairs((t) => {
+          round(t);
+          t.inner = v;
+        }),
+        String(v),
+      ).toMatch(/stairs-ground-1.*inner/);
   });
 });
 
 describe("device types ac, tv, computer (S1.30)", () => {
-  const withType = (type: string) => { const l = clone(); l.floors.ground.devices.push({ id: "new-1", type, entity: "x.new", x: 10, y: 10 }); return validate(l); };
+  const withType = (type: string) => {
+    const l = clone();
+    l.floors.ground.devices.push({ id: "new-1", type, entity: "x.new", x: 10, y: 10 });
+    return validate(l);
+  };
   it("accepts the three new types", () => {
     for (const t of ["ac", "tv", "computer"]) expect(withType(t).ok).toBe(true);
   });
@@ -487,8 +758,34 @@ describe("device types ac, tv, computer (S1.30)", () => {
 
 describe("FLOOR_COLOURS (S1.35)", () => {
   it("are the twelve floor materials, in order, each a colour validate accepts", () => {
-    expect(FLOOR_COLOURS.map((c) => c.name)).toEqual(["White ceramic", "Marble", "Sand", "Terracotta", "Light oak", "Warm wood", "Dark oak", "Walnut", "Light grey", "Grey floor", "Belgian stone", "Lava"]);
-    expect(FLOOR_COLOURS.map((c) => c.hex)).toEqual(["#f4f4f0", "#e2dfda", "#e6d5b8", "#c98a63", "#d8bd94", "#b98b5c", "#86643f", "#5b4130", "#b4b6b8", "#8b8e91", "#4d4e50", "#38393b"]);
+    expect(FLOOR_COLOURS.map((c) => c.name)).toEqual([
+      "White ceramic",
+      "Marble",
+      "Sand",
+      "Terracotta",
+      "Light oak",
+      "Warm wood",
+      "Dark oak",
+      "Walnut",
+      "Light grey",
+      "Grey floor",
+      "Belgian stone",
+      "Lava",
+    ]);
+    expect(FLOOR_COLOURS.map((c) => c.hex)).toEqual([
+      "#f4f4f0",
+      "#e2dfda",
+      "#e6d5b8",
+      "#c98a63",
+      "#d8bd94",
+      "#b98b5c",
+      "#86643f",
+      "#5b4130",
+      "#b4b6b8",
+      "#8b8e91",
+      "#4d4e50",
+      "#38393b",
+    ]);
     for (const c of FLOOR_COLOURS) {
       const l = clone();
       l.floors.ground.rooms[0].color = c.hex;
@@ -498,7 +795,11 @@ describe("FLOOR_COLOURS (S1.35)", () => {
 });
 
 describe("layout.colors (S1.36)", () => {
-  const withColors = (c: unknown) => { const l = clone(); l.colors = c; return l; };
+  const withColors = (c: unknown) => {
+    const l = clone();
+    l.colors = c;
+    return l;
+  };
   it("accepts none, an empty object and type keys with #rrggbb values", () => {
     expect(errorsOf(clone())).toEqual([]);
     expect(errorsOf(withColors({}))).toEqual([]);
@@ -523,10 +824,22 @@ describe("HA links (S1.37)", () => {
     expect(errorsOf(l)).toEqual([]);
   });
   it("rejects an empty or non-text ha, an entity that is not an id, and a numeric furniture name", () => {
-    for (const bad of ["", 5, null]) { const l = clone(); l.floors.ground.ha = bad; expect(errorsOf(l).join(), String(bad)).toMatch(/ha must be/); }
-    for (const bad of ["pond", 5, ""]) { const l = clone(); l.floors.ground.rooms[5].entity = bad; expect(errorsOf(l).join(), String(bad)).toMatch(/entity must be an entity id/); }
-    const l = clone(); l.floors.ground.furniture[0].entity = "sofa"; expect(errorsOf(l).join()).toMatch(/entity must be an entity id/);
-    const m = clone(); m.floors.ground.furniture[0].name = 7; expect(errorsOf(m).join()).toMatch(/name must be text/);
+    for (const bad of ["", 5, null]) {
+      const l = clone();
+      l.floors.ground.ha = bad;
+      expect(errorsOf(l).join(), String(bad)).toMatch(/ha must be/);
+    }
+    for (const bad of ["pond", 5, ""]) {
+      const l = clone();
+      l.floors.ground.rooms[5].entity = bad;
+      expect(errorsOf(l).join(), String(bad)).toMatch(/entity must be an entity id/);
+    }
+    const l = clone();
+    l.floors.ground.furniture[0].entity = "sofa";
+    expect(errorsOf(l).join()).toMatch(/entity must be an entity id/);
+    const m = clone();
+    m.floors.ground.furniture[0].name = 7;
+    expect(errorsOf(m).join()).toMatch(/name must be text/);
   });
 });
 
@@ -534,7 +847,8 @@ describe("unlinked (S4.25)", () => {
   const good = () => ({ id: "u1", type: "heater", x: 10, y: 10, rot: 0, scale: 1 });
 
   it("accepts a well-formed entry, with and without the optional fields", () => {
-    const l = clone(); l.floors.ground.unlinked = [good()];
+    const l = clone();
+    l.floors.ground.unlinked = [good()];
     expect(errorsOf(l)).toEqual([]);
     const m = clone();
     m.floors.ground.unlinked = [{ ...good(), name: "Old boiler", color: "#112233", attached: ["light.a", "switch.b"] }];
@@ -542,63 +856,76 @@ describe("unlinked (S4.25)", () => {
   });
 
   it("rejects a floor whose unlinked is not an array", () => {
-    const l = clone(); l.floors.ground.unlinked = "nope";
+    const l = clone();
+    l.floors.ground.unlinked = "nope";
     expect(errorsOf(l).join("\n")).toMatch(/unlinked must be an array/);
   });
 
   it("rejects an entry with no id, and flags duplicate ids on the same floor", () => {
-    const l = clone(); l.floors.ground.unlinked = [{ ...good(), id: undefined }];
+    const l = clone();
+    l.floors.ground.unlinked = [{ ...good(), id: undefined }];
     expect(errorsOf(l).join("\n")).toMatch(/an object has no id/);
-    const m = clone(); m.floors.ground.unlinked = [good(), good()];
+    const m = clone();
+    m.floors.ground.unlinked = [good(), good()];
     expect(errorsOf(m).join("\n")).toMatch(/duplicate id u1/);
   });
 
   it("rejects a type that is not one of DEVICE_TYPES", () => {
-    const l = clone(); l.floors.ground.unlinked = [{ ...good(), type: "not-a-type" }];
+    const l = clone();
+    l.floors.ground.unlinked = [{ ...good(), type: "not-a-type" }];
     expect(errorsOf(l).join("\n")).toMatch(/u1 type must be one of/);
   });
 
   it("rejects missing or non-finite x/y", () => {
     for (const bad of [undefined, "5", NaN, Infinity]) {
-      const l = clone(); l.floors.ground.unlinked = [{ ...good(), x: bad }];
+      const l = clone();
+      l.floors.ground.unlinked = [{ ...good(), x: bad }];
       expect(errorsOf(l).join("\n"), String(bad)).toMatch(/u1 needs x and y/);
     }
   });
 
   it("rejects scale outside 0.25-4, and accepts the ends of the range", () => {
     for (const bad of [0, 0.1, 4.1, -1, "big", NaN]) {
-      const l = clone(); l.floors.ground.unlinked = [{ ...good(), scale: bad }];
+      const l = clone();
+      l.floors.ground.unlinked = [{ ...good(), scale: bad }];
       expect(errorsOf(l).join("\n"), String(bad)).toMatch(/u1 scale must be a number from 0.25 to 4/);
     }
-    const l = clone(); l.floors.ground.unlinked = [{ ...good(), scale: 0.25 }];
+    const l = clone();
+    l.floors.ground.unlinked = [{ ...good(), scale: 0.25 }];
     expect(errorsOf(l)).toEqual([]);
-    const m = clone(); m.floors.ground.unlinked = [{ ...good(), scale: 4 }];
+    const m = clone();
+    m.floors.ground.unlinked = [{ ...good(), scale: 4 }];
     expect(errorsOf(m)).toEqual([]);
   });
 
   it("rejects rot outside [0, 360)", () => {
     for (const bad of [-1, 360, "45", NaN]) {
-      const l = clone(); l.floors.ground.unlinked = [{ ...good(), rot: bad }];
+      const l = clone();
+      l.floors.ground.unlinked = [{ ...good(), rot: bad }];
       expect(errorsOf(l).join("\n"), String(bad)).toMatch(/u1 rot must be a number in \[0, 360\)/);
     }
   });
 
   it("rejects a malformed colour", () => {
     for (const bad of ["red", "#fff", "#gggggg", 5]) {
-      const l = clone(); l.floors.ground.unlinked = [{ ...good(), color: bad }];
+      const l = clone();
+      l.floors.ground.unlinked = [{ ...good(), color: bad }];
       expect(errorsOf(l).join("\n"), String(bad)).toMatch(/u1 color must be a colour like #aabbcc/);
     }
   });
 
   it("rejects a non-array attached, and an attached entry with no dot", () => {
-    const l = clone(); l.floors.ground.unlinked = [{ ...good(), attached: "light.a" }];
+    const l = clone();
+    l.floors.ground.unlinked = [{ ...good(), attached: "light.a" }];
     expect(errorsOf(l).join("\n")).toMatch(/u1 attached must be a list of entity ids/);
-    const m = clone(); m.floors.ground.unlinked = [{ ...good(), attached: ["nodot"] }];
+    const m = clone();
+    m.floors.ground.unlinked = [{ ...good(), attached: ["nodot"] }];
     expect(errorsOf(m).join("\n")).toMatch(/u1 attached\[0\] must be an entity id/);
   });
 
   it("rejects a payload trying to hide a script injection in name (still just text, never thrown on)", () => {
-    const l = clone(); l.floors.ground.unlinked = [{ ...good(), name: '"><script>' }];
+    const l = clone();
+    l.floors.ground.unlinked = [{ ...good(), name: '"><script>' }];
     expect(errorsOf(l)).toEqual([]); // name is free text; escaping is render.ts's job, not validate's
   });
 });
@@ -606,34 +933,63 @@ describe("unlinked (S4.25)", () => {
 describe("furniture size bounds (S1.51)", () => {
   it("rejects w or h of 0 or of 5000 as out of range", () => {
     for (const bad of [0, 5000]) {
-      const l = clone(); l.floors.ground.furniture[0].w = bad; expect(errorsOf(l).join(), String(bad)).toMatch(/w must be between 5 and 2000/);
-      const m = clone(); m.floors.ground.furniture[0].h = bad; expect(errorsOf(m).join(), String(bad)).toMatch(/h must be between 5 and 2000/);
+      const l = clone();
+      l.floors.ground.furniture[0].w = bad;
+      expect(errorsOf(l).join(), String(bad)).toMatch(/w must be between 5 and 2000/);
+      const m = clone();
+      m.floors.ground.furniture[0].h = bad;
+      expect(errorsOf(m).join(), String(bad)).toMatch(/h must be between 5 and 2000/);
     }
   });
   it("rejects w or h of NaN (as not a number)", () => {
-    const l = clone(); l.floors.ground.furniture[0].w = NaN; expect(errorsOf(l).join()).toMatch(/w must be a number/);
-    const m = clone(); m.floors.ground.furniture[0].h = NaN; expect(errorsOf(m).join()).toMatch(/h must be a number/);
+    const l = clone();
+    l.floors.ground.furniture[0].w = NaN;
+    expect(errorsOf(l).join()).toMatch(/w must be a number/);
+    const m = clone();
+    m.floors.ground.furniture[0].h = NaN;
+    expect(errorsOf(m).join()).toMatch(/h must be a number/);
   });
   it("accepts 5 and 2000, the ends of the range", () => {
-    const l = clone(); l.floors.ground.furniture[0].w = 5; l.floors.ground.furniture[0].h = 2000;
+    const l = clone();
+    l.floors.ground.furniture[0].w = 5;
+    l.floors.ground.furniture[0].h = 2000;
     expect(errorsOf(l)).toEqual([]);
   });
 });
 
 describe("floor trace image (S7.11)", () => {
-  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+  const PNG =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
   const good = () => ({ src: PNG, x: -40, y: 25, w: 1234, rot: 0, alpha: 0.5, on: true });
-  const withTrace = (t: unknown) => { const l = clone(); l.floors.ground.trace = t; return l; };
+  const withTrace = (t: unknown) => {
+    const l = clone();
+    l.floors.ground.trace = t;
+    return l;
+  };
 
   it("accepts a valid trace, PNG and JPEG, and a floor with none", () => {
     expect(errorsOf(withTrace(good()))).toEqual([]);
-    expect(errorsOf(withTrace({ ...good(), src: "data:image/jpeg;base64,/9j/4AAQSkZJRg==", alpha: 0, on: false, rot: 359.5 }))).toEqual([]);
+    expect(
+      errorsOf(
+        withTrace({ ...good(), src: "data:image/jpeg;base64,/9j/4AAQSkZJRg==", alpha: 0, on: false, rot: 359.5 }),
+      ),
+    ).toEqual([]);
     expect(errorsOf(clone())).toEqual([]);
   });
 
   it("refuses a src that is not a data:image URL: javascript:, http, svg, a quote in the payload", () => {
-    for (const src of ["javascript:alert(1)", "https://example.com/plan.png", "data:image/svg+xml;base64,PHN2Zz4=", `${PNG}"><script>`, "data:text/html;base64,PGI+", "", 5]) {
-      expect(errorsOf(withTrace({ ...good(), src })).join("\n"), String(src)).toMatch(/ground: trace src must be a data:image\/png, jpeg or webp URL/);
+    for (const src of [
+      "javascript:alert(1)",
+      "https://example.com/plan.png",
+      "data:image/svg+xml;base64,PHN2Zz4=",
+      `${PNG}"><script>`,
+      "data:text/html;base64,PGI+",
+      "",
+      5,
+    ]) {
+      expect(errorsOf(withTrace({ ...good(), src })).join("\n"), String(src)).toMatch(
+        /ground: trace src must be a data:image\/png, jpeg or webp URL/,
+      );
     }
   });
 
@@ -656,14 +1012,36 @@ describe("floor trace image (S7.11)", () => {
   });
 
   it("refuses a trace that is not an object, and never throws on one", () => {
-    for (const t of [null, 5, "x", [1, 2]]) expect(errorsOf(withTrace(t)).join(), JSON.stringify(t)).toMatch(/ground: trace must be an object/);
-    expect(() => validate(withTrace({ src: { toString: () => { throw new Error("boom"); } } }))).not.toThrow();
+    for (const t of [null, 5, "x", [1, 2]])
+      expect(errorsOf(withTrace(t)).join(), JSON.stringify(t)).toMatch(/ground: trace must be an object/);
+    expect(() =>
+      validate(
+        withTrace({
+          src: {
+            toString: () => {
+              throw new Error("boom");
+            },
+          },
+        }),
+      ),
+    ).not.toThrow();
   });
 });
 
 describe("S7.8: a person device and its room sensor", () => {
-  const person = (extra: Record<string, unknown> = {}) => ({ id: "p1", type: "person", entity: "person.alex", x: 100, y: 100, ...extra });
-  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+  const person = (extra: Record<string, unknown> = {}) => ({
+    id: "p1",
+    type: "person",
+    entity: "person.alex",
+    x: 100,
+    y: 100,
+    ...extra,
+  });
+  const withDev = (d: unknown) => {
+    const l = clone();
+    l.floors.ground.devices.push(d);
+    return l;
+  };
 
   it("accepts a person on person.* or device_tracker.*, with or without a room sensor", () => {
     expect(errorsOf(withDev(person()))).toEqual([]);
@@ -672,11 +1050,16 @@ describe("S7.8: a person device and its room sensor", () => {
   });
 
   it("rejects a room that is not an entity id", () => {
-    for (const bad of ["kitchen", 5, "", null]) expect(errorsOf(withDev(person({ room: bad }))).join("\n"), String(bad)).toMatch(/p1 room must be an entity id like sensor\.name/);
+    for (const bad of ["kitchen", 5, "", null])
+      expect(errorsOf(withDev(person({ room: bad }))).join("\n"), String(bad)).toMatch(
+        /p1 room must be an entity id like sensor\.name/,
+      );
   });
 
   it("rejects a room on anything but a person", () => {
-    expect(errorsOf(withDev({ id: "l1", type: "light", entity: "light.x", x: 1, y: 1, room: "sensor.r" })).join("\n")).toMatch(/l1 room is only allowed on a person/);
+    expect(
+      errorsOf(withDev({ id: "l1", type: "light", entity: "light.x", x: 1, y: 1, room: "sensor.r" })).join("\n"),
+    ).toMatch(/l1 room is only allowed on a person/);
   });
 
   it("Break it: a room equal to the device's own entity (a person picking themselves) is refused with a message", () => {
@@ -685,8 +1068,19 @@ describe("S7.8: a person device and its room sensor", () => {
 });
 
 describe("S7.9: a radar device and its targets", () => {
-  const radar = (extra: Record<string, unknown> = {}) => ({ id: "r1", type: "radar", entity: "binary_sensor.radar", x: 100, y: 100, ...extra });
-  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+  const radar = (extra: Record<string, unknown> = {}) => ({
+    id: "r1",
+    type: "radar",
+    entity: "binary_sensor.radar",
+    x: 100,
+    y: 100,
+    ...extra,
+  });
+  const withDev = (d: unknown) => {
+    const l = clone();
+    l.floors.ground.devices.push(d);
+    return l;
+  };
 
   it("accepts a radar with no targets, one target, or twenty", () => {
     expect(errorsOf(withDev(radar()))).toEqual([]);
@@ -696,16 +1090,39 @@ describe("S7.9: a radar device and its targets", () => {
   });
 
   it("rejects a target pair missing x, missing y, or not an entity id", () => {
-    for (const bad of [{ x: "sensor.a" }, { y: "sensor.b" }, { x: "notanentity", y: "sensor.b" }, { x: "sensor.a", y: 5 }, {}, null, "sensor.a"])
-      expect(errorsOf(withDev(radar({ targets: [bad] }))).join("\n"), JSON.stringify(bad)).toMatch(/r1 targets\[0\] must be \{x, y\}, each an entity id like sensor\.name/);
+    for (const bad of [
+      { x: "sensor.a" },
+      { y: "sensor.b" },
+      { x: "notanentity", y: "sensor.b" },
+      { x: "sensor.a", y: 5 },
+      {},
+      null,
+      "sensor.a",
+    ])
+      expect(errorsOf(withDev(radar({ targets: [bad] }))).join("\n"), JSON.stringify(bad)).toMatch(
+        /r1 targets\[0\] must be \{x, y\}, each an entity id like sensor\.name/,
+      );
   });
 
   it("rejects targets that is not a list", () => {
-    expect(errorsOf(withDev(radar({ targets: "sensor.a" }))).join("\n")).toMatch(/r1 targets must be a list of \{x, y\} entity pairs/);
+    expect(errorsOf(withDev(radar({ targets: "sensor.a" }))).join("\n")).toMatch(
+      /r1 targets must be a list of \{x, y\} entity pairs/,
+    );
   });
 
   it("rejects targets on anything but a radar", () => {
-    expect(errorsOf(withDev({ id: "l1", type: "light", entity: "light.x", x: 1, y: 1, targets: [{ x: "sensor.a", y: "sensor.b" }] })).join("\n")).toMatch(/l1 targets is only allowed on a radar/);
+    expect(
+      errorsOf(
+        withDev({
+          id: "l1",
+          type: "light",
+          entity: "light.x",
+          x: 1,
+          y: 1,
+          targets: [{ x: "sensor.a", y: "sensor.b" }],
+        }),
+      ).join("\n"),
+    ).toMatch(/l1 targets is only allowed on a radar/);
   });
 
   it("never throws on a hostile targets shape (finding 1)", () => {
@@ -715,7 +1132,11 @@ describe("S7.9: a radar device and its targets", () => {
 });
 
 describe("S7.10: a vacuum device", () => {
-  const withDev = (d: unknown) => { const l = clone(); l.floors.ground.devices.push(d); return l; };
+  const withDev = (d: unknown) => {
+    const l = clone();
+    l.floors.ground.devices.push(d);
+    return l;
+  };
 
   it("accepts a vacuum device with only the fields every device has — no new field of its own", () => {
     expect(errorsOf(withDev({ id: "v1", type: "vacuum", entity: "vacuum.hall", x: 100, y: 100 }))).toEqual([]);
@@ -727,11 +1148,13 @@ describe("S8.7: a light's motion field", () => {
   const has = (l: any, re: RegExp) => errorsOf(l).some((e) => re.test(e));
 
   it("accepts a valid motion field on a light", () => {
-    const l = clone(); light(l).motion = "binary_sensor.hall_motion";
+    const l = clone();
+    light(l).motion = "binary_sensor.hall_motion";
     expect(errorsOf(l)).toEqual([]);
   });
   it("accepts motion absent: older layouts stay valid", () => {
-    const l = clone(); delete light(l).motion;
+    const l = clone();
+    delete light(l).motion;
     expect(errorsOf(l)).toEqual([]);
   });
   it("rejects motion on a device that is not a light", () => {
@@ -741,11 +1164,13 @@ describe("S8.7: a light's motion field", () => {
     expect(has(l, /motion is only allowed on a light/)).toBe(true);
   });
   it("rejects motion equal to entity", () => {
-    const l = clone(); light(l).motion = light(l).entity;
+    const l = clone();
+    light(l).motion = light(l).entity;
     expect(has(l, /motion must differ from entity/)).toBe(true);
   });
   it("rejects motion that is not an entity id (no dot)", () => {
-    const l = clone(); light(l).motion = "nodot";
+    const l = clone();
+    light(l).motion = "nodot";
     expect(has(l, /motion must be an entity id/)).toBe(true);
   });
 });

@@ -9,11 +9,14 @@ const PRE_3D_CARD = 90780;
 const CARD_GROWTH_LIMIT = 24220; // card file ≤ 115,000 gz (Diego, 2026-10-06)
 const CHUNK_LIMIT = 233000; // Diego, 2026-10-06
 /** The size `gzip -9` gives, the figure this budget is written in (node's zlib at level 9 differs by about 0.3 percent). */
-const gz = (file: string) => execFileSync("gzip", ["-9", "-c"], { input: readFileSync(file), maxBuffer: 1 << 26 }).length;
+const gz = (file: string) =>
+  execFileSync("gzip", ["-9", "-c"], { input: readFileSync(file), maxBuffer: 1 << 26 }).length;
 
 test("the card file grew by at most 5 KB gzipped over the card before 3D", () => {
   const size = gz("dist/floorplan-studio-card.js");
-  expect(size, `card is ${size} gzip, ${size - PRE_3D_CARD} over the pre-3D ${PRE_3D_CARD}`).toBeLessThanOrEqual(PRE_3D_CARD + CARD_GROWTH_LIMIT);
+  expect(size, `card is ${size} gzip, ${size - PRE_3D_CARD} over the pre-3D ${PRE_3D_CARD}`).toBeLessThanOrEqual(
+    PRE_3D_CARD + CARD_GROWTH_LIMIT,
+  );
 });
 
 test("the 3D chunk is at most 200 KB gzipped, and it is the only chunk", () => {
@@ -28,7 +31,7 @@ test("the card file imports no three.js and no scene or live builder (they belon
   expect(src).not.toContain("WebGLRenderer");
   expect(src).not.toContain("PerspectiveCamera");
   // Words only scene-build.ts (the shape of a solid, a sunken stair) and live-build.ts (a motion edge's pulse age) write.
-  for (const word of ["\"prism\"", "stair-down", "pulseAge"]) expect(src, word).not.toContain(word);
+  for (const word of ['"prism"', "stair-down", "pulseAge"]) expect(src, word).not.toContain(word);
 });
 
 // S12 review N6: the test hook `__fp3d` is a compile-time flag. The shipped build (dist/, www/) must not carry it; the Playwright
