@@ -365,7 +365,7 @@ interface Span {
   kind: string;
   live: DoorState;
 }
-const CLOSED: DoorState = { open: false, alarm: false, cover: false };
+const CLOSED: DoorState = { open: false, contact: false, unlocked: false, alarm: false, cover: false };
 const spansOf = (f: Floor, state: StateOverlay | undefined): Span[] => [
   ...(f.doors ?? [])
     .filter((d) => finite(d.a) && finite(d.b))

@@ -192,11 +192,12 @@ export function createRings(scene: Scene) {
           colour: r?.colour ?? "#000000",
         };
       }),
-    dispose() {
+    /** Removes every band. `free` takes each material; the view passes one that may keep it, so its shader program is not compiled again (S22.F1). */
+    dispose(free: (m: MeshBasicMaterial) => void = (m) => m.dispose()) {
       for (const r of rings.values()) {
         scene.remove(r.mesh);
         r.mesh.geometry.dispose();
-        r.mat.dispose();
+        free(r.mat);
       }
       rings.clear();
     },

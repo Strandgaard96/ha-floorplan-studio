@@ -58,7 +58,11 @@ const REGISTRY = {
   areas: { living: { area_id: "living", name: "Living room" } },
 };
 
-async function boot(page: Page, width: number, opts: { registry?: boolean; states?: Record<string, unknown> } = {}) {
+async function boot(
+  page: Page,
+  width: number,
+  opts: { registry?: boolean; states?: Record<string, unknown>; layout?: typeof layout } = {},
+) {
   await page.setViewportSize({ width, height: 900 });
   await page.goto(URL_);
   await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -85,7 +89,7 @@ async function boot(page: Page, width: number, opts: { registry?: boolean; state
       return el.updateComplete;
     },
     [
-      { layout, floor: "ground" },
+      { layout: opts.layout ?? layout, floor: "ground" },
       { ...STATES(), ...(opts.states ?? {}) },
       opts.registry === false ? {} : REGISTRY,
     ] as const,
@@ -156,6 +160,27 @@ const factsOf = (page: Page) =>
       ),
     );
 
+test("S24.3 (G3): a door left unlocked reads Unlocked, not Open; the room with no lock says nothing of locks", async ({
+  page,
+}) => {
+  const locked = structuredClone(layout);
+  const patio = (locked.floors.ground.doors as { name: string; locks?: string[] }[]).find(
+    (d) => d.name === "Patio door",
+  )!;
+  patio.locks = ["lock.demo_patio"];
+  await boot(page, 1280, {
+    layout: locked,
+    states: { "binary_sensor.demo_patio_door": st("off"), "lock.demo_patio": st("unlocked") },
+  });
+  await click(page, await floorPoint(page, 0));
+  await expect(room(page).locator("css=.fp-room-name")).toHaveText("Living");
+  expect(await factsOf(page)).toMatchObject({ Open: "none", Unlocked: "Patio door" });
+  expect(Object.keys(await factsOf(page))).not.toContain("Open doors and windows");
+  await click(page, await floorPoint(page, 0)); // clear, then a room whose doors carry no lock
+  await click(page, await floorPoint(page, 1));
+  expect(Object.keys(await factsOf(page))).not.toContain("Unlocked");
+});
+
 for (const width of [1280, 375]) {
   test.describe(`room selection at ${width} px`, () => {
     test("a real tap on bare floor outlines the room and opens its section, with the facts from its own sensors and doors", async ({
@@ -175,10 +200,10 @@ for (const width of [1280, 375]) {
       expect(covered, "the room section is not under anything").toBe(false);
       expect(await factsOf(page)).toMatchObject({
         Area: "20 m²",
-        Temperature: "21.7 °C",
-        Humidity: "48 %",
+        Temperature: "21.7\u202F°C",
+        Humidity: "48\u202F%",
         Motion: expect.stringMatching(/^on since \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
-        "Open doors and windows": "Patio door",
+        Open: "Patio door",
         "Lights on": "Living light",
       });
     });
@@ -225,6 +250,9 @@ for (const width of [1280, 375]) {
 
     test("a tap on a door does not select a room either", async ({ page }) => {
       await boot(page, width);
+      // S24.7: the open Overview (Attention, scope, two-line rows) stands over door 1 at 1280 px; fold it, as a person would.
+      const fold = card(page).locator("css=.fp-active-collapse");
+      if ((await fold.getAttribute("aria-expanded")) === "true") await fold.click();
       const p = await card(page).evaluate((el) => {
         const l = el.shadowRoot!.querySelector("svg line[data-d='1']")!,
           r = l.getBoundingClientRect();
@@ -259,7 +287,7 @@ test.describe("the room section and the filtered list", () => {
     const text = inRoom.join("|");
     expect(text).toContain("Living light");
     expect(text).not.toContain("Kitchen light");
-    expect(text).not.toContain("Hall camera"); // a camera is always listed, but this one stands in the Hall
+    expect(text).not.toContain("Hall camera"); // S24.3: a camera is never listed now; it also stands in the Hall
     await card(page).locator("css=.fp-show-all").click();
     expect(await picked(page)).toEqual([0]); // Show all drops the filter, not the selection
     expect((await card(page).locator("css=.fp-filtered .fp-active-row").allTextContents()).join("|")).toContain(
@@ -311,7 +339,10 @@ test.describe("the room section and the filtered list", () => {
   test("the selection and the section survive a hass update", async ({ page }) => {
     await boot(page, 1280);
     await click(page, await floorPoint(page, 0));
-    await card(page).locator("css=.fp-room-devices .fp-info-btn").first().click(); // an open details block must survive too
+    // S24.7: a row's details live in its popup now (the ▸ chevron went); an open popup with its Details open must survive too
+    await card(page).locator("css=.fp-room-devices .fp-active-row").first().click();
+    await card(page).locator("css=.fp-pop .fp-pop-info > summary").click();
+    await expect(card(page).locator("css=.fp-pop .fp-pop-info[open]")).toHaveCount(1);
     await card(page).evaluate((el) => {
       const e = el as unknown as { hass: { states: Record<string, unknown> }; updateComplete: Promise<unknown> };
       e.hass = {
@@ -328,8 +359,8 @@ test.describe("the room section and the filtered list", () => {
       return e.updateComplete;
     });
     expect(await picked(page)).toEqual([0]);
-    expect((await factsOf(page)).Temperature).toBe("26.2 °C"); // (30 + 22.4) / 2: the section follows the state
-    await expect(card(page).locator("css=.fp-room-devices .fp-info")).toHaveCount(1);
+    expect((await factsOf(page)).Temperature).toBe("26.2\u202F°C"); // (30 + 22.4) / 2: the section follows the state
+    await expect(card(page).locator("css=.fp-pop .fp-pop-info[open]")).toHaveCount(1);
   });
 
   test("a room with nothing in it says so, with no NaN or undefined", async ({ page }) => {
@@ -348,22 +379,29 @@ test.describe("the room section and the filtered list", () => {
 });
 
 test.describe("device details", () => {
-  const info = (page: Page, where: string) => card(page).locator(`css=${where} .fp-item`, { hasText: "Living light" });
+  // S24.7 (A3): the ▸ chevron on each row went; the details it unfolded are in the row's popup, under Details.
+  const row = (page: Page, where: string) =>
+    card(page).locator(`css=${where} .fp-active-row`, { hasText: "Living light" }).first();
+  const details = (page: Page) => card(page).locator("css=.fp-pop .fp-pop-info");
+  const detailRows = (page: Page) =>
+    details(page)
+      .locator("css=dl > div")
+      .evaluateAll((els) =>
+        Object.fromEntries(els.map((r) => [r.querySelector("dt")!.textContent, r.querySelector("dd")!.textContent])),
+      );
 
-  test("the chevron on a room row shows manufacturer, model, firmware, area, entity, state and last changed, and does not toggle", async ({
+  test("a room row's popup shows manufacturer, model, firmware, area, entity, state and last changed, and opening it toggles nothing", async ({
     page,
   }) => {
     await boot(page, 1280);
     await click(page, await floorPoint(page, 0));
-    const item = info(page, ".fp-room-devices");
-    await expect(item.locator("css=.fp-info")).toHaveCount(0);
-    await item.locator("css=.fp-info-btn").click();
+    await expect(card(page).locator("css=.fp-room-devices .fp-info-btn")).toHaveCount(0);
+    await row(page, ".fp-room-devices").click();
+    await expect(card(page).locator("css=.fp-pop")).toHaveAttribute("aria-label", "Living light");
+    await expect(details(page)).not.toHaveAttribute("open", "");
+    await details(page).locator("css=summary").click();
     expect(await calls(page)).toEqual([]);
-    const rows = await item
-      .locator("css=.fp-info > div")
-      .evaluateAll((els) =>
-        Object.fromEntries(els.map((r) => [r.querySelector("dt")!.textContent, r.querySelector("dd")!.textContent])),
-      );
+    const rows = await detailRows(page);
     expect(rows).toMatchObject({
       Manufacturer: 'Acme"><script>window.__pwned=1</script>',
       Model: "Lamp 2",
@@ -374,31 +412,33 @@ test.describe("device details", () => {
     });
     expect(rows["Last changed"]).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
-    expect(await card(page).evaluate((el) => el.shadowRoot!.querySelectorAll(".fp-info script").length)).toBe(0);
-    await item.locator("css=.fp-info-btn").click();
-    await expect(item.locator("css=.fp-info")).toHaveCount(0); // the second click folds it
+    expect(await card(page).evaluate((el) => el.shadowRoot!.querySelectorAll(".fp-pop-info script").length)).toBe(0);
+    await details(page).locator("css=summary").click();
+    await expect(details(page)).not.toHaveAttribute("open", ""); // the second click folds it
   });
 
-  test("the Active list rows have the chevron too, and the row's own tap opens the popup, whose More info opens more-info", async ({
+  test("an Overview row's tap opens the popup with its details, whose More info opens the chooser (the lamp and its relay, S22.1)", async ({
     page,
   }) => {
     await boot(page, 1280);
-    const item = info(page, ".fp-active-body");
-    await item.locator("css=.fp-info-btn").click();
-    await expect(item.locator("css=.fp-info")).toContainText("Lamp 2");
+    await expect(card(page).locator("css=.fp-active-body .fp-info-btn")).toHaveCount(0);
+    await row(page, ".fp-active-body").click();
     expect(await infos(page)).toEqual([]);
-    await item.locator("css=.fp-active-row").click();
-    expect(await infos(page)).toEqual([]);
+    await details(page).locator("css=summary").click();
+    await expect(details(page)).toContainText("Lamp 2");
     await card(page).locator("css=.fp-pop-more").click();
+    const choices = card(page).locator("css=.fp-chooser-dialog .fp-chooser-list button");
+    await expect(choices).toHaveCount(2); // light.demo_living and its bound switch.demo_living_relay
+    await choices.first().click();
     expect(await infos(page)).toEqual(["light.demo_living"]);
   });
 
   test("a device with no registry entry shows entity, state and last changed only", async ({ page }) => {
     await boot(page, 1280, { registry: false });
     await click(page, await floorPoint(page, 0));
-    await info(page, ".fp-room-devices").locator("css=.fp-info-btn").click();
-    const labels = await info(page, ".fp-room-devices").locator("css=.fp-info dt").allTextContents();
-    expect(labels).toEqual(["Entity", "State", "Last changed"]);
+    await row(page, ".fp-room-devices").click();
+    await details(page).locator("css=summary").click();
+    expect(await details(page).locator("css=dt").allTextContents()).toEqual(["Entity", "State", "Last changed"]);
   });
 });
 
@@ -418,23 +458,23 @@ test.describe("CSS pairs (finding 10): the rule reaches the pixel", () => {
     expect(r.events).toBe("none");
     expect(r.fill).toBe("none");
   });
-  test("the panel is wider with a room section, and the info button is a real, clickable size", async ({ page }) => {
+  test("the panel is wider with a room section, and the popup's Details is a real, clickable size", async ({
+    page,
+  }) => {
     await boot(page, 1280);
     const w0 = (await card(page).locator("css=.fp-active").boundingBox())!.width;
     await click(page, await floorPoint(page, 0));
     const w1 = (await card(page).locator("css=.fp-active").boundingBox())!.width;
     expect(w1).toBeGreaterThan(w0);
-    const b = (await card(page).locator("css=.fp-room-devices .fp-info-btn").first().boundingBox())!;
-    expect(b.width).toBeGreaterThanOrEqual(24);
-    expect(b.height).toBeGreaterThanOrEqual(24);
-    const top = await card(page)
-      .locator("css=.fp-room-devices .fp-info-btn")
-      .first()
-      .evaluate((el) => {
-        const r = el.getBoundingClientRect(),
-          hit = (el.getRootNode() as ShadowRoot).elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-        return !!hit && el.contains(hit);
-      });
+    await card(page).locator("css=.fp-room-devices .fp-active-row").first().click();
+    const sum = card(page).locator("css=.fp-pop .fp-pop-info > summary");
+    const b = (await sum.boundingBox())!; // S24.7: Details replaced the 24 px chevron; its row is at least 32 px tall
+    expect(b.height).toBeGreaterThanOrEqual(32);
+    const top = await sum.evaluate((el) => {
+      const r = el.getBoundingClientRect(),
+        hit = (el.getRootNode() as ShadowRoot).elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return !!hit && el.contains(hit);
+    });
     expect(top).toBe(true);
   });
 });

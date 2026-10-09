@@ -6,6 +6,456 @@ Newest first. A change supersedes; nothing is edited.
 
 A sofa, table, bed, chair, sink, toilet, bathtub and car are drawn in the 3D view as a few boxes each (`FURNITURE_PARTS`, `src/core/furniture-parts.ts`; spec `docs/specs/furniture-parts-3d.md`). Footprints are in the 2D symbol's 0..100 box, heights are fractions of the piece's height, so a stored `height` scales every part and nothing rises above the top. The scene emits one solid per part (`furniture:i:pk`) with the piece's ref and paint; viewer, picker and cut are unchanged. Cabinet, shower, tv, speaker and computer stay one box (computer: its 50 cm default is too low for a desk with a monitor). 2.5D keeps one box per piece: this widens the gap between the 2.5D and 3D draw paths, against the spirit of finding 8; the 3D scene was already its own path. Squat by design: a bed's headboard ends at 55 cm, a toilet's tank at 40 cm.
 
+## 2026-10-08: no door swing arcs (S23.F6)
+
+Supersedes the arc in "plan symbols (S23.7)" below. Diego: "the door arcs are horrendous, remove them all". A door or glass
+door is now the gap in the wall and the 1 px leaf from the hinge `a`, square to the wall, `|ab|` long, on the room side as
+before. The arc and its sweep flag are gone, in 2D and 2.5D (one draw path). 3D never drew an arc; its leaf, which
+turns about the hinge when the door is open, is unchanged. Windows, open doorways and red-when-open are unchanged.
+- The leaf stays so a door still reads as a door (the coordinator's call, not Diego's). Dropping it later is one branch
+  in `doorSymbol` (`render.ts`); the room-side probe exists only for the leaf and would go with it.
+- No CSS rule styled the arc alone: `.door-sym` draws the leaf and the window hairlines, so it stays.
+- Tests changed on purpose: `plan-symbols.test.ts` (the leaf is the whole path; no `A`/`a` in any symbol, no circle or
+  ellipse, for every door kind in 2D and 2.5D; the gap is still cut; the sweep-flag test is deleted) and the render
+  snapshot (only the three arcs removed).
+## 2026-10-09: Sprint 24 review fixes, core and card (S24.R)
+
+- **A sibling battery sensor counts only when HA files it `diagnostic`** (S24.R12). Supersedes the assumption in
+  "Home battery or device battery" below that siblings need not be diagnostic. The re-check found the case it feared:
+  a `switch.batt_grid_charge` or a car charger's plug shares its HA device with the battery's charge sensor, filed
+  without a category, and 10 % of that is a normal night. The type check sees only the placed icon, so the registry's
+  category decides for the sibling, the rule a `battery` icon already used. Shape from the frontend: `hass.entities`
+  carries `entity_category` as the string "config" or "diagnostic", or leaves it out (`connection-mixin.ts` maps the
+  display entry's numeric `ec` through `entity_categories`). The cost: an integration that files a device's own battery
+  without a category is no longer read through the sibling path; its `battery` attribute still is.
+- **A battery sensor is read only in % or with no unit** (S24.R12). A cell in volts at 2.9 is not 2.9 %.
+
+- **Low battery reads what Home Assistant really sends** (S24.R1). Supersedes part of "Low battery is a device's own
+  battery" (S24.3). Three paths, the first with a reading decides: the entity is a battery entity itself (a battery
+  `binary_sensor` on is low; HA has no level there, so the row says "battery low"); a `battery_level` or `battery`
+  attribute (Zigbee2MQTT and some others name it `battery`); else a battery entity of the same HA device, through
+  `hass.entities[id].device_id`. The card already read that registry for the plug power link (S14.x), so the shape is
+  the frontend's own. A device that reports its own attribute is not second-guessed by a sibling.
+- **Home battery or device battery: the type decides, the registry can overrule.** HA gives both `device_class:
+  battery` and `%`, so unit and class cannot tell them apart. The storage types (`battery`, `inverter`, `ups`, `car`)
+  keep their charge out of Attention and do not look for a sibling (an inverter's device holds the house battery's
+  charge). A `battery` icon whose entity HA files `entity_category: diagnostic` is a device's battery: Zigbee2MQTT,
+  ZHA and most integrations file a device's own battery so, and a house battery's charge is its device's main reading.
+  `typeForEntity` still guesses `battery` for a battery sensor; we did not change the guess, the diagnostic flag covers
+  the real case. Assumption, not checked against Diego's HA: siblings are not required to be diagnostic, so an
+  integration that files a house battery's charge on the same device as a placed light or switch would raise it.
+- **The battery item stays on the placed thing.** `entity` is the motion sensor, not its battery sensor; `source` and
+  `level` say where the reading came from. So the row's room, its place on the plan, the room filter and the floor's
+  count of things all work as for any other item.
+- **Jammed is its own kind, between open and unlocked** (S24.R2). A jammed lock cannot lock; someone must go, which is
+  more than an unlocked one and less than a door standing open. Row text "jammed". Locking and unlocking stay calm.
+- **Active leaves out only what Attention already says** (S24.R6). An item of kind `battery-low` says nothing about on
+  or off, so a lamp that is on and low is listed in both; an open door is listed once.
+- **The card's pulse ring keyframes are `fp-pulse-ring`** (S24.R7). They shared `fp-locate` with the plan's own ring
+  in one shadow root, where the later rule wins: the card's box-shadow would replace the plan ring's grow-and-fade.
+- **`render.ts` imports `layerHides`** from `layers.ts` (S24.R11). Supersedes "render.ts still has its private copy"
+  (Studio fixes, below): one rule decides what Layers leaves off the plan and what the Studio's pick skips.
+- **`attention().floors` has no prototype** (S24.R9): a floor key `__proto__` is a floor.
+- **Search folds a short, explicit list of letters** that Unicode does not decompose: ø o, ß ss, æ ae, ł l, đ d, ð d,
+  þ th, œ oe, ı i. A list, not a transliteration library (no dependency, a few bytes in the card). Both sides fold, so
+  typing "ø" still finds "Søren". A letter not on the list matches only itself.
+
+## 2026-10-09: Sprint 24 review fixes, Studio (S24.R4, S24.R8, S24.R10a)
+
+- **An Outline row for a device or piece is `d:<floor>:<id>`** (`deviceNodeId`). Validate keeps a piece's id unique on
+  its floor only, and a device's id unique among devices only, so the bare id could name two rows. The id, not the
+  index, so the active row stays on its thing when another is deleted. Rooms keep `r:<floor>:<index>`, as before.
+- **What Layers hides is not pickable; what the plan keeps is.** The rule moved to `layerHides` in `src/core/layers.ts`
+  and the Studio's padded pick asks it with the selection, as `renderFloor` keeps the selection drawn. A piece found by
+  search while hidden is drawn and can be grabbed; let go, it cannot. `render.ts` still has its private copy of the rule:
+  that file was another coder's in this round. It should import `layerHides` when the branches meet.
+- **A type in a sentence is its singular label** (`DEVICE_TYPE_LABELS`), lower case unless it starts with two capitals,
+  so "UPS", "AC" and "TV" stay as they are. `TYPE_LABELS` is the menu's plural ("Access points"), wrong after "Added".
+  Furniture keeps its symbol ("Added sofa"): the Furniture menu lists symbols too, and none has an underscore.
+
+## 2026-10-09: the card's layer chips (S24.8, part 2)
+
+- **Supersedes "Layer chips are not in this part"** (part 1, below). The chips fill the `.fp-ov-layers` slot.
+- **Text chips, not eyes.** The eye paths stay in the editor; the card bundle carries no new icon. Pressed means shown;
+  a hidden chip is dashed and struck through, so the state does not rest on colour.
+- **One chip per family with something on the floor on show**, devices and unlinked appliances by type, pieces as
+  Furniture (`layerCounts`). A family the floor lacks has no chip, though it stays hidden if the viewer hid it.
+- **Per viewer, not per floor.** The hidden list sits in the card's view memory beside the theme and the names toggle,
+  and holds on every floor, as the Studio's does. Junk in storage is dropped by `parseLayers`.
+- **Not in live 3D.** The 3D view draws every family; chips that did nothing there would lie. They come back with 2D.
+- **Search and row taps do not follow Layers**, as in the Studio. The located thing is drawn by `keep` and the chips
+  end in "Hidden by Layers: lights" with Show. A note in the sheet, not a banner: the card has no banners. A floor change
+  or any chip click drops the kept thing, so it never lingers as an exception nobody asked for.
+- **The chips fold under a Layers button**, in one row with "Turn off on this floor…" and "All floors". Eleven chips
+  are three lines in a 260 px sheet; always open, the taller sheet covered plan points the popup and wheel tests use,
+  which a viewer would hit too. Folded, the button still counts what is hidden ("Layers · 2 hidden"; the Studio's
+  `layersSummary` sentence is its title, too long for one line beside All floors). The fold is not
+  remembered: a sheet starts folded. This supersedes part 1's place for "Turn off on this floor…" (under the scope
+  toggle): it now starts the tools row, so the Overview is one row shorter than in part 1.
+- **Chips are in the Overview only.** A picked room's section is about that room; the chips return with the Overview.
+- **The parity row `#tabLayers` is now "yes"**, checked by the Layers button on the 2.5D demo card.
+
+## 2026-10-09: the card's search, "Turn off on this floor…" and "Lights off" (S24.8, part 1)
+
+- **The chord is taken under the view keys' gate**: the card focused, else hovered, as the arrows are. The card's key
+  listener has been on `window` with that gate since S11.3, because in Home Assistant a hovered card has no focus and a
+  listener on the host would never hear the key. Finding 6 is about the editor; here one card of several acts, never two.
+  `/` in any text field is a slash (`takesTyping`). No sheet (kiosk, `active_list: false`) leaves the key to the page.
+- **The chord goes back to the Overview**: a picked room or floor is cleared, a popup closes, a folded sheet opens and the
+  search takes focus. Opening the fold this way counts as the person's choice, as a tap on the fold button does; otherwise
+  a phone's width default folds it again on the next render.
+- **The index is built once per layout**, with whether states are known and the floors on offer as the rest of the key, so
+  `<fp-search>` sees the same array between keystrokes and state updates.
+- **Devices on every floor are searchable; floors and rooms only where the card can show them.** A pinned card opens another
+  floor's popup, as a row tap does (S24.7), but cannot show another floor or its room.
+- **Enter on a device or piece is a row tap** (`_locate`), with the popup beside the sheet. **On a floor**, the floor is
+  shown and focus stays in the box. **On a room**, its floor is shown and the room's section opens, highlighted, with no pan;
+  focus goes to the section's close button, since the box goes with the Overview. Escape then returns to the Overview.
+- **A popup opened from the sheet stands beside the sheet's edge**, not the row's: 8 px past the row's edge still overlapped
+  the sheet's padding and border by a pixel. Rows move 9 px right with it.
+- **"Turn off on this floor…" acts on the floor on show.** It sits under the scope toggle in the Overview and beside
+  "Lights off" in the floor's panel, not in a room's. Disabled, with the title "Nothing is on on this floor", when the list
+  would be empty.
+- **On means not off, standby, unavailable or unknown.** A paused speaker and an idle TV are listed: they have something to
+  turn off. A plug counts by its switch, not its watts. Heaters, covers, vacuums and climate are not offered: none is "off"
+  in one safe tap (`FLOOR_OFF_GROUP`, a decision per type, finding 17).
+- **A lamp's row turns off its light and its bound relay when on** (`lampOffEntities`, S22.1), and reads "with" the relay.
+  A relay that is also a switch row is sent once. Unticking the switch row does not keep a ticked lamp's relay on.
+- **The rows are a snapshot taken at open**, so a row does not vanish under the finger. The calls are one `turn_off` per
+  domain: `light`, `switch`, `media_player`, anything else `homeassistant`.
+- **"All off" in a room or floor panel reads "Lights off".** It always turned off lights and their relays only. The
+  aria-label already said "Turn off all lights in …" and is unchanged.
+- **"The preset All off leaves Scenes where the room button exists", read plainly: it leaves.** Scenes shows only in a
+  room's panel, and that panel has the Lights off button whenever a lamp of the room is on, relays included. Dropping the
+  preset only while the button shows would make it appear and vanish with state. "All on" stays. A custom scene a person
+  named "All off" is theirs and stays.
+- **Layer chips are not in this part.** A marked empty slot (`.fp-ov-layers`, `data-slot="layers"`) waits beside the scope
+  toggle and hides while empty.
+
+## 2026-10-09: Studio Layers replace Filter (S24.6)
+
+- **A view keeps the hidden families, not the shown ones.** Empty is the default, so a family added later starts
+  visible and an old remembered view needs nothing.
+- **Families are the card's categories plus Furniture** (`src/core/layers.ts`), so the Studio and the card (S24.8) group
+  alike. An unlinked appliance follows its type: hiding lights hides an unlinked lamp too. Every furniture piece, a
+  linked tv or speaker piece included, is Furniture: it draws as furniture.
+- **The selection is always drawn**, a device by `selection`, a piece or unlinked appliance by the new `keep`. Hiding the
+  family of what is selected lets the selection go: an invisible handle helps nobody.
+- **Alt-click on the family that is already the only one shown shows all again**, so one gesture undoes itself.
+- **Summary wording**: one hidden names it, all but one says "only X shown", all says "all hidden", else "N of 11".
+- **The note is a toolbar button, not a banner.** It stays while anything is hidden and opens the tab. Banners are for
+  events: a pick or a placement under a hidden layer, each with Show, which shows only the families concerned.
+- **Fit ignores Layers**, as Filter did. A view setting must not move the frame.
+- **The room's right-click uses Place's filter** (`areaMenuEntities`), not `areaToPlace`: `addFromArea` takes an HA
+  entity, and a catalogued one is refused there.
+- **A repeated area name gets the HA floor name, else the id.** Names are trimmed and compared without case.
+- **The eye paths live in the editor**, not in core's `UI_ICONS`, which the card bundle carries whole.
+- **The card's view-parity row is `#tabLayers`, "no" for now**, with why: the card's chips are S24.8.
+## 2026-10-09: the S7.15 swipe flake was a fling in the test (S24.F1)
+
+- **Cause.** The test drove its swipes through CDP without timestamps, so Chromium stamped each touch with its
+  dispatch time and turned the lift into a fling whose speed was whatever the load made it. The page kept scrolling
+  for up to a second after `touchEnd`. The test reset the page with `scrollTo(0, 0)` while the fling still ran; its
+  tail, or Playwright scrolling Zoom in back into view, left `scrollY` at 1 or 2 before the second swipe began. A probe
+  logging every scroll event caught 7 failures in 400 runs under load, all already off 0 before the second
+  touchstart; `touch-action` read `none` at every one. The card never let the page move. The probe also showed a
+  fling backwards to 0, which the old `scrollY > 50` poll passed mid-swipe and never saw.
+- **Superseded: S8.2's two-frame wait.** It assumed `fp-zoomed` reached the compositor a frame late. It was the same
+  fling. Removed; 400 runs with no frame wait never scrolled during the second swipe.
+- **Fix, in the test only.** The swipe carries its own clock (16 ms a step) and rests 100 ms before it lifts, so it
+  has no speed and no fling; the test waits for `scrollend` and asserts `scrollY` is 0 before the second swipe.
+  200 of 200 at load 22 to 27, where the old test failed 1 in 80 at load 7. With `fp-zoomed` set to `pan-y` the test
+  still fails (`scrollY` 240). `toucher` takes an optional `timestamp`.
+- **Lesson.** A synthetic touch gesture stamped by dispatch time has load-dependent speed. Give it a clock and wait
+  for `scrollend`, not for a scroll position. Log every scroll event before blaming the product.
+
+## 2026-10-08: Studio search and Outline (S24.5)
+
+- **"Centres at no less than 1:1" means never zoomed out further than fit.** The plan has no fixed px-per-cm; fit is the
+  only scale a person knows. A pick keeps the zoom when it is closer than fit, else zooms in to fit, and centres.
+- **An unplaced entity opens Add > Device listing only it, its row focused**, rather than placing it at once. Placing
+  is an edit and lands where the viewport is; one Enter more keeps that edit a choice.
+- **After a pick, focus goes back to the editor host**, so Delete, the arrows and the next `/` act at once. Add device…
+  keeps its own focus.
+- **Six commands only**: Fix or Unfix plan, Draw room, Add device…, Zoom to fit, Undo, Save. Each calls the code its menu
+  calls. More can follow when a menu item is asked for twice.
+- **The tree is flat rows** with `aria-level`, `aria-setsize` and `aria-posinset`, not nested groups, so only open
+  branches render and the 437 devices of the stress house cost nothing while their rooms are shut. Roving tabindex.
+- **The floor on show starts open**; the rest are shut. A pick opens the branches above it and scrolls its row into the
+  tree's own view (not the page's), without taking focus.
+- **The ring is in `renderFloor`** (`locate`), one draw path, so the card can use it (S24.7). Three pulses, then gone
+  after 2.4 s; under reduced motion a still ring. Its own `@media` block: the existing reduced-motion rule is pinned.
+- **The column takes canvas width.** Four editor tests that measure in screen px (snap radius, icon overlap, the HA
+  popover over a plan point) shut it first (`shutSide` in `editor.spec.ts`), and wait for the editor to measure again.
+
+## 2026-10-08: the card's Overview sheet (S24.7)
+
+- **Active leaves out what Attention lists.** A triggered alarm or an open garage would otherwise be two rows. The Active count and chips count the rest.
+- **The alerts chip counts Attention rows; a floor tab counts things** (S24.3's `floors.count`). A lock that is unlocked and low on battery is two rows, one thing on the tab.
+- **Alerts come first in the chips** ("2 alerts · 6 lights"), against the wireframe's order. Folded, the header is one line that ends in an ellipsis; what is wrong must survive the cut.
+- **Folded, the header is one line and the crumb hides.** Two lines covered a device and a door at 375 px that a person could tap before S24.7 (`card-room-select`, `label-tag-tap`).
+- **The panel stays `min(200px, 45%)` wide.** A wider panel (250 px) hid plan icons that existing tests tap at 375 px. Rows wrap their name and room instead; the age never breaks.
+- **The category labels stay** ("Lights", "Security"), not the wireframe's "Lights on": the folds and their stored ids are S14.6's.
+- **The pulse is card chrome**, a `.fp-pulse` ring placed over the icon after each render, not a `renderFloor` option. Nothing on the plan changes, so the studio needs no twin (finding 8 holds: the plan is still drawn by one path).
+- **3D: a row tap switches floor and opens the popup, no pan, no ring.** The 3D camera has no "centre on a point" yet; the ring looks for the 2D svg and hides without it.
+- **A card pinned to one floor with "All floors" on** opens another floor's popup and does not switch, since it cannot show that floor.
+- **A linked piece's row locates it, then opens more-info**, as its tap on the plan does.
+- **`zoom: false` keeps the zoom on show**; otherwise the locate zooms to 2× or closer, never out.
+- **Unavailable is folded by default** (`a:unavailable:open` in the fold set, the "opened" pattern of Scenes).
+- **The scope toggle shows only when the card can show more than one floor**, and `all` is kept in `fp-active-panel:` beside the position.
+- **The search slot is an empty `div` that hides itself** (`:empty`), so S24.8 adds the box without moving the rest.
+- **A phone's popup may cover the thing it located.** On a 390 x 410 card the popup beside the row overlaps the centred lamp; the ring shows once the popup closes. Left for review; a bottom sheet is the likely fix.
+
+## 2026-10-08: the search box's keys and focus (S24.2)
+
+- **`isSearchChord` lives in `view-keys.ts`**, beside `isSaveChord` and `takesTyping`, and `search-box.ts` re-exports it. A host can test the chord without loading the element, and "/" in a text field uses the same `takesTyping` rule as the view keys.
+- **"/" is allowed with Shift.** On an Italian or German keyboard "/" is Shift-7. Alt and Ctrl or Cmd with "/" are not the chord. Cmd-K and Ctrl-K are, without Alt or Shift, also from a text field.
+- **Escape on an empty box closes it: focus goes back to where it was when the host called `focus()`, and `fp-close` fires.** So the host's chord works again at once, and a host that shows the box as a popover can hide it. Both Escapes stop there; the host's own Escape (deselect, cancel a tool) does not also run.
+- **A pick clears the query and keeps focus in the box**, ready for the next search; the host moves focus if it wants to.
+- **Hover is a light tint, the active option is inverted** (`--fp-ink` on `--fp-bg`, as in `<fp-combo>`). Two inverted rows, one under the mouse and one under the keyboard, read as two choices.
+- **The Playwright harness is served by the test dev server through Vite's `/@fs/` path** (`tests/card/search-harness.html`), so the element is compiled from this tree with no extra build entry.
+
+## 2026-10-08: one search index, ranked in tiers (S24.1)
+
+`src/core/search.ts` builds the entries once and ranks a query by tier, not by a score.
+- **Ties go to the shorter name, then layout order.** The plan named one "guest bedroom bedside lamp"; the stress house has two (left, right) and a bedside plug, all on the same tier for "bedside guest". The shorter name first puts the left lamp on top, and a room ("Guest bedroom") before the devices named after it.
+- **An exact entity id is tier 0**, beside an exact name: pasting an id must land on its device.
+- **The last tier searches name, entity, room, floor and type together**, so "second light bedside" works. Words split on anything that is not a letter or digit in any script.
+- **Rooms of every kind with a name are entries**, zones too: a zone is a named place a person looks for. Their type label is "Room".
+- **A linked piece (tv, speaker, computer) is a device entry**, flagged `piece`, its index into `furniture`; the same rule as the Active list.
+- **A person has no room**: its drawn spot comes from sensors, not its stored point (as in the room summary).
+- `room-info.ts`'s private `centre` is now exported as `deviceCentre`, so search finds a device's room with the same point and `roomAt` as the room summary.
+## 2026-10-08: the shipped code loses its comments and its whitespace (S24.4, S23.F5)
+
+Sprint 24 adds a search box and an Overview sheet to the card, and the card was 109229 gzip against its 115000 limit. The
+limit stays. What still shipped: Vite's lib mode minifies names and syntax but, for the `es` format, never whitespace,
+because that would drop the `/* @__PURE__ */` marks a library's users tree-shake with. Without whitespace minification
+esbuild keeps every JSDoc and `//` comment, and every indent.
+- **The fix is at the build.** `scripts/minify-output.mjs`, last in the card and panel builds, runs esbuild's whitespace
+  minify over each finished chunk (`generateBundle`, after Vite's own minify, which would print the code out again).
+  Our files are the end of the line, not a library anyone bundles again, so the pure marks have no use. Licence comments
+  (`@license`, `/*!`) stay where they are. Template contents are not touched; the stylesheet comments go earlier, as before.
+- **Whitespace too, not comments only.** esbuild has no "comments only" switch, and dropping comments while keeping
+  indents means a second parser of our own. Whitespace is also the bigger share.
+- **Measured** (`gzip -9`, as the size test): card 109229 to 84469, panel 157897 to 130719, 3D chunk 195527 to 145058.
+  The comments in the source stay, where they are read.
+- Supersedes the "Not done" line of 2026-10-08 "stylesheet comments do not ship".
+- Test: `size-budget.spec.ts` parses each shipped file and fails on any comment that is not a licence, and on two known
+  JSDoc sentences.
+
+## 2026-10-08: every theme group sets its own outdoor ink (S24.4, S23.F3)
+
+`--fp-text-out` was set by solarized alone and read with a fallback to `--fp-text`. A plan group of another theme inside a
+solarized one inherited solarized's base2 for its outdoor names. The generic defaults, before the theme blocks, now set
+`--fp-text-out:var(--fp-text)` on `:host,.fp,[data-theme]`, so each group resolves it from its own text; solarized's own
+rule comes later and still wins on its group. Test: `labels-css.spec.ts`, every other theme nested in solarized reads as
+it does alone.
+## 2026-10-08: the 3D view keeps its shader programs across floors (S22.F1)
+
+The "20 switches" test in `card-3d-floors.spec.ts` took 23 to 29 s alone and timed out under the full suite. A CPU profile put the time in native code, not JS: three.js destroys a shader program when the last material using it is disposed, and a floor switch disposed every material of the old floor before the new one was drawn. So every switch compiled its programs again, four of them, about 0.7 s a switch in the tests' software GL. Compile time is CPU time in software GL, so the test slows with machine load: the same code took 23 s and 29 s alone on 2026-10-08, against 12 s when first logged. Not bisected.
+- **The fix is in the product.** `view3d.ts` `retire`: the first material to give up a program is kept, unused and out of the scene, until the view ends or its context is restored; any other is disposed as before. One material per program, no buffers and no maps. Geometries and textures still go at once, so the leak check reads the same counts.
+- **Not chosen:** disposing the old materials one frame later. It saves a program the next floor uses, but a program one floor needs and the next does not (the textured top on ground and first, none on test) still dies in between: 35 compiles in 21 switches instead of 84. Sharing materials across floors would need every part to stop mutating its own colour.
+- The test now also reads the live program ids (a test-hook read, `programs()`) and requires them unchanged after 21 switches. The test's own work is unchanged: 21 switches, the same memory, children and renderer checks. Alone it takes about 4.5 s.
+## 2026-10-08: what needs attention, and open is not unlocked (S24.3, G1, G2, G3)
+
+The review found one "Active" number holding ten idle cameras, an armed alarm with no state, and a door called open because its lock was unlocked. `src/core/attention.ts` now lists what is wrong, apart from what is on. Pure; the panel that shows it comes next.
+- **Cameras leave the Active list.** `ACTIVE_LIST_RULE.camera` is `"never"`; the `"always"` rule is gone. Supersedes S9.5's "listed whatever its state". Tests that leaned on the Hall camera row now use other rows; the S9.5 camera row colour pair is replaced by a test that no camera state makes a row. `COLOR_VAR.camera` stays.
+- **Open and Unlocked are separate facts.** `doorStateOf` adds `contact` and `unlocked`; `open` stays their union and still drives the plan's red (2026-09-28 holds). `RoomSummary.openings` holds contact-open doors only; `unlocked` and `hasLocks` are new. "Unlocked" shows only where a door in scope has a lock, so a room without locks does not read "Unlocked: none".
+- **Kinds and order:** triggered alarm, armed alarm, open, unlocked, leak, smoke, low battery, unavailable. Pending (the entry delay) counts as armed, not triggered.
+- **Unavailable means `unavailable`.** `unknown` and a missing state are not counted: HA reports `unknown` for sensors that have simply not reported since a restart, and counting them would bury the list.
+- **A floor's count is things, not items** (coordinator): a device, piece or door with at least one item counts once, so an unlocked lock with a low battery is one on its tab while the list shows both. It leaves unavailable out, which has its own number; it includes an armed alarm. `alarm` is true only for a triggered one.
+- **Water and smoke** are `other` devices, since HA has no type for them: a `binary_sensor` that is on, by device class. `moisture` is a leak; `smoke`, `carbon_monoxide` and `gas` are smoke.
+- **Low battery is a device's own battery** (coordinator's call). The `battery` type is a home storage battery, with inverter and UPS; its charge under 20 % is not an alert, so it enters Attention only when unavailable. Low means a placed device whose `battery_level` attribute is a number under 20, or an `other` device with `device_class: battery` whose state is a number under 20. Anything else, missing or not a number, is not low. A door's own locks and contact sensors are read too, the most common real case, one item per entity; an entity that is also an icon is reported by the icon only. A lock can be unlocked and low at once: two items.
+- **A cover is open** only as the plan says (`coverActive`: garage, gate, door). A door's own garage opener counts as open; a window's curtain does not.
+- **Not in Attention:** a sounding siren, a vibration sensor, a vacuum in error. Not asked for; each is a one-line change in `ATTENTION_RULE`.
+- **Each thing is reported once.** An entity placed as its own icon is reported by the icon, not again by its door. A door's room is the first room in layout order on whose edge it sits.
+
+## 2026-10-08: the faint dash is a zone's only (Opus review of Sprint 23, S4)
+
+S23.7 said "a zone is a 1 px dash at 35 % with no halo", but the rule sat on `.e.nw`, which every `boundary` edge carries. An open plan's line between two real rooms went faint too. A zone's edges now carry `zn` as well, and the S23.7 style is `.e.nw.zn` and `.eh.nw.zn`. A boundary between rooms, on a free wall or on the outline goes back to what it drew before: a 1.5 cm dash 8 6 over a 3.5 cm halo.
+- Tests changed on purpose: the zone class strings in `tests/core/render.test.ts` and `plan-symbols.test.ts` (` zn` added), S8.9's boundary thickness back to 1.5, S1.35b's edge regex, and the render snapshot (only ` zn` added). `plan-symbols-css.spec.ts` reads both a zone and a room boundary.
+
+## 2026-10-08: HA dark 2.5D walls are dark slabs (Opus review of Sprint 23, S2)
+
+In Home Assistant's dark mode `--fp-wall` is HA's primary text colour, a light grey, so a wall's side face, 55 % of it into the card background, was a light grey slab. S23.6 made the rooms dark and showed it. `--fp-wall-side` now takes `--fp-wall-side-share` of the wall: 55 % on every theme, 30 % on HA dark. The share is a variable of its own, so the generic rule, which comes after THEME_EXTRAS at the same specificity, cannot beat it; every theme sets 55 % so a theme group inside an HA dark host does not inherit 30 %. Every other theme's side is unchanged (a computed-style pair checks each). 3D walls still mix 55 % (`three/palette.ts`); not changed here.
+
+## 2026-10-08: stylesheet comments do not ship (Opus review of Sprint 23, M2)
+
+The card was 117123 gzip against its 115000 budget. The limit stays. Vite's lib mode does not minify template contents, so every `/* */` inside a `css` block and inside `FLOORPLAN_CSS` shipped. `scripts/strip-css-comments.mjs`, a Vite plugin on the card, panel and editor builds, removes them before esbuild: the card is 107924 gzip.
+- **What it touches.** A template tagged `css`, or one assigned to a const whose name ends in `CSS`. The source is parsed with TypeScript, so no other template, string or regex is read. Inside a stylesheet a comment is a `/*` outside a quoted string, a `url()` and a `${}`; a comment that spans a `${}` goes with it. An unclosed comment fails the build, naming the file.
+- **The comments stay in the source**, where they are read. Nothing else changes in the output.
+- **Not done:** the JSDoc comments of the code still ship (about 16 KB gzip more). Lib mode keeps them; removing them is a separate change.
+- Tests: `tests/card/strip-css-comments.test.ts` (strings, `url()`, substitutions, other templates, the real `render.ts`) and a check in `size-budget.spec.ts` that the built card holds the rules and not the comments.
+
+## 2026-10-08: every name clears 4.5:1, midnight and solarized too (S23 review S6)
+
+S23.6 left six pairs as `test.fixme`: water in midnight and Home Assistant dark (which falls back to midnight), and solarized's garden, terrace, pavement and water. They are real tests now; there is no exception list.
+- **Midnight takes its outdoor and fill colours from its own ramp.** Water was light's #a9cfe3 (a light name on it, 1.2:1); it is #1f4a78, a deeper blue that still reads as water. The stair fill was light's #c4c0b8, a pale block on navy, by the same copy; it is #1a2a46 with a #3a5684 hatch.
+- **Midnight's glass and window are #5fa8e8.** Light's #2c7fb8 was 2.8:1 on the dark window pane, under the 3:1 a line needs (WCAG 1.4.11). The TV keeps #2c7fb8 (S9.3). Light (2.4:1) and solarized (2.8:1) are under 3:1 too; not changed here, the test lists them.
+- **A theme may give outdoor names their own ink, `--fp-text-out`.** `.lbl[data-rl].out` mixes it, falling back to `--fp-text`, so no other theme changes. Solarized sets base2 #eee8d5: base1 is near 3.2:1 on its outdoor shades, and darkening those shades enough would make them the room's colour.
+- **Solarized water is #15608c**, Solarized blue 55 % over base03. On the full blue no Solarized text colour reaches 4.5:1. Windows keep the full blue.
+
+## 2026-10-08: labels keep inside the card at 375 px (S23 review S3)
+
+At 375 px "Garden" ran under the button stack and the stress layout put names below the view box. Placement knew the plan, not the frame it is shown in.
+- **`bounds` in `RenderOpts`.** A rect in plan units. Every name, tag and leader box must lie inside it, inset k/2 so rounding cannot push an edge out. The editor and the 3D overlay pass none. (Corrected by the re-check: the bare-ground step below is not gated on bounds, so the editor moves too, e.g. demo Garden and Pavement at scale 0.25 leave their leaders. That is wanted; one draw path.)
+- **The card passes the fit box minus the stack.** `_measurePx` reads `.fp-stack`. A column at the right covers a strip of the plan; its width in plan units, plus 4 px of air, comes off the right. A stack laid out as a row sits above the plan and costs nothing. The card re-renders only when the strip moves by more than 0.5 % of the fit width.
+- **An outdoor name may use bare ground.** A garden, terrace, pavement or water too small for its name first tries the space beside or above or below it that no other room covers, close enough to still overlap its width or height, before a leader. Demo ground at 375 px went from 4 leaders to 2.
+- **A leader is pulled into bounds**, its foot clamped to a spot still in the room.
+- **The disc floor stays at 28 px.** The leaders left at 375 px come from areas too small for an 11 px name (the reading-corner zone, the garden, the pond), not from crowded discs. Lowering discs to 24 px would split `k` between text and discs and shrink values and extras with them, for no label gained.
+
+## 2026-10-08: a window fills its cut (S23 review S1)
+
+The wall is cut `wallWidthAt + OPENING_EXTRA` wide, but a room polygon stops at the wall's centre line. On an outer wall the outer half of a window's gap showed the board, and three bare hairlines read as a hole.
+- **A pane over the whole cut.** `.win-pane`, opaque, `color-mix(--fp-window 22%, --fp-room-empty)`; red-tinted the same way while open or alarmed. Drawn under the door line and the hairlines, `data-dp`, no clicks. A window and a slit both get it: the cut does not narrow for a slit.
+- **Jambs.** A hairline across each end of the cut (`.win-jamb`, `data-dj`), window colour, red with the state like the symbol.
+- **2D only.** In 2.5D the raised wall carries the glass on its face and hides the floor-level cut; a floor pane there read as a box in front of the wall.
+- **Doors stay a gap.** A door or glass door in an outer wall shows the board in the outer half of its gap. That is a doorway to the outside and reads as one, so it is left as is.
+
+## 2026-10-08: names stay in their room (S23.3)
+
+The old search tried rows above and below the centroid and took a free spot in the next room before a covered one in its own. The 2.5D Hall name landed in the Cloakroom; names sat under discs. Now a name is placed only where its whole box (padded 2k, eight points) is in its room and in no smaller named room.
+- **Candidates.** The centroid, or the pole of inaccessibility (a 16 by 16 grid, computed only when the centroid is not clear), then offsets of up to 144 left and right and 64 up and down, nearest first, horizontal moves cheaper than vertical. Sizes step down by 0.85 to 7k (6k for a zone; the S23.2 floor still holds) before the name leaves its room.
+- **A tag when every spot is covered.** The largest spot in the room that touches no other text gets the name on an `--fp-outline` plate, drawn after the icons. A tag may cover icons, never text. The leader stays only for a room too small for its name at the floor size.
+- **2.5D stem feet are obstacles**, a 4k disc where the stem meets the floor.
+- **Smallest room first**, so a small room is not crowded out by a big neighbour's name. Zones after rooms.
+- **The baseline stays at the anchor**, not the box centre, to keep every other label where it was. Pavement shrinks a step at scale 0.5 for it.
+- Tests changed on purpose: S1.42 (a name now slides sideways, not to a row), the S7.1 break-it test (a covered Store gets a tag), the zone size test, the card's lamp-pin test (the name keeps off the pin; a tap on it picks the room), the editor's rotation test (a tag may sit over icons). `rows()` stays for extras.
+
+## 2026-10-08: an 11 px floor on the card (S23.2)
+
+`renderFloor` takes `px`, screen px per plan unit. With it, `k` is never under `NAME_MIN_PX / (12 * px)` (11 px for a 12k name), and a name shrunk to fit its room is never under `NAME_MIN_PX / px`. One `k` for text and discs, so the plan keeps its proportions and a 32k disc lands at 29 px or more. Without `px` (the editor, the 3D overlay) nothing changes, byte for byte. The floor lives in `renderFloor`, so the editor could use it the day it wants to (finding 8).
+- **The card measures at fit, not at the view on show.** `px` is the svg's box over the fit view box. Like S9.2's icon scale it follows the card's size, never its zoom: zooming in only enlarges, a pinned card draws icons at the same scale as the whole-floor card, and a pinch costs no second render. Zooming out past fit can still draw under 11 px; that is the user's choice.
+- **When the card renders twice.** After a render and on a resize the card measures, and re-renders only when the floor changes `k` or binds a shrunk name now or did before. The first card at 1000 px kept a name at 8.5 px because only `k` was compared; the wide-card test caught it.
+- Not done here: placing labels in CSS px outright (sprint 25).
+
+## 2026-10-08: one label style (S23.1)
+
+Supersedes the 0.12.16 "small and half transparent" names. A name is never faded. `--fp-label` is `color-mix(in srgb, var(--fp-text) 92%, var(--fp-under))`, where `renderFloor` sets `--fp-under` on each name to what it sits on: the room's own `#rrggbb` paint, else its kind's token (`SURFACE` in render.ts; a zone takes the room under it). 92% is the least text that clears 4.5:1 on every theme surface that S23.6 does not change; 85% failed light's garden and terminal's pavement. Room names 12k, outdoor and zone names 10k, weight 500, outdoor in italic. `--fp-font` is Home Assistant's body font (`--ha-font-family-body`, then the older paper variable), else system-ui; it is used for names, values and the card chrome, not for the studio or the config editor. Values use tabular figures and U+202F before the unit (`meanReading`, a sensor's value, the live overlay); the popup's own state line keeps its plain space.
+- **Contrast pairs that wait for S23.6, marked `test.fixme` (labels-css.spec.ts), never a lower bar.** The `#d6d6d2` empty room on blueprint, midnight, terminal, solarized, coffee and HA dark (light text on light grey, 1.1 to 1.8:1). Midnight's and HA dark's fixed light outdoor hexes. Solarized's outdoor hexes (`#586e75`, `#657b83`, `#268bd2`): no colour of its palette clears 4.5:1 on them, so they need a theme decision, not only the ramp.
+- The 3D overlay's room names take weight 500 and the font, to match.
+- The mix applies to room and zone names only (`.lbl[data-rl]`). Device and extra names sit on a disc or anywhere, so they keep `--fp-text`.
+
+## 2026-10-08: plan symbols (S23.7)
+
+Details of V19 and V20.
+
+- A door or glass door is a gap in the wall, a 1 px leaf from the hinge `a`, `|ab|` long and square to the wall, and a
+  90° arc back to `b`. The leaf swings to the room side: probe half a leaf out on each side; an indoor room (`room`)
+  wins, then any room, then the smaller one; with no room on either side it goes left of `a`→`b`.
+- A window is three hairlines along the opening, at the wall's two faces and its middle. A slit spans its narrower
+  band (`SLIT_BAND`).
+- Doors, glass doors, windows and slits now cut the wall (the opening mask). Sealed doors do not, and draw no symbol.
+- A closed, unselected door's own line paints nothing (`.door.quiet`). Open, alarm and cover-open keep the red line and
+  turn the symbol red; selection keeps the line. The hit line and `data-d` are unchanged; the symbol carries `data-ds`
+  and takes no clicks.
+- `--fp-glass` is the window blue. Per theme: light and midnight #2c7fb8 (was #1b9e77), solarized #268bd2 (was
+  #2aa198), the generated themes already used fg for both. Doors stay `--fp-door`.
+- Garden, terrace, pavement and water draw no boundary outline. The editor keeps its faint `e none` guide. A real wall
+  kind on an outdoor room (a fence) still draws.
+- A zone is a 1 px dash (4 3), non-scaling, at 35 % opacity, with no halo.
+- 2.5D draws the same symbols on the floor. 3D openings stay for sprint 28.
+
+Tests changed on purpose: `tests/core/open-door.test.ts` (quiet class; doors are cut, sealed not),
+`tests/core/render.test.ts` (zone 1 px; mask count includes doors; no-mask cases drop the doors; edge count leaves out
+outdoor boundaries), `tests/core/slit.test.ts` and `tests/core/solids-openings.test.ts` (quiet class), the render
+snapshot, and `tests/card/card.spec.ts` S8.11 (card2 drops the window too, since a window now makes a mask).
+
+## 2026-10-08: every surface follows the theme (S23.6)
+
+Details of the V16 and V23 decisions below. The values, per theme:
+
+| Theme | Empty room | Furniture | Garden / terrace / pavement |
+|---|---|---|---|
+| blueprint | #132237 | #3975cf | ramp |
+| terminal | #1d2d28 | #63a68f | ramp |
+| coffee | #30231a | #b17a57 | ramp |
+| a-team | #282222 | #8e7a7a | ramp |
+| space | #141b36 | #3a58ce | ramp |
+| cyberpunk | #280842 | #8e1ced | ramp |
+| carpenter-brut | #391115 | #da2e40 | ramp |
+| midnight | #14213a (`var(--fp-room)`) | #3f66b0 | #1d2a42 / #21304c / #233352 |
+| ha, dark | `var(--fp-room)`, HA's secondary background | #3f66b0 | as midnight |
+| solarized | #06323d | #586e75 | #11424f / #124c5b / #135161 |
+| light, ha light | #d6d6d2 | #79766e | unchanged |
+| slate | #d6d6d2 | #7b7b69 | ramp |
+| beach-house | #d6d6d2 | #b28a32 | ramp |
+
+- **Empty room.** `rolesToTokens` gives a dark theme its room shade (ramp .08), the colour 3D already paints floors with. The four hand-set `roomEmpty` values went; the option stays. Solarized is #06323d, not base02 #073642: a name (`--fp-text` 92 % into the room, the S23.1 label) measured 4.33:1 on base02 and 4.57:1 here, and the room still stands 1.09:1 off the board.
+- **Furniture.** A ramp shade at .62, a step past the wall edge (.55): at .55 beach-house's sand measured 1.77:1 on the grey room, under the 1.8 the test asks. The body is still 45 % of that into the empty room.
+- **Paint.** `--fp-paint-dim` is `brightness(.62) saturate(.85)` on a dark theme and `none` on a light one, applied as a filter to a room or stair with its own `fill`. The colour itself is never changed. The on ring (`fill="none"`) is left alone. Not in 3D yet.
+- **Checker.** #cfccc4 on #8a877f, about 2:1 (was #eeece5 on #2a2b2d, about 12:1).
+- **Not changed.** Midnight water (#a9cfe3) and fill (#c4c0b8) stay light; the brief named garden, terrace and pavement only.
+
+Tests changed on purpose: theme-roles.test.ts ("room-empty is the one fixed grey"); editor.spec.ts, the blueprint room in the theme table and the furniture-token pair (midnight is no longer #79766e); card-3d-tex-glow.spec.ts, the checkerboard's luma spread (238 over 42 is now 204 over 135) and its square counter, which now reads the 10th to 90th percentile so a lamp on the line no longer sets the band.
+
+## 2026-10-08: light is light (S23.8, V13, V14)
+
+Supersedes the flat 25 % aura (`--fp-alpha`, S2.8) and, on light themes, the lamp-coloured 3D wall glow.
+- **2D falloff.** Each aura circle takes `mask="url(#fp-lamp-falloff)"`, one shared mask written once before the first aura: a radial gradient, alpha 1 at the lamp, .33 at 60 %, 0 at the reach, in `objectBoundingBox` units so it fits every circle. `mask-type:alpha` is set in CSS (`mask.fp-falloff`), not as an attribute (finding 18). The ids avoid the word "glow", which tests use to find the room glow class.
+- **Clip.** Unchanged: the aura keeps the room clip it already had (S21.1). The new pixel test proves it holds.
+- **Strength.** `fill-opacity` is `.55` times the lamp's brightness. The mask thins it, so the core is brighter than the old flat .25 and the edge is gone.
+- **Blend.** `mix-blend-mode: var(--fp-glow-blend)`. `themeExtras` writes `screen` for a dark theme and `multiply` for a light one, so a new theme gets the right blend with no new token. HA's own theme follows its mode.
+- **3D.** view3d reads `--fp-glow-blend` off its probe; `multiply` means a light theme. There `glowTint` paints the walls `#ffd9a0` warm white, capped at .35, whatever the boost (night is 3.5x). A dark theme keeps the lamp's own colour, uncapped.
+Tests changed on purpose (finding 19): the aura markup regexes in render.test.ts and room-at.test.ts (the mask attribute), the `.aura` rule string, and the editor's aura pair, which pinned `0.25` and now pins `0.55` and `screen`. New: tests/card/light-glow.spec.ts (pixel probes just outside the wall, the same distance inside, near and far; the blend per theme against the background's luminance), a 3D wall-colour test in card-3d-tex-glow.spec.ts, and `glowTint` units.
+
+## 2026-10-08: unavailable is its own mark (S23.5, V12)
+
+Supersedes "Unavailable lights and switches read as off" (2026-10-06) and the 45 % opacity of S2.6. "Off" and "I don't know" are different facts; drawing a dead lamp as off told the user it was off.
+- `classOf` returns `unavailable` for every type whose state is `unavailable` or `unknown`. A bound light is unavailable only when every state it has is dead: a relay that says off still says the lamp is off, and one that says on lights it. No state at all is still off.
+- The mark: no disc (the halo stays painted at 0 so it takes the click), a dashed `--fp-warn` ring, the glyph at `--fp-idle` .7, and `<g class="gone-mark">`, a circle in `--fp-bg` and a slash in `--fp-warn` at the disc's top right, with no pointer events. A circle and a line, not a path, so no glyph rule paints it. The group is no longer at 45 %.
+- `g.dev.unavailable path` (0,2,2) outranks the per-type tints; weakened to `.dev.unavailable path`, the Playwright pair fails on the motion glyph.
+- In 3D the ball of an unavailable device is idle like an off one; its HTML icon carries the ring and badge.
+Tests changed on purpose (finding 19): the dead light, plug and bound-light classes in render.test.ts, card.test.ts, live.test.ts and plug-power.test.ts; three editor Playwright pairs that pinned the 45 % ghost; one comment in card-3d-live.spec.ts.
+
+## 2026-10-08: off is quiet, on is solid (S23.4, V9 first rule, V10, V11)
+
+Supersedes "an off icon's disc is 50 % in every theme" (2026-09-23) and the 60 % disc of an on motion or contact sensor (S8.13).
+- **Off and idle.** No disc: the halo is still painted at fill-opacity 0 so it takes the click, with no ring. The glyph is `--fp-idle` at .7.
+- **On.** The disc is `--fp-dev` (or the lamp's rgb, the plug's heat, a layout colour) at full opacity. The glyph is `--fp-dev-ink`. Per theme, `themeExtras` (src/core/ink.ts) writes an `-ink` for every `--fp-dev-*`, idle and danger: the theme's own dark ink, else its light ink, if it reaches 4.5:1, else pure black or white (one always clears 4.58:1). A colour only the state knows gets black or white at render time, as `var(--fp-pure-black|white)` so the markup carries no hex. The heat ramp's ink is picked from the same oklch mix the stylesheet does.
+- **Brightness** moved from the glyph to the glow: the aura's alpha is scaled by the lamp's brightness (`--fp-dev-opacity`). A dim lamp keeps a solid disc.
+- **Motion and contact** on: the solid disc plus an outline ring (`--fp-outline`, 2 px) and the ping, so a trigger still stands out from a lit lamp.
+- **Blueprint idle** is `color-mix(ink 55 %, bg)`, #888f99, saturation under .15 (it was #2b5697, about .5). Tokens that equalled the old idle (camera, garden tints) follow it.
+- The on glyph rule is `g.dev.on path` (0,2,2) so it beats `.dev.dev-motion path` and the outdoor and camera tints; the camera cone (0,3,1) keeps its own fill.
+- 3D: a ball takes the disc's colour when the disc shows, else the glyph's.
+Tests changed on purpose (finding 19): 21 Playwright tests read the on colour off the glyph or pinned the 50 % disc, the 60 % motion disc, a 25 % lamp halo or blueprint's old idle. They now read the disc, the ink, 0 and #888f99. Unit: the aura, halo and on rules in render.test.ts, the colour-and-ink style strings in render.test.ts and card-colors.test.ts, and the plug's heat style.
+
+## 2026-10-08: the popup is placed inside what the user sees (S22.2)
+
+`placeNear` (popup-ui.ts) clamps to the host's box cut to the visual viewport (`window.visualViewport`, else the window), not to the host alone. Below the point first, above it when there is no room below, then clamped into that box. Its height is capped to the box less 16 px (the CSS cap the popup had for a host in full view), so in a very short window the sliders scroll and the button stays on screen. A host with less than 40 px showing falls back to its own box, the old rule. Not chosen: `position: fixed` (it would escape the card's stacking and need its own z-index and theme scope). The popup is placed when it opens and on each render, not on a page scroll.
+
+## 2026-10-08: how a relay-lit lamp is turned off (S22.1)
+
+Details of the change the entry below records. One rule, `lampOffEntities` (room-info.ts): a lamp's light entity when it is `on`, then its `bound` relay when that is `on`. The popup's Turn off (`lampOffCalls`) and the room and floor All off (`RoomSummary.offEntities`, which replaces `lightsOnEntities`) both send it through `presetCalls`, so a `switch.*` relay gets `switch.turn_off` and any other domain `homeassistant.turn_off`. A relay several lamps share is in the list once.
+- **No confirm.** A switch's Turn off normally asks first. Here the relay is the lamp, so it acts at once, as a light's and as All off do.
+- **State line.** Only when the relay is on and the light entity is not, the popup and the tooltip read "on · via <relay friendly name or entity id>". With the light on, its own line stays (brightness). With the relay on and the light unavailable, the button is still Turn off.
+- **More info.** A new `moreInfoEntities` adds `bound` after `entitiesOfDevice`, so the chooser lists the light, then the relay. `entitiesOfDevice` is unchanged: it also says which entities a room owns, and a relay elsewhere is not that room's.
+- Turn on is as before: `light.turn_on` on the light. A room panel row still shows the light entity's own state; not changed here.
+Tests changed on purpose: three S20.1/S20.2 Playwright tests (card-floor-select.spec.ts) and one unit test (room-info.test.ts) that pinned "a relay-lit lamp is not a target"; the Active row test in card-room-select.spec.ts, whose More info now opens the chooser for the demo's bound Living light.
+
+## 2026-10-08: the 2026-10-08 review becomes sprints 22 to 30, and three earlier decisions change
+
+Diego said yes to the review's plan (docs/PLAN.md, "Roadmap after the 2026-10-08 review"). He did not answer the open questions, so the defaults the review proposed stand:
+- **Relay-lit lamps (C1, sprint 22).** Supersedes "a lamp lit only by its relay is not a target" (2026-10-07, All off). A lamp drawn on must be one the card can turn off. All off and the lamp's popup call `switch.turn_off` on a bound relay that is on. The relay joins the More info chooser. The stress run left 6 of 25 lamps on after All off, with no way to turn them off.
+- **Dark-theme empty rooms (V16, sprint 23).** Supersedes the 2026-09-21 choice of `#d6d6d2` for every theme. Each dark theme takes its empty-room colour from its own ramp. Blueprint room names measured 1.15:1 on it.
+- **Furniture colour (V23, sprint 23).** Supersedes the 2026-09-23 flat grey. Furniture takes its colour from the theme ramp.
+- **Name.** Two other repos are called Floorplan Studio. We keep the name.
+- **Digital Twin app.** A separate repo in `~/Documents/XCode/FloorPlanTwin`. A spike only, after sprint 24.
+
+## 2026-10-08: the cone's room is the one it looks into (S21.1, supersedes the room rule of the entry below)
+
+Opus review: the entry below took the room holding the camera's own point (`roomAt(floorAt)`). A camera is mounted on a wall, which is the room's edge, and `inside` counts the north and west edge in and the south and east edge out. So a camera on a wall aiming out lost its cone or kept it by which wall it hung on, and one on a wall two rooms share took whichever room `inside` favoured, not the one it faced.
+Rule now: probe a point 15 cm ahead of the camera, `floorAt + 15 * [sin(rot), -cos(rot)]` (rot 0 looks up, 90 looks right; the plan's turn is outside the group and does not enter). `roomAt(probe)` is the holder: aiming into a room clips to it, aiming out finds no room and keeps the free cone, and on a shared wall the room faced wins. The clip polygon and its transform are unchanged. Tests: a 300 x 300 room, a camera on each of four walls aiming out (no clip) and in (clipped); a shared wall both ways; the transform round trip also with the plan turned 90 degrees. The demo snapshot did not change.
+Remaining edge: a camera within 15 cm of a wall it faces probes past that wall, so it loses its cone or clips to the next room. A camera sits on its wall or well clear of the one it faces, so this is rare; not handled. A zone, a structure and a fill still do not count as rooms.
+
+## 2026-10-08: the camera cone is clipped to its room, and four sensor types stop toggling (S21.1, S21.2)
+
+**Cone clip.** Supersedes "the camera cone is not clipped (not asked)" (2026-10-04, the aura entry). Nothing in the docs says what a clip should be, so I took the simplest meaningful rule, the one the lamp already has: the cone is clipped to the polygon of the smallest real room holding the camera (`roomAt`; a zone, a structure and a fill are not rooms). No room, no clip. No margin: the cone's tip sits on the camera, and the wall is drawn over the edge. Not chosen: the floor's viewBox (the cone never reached beyond it, the box widens for it), and a clip to the camera's side of a wall (needs wall geometry nobody asked for).
+Mechanism: an inline `<clipPath>` before the device group, in the same svg, named by a `clip-path` attribute on the cone path. An attribute, not a CSS `url()`: it resolves in the shadow root of the card and the editor, which share `renderFloor` (finding 8), and no stylesheet rule sets `clip-path`, so none can outrank it (finding 18; a unit test pins that). A clip applies in the referencing element's frame, and the cone lives in the device group's (translate, scale, turn about the icon). So the clipPath carries `transform="rotate(-rot 12 12) scale(1/k) translate(...)"`, the inverse of the group's, and its polygon stays in plan coordinates. In 2.5D the translate includes the icon's lift, as the aura's clip does. The id is `fp-cone-` and a hash of polygon and transform: equal ids mean equal definitions, so two cards (two shadow roots) or two cameras in one room cannot collide. A camera on the outer wall aiming out of its room shows no cone; the cone is not painted past the room at all. Known edge, accepted.
+Tests changed on purpose: the two `renderFloor` snapshots (the demo Hall camera gains a clipPath and an attribute); the cone regex in "camera cone (S1.31)" accepts the optional `clip-path` attribute, as the aura tests already do; "leaves the aura unclipped" asserted no `<clipPath` at all and now names `fp-aura-`, since the demo camera has one.
+
+**Sensors.** `humidity`, `motion`, `contact` and `vibration` join `NO_TOGGLE`, as `temp` did (S19.E4): the popup button follows the entity's domain, so one on a switchable entity offered "Turn off". A new test iterates `DEVICE_TYPES`: each is in `NO_TOGGLE` or in a written list of toggling types with a reason. Lights, switches, plugs, climate types, tv, computer, lock, cover, siren (toggle) and the rest keep their behaviour; alarm stays no-toggle.
+
 ## 2026-10-07: All off in the panel, and a floor pill that selects its floor (S20.1, S20.2)
 
 Diego asked for both in the card; the editor is not touched.

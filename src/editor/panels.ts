@@ -2,6 +2,7 @@ import { html, nothing, type TemplateResult } from "lit";
 import { live } from "./live-keep";
 import { repeat } from "lit/directives/repeat.js";
 import {
+  DEVICE_TYPE_LABELS,
   DEFAULT_FLOOR_HEIGHT,
   drawsEffect,
   FX_MAX,
@@ -28,7 +29,7 @@ import {
   typeForEntity,
   UI_ICONS,
 } from "../core";
-import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, floorsAroundKey, resolveStairDirection } from "../core";
+import { STAIR_DIRECTIONS, STAIR_DIRECTION_LABELS, areaChoices, floorsAroundKey, resolveStairDirection } from "../core";
 import {
   DOOR_KINDS,
   FLOOR_COLOURS,
@@ -117,6 +118,13 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["siren", "Siren"],
   ["alarm", "Alarm"],
 ];
+
+/** A type as a word in a sentence ("Added access point"): its label, lower case unless it is an initialism (UPS, AC, TV).
+ *  Never the raw id: "access_point" and "ups" are for files, not people. */
+export function typeNoun(t: DeviceType): string {
+  const l = Object.hasOwn(DEVICE_TYPE_LABELS, t) ? DEVICE_TYPE_LABELS[t] : "device";
+  return /^[A-Z][A-Z0-9]/.test(l) ? l : l[0].toLowerCase() + l.slice(1);
+}
 
 /** S18.14: the types people place most, in the order the menu shows them. The rest follow a separator, A to Z. */
 export const POPULAR_TYPES: readonly DeviceType[] = ["light", "switch", "motion", "contact", "temp", "speaker", "tv"];
@@ -248,7 +256,7 @@ function paintControls(
     custom = c.st.layout.palette ?? [];
   const swatch = (hex: string, name: string, extra = "") =>
     html`<button class=${`sw${extra}`} type="button" title=${name} aria-label=${name} aria-pressed=${String(!shape.texture && cur === hex)} style="background:${hex}" @click=${() => c.paint(on, i, { color: hex })}></button>`;
-  return html`<label for=${`${id}col`}>colour</label><input id=${`${id}col`} type="color" .value=${shape.color ?? "#ffffff"} @change=${(e: Event) => c.paint(on, i, { color: val(e) })}>
+  return html`<label for=${`${id}col`}>colour</label><input id=${`${id}col`} type="color" .value=${live(shape.color ?? "#ffffff")} @change=${(e: Event) => c.paint(on, i, { color: val(e) })}>
     <div class="swatches" role="group" aria-label="Colours">${FLOOR_COLOURS.map((k) => swatch(k.hex, k.name))}${custom.map((hex) => swatch(hex, `Custom ${hex}`, " custom"))}</div>
     <div class="swatches" role="group" aria-label="Textures">${TEXTURES.map((t) => html`<button class="sw tex" type="button" title=${t.name} aria-label=${t.name} aria-pressed=${String(shape.texture === t.id)} style=${texturePreview(t)} @click=${() => c.paint(on, i, { texture: t.id })}></button>`)}</div>
     ${
@@ -273,7 +281,7 @@ function paintControls(
 }
 
 function text(label: string, id: string, value: string, on: (v: string) => void, disabled = false, title?: string) {
-  return html`<label for=${id}>${label}</label><input id=${id} type="text" ?disabled=${disabled} .value=${value} title=${title ?? nothing} @change=${(e: Event) => on(val(e))}>`;
+  return html`<label for=${id}>${label}</label><input id=${id} type="text" ?disabled=${disabled} .value=${live(value)} title=${title ?? nothing} @change=${(e: Event) => on(val(e))}>`;
 }
 /** A number field. It always shows what the state holds: `refresh` re-renders it after every change, so a refused or clamped value snaps back. */
 function number(c: PanelCtx, label: string, id: string, value: number | string, on: (v: number) => void) {
@@ -398,7 +406,7 @@ function select(
   on: (v: string) => void,
   names: Record<string, string> = {},
 ) {
-  return html`<label for=${id}>${label}</label><select id=${id} .value=${value} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
+  return html`<label for=${id}>${label}</label><select id=${id} .value=${live(value)} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
 }
 /** What the door type select shows where it differs from the stored kind id (`slit` is stored, "slit window" is read). */
 const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window" };
@@ -413,7 +421,7 @@ export const ROOM_LABELS: Record<RoomKind, string> = {
   water: "Water",
 };
 const kindSelect = (value: string, on: (v: string) => void) =>
-  html`<label for="rk">kind</label><select id="rk" .value=${value} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
+  html`<label for="rk">kind</label><select id="rk" .value=${live(value)} @change=${(e: Event) => on(val(e))}>${ROOM_KINDS.map((k) => html`<option value=${k} ?selected=${k === value}>${ROOM_LABELS[k]}</option>`)}</select>`;
 /** `cls` adds a style: `warn` (orange) for what deletes an item, `danger` (red) for what deletes a floor or resets everything.
  *  `title` carries detail that does not fit the sidebar's hint line, reachable on hover. */
 const button = (id: string, label: string, on: () => void, cls = "", title?: string) =>
@@ -482,6 +490,10 @@ function entityField(
  * while open, so the reader can follow a step and do it with the guide still visible; the button that opens it is
  * in the toolbar (editor-app.ts), which also gives focus back to itself when this panel's Close button is used.
  */
+/** A guide body with each `[Label]` shown as the bold name of the control, brackets dropped. Split, not innerHTML: text stays text. */
+const guideBody = (body: string) =>
+  body.split(/\[([^\]]+)\]/).map((part, k) => (k % 2 ? html`<b class="ctl">${part}</b>` : part));
+
 export function helpPanel(close: () => void): TemplateResult {
   return html`<strong>? Help</strong>
     <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
@@ -489,7 +501,7 @@ export function helpPanel(close: () => void): TemplateResult {
       ${CONTROLS.map((c) => html`<tr><th scope="row"><kbd>${c.keys}</kbd></th><td>${c.does}</td></tr>`)}
     </table>
     <ol class="guide">
-      ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${s.body}</p></details></li>`)}
+      ${GUIDE_STEPS.map((s) => html`<li><details><summary>${s.title}</summary><p>${guideBody(s.body)}</p></details></li>`)}
     </ol>`;
 }
 
@@ -618,10 +630,10 @@ function unplacedAreas(c: PanelCtx, ha: HaData) {
   const used = new Set(
     Object.values(c.st.layout.floors).flatMap((f) => f.rooms.map((r: Room) => r.area).filter(Boolean)),
   );
-  const list = byName(ha.areas).filter((a) => !used.has(a.id));
+  const list = areaChoices(ha).filter((a) => !used.has(a.id)); // S24.6 (U16): an area once, its floor when two share a name
   if (!list.length) return nothing;
   return html`<div id="unplacedAreas"><strong>Areas not on the plan (${list.length})</strong>
-    <div class="row">${list.map((a) => html`<button class="btn" @click=${() => c.drawArea(a)}>${a.name}</button>`)}</div>
+    <div class="row">${list.map((a) => html`<button class="btn" @click=${() => c.drawArea(a)}>${a.label}</button>`)}</div>
     ${hint("Click one, then draw its room.")}</div>`;
 }
 
@@ -720,7 +732,7 @@ function edgePanel(c: PanelCtx, s: Extract<Sel, { t: "edge" }>) {
   return html`<strong>${WALL_LABELS[kind] ?? "Wall"}</strong>
     ${hint("Second end moves; shared corners follow.")}
     ${editable ? heading("Identity") : nothing}
-    ${editable ? html`<label for="ek">kind</label><select id="ek" .value=${kind} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
+    ${editable ? html`<label for="ek">kind</label><select id="ek" .value=${live(kind)} @change=${(e: Event) => c.commit((f) => setEdgeKind(f, s.poly, s.i, val(e) as EdgeKind))}>${EDGE_KINDS.map((k) => html`<option value=${k} ?selected=${k === kind}>${WALL_LABELS[k]}</option>`)}</select>` : nothing}
     ${heading("Appearance")}
     ${number(c, "length (m)", "elen", (dist(a, b) / 100).toFixed(2), (m) => set({ length: m }))}
     ${hint(`angle ${ang.toFixed(1)}°`, true)}
@@ -814,7 +826,7 @@ function extraPanel(c: PanelCtx, i: number) {
  */
 function lockField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings", i: number) {
   const locked = !!c.st.f[list][i].locked;
-  return html`<label><input type="checkbox" id=${id} .checked=${locked} @change=${(e: Event) =>
+  return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) =>
     c.commit((f) => {
       f[list][i].locked = (e.target as HTMLInputElement).checked;
     })}> length locked</label>`;
@@ -860,9 +872,15 @@ function multiAttachField(
   look?: { grouped?: (avail: CatalogEntry[]) => GroupedChoice[]; roundRemove?: boolean; boxed?: boolean },
 ) {
   const placed = placedEntities(c.st.layout);
+  // S24.6 (U16): a friendly name first: the catalog's, else Home Assistant's, and only then the raw id.
   const nameOf = (entity: string) => {
     const e = c.st.layout.catalog.find((x) => x.entity === entity);
-    return e ? (e.room ? `${e.room} - ${e.name}` : e.name) : entity;
+    if (e) return e.room ? `${e.room} - ${e.name}` : e.name;
+    return c.st.ha?.entities.find((x) => x.id === entity)?.name || entity;
+  };
+  const row = (en: string) => {
+    const n = nameOf(en);
+    return n === en ? html`${en}` : html`${n} <small class="eid">${en}</small>`;
   };
   const avail = choices.filter((s) => !cur.includes(s.entity));
   // S10.2 behaviour 2: an entity already placed as an icon is still offered, labelled so the user can tell; the
@@ -871,6 +889,7 @@ function multiAttachField(
   const options: ComboOption[] = entries.map(({ entry: s, group }) => ({
     value: s.entity,
     label: placed.has(s.entity) ? `${s.name} (on plan)` : s.name,
+    sub: s.name === s.entity ? undefined : s.entity,
     group,
   }));
   // Picking adds to the list and clears itself: the combo's own value never lingers on the picked entity, unlike a
@@ -882,7 +901,7 @@ function multiAttachField(
   };
   const inner = html`<label for=${id}>${label}</label>
     ${combo(id, label, "", options, add, "add...")}
-    ${cur.map((en, k) => html`<p class="attach-row">${nameOf(en)} ${look?.roundRemove ? removeX(`${id}-rm${k}`, nameOf(en), () => set(cur.filter((x) => x !== en))) : button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
+    ${cur.map((en, k) => html`<p class="attach-row">${row(en)} ${look?.roundRemove ? removeX(`${id}-rm${k}`, nameOf(en), () => set(cur.filter((x) => x !== en))) : button(`${id}-rm${k}`, "Remove", () => set(cur.filter((x) => x !== en)), "warn")}</p>`)}`;
   return look?.boxed ? html`<div class="sens-box">${inner}</div>` : inner;
 }
 
@@ -1020,8 +1039,9 @@ function openingPanel(c: PanelCtx, i: number) {
 
 function roomPanel(c: PanelCtx, i: number) {
   const r = c.st.f.rooms[i];
-  const toPlace = c.st.areaToPlace(i).length;
+  // S22.6: the Place entry comes first, under the title: on a room with HA devices left to place it is the main action, and lower down it sat below the fold.
   return html`<strong>Room</strong>
+    ${placeAreaButton(c, i)}
     ${r.kind === "zone" ? hint("Drag corners to reshape.") : nothing}
     ${r.kind === "structure" ? hint("Drag body to move; corners to reshape.") : nothing}
     ${section(
@@ -1074,8 +1094,6 @@ function roomPanel(c: PanelCtx, i: number) {
     ${roomSensors(c, i)}
     ${roomScenesPanel(c, i)}
     ${c.st.ha ? section(c, "room:ha", "In this area (Home Assistant)", haBox(c, i)) : nothing}
-    ${toPlace ? heading("Links") : nothing}
-    ${placeAreaButton(c, i)}
     ${section(
       c,
       "room:appearance",
@@ -1249,7 +1267,7 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
     fl.rooms.forEach((o: Room, j: number) => {
       if (o.area && !(fk === key && j === i)) used.add(o.area);
     });
-  const areas = byName(ha.areas),
+  const areas = areaChoices(ha),
     free = areas.filter((a) => !used.has(a.id)),
     taken = areas.filter((a) => used.has(a.id));
   const unknown = !!r.area && !areas.some((a) => a.id === r.area);
@@ -1267,8 +1285,9 @@ function roomLink(c: PanelCtx, ha: HaData, i: number) {
     });
     if (hit && used.has(hit.id)) c.say(`${hit.name} is already on the plan`);
   };
-  const opt = (a: { id: string; name: string }) =>
-    html`<option value=${a.id} ?selected=${a.id === r.area}>${a.name}</option>`;
+  // S24.6 (U16): an area HA sends twice is listed once; two areas of one name carry their floor.
+  const opt = (a: { id: string; label: string }) =>
+    html`<option value=${a.id} ?selected=${a.id === r.area}>${a.label}</option>`;
   return html`${hits.length === 1 ? html`<p><button class="btn" id="rmatch" @click=${() => pick(hits[0].id)}>Link to the Home Assistant area ${hits[0].name}</button></p>` : nothing}
     <label for="ra">area</label><select id="ra" @change=${(e: Event) => pick(val(e))}>
       <option value="" ?selected=${!r.area}>(no area — custom)</option>
@@ -1619,7 +1638,7 @@ function deviceTypeField(c: PanelCtx, i: number) {
       if (t !== "plug") delete dv.power;
       if (t !== "radar") delete dv.targets;
     });
-  return html`<label for="vtype">type</label><select id="vtype" .value=${d.type} @change=${(e: Event) => set(val(e))}>
+  return html`<label for="vtype">type</label><select id="vtype" .value=${live(d.type)} @change=${(e: Event) => set(val(e))}>
     ${typeOptions(TYPE_LABELS, d.type)}
   </select>`;
 }
@@ -2000,7 +2019,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(u.type), setAttached, { apply: mutateAttached, targetLabel: u.name ?? label })}
     ${heading("Appearance")}
     <label for="uucol">colour</label>
-    <input id="uucol" type="color" .value=${u.color ?? "#8b8578"} @change=${(e: Event) =>
+    <input id="uucol" type="color" .value=${live(u.color ?? "#8b8578")} @change=${(e: Event) =>
       c.commit((f) => {
         f.unlinked[i].color = val(e);
       })}>
@@ -2086,7 +2105,7 @@ function stairsPanel(c: PanelCtx, i: number) {
       else f.stairs[i].direction = v as StairDirection;
     });
   };
-  const directionSelect = html`<label for="sdir">direction</label><select id="sdir" .value=${t.direction ?? "auto"} @change=${(e: Event) => setDirection(val(e))}>
+  const directionSelect = html`<label for="sdir">direction</label><select id="sdir" .value=${live(t.direction ?? "auto")} @change=${(e: Event) => setDirection(val(e))}>
     <option value="auto" ?selected=${!t.direction}>Auto (${auto})</option>${STAIR_DIRECTIONS.map((d) => html`<option value=${d} ?selected=${d === t.direction}>${STAIR_DIRECTION_LABELS[d]}</option>`)}</select>`;
   return html`<strong>Stairs</strong>
     ${

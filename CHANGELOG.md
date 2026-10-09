@@ -2,6 +2,72 @@
 
 ## Unreleased
 
+## 0.22.1 - 2026-10-09
+
+- Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.
+
+## 0.22.0 - 2026-10-09
+
+- Card: low batteries show up as Home Assistant reports them. A Zigbee2MQTT `battery` attribute, a battery sensor or low-battery sensor placed on the plan, and the battery sensor of a placed device's own HA device all count. A home battery's charge still does not.
+- Card: a home battery or car at 10 % no longer reads as a low battery on the switch or plug that shares its Home Assistant device. Only a battery sensor Home Assistant files as diagnostic counts there. A battery sensor in volts is not read as a percentage.
+- Card: a jammed lock is in Attention, as "jammed".
+- Card: a lamp that is on and low on battery stays under Active as well as in Attention.
+- Card: the ring round a located device keeps its own animation; it shared a name with the Studio's ring.
+- Card and Studio: closing the search with Escape gives the keyboard back. Before, the box kept focus inside Home Assistant and the next / typed a slash.
+- Card and Studio: search finds "Søren" from "soren" and "Große" from "grosse": ø, ß, æ, ł, đ, þ and œ fold to plain letters.
+- Studio: adding an appliance names its type as you read it in the menu: "Added UPS; hidden by Layers", not "Added ups".
+- Studio: a click no longer picks a small TV, speaker or computer that Layers hides. It used to select the invisible piece and bring it back.
+- Studio: a search for a TV or speaker whose id repeats on another floor now marks its own row in the Outline, not the other floor's.
+- Card: a search at the top of the Overview, opened with ⌘K, Ctrl+K or / while the card is under the pointer or has focus. Enter on a device goes to it as a row tap does; on a room, opens the room; on a floor, shows it.
+- Card: "Turn off on this floor…" lists what is on (lights with their relays, switches, plugs, media), grouped with counts and all ticked. One button turns off what stays ticked.
+- Card: a Layers button in the Overview unfolds one chip per family on the floor (Lights, Climate, … Furniture). A click hides that family on the plan, Alt-click shows it alone. Each viewer's choice is remembered. Search still finds a hidden device, draws it, and offers Show.
+- Card: the room and floor "All off" button now reads "Lights off", which is what it does. Scenes no longer has its own All off.
+- Studio: Layers replace the Filter menu. A Layers tab beside Outline has one eye per family (lights, climate, security and the rest, plus furniture), with a count for the floor on show. A click hides a family, Alt-click shows only that one. The toolbar says what is hidden, and opens the tab. Search and the Outline still find a hidden device; the message offers Show.
+- Studio: placing devices under a hidden layer no longer makes them vanish without a word: "Placed 4 devices; 3 hidden by Layers", with Show.
+- Studio: a room's right-click offers what Place offers, without loose power sensors, scenes or batteries, each name with its entity id in small type. Sensor lists show the Home Assistant name, not the raw id. The area list shows an area once, and two of one name with their floor.
+- Studio: find anything on the plan. Press / or ⌘K, type a few letters, Enter: the Studio switches floor, selects the device or room, centres it and rings it a moment. The same box runs a few commands (Fix plan, Draw room, Add device, Zoom to fit, Undo, Save).
+- Studio: an Outline beside the plan lists floors, rooms and devices with counts, filters by name or entity id, and works with the arrow keys. Its last branch, "Unplaced from HA", lists what Home Assistant has that the plan does not, by area; a click starts adding it. The column folds to a thin rail and starts folded on a window under 1100 px.
+- Card: the Active list is now the Overview. What needs attention comes first, with how long ago it changed; what is on follows by category. It lists the floor on show; "All floors" lists them all, each row with its floor. The header counts things in short chips ("2 alerts · 6 lights").
+- Card: tapping a row in the Overview goes to the device: the plan switches floor, centres on it, rings it and opens its popup. In 3D it switches floor and opens the popup.
+- Card: the small ▸ arrow on each row is gone. A device's details (maker, model, firmware, entity, last changed) are under Details in its popup.
+- Card: floor tabs show how many things need attention ("Ground · 3") and turn orange while an alarm is triggered.
+- Card: a lamp lit by its relay reads "on · via" the relay in every list, not off.
+- Card and studio (groundwork): one search index over floors, rooms and devices. A query matches names, entity ids, rooms, floors and types, ignores case and accents, and ranks the exact name first.
+- Card and studio (groundwork): one search box, opened with ⌘K, Ctrl+K or /. Arrows move through the results, Enter picks, Escape clears and then closes. Each result shows its room, floor and type.
+- Card: the card file is a quarter smaller (109 to 84 KB gzipped). The build drops the code's comments and spaces; the panel (158 to 131 KB) and the 3D view (196 to 145 KB) shrink too.
+- Card and Studio: a plan in another theme placed inside a solarized one keeps its own colour for garden, terrace, pavement and water names.
+- Card: switching floors in 3D no longer stalls. Each switch compiled the 3D view's shaders again, which took most of a second on a slow tablet; the view now keeps them while it is open.
+- Card: a door left unlocked is no longer called open. The room and floor facts read "Open" and "Unlocked" apart; "Unlocked" shows only where a door has a lock. The plan still draws both red.
+- Card: cameras are no longer in the Active list. A camera is a view, not something switched on.
+
+## 0.21.0 - 2026-10-08
+
+- Card and studio: room names are solid, not faded. Each name is the text colour mixed into the room it sits on, at 12 px (outdoor names and zones at 10, outdoor in italic), in Home Assistant's own font. Readings keep their number and unit together and line up digit for digit.
+- Card: on a phone, room names never drop under 11 px and device icons never under 28 px. A wide card looks as before.
+- Card and studio: a room's name stays in its room. It slides beside an icon, shrinks, and when every spot is covered sits on a small plate over the icons.
+- Card and Studio: dark themes no longer show empty rooms as light grey boxes. Empty rooms, midnight's garden, terrace and pavement, and furniture take the theme's own colours. Your own room paint is dimmed on dark themes, never changed. The checkerboard is softer.
+- Card and Studio: doors and windows look like a floor plan. A door is a gap in the wall with a thin leaf and a swing arc into the room; a window is three thin lines across the wall. Glass doors and windows share one blue. Red still means open. Gardens, terraces, pavement and water lose their outline, and zones are a faint thin dash.
+- Card and studio: a lit lamp's glow now looks like light. It is brightest at the lamp and fades to nothing at its edge, stays inside the lamp's room, and blends with the floor: it brightens a dark theme and tints a light one instead of laying a flat disc over it. In 3D on a light theme, the glow on the walls is a capped warm white instead of the lamp's colour, which washed pale walls out.
+- Card and studio: a device whose entity is unavailable or unknown now has its own mark: a dashed orange ring, a grey glyph and a small slashed badge. This holds for lights, switches and plugs too, which used to look simply off. A lamp with a relay is marked only when both are dead.
+- Card and studio: a device that is off is now its glyph alone, in a quiet grey, with no disc behind it. A device that is on is a solid disc in its colour, and the glyph on it is dark or light, whichever reads (at least 4.5:1 in every theme). A lit lamp's own colour, a plug's heat and a layout's own device colours get their readable glyph too. Blueprint's idle grey is no longer blue.
+
+## 0.20.2 - 2026-10-08
+
+- Card: a device popup now always opens where you can see it. On a card taller than the screen, a tap low on the plan put it below the bottom edge; now it opens above the point, and a very short window makes it scroll inside instead.
+- Card: a lamp lit by the relay that powers it can now be turned off from the card. Its popup reads "on · via" the relay, and Turn off switches the relay off (and the light too if it is on). Room and floor All off also switch off such relays, each once. More info offers the relay next to the light.
+- Card: when All off would switch off a relay that also powers a lamp outside the room or floor, its tooltip says so: "a shared relay also turns off lamps elsewhere".
+- Studio: the Place and Add device popups fit the window. A long list scrolls inside the popup and its Place button stays in view; before, it could sit below the bottom of the screen.
+- Studio: the side panel scrolls on its own, so the plan stays where it is. A room with Home Assistant devices left to place shows Place first, under its title.
+- Studio: the Help guide names the buttons and menus as they are, shows them in bold, and starts with Fix plan.
+- Studio: Escape closes an open toolbar menu and puts focus back on its button.
+- Studio: an edit refused because the plan is fixed now puts the old value back in its field, and the message has an Untick Fix plan button.
+- Studio: every change the fixed plan refuses now says so, with the Untick Fix plan button: a room colour or texture, a texture or furniture slider, a floor's name, order or removal, Add floor, Add stairs and Rotate the plan. Before, these did nothing without a word, and a picked colour snapped back silently.
+
+## 0.20.1 - 2026-10-08
+
+- Card and studio: a camera's cone stops at the walls of the room the camera stands in, as a lamp's light does. The room is the one the camera looks into, so a camera on a wall aiming out keeps its whole cone, as one in no room does.
+- Card: a tap on a humidity, motion, contact or vibration device no longer offers a switch. Like temperature, they open the entity's details only. Before, one set to a switchable entity showed "Turn off".
+
 ## 0.20.0 - 2026-10-08
 
 - Card: the room panel has an All off button. It turns off the lights of that room that are on, in one call, and is not shown when none is on. A lamp lit only by its bound relay is left out of the call.

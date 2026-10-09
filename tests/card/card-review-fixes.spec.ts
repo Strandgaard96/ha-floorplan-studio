@@ -144,16 +144,21 @@ test.describe("1: a tap on a room's name, readout or furniture picks the room", 
       await page.mouse.click(p.x, p.y);
       expect(await picked(page)).toEqual([0]);
     });
-  test("a room's name over a lamp's pin in 2.5D (Kitchen, rotation 270, tilt 0.5) picks the room", async ({ page }) => {
+  // S23.3: a 2.5D stem's foot is an obstacle now, so the Kitchen name no longer sits on the lamp's pin; it used to, and
+  // this test clicked the pin to prove the name won. What stays: the name, beside the pin, is the top element and picks.
+  test("in 2.5D (rotation 270, tilt 0.5) the Kitchen name keeps off the lamp's pin, and a tap on it picks the room", async ({
+    page,
+  }) => {
     await boot(page, { config: { view: "2.5d", tilt: 0.5, rotation: 270 } });
-    // The lamp's pin lets events through. At the pin's own centre the real top element is the Kitchen name: click there.
     const pin = await centreOf(page, 'svg circle.stem-top[cx="650"][cy="200"]');
     const top = await card(page).evaluate(
       (el, [x, y]) => el.shadowRoot!.elementsFromPoint(x!, y!)[0]?.textContent ?? null,
       [pin.x, pin.y] as const,
     );
-    expect(top, "the Kitchen name is on top of the pin").toBe("Kitchen");
-    await page.mouse.click(pin.x, pin.y);
+    expect(top, "no name on the pin").not.toBe("Kitchen");
+    const p = await centreOf(page, "svg text.lbl[data-rl]", "Kitchen");
+    expect(p.top, "the name is the top element at its own centre").toBe(true);
+    await page.mouse.click(p.x, p.y);
     expect(await picked(page)).toEqual([1]);
   });
   test("a loose sensor's value text is the device's: no pick (B)", async ({ page }) => {
@@ -290,12 +295,12 @@ test.describe("9 and 12: the keyboard decides like the pointer; the panel names 
     await card(page).locator("css=.fp-pop-do").click();
     expect(await calls(page)).toEqual(["light.turn_off light.demo_kitchen"]);
   });
-  test("the panel's label is the room's name while a room is shown, and 'Active devices' otherwise", async ({
+  test("the panel's label is the room's name while a room is shown, and 'Overview' otherwise (S24.7)", async ({
     page,
   }) => {
     await boot(page);
     const label = () => card(page).locator("css=.fp-active").getAttribute("aria-label");
-    expect(await label()).toBe("Active devices");
+    expect(await label()).toBe("Overview");
     const f = await floorPoint(page, 0);
     await page.mouse.click(f.x, f.y);
     expect(await label()).toBe("Living");

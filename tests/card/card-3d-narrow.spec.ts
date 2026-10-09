@@ -63,7 +63,7 @@ test("375x700: an opened Active list still keeps the house clear of it", async (
   });
   await drawn(page);
   await card(page)
-    .getByRole("button", { name: /Expand the active devices list/ })
+    .getByRole("button", { name: /Expand the overview/ })
     .click();
   await expect(card(page).locator("css=.fp-active-body")).toHaveCount(1);
   await expect.poll(async () => (await inset(page))[0] + (await inset(page))[1]).toBeGreaterThan(0.05);

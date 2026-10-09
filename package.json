@@ -15,7 +15,7 @@
     "dev": "vite --config vite.config.ts --mode editor --host 127.0.0.1 src/editor",
     "docs:schema": "node scripts/gen-schema-docs.mjs > docs/schema.md",
     "docs:check": "markdown-link-check docs/*.md README.md CONTRIBUTING.md",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "format": "oxfmt",
     "format:check": "oxfmt --check"
   },
@@ -33,6 +33,7 @@
     "oxfmt": "^0.72.0",
     "oxlint": "^1.87.0",
     "typescript": "^7.0.2",
+    "typescript-api": "npm:typescript@^5.9.3",
     "vite": "^8.3.3",
     "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^5.0.3"
