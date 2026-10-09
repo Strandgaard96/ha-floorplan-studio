@@ -2,6 +2,22 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: phone-width card and clearer names (UI review)
+
+- **Below 480 px the look controls fold behind one View options button.** At 375 px the toolbar took two to three rows
+  and covered about 40 % of the plan. The breakpoint is `ACTIVE_FOLD_BELOW_PX`, the one that already folds the Active
+  panel, so the card has one notion of "narrow". Zoom, fit, rotate and reset stay out in the stack. The open and closed
+  menu are one template, so the focused toggle survives (two templates lost focus to `<body>`; Opus review).
+- **A nameless entity reads as its id in words** (`entityLabel`): "Demo living temp2", not `sensor.demo_living_temp2`.
+  Supersedes the `name ?? friendly_name ?? entity` fallback. Search still matches the raw id. The chooser keeps the raw
+  id: there it tells two entities apart.
+- **The turn-off confirm is "Yes, turn off" in `--fp-danger`.** It was the primary blue of Turn on and wrapped.
+- **An off 3D ball takes `--fp-disc`.** The ball copied the icon's colour; off, that is the glyph's idle grey, and the
+  glyph drawn on it vanished.
+- **Not done, on purpose:** nudging icons or labels apart when they collide (it moves what the user placed); a 2D fit
+  inset for the open panel (every zoom clamp is based on `fit`); sentence-case editor labels (lowercase is the editor's
+  convention).
+
 ## 2026-10-09: furniture is a few boxes in 3D
 
 A sofa, table, bed, chair, sink, toilet, bathtub and car are drawn in the 3D view as a few boxes each (`FURNITURE_PARTS`, `src/core/furniture-parts.ts`; spec `docs/specs/furniture-parts-3d.md`). Footprints are in the 2D symbol's 0..100 box, heights are fractions of the piece's height, so a stored `height` scales every part and nothing rises above the top. The scene emits one solid per part (`furniture:i:pk`) with the piece's ref and paint; viewer, picker and cut are unchanged. Cabinet, shower, tv, speaker and computer stay one box (computer: its 50 cm default is too low for a desk with a monitor). 2.5D keeps one box per piece: this widens the gap between the 2.5D and 3D draw paths, against the spirit of finding 8; the 3D scene was already its own path. Squat by design: a bed's headboard ends at 55 cm, a toilet's tank at 40 cm.

@@ -300,6 +300,64 @@ test.describe("the card remembers its view", () => {
 });
 
 test.describe("toolbar", () => {
+  // Opus review of ui-review-1, defect 2: the menu swapped templates, so the focused toggle was destroyed, focus fell to
+  // <body>, and with the pointer off the card no key reached it again (Escape could not close the menu).
+  test("View options keeps keyboard focus: Enter opens, focus stays on it, Escape closes", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    await open(page);
+    await configure(page, { layout: structuredClone(demo), floor: "ground" });
+    await page.mouse.move(0, 799);
+    const toggle = card(page).locator('css=.fp-zoom button[aria-label="View options"]');
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(await card(page).evaluate((el) => el.shadowRoot!.activeElement?.getAttribute("aria-label") ?? null)).toBe(
+      "View options",
+    );
+    await page.keyboard.press("Escape");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await card(page).locator('css=.fp-zoom button[aria-label="View options"]').focus();
+    await page.keyboard.press("Enter");
+    await card(page).locator('css=.fp-zoom select[aria-label="Theme"]').focus();
+    await page.keyboard.press("Escape");
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(await card(page).evaluate((el) => el.shadowRoot!.activeElement?.getAttribute("aria-label") ?? null)).toBe(
+      "View options",
+    );
+  });
+
+  // Opus review CSS pair (findings 10, 18): an on toggle wears the primary ring; an off one is not dimmed like a disabled one.
+  test("a toolbar toggle that is on has the primary border; off, it is full opacity with the plain border", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    await configure(page, { layout: structuredClone(demo), floor: "ground", theme: "light" });
+    const names = card(page).locator('css=.fp-zoom button[aria-label="Device names"]');
+    const look = () =>
+      names.evaluate((b) => ({
+        border: getComputedStyle(b).borderTopColor,
+        opacity: getComputedStyle(b).opacity,
+        pressed: b.getAttribute("aria-pressed"),
+      }));
+    const primary = await card(page).evaluate((el) => {
+      const p = document.createElement("i");
+      p.style.color = "var(--fp-primary)";
+      el.shadowRoot!.appendChild(p);
+      const c = getComputedStyle(p).color;
+      p.remove();
+      return c;
+    });
+    if ((await look()).pressed !== "true") await names.click();
+    const on = await look();
+    expect(on.border).toBe(primary);
+    await names.click();
+    const off = await look();
+    expect(off.pressed).toBe("false");
+    expect(off.opacity).toBe("1");
+    expect(off.border).not.toBe(primary);
+  });
+
   test("view_switch: false hides the View controls (theme, labels, names) but keeps the zoom, rotate and reset buttons (Diego, 0.12.22)", async ({
     page,
   }) => {

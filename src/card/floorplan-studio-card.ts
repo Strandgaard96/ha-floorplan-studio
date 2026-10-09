@@ -952,9 +952,16 @@ export class FloorplanStudioCard extends LitElement {
       return;
     }
     if (ev.key === "Escape" && this._viewOpen) {
+      // Only when focus is in the toolbar: a control inside the menu is about to go, so focus goes back to the toggle. A
+      // field elsewhere on the page keeps its focus (Opus re-check).
+      const inBar = !!this.shadowRoot?.activeElement?.closest(".fp-zoom, .fp-viewonly");
       this._viewOpen = false;
       this.requestUpdate();
       ev.preventDefault();
+      if (inBar)
+        void this.updateComplete.then(() =>
+          this.shadowRoot?.querySelector<HTMLElement>(".fp-view-toggle")?.focus({ preventScroll: true }),
+        );
       return;
     }
     if (ev.key === "Escape" && this._popup) {
@@ -3727,7 +3734,8 @@ export class FloorplanStudioCard extends LitElement {
       this._viewOpen = !this._viewOpen;
       this.requestUpdate();
     }}>${this._icon(UI_ICONS.view)}</button>`;
-    return this._viewOpen ? html`${this._lookControls(current)}${toggle}` : toggle;
+    // One template either way, so the toggle that has focus survives the click (two templates rebuilt it and focus fell to <body>).
+    return html`${this._viewOpen ? this._lookControls(current) : nothing}${toggle}`;
   }
 
   /** The look controls themselves: in the toolbar on a wide card, behind the View button on a narrow one. */

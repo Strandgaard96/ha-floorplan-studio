@@ -51,6 +51,8 @@ export const POPUP_CSS = css`
   .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(240px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; padding: 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
   /* The sliders scroll inside the card-high cap; the name, the state and the buttons stay put. */
   .fp-pop.fp-pop-wide { width: calc(100% - 8px); }
+  /* When even the slider floor below does not fit (a 220 px card), the popup scrolls rather than paint past its edge. */
+  .fp-pop { overflow-y: auto; }
   /* The sliders scroll so the button stays in view, but never below one whole slider (label + 44 px track): on a
      250 px card they were squeezed to the label alone and the track vanished. */
   .fp-pop-sliders { display: flex; flex-direction: column; gap: 8px; min-height: 62px; overflow-y: auto; flex: 0 1 auto; }

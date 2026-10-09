@@ -324,3 +324,29 @@ test.describe("2D hover tooltip", () => {
     await expect(tip(page)).toBeHidden();
   });
 });
+
+// Opus review of ui-review-1, defect 1: a 62 px slider floor on a short card pushed More info and Details out of the
+// popup's box and past the card's edge. Every child must stay inside the popup, at the narrowest widths a phone has.
+test.describe("popup on a short card", () => {
+  for (const width of [320, 375])
+    test(`every row of a light's popup stays inside the popup at ${width} px`, async ({ page }) => {
+      await boot(page, width);
+      await tapIcon(page, 0);
+      await expect(pop(page)).toBeVisible();
+      const r = await pop(page).evaluate((p) => {
+        const b = p.getBoundingClientRect();
+        // a scrolled-out row is inside the box once scrolled to: measure against the scroll extent, and the box against the card
+        return {
+          popBottom: b.bottom,
+          hostBottom: (p.getRootNode() as ShadowRoot).host.getBoundingClientRect().bottom,
+          overflow: p.scrollHeight > p.clientHeight ? getComputedStyle(p).overflowY : "fits",
+          sticks: [...p.children].map((c) => c.getBoundingClientRect().bottom - p.scrollTop),
+        };
+      });
+      expect(r.popBottom).toBeLessThanOrEqual(r.hostBottom + 0.5);
+      // Either it all fits, or the popup scrolls: nothing may paint outside it.
+      if (r.overflow !== "fits") expect(["auto", "scroll"]).toContain(r.overflow);
+      else for (const b of r.sticks) expect(b).toBeLessThanOrEqual(r.popBottom + 0.5);
+      await expect(pop(page).locator("css=input[type=range]").first()).toBeVisible();
+    });
+});
