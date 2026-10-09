@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-09: furniture is a few boxes in 3D
+
+A sofa, table, bed, chair, sink, toilet, bathtub and car are drawn in the 3D view as a few boxes each (`FURNITURE_PARTS`, `src/core/furniture-parts.ts`; spec `docs/specs/furniture-parts-3d.md`). Footprints are in the 2D symbol's 0..100 box, heights are fractions of the piece's height, so a stored `height` scales every part and nothing rises above the top. The scene emits one solid per part (`furniture:i:pk`) with the piece's ref and paint; viewer, picker and cut are unchanged. Cabinet, shower, tv, speaker and computer stay one box (computer: its 50 cm default is too low for a desk with a monitor). 2.5D keeps one box per piece: this widens the gap between the 2.5D and 3D draw paths, against the spirit of finding 8; the 3D scene was already its own path. Squat by design: a bed's headboard ends at 55 cm, a toilet's tank at 40 cm.
+
 ## 2026-10-08: no door swing arcs (S23.F6)
 
 Supersedes the arc in "plan symbols (S23.7)" below. Diego: "the door arcs are horrendous, remove them all". A door or glass

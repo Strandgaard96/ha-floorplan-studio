@@ -259,3 +259,23 @@ describe("Picker: a room's own sensor and what hides a label (S12.5)", () => {
     expect(p.blocked(ray, 720, low)).toBe(false);
   });
 });
+
+describe("Picker: a table drawn as a top and four legs", () => {
+  // Table in room A (x 0..300): centre (150, 250), 100 x 100, 75 cm high -> top 69..75 cm, legs 8 cm square.
+  // Regression guard, not failing-first: with one box the result is also room 0 (furniture on a room reads as that room).
+  const p = new Picker(
+    buildScene(house({ furniture: [{ id: "t", symbol: "table", x: 150, y: 250, rot: 0, w: 100, h: 100 }] as never }))
+      .solids,
+  );
+  it("a ray down onto the top picks the room the table stands in", () => {
+    expect(p.pick(down(150, 250), plain)).toEqual({ type: "room", index: 0 });
+  });
+  it("a level ray under the top, between two legs, reaches the floor of the same room", () => {
+    // Starts inside the house (the west wall is 20 cm thick, centred on x 0), sloping to the floor under the table's middle.
+    expect(p.pick(through([30, 250, 40], [150, 250, 0]), plain)).toEqual({ type: "room", index: 0 });
+  });
+  it("a ray into a leg stops there and still reads as the room", () => {
+    // Leg at x 100..108, y 200..208; aim at its middle, 20 cm up, from inside the west wall.
+    expect(p.pick(through([30, 204, 20], [104, 204, 20]), plain)).toEqual({ type: "room", index: 0 });
+  });
+});

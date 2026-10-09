@@ -7,6 +7,7 @@
 // Frame: x and y are the plan's, in cm, y down as on the plan; z is up, in cm, 0 the walking surface of the floor.
 // `opts.elevation` lifts the whole scene (the floor's slab top, `floorElevation`) so floors can be stacked.
 import { debugOnce } from "./debug-once";
+import { FURNITURE_PARTS } from "./furniture-parts";
 import type { FloorsAround } from "./stairs";
 import type { Device, Floor, FurnitureSymbol, Pt } from "./schema";
 
@@ -645,7 +646,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       }),
     );
 
-    // Furniture: a block, a trunk (a tree: the crown is the viewer's, from `ref.size`) or a flat slab, by FURNITURE_SOLID.
+    // Furniture: boxes by FURNITURE_PARTS, a trunk (a tree) or a flat slab, by FURNITURE_SOLID.
     list(f.furniture).forEach((m, i) =>
       piece(() => {
         if (
@@ -657,9 +658,42 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         )
           return;
         const z0 = furnitureBottom(m as never),
-          h = z0 + furnitureHeight(m as never),
+          H = furnitureHeight(m as never),
           c: Pt = [m.x, m.y],
-          pole = FURNITURE_SOLID[m.symbol as FurnitureSymbol] === "pole";
+          symbol = m.symbol as FurnitureSymbol,
+          pole = FURNITURE_SOLID[symbol] === "pole",
+          parts = FURNITURE_SOLID[symbol] === "box" ? FURNITURE_PARTS[symbol] : null;
+        // A linked tv, speaker or computer (`pieceDevice`) carries its entity and its own colour: the viewer recolours it by state and hands a tap on it to the gesture code.
+        const linked = pieceDevice(m as never);
+        // `add` stores ref and paint as given, so each part gets its own copy.
+        const ref = (): SolidRef => ({
+            index: i,
+            id: text(m.id),
+            size: [m.w, m.h],
+            ...(linked ? { entity: linked.entity } : {}),
+          }),
+          paint = (): Paint => ({ role: linked ? "furniture-linked" : `furniture-${m.symbol}` });
+        // A corner in the symbol's 0..100 box, on the plan, turned with the piece.
+        const at = (x: number, y: number): Pt =>
+          turnAbout([m.x + (x / 100 - 0.5) * m.w, m.y + (y / 100 - 0.5) * m.h], m.rot, c);
+        if (parts) {
+          parts.forEach((p, k) =>
+            add(
+              "furniture",
+              `furniture:${i}:p${k}`,
+              m.symbol,
+              {
+                type: "prism",
+                base: [at(p.x0, p.y0), at(p.x1, p.y0), at(p.x1, p.y1), at(p.x0, p.y1)],
+                z0: z0 + p.z0 * H,
+                z1: z0 + p.z1 * H,
+              },
+              ref(),
+              paint(),
+            ),
+          );
+          return;
+        }
         const half = pole ? [TRUNK_SIDE / 2, TRUNK_SIDE / 2] : [m.w / 2, m.h / 2];
         const base = (
           [
@@ -669,16 +703,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
             [-half[0], half[1]],
           ] as Pt[]
         ).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
-        // A linked tv, speaker or computer (`pieceDevice`) carries its entity and its own colour: the viewer recolours it by state and hands a tap on it to the gesture code.
-        const linked = pieceDevice(m as never);
-        add(
-          "furniture",
-          `furniture:${i}`,
-          m.symbol,
-          { type: "prism", base, z0, z1: h },
-          { index: i, id: text(m.id), size: [m.w, m.h], ...(linked ? { entity: linked.entity } : {}) },
-          { role: linked ? "furniture-linked" : `furniture-${m.symbol}` },
-        );
+        add("furniture", `furniture:${i}`, m.symbol, { type: "prism", base, z0, z1: z0 + H }, ref(), paint());
       }),
     );
 

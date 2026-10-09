@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
+import { FURNITURE_PARTS } from "../../src/core/furniture-parts";
 import { buildScene, ICON_MARGIN, type Solid } from "../../src/core/scene";
 import { deviceSolidTop, FURNITURE_SOLID, DEVICE_SOLID } from "../../src/core/solids";
 import {
@@ -711,15 +712,21 @@ describe("scene: furniture, unlinked, stairs", () => {
       const m = piece(s),
         sc = buildScene(floor({ furniture: [m] }));
       const sol = sc.solids.filter((x) => x.kind === "furniture");
-      expect(sol, s).toHaveLength(1);
-      expect(sol[0].tag).toBe(s);
-      expect(sol[0].ref.index).toBe(0);
-      expect(prism(sol[0]).z0).toBe(furnitureBottom(m as never));
-      expect(prism(sol[0]).z1).toBe(furnitureBottom(m as never) + furnitureHeight(m as never));
+      const parts = FURNITURE_PARTS[s];
+      expect(sol, s).toHaveLength(parts?.length ?? 1);
+      for (const x of sol) {
+        expect(x.tag).toBe(s);
+        expect(x.ref.index).toBe(0);
+      }
+      expect(Math.min(...sol.map((x) => prism(x).z0))).toBe(furnitureBottom(m as never));
+      expect(Math.max(...sol.map((x) => prism(x).z1))).toBeCloseTo(
+        furnitureBottom(m as never) + furnitureHeight(m as never),
+        9,
+      );
       if (SYMBOL_DECISION[s] === "pole") {
         expect(area(sol[0])).toBeLessThan((m.w * m.h) / 10);
         expect(sol[0].ref.size).toEqual([120, 70]);
-      } else expect(round(area(sol[0]))).toBe(120 * 70);
+      } else if (!parts) expect(round(area(sol[0]))).toBe(120 * 70);
     }
   });
 
@@ -915,7 +922,7 @@ describe("scene: whole-scene properties", () => {
         g.solids.some((s) => s.kind === k),
         k,
       ).toBe(true);
-    expect(g.solids.filter((s) => s.kind === "furniture")).toHaveLength(2);
+    expect(new Set(g.solids.filter((s) => s.kind === "furniture").map((s) => s.ref.index)).size).toBe(2);
     expect(g.solids.filter((s) => s.kind === "device")).toHaveLength(8);
     expect(g.solids.filter((s) => s.kind === "device" && s.shape.type === "prism").map((s) => s.tag)).toEqual([
       "heater",
@@ -1091,7 +1098,7 @@ describe("scene: hostile layouts never throw and keep the good pieces", () => {
       h: 50,
     }));
     const sc = buildScene(floor({ furniture }));
-    expect(sc.solids.filter((s) => s.kind === "furniture")).toHaveLength(5000);
+    expect(new Set(sc.solids.filter((s) => s.kind === "furniture").map((s) => s.ref.index)).size).toBe(5000);
   });
 
   it("does not change the floor it is given", () => {
