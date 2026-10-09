@@ -16,6 +16,13 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-09: Clearer toggles, confirm and 3D markers (branch `task/ui-review-2`)
+
+- A toolbar toggle that is on wears a primary ring; one that is off is a plain button (it was dimmed and read as disabled).
+- The popup's second press of a turn off reads "Yes, turn off" in the danger colour, on one line.
+- In 3D an off device's ball takes the disc colour, so its grey glyph no longer vanishes into a grey ball.
+- Editor: the Fix plan switch draws an SVG lock (CSS mask) instead of an emoji; the floor panel's two help lines are one.
+
 ## 2026-10-09: Phone-width card and clearer panel text (branch `task/ui-review-1`)
 
 - Below 480 px the card folds view, walls, theme, labels and names behind one View options button (Escape closes it), so they no longer cover the plan.

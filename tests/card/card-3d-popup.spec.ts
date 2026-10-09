@@ -132,7 +132,7 @@ test.describe("3D popup", () => {
     await page.mouse.click(p.x, p.y);
     await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Turn off");
     await pop(page).locator("css=.fp-pop-do").click();
-    await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Confirm turn off");
+    await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Yes, turn off");
     expect(await calls(page)).toEqual([]);
     await pop(page).locator("css=.fp-pop-do").click();
     expect(await calls(page)).toEqual(["switch.turn_off switch.demo_tv_plug"]);

@@ -141,7 +141,7 @@ test.describe("2D popup", () => {
     await tapIcon(page, 3);
     await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Turn off");
     await pop(page).locator("css=.fp-pop-do").click();
-    await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Confirm turn off");
+    await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Yes, turn off");
     expect(await calls(page)).toEqual([]);
     await pop(page).locator("css=.fp-pop-cancel").click();
     await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Turn off");

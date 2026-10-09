@@ -574,8 +574,7 @@ function floorPanel(c: PanelCtx) {
     title = st.f.title || key;
   const hasUnbound = st.f.devices.some((d) => d.entity === "");
   return html`<strong>Floor</strong>
-    ${hint("Nothing selected. Click the plan to edit.")}
-    <p class="hint help-line">Need help? Open Help. <button class="btn" id="floorHelp" @click=${() => c.help()}>Help</button></p>
+    <p class="hint help-line">Nothing selected. Click the plan, or <button class="btn" id="floorHelp" @click=${() => c.help()}>Help</button></p>
     ${heading("Identity")}
     ${
       !st.ha || !st.f.ha
