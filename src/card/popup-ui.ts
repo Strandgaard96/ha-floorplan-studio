@@ -61,8 +61,10 @@ export const POPUP_CSS = css`
   .fp-pop button { min-height: 44px; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; padding: 0 12px; cursor: pointer; }
   .fp-pop button.fp-pop-primary { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }
   .fp-pop button.fp-pop-more { background: transparent; border-color: transparent; text-decoration: underline; min-height: 36px; }
+  /* The second press of a turn off: the danger colour, so it does not look like the first press or a turn on. */
+  .fp-pop button.fp-pop-danger { background: var(--fp-danger); border-color: var(--fp-danger); }
   .fp-pop-confirm { display: flex; gap: 8px; }
-  .fp-pop-confirm button { flex: 1; }
+  .fp-pop-confirm button { flex: 1 1 auto; white-space: nowrap; padding: 0 10px; }
   .fp-pop label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
   .fp-pop label span { display: flex; justify-content: space-between; opacity: 0.8; }
   .fp-pop input[type="range"] { width: 100%; height: 44px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
@@ -108,7 +110,7 @@ export function popupTemplate(v: PopupView) {
     label === null
       ? nothing
       : v.confirming && v.op?.confirm
-        ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>Cancel</button></div>`
+        ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do fp-pop-danger" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>Cancel</button></div>`
         : html`<button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>`;
   return html`<div class="fp-pop" role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
     <div class="fp-pop-name">${s.name}</div>

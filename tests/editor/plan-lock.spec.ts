@@ -25,7 +25,7 @@ test("a plan with rooms opens fixed, and the switch is loud: ticked, red, with a
   await expect(page.locator("#fixPlan")).toBeChecked();
   const label = page.locator("label.fixplan");
   await expect(label).toHaveClass(/\bon\b/);
-  await expect(label).toContainText("🔒");
+  await expect(label.locator(".fixplan-ico")).toHaveCount(1);
   expect(await label.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(192, 57, 43)");
   await page.locator("#fixPlan").uncheck();
   await expect(label).not.toHaveClass(/\bon\b/);

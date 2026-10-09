@@ -10358,8 +10358,8 @@ test("S7.2: Help has the snapping step, and it carries the Alt, Shift and Ctrl m
   await expect(step).toContainText("Ctrl/Cmd+Z");
 });
 
-test("S7.2: the floor panel says Need help and its button opens Help", async ({ page }) => {
-  await expect(page.locator("#panel")).toContainText("Need help? Open Help.");
+test("S7.2: the floor panel offers Help in its one empty-state line, and the button opens Help", async ({ page }) => {
+  await expect(page.locator("#panel")).toContainText("Nothing selected. Click the plan, or Help");
   await page.locator("#floorHelp").click();
   await expect(page.locator("#help")).toHaveAttribute("aria-expanded", "true");
   await expect(page.locator("#panel .guide")).toBeVisible();

@@ -55,7 +55,7 @@ export function popupOp(type: string, entity: string | undefined, state: string 
     label: "Turn off",
     domain: call,
     service: "turn_off",
-    confirm: domain === "light" ? null : "Confirm turn off",
+    confirm: domain === "light" ? null : "Yes, turn off",
   };
 }
 

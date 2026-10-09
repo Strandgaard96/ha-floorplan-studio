@@ -440,7 +440,8 @@ export class FloorplanStudioCard extends LitElement {
     .fp-stack.fp-stack-row { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; left: 8px; }
     .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled, .fp-viewonly button:disabled, .fp-stack button:disabled { opacity: 0.45; cursor: default; }
-    .fp-zoom button[aria-pressed="false"], .fp-viewonly button[aria-pressed="false"] { opacity: 0.6; }
+    /* A toggle that is on wears the primary ring; one that is off is a plain button. Dimming it read as disabled. */
+    .fp-zoom button[aria-pressed="true"], .fp-viewonly button[aria-pressed="true"] { border-color: var(--fp-primary); box-shadow: inset 0 0 0 1px var(--fp-primary); }
     .fp-zoom svg, .fp-viewonly svg, .fp-stack svg { width: 14px; height: 14px; }
     /* While the plan turns it takes no taps: a tap would land on a device that is moving away from the finger.
        The star reaches the children that carry their own pointer-events (.room{pointer-events:all} in the editor's

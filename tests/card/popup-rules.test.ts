@@ -89,12 +89,12 @@ describe("popupOp: the default operation per device type", () => {
       expect(popupOp(t, entity, "off")).toMatchObject({ label: "Turn on", domain, service: "turn_on", confirm: null });
       const on = popupOp(t, entity, domain === "climate" ? "heat" : "on");
       expect(on).toMatchObject({ label: "Turn off", domain, service: "turn_off" });
-      expect(on!.confirm, `${t}: confirm before OFF`).toBe(kind === "confirm-off" ? "Confirm turn off" : null);
+      expect(on!.confirm, `${t}: confirm before OFF`).toBe(kind === "confirm-off" ? "Yes, turn off" : null);
     });
   }
   it("an `other` device decides by its entity's domain: fan, siren and a pump switch ask; a sensor has no button", () => {
     for (const e of ["fan.x", "siren.x", "switch.pump", "humidifier.x", "input_boolean.x"])
-      expect(popupOp("other", e, "on")!.confirm, e).toBe("Confirm turn off");
+      expect(popupOp("other", e, "on")!.confirm, e).toBe("Yes, turn off");
     for (const e of ["sensor.x", "binary_sensor.x", "button.x", "scene.x"])
       expect(popupOp("other", e, "on"), e).toBeNull();
   });
@@ -109,7 +109,7 @@ describe("popupOp: the default operation per device type", () => {
       label: "Turn off",
       domain: "homeassistant",
       service: "turn_off",
-      confirm: "Confirm turn off",
+      confirm: "Yes, turn off",
     });
   });
   it("no button with no entity, or a state it cannot act on", () => {
