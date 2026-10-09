@@ -132,6 +132,16 @@ describe("scene: furniture parts", () => {
     expect(back[0]).toBeCloseTo(400 - dy * Math.sin(r), 6);
     expect(back[1]).toBeCloseTo(300 + dy * Math.cos(r), 6);
   });
+  it("the first part's top centre is not buried under a taller part (it is the tap point)", () => {
+    for (const [symbol, parts] of Object.entries(FURNITURE_PARTS)) {
+      if (!parts || parts.length === 0) continue;
+      const f = parts[0],
+        cx = (f.x0 + f.x1) / 2,
+        cy = (f.y0 + f.y1) / 2;
+      const buried = parts.slice(1).filter((p) => p.z1 > f.z1 && p.x0 < cx && cx < p.x1 && p.y0 < cy && cy < p.y1);
+      expect(buried, symbol).toEqual([]);
+    }
+  });
   it("a symbol with no parts is still one solid with the old id", () => {
     const s = buildScene(
       floorWith([{ id: "c", symbol: "cabinet", x: 100, y: 100, rot: 0, w: 100, h: 45 }]),

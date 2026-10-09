@@ -55,7 +55,7 @@ with parts and no change.
 | sink | cabinet 0,0,100,100 ; 0..9 · rims 0,0,100,20 · 0,80,100,100 · 0,20,20,80 · 80,20,100,80 ; .9..1 |
 | toilet | bowl 10,30,90,100 ; 0..85 · tank 20,0,80,30 ; 0..1 |
 | bathtub | floor 0,0,100,100 ; 0..2 · rims 0,0,100,10 · 0,90,100,100 · 0,10,10,90 · 90,10,100,90 ; .2..1 |
-| car | body 0,10,100,90 ; 0..55 · cabin 18,20,82,80 ; .55..1 |
+| car | cabin 18,20,82,80 ; .55..1 · body 0,10,100,90 ; 0..55 |
 | cabinet, shower, tv, speaker, computer, tree, patio-wood, patio-concrete | `null` |
 
 (`.92` means 0.92; `0..92` means 0 to 0.92.)

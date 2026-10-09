@@ -50,7 +50,7 @@ export const FURNITURE_PARTS: Record<FurnitureSymbol, readonly Part[] | null> = 
     p(0, 10, 10, 90, 0.2, 1),
     p(90, 10, 100, 90, 0.2, 1),
   ],
-  car: [p(0, 10, 100, 90, 0, 0.55), p(18, 20, 82, 80, 0.55, 1)],
+  car: [p(18, 20, 82, 80, 0.55, 1), p(0, 10, 100, 90, 0, 0.55)],
   // One box: plain shapes, or (computer) a default height too low for a desk with a monitor; parts need a height first.
   cabinet: null,
   shower: null,
