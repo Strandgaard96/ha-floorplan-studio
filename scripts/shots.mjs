@@ -430,7 +430,7 @@ furnLayout.floors.ground.furniture.push(
   ...[
     ["table", 90, 500, 0],
     ["sofa", 290, 500, 30],
-    ["bed", 500, 500, 0],
+    ["bed", 510, 500, 90],
     ["chair", 640, 470, 0],
     ["sink", 700, 440, 0],
     ["toilet", 765, 460, 0],
