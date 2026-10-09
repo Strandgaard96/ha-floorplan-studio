@@ -413,7 +413,7 @@ Object.assign(
 
 // Furniture parts in 3D, on a clone: one piece of every symbol that has parts, in free floor (the Hall, the north-east
 // Kitchen corner and the Living top left), a second sofa with height 120 to show the scaling, and the 450 cm car just
-// south of the ground outline because no free floor inside fits it.
+// west of the ground outline (rot 90, along the wall) because no free floor inside fits it.
 const furnLayout = structuredClone(layout);
 // Default sizes, copied from FURNITURE in src/core/icons.ts (a .mjs script cannot import the TypeScript).
 const FSZ = {
@@ -435,7 +435,7 @@ furnLayout.floors.ground.furniture.push(
     ["sink", 700, 440, 0],
     ["toilet", 765, 460, 0],
     ["bathtub", 110, 55, 0],
-    ["car", 300, 720, 0],
+    ["car", -130, 300, 90],
   ].map(([symbol, x, y, rot]) => ({ id: `furn-${symbol}`, symbol, x, y, rot, w: FSZ[symbol][0], h: FSZ[symbol][1] })),
   { id: "furn-sofa-tall", symbol: "sofa", x: 650, y: 345, rot: 0, w: 200, h: 90, height: 120 },
 );
