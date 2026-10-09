@@ -158,7 +158,6 @@ for (const width of [1280, 375]) {
         "Movie",
         "Fan off",
         '"><script>window.__pwned=1</script>',
-        "All off",
         "All on",
       ]);
       expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
@@ -180,13 +179,19 @@ for (const width of [1280, 375]) {
       ]);
     });
 
-    test("All off and All on act on the room's own lights in one call, with no confirm", async ({ page }) => {
+    // S24.8 (C2): Scenes has no preset All off; the room's own Lights off button above it does that, relays too.
+    test("All on acts on the room's own lights in one call, with no confirm; Scenes has no All off", async ({
+      page,
+    }) => {
       await boot(page, width);
       await pickRoom(page, 0);
-      await press(page, "All off");
-      expect(await calls(page)).toEqual(['light.turn_off {"entity_id":["light.demo_living"]}']);
+      await expect(
+        card(page)
+          .locator("css=.fp-scene")
+          .filter({ hasText: /^All off$/ }),
+      ).toHaveCount(0);
       await press(page, "All on");
-      expect((await calls(page)).at(-1)).toBe('light.turn_on {"entity_id":["light.demo_living"]}');
+      expect(await calls(page)).toEqual(['light.turn_on {"entity_id":["light.demo_living"]}']);
       await expect(card(page).locator("css=.fp-scene-ask")).toHaveCount(0);
     });
 
@@ -214,7 +219,7 @@ for (const width of [1280, 375]) {
     }) => {
       await boot(page, width);
       await pickRoom(page, 1);
-      expect(await labels(page)).toEqual(["Cook", "All off", "All on"]);
+      expect(await labels(page)).toEqual(["Cook", "All on"]);
       await pickRoom(page, 2);
       await expect(card(page).locator("css=.fp-scenes")).toHaveCount(0);
     });

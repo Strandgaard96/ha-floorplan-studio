@@ -539,14 +539,14 @@ describe("FloorplanStudioCard", () => {
         "sensor.demo_living_temperature": st("21.5", { attributes: { unit_of_measurement: "°C" } }),
       }) as never;
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("21.5 °C");
+      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("21.5\u202F°C");
 
       el.setConfig({ layout: structuredClone(L), floor: "first" });
       el.hass = stubHass({
         "sensor.demo_bathroom_humidity": st("48", { attributes: { unit_of_measurement: "%" } }),
       }) as never;
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("48 %");
+      expect(el.shadowRoot!.querySelector("svg")!.textContent).toContain("48\u202F%");
       expect(el.shadowRoot!.querySelector(`svg [data-x="${humidityIndex}"]`)).not.toBeNull(); // the humidity device itself is on this floor
     });
 
@@ -912,14 +912,14 @@ describe("FloorplanStudioCard", () => {
   });
 
   describe("S2.6: unavailable entities carry the unavailable class (already built by S2.2/S2.5's classOf)", () => {
-    it("an unavailable light's device group gets the off class", async () => {
+    it("an unavailable light's device group gets the unavailable class (S23.5; it was off from 2026-10-06)", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "first" });
       el.hass = stubHass({ "light.demo_bedroom": st("unavailable") }) as never;
       await el.updateComplete;
       const bedroomIndex = L.floors.first.devices.findIndex((d) => d.entity === "light.demo_bedroom");
       const g = el.shadowRoot!.querySelector(`svg [data-x="${bedroomIndex}"]`)!;
-      expect(g.getAttribute("class")).toMatch(/\boff\b/);
+      expect(g.getAttribute("class")).toMatch(/\bunavailable\b/);
     });
   });
 
@@ -1251,14 +1251,14 @@ describe("FloorplanStudioCard", () => {
       expect(classOf(el, "switch.demo_computer", l)).not.toMatch(/\bon\b/);
     });
 
-    it("Break it: a light that is on and unavailable reads as off, never on", async () => {
+    it("Break it: a light that is on and unavailable reads as unavailable, never on (S23.5)", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floor: "first" });
       el.hass = stubHass({ "light.demo_bedroom": st("unavailable") }) as never;
       await el.updateComplete;
       const bedroomIndex = L.floors.first.devices.findIndex((d) => d.entity === "light.demo_bedroom");
       const g = el.shadowRoot!.querySelector(`svg [data-x="${bedroomIndex}"]`)!;
-      expect(g.getAttribute("class")).toMatch(/\boff\b/);
+      expect(g.getAttribute("class")).toMatch(/\bunavailable\b/);
       expect(g.getAttribute("class")).not.toMatch(/\bon\b/);
     });
   });
@@ -1539,16 +1539,23 @@ describe("FloorplanStudioCard", () => {
       const groups = el.shadowRoot!.querySelectorAll(".fp-active-group");
       return [...groups].map((g) => [
         g.querySelector(".fp-cat-name")!.textContent!,
-        [...g.querySelectorAll(".fp-active-row span")].map((s) => s.textContent!),
+        [...g.querySelectorAll(".fp-active-row .fp-ov-name")].map((s) => s.textContent!),
       ]);
     }
+    /** S24.7 (F3): the Overview lists the floor on show until "All floors" is pressed. */
+    async function allFloors(el: FloorplanStudioCard): Promise<void> {
+      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-ov-scope")!.click();
+      await el.updateComplete;
+    }
+    const chips = (el: FloorplanStudioCard) =>
+      el.shadowRoot!.querySelector(".fp-ov-chips")!.textContent!.replace(/\s+/g, " ").trim();
 
-    it("lists exactly the active devices across every floor, not only the one the plan shows, grouped by type with a count", async () => {
+    it("lists the floor on show by default, and exactly the active devices of every floor under All floors, grouped by type", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) }); // floor unset, multiple floors: the plan itself shows "ground" only
       el.hass = stubHass({
         "light.demo_living": st("on"),
-        "light.demo_bedroom": st("on"), // "first" floor: never drawn, but must still be listed (S9.5: every floor)
+        "light.demo_bedroom": st("on"), // "first" floor: never drawn, listed only under All floors (S24.7, F3)
         "media_player.demo_office": st("playing"),
         "person.demo_alex": st("home"),
       }) as never;
@@ -1556,10 +1563,14 @@ describe("FloorplanStudioCard", () => {
 
       const panel = el.shadowRoot!.querySelector(".fp-active");
       expect(panel).toBeTruthy();
-      expect(panel!.querySelector(".fp-active-count")!.textContent).toBe("5"); // 2 lights + camera (always) + media + person
+      const floors = () => [...el.shadowRoot!.querySelectorAll<HTMLElement>(".fp-ov-row")].map((r) => r.dataset.floor);
+      expect(new Set(floors())).toEqual(new Set(["ground"]));
+      expect(panelGroups(el).flatMap(([, n]) => n)).not.toContain("Bedroom light");
+      await allFloors(el);
+      // S24.3 (G1): the Hall camera is no longer listed whatever its state; it was the fifth row until then.
+      expect(chips(el)).toBe("2 lights · 1 playing · 1 person"); // S24.7: chips replace the single "4"
       expect(panelGroups(el)).toEqual([
         ["Lights", ["Living light", "Bedroom light"]],
-        ["Security", ["Hall camera"]],
         ["Media", ["Office speaker"]],
         ["People", ["Alex"]],
       ]);
@@ -1570,6 +1581,7 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
       await el.updateComplete;
+      await allFloors(el); // S24.7: the speaker is on the first floor
       const head = (cat: string) =>
         el.shadowRoot!.querySelector<HTMLButtonElement>(`.fp-active-group[data-cat="${cat}"] button.fp-cat`)!;
       const rows = (cat: string) =>
@@ -1587,6 +1599,7 @@ describe("FloorplanStudioCard", () => {
       el2.setConfig({ layout: structuredClone(L) });
       el2.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
       await el2.updateComplete;
+      expect(el2.shadowRoot!.querySelector(".fp-ov-scope")!.getAttribute("aria-pressed")).toBe("true"); // the scope is remembered too
       expect(
         el2
           .shadowRoot!.querySelector('.fp-active-group[data-cat="lights"] button.fp-cat')!
@@ -1621,11 +1634,11 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_living": st("off"), "switch.demo_living_relay": st("on") }) as never;
       await el.updateComplete;
-      const names = [...el.shadowRoot!.querySelectorAll(".fp-active-row span")].map((s) => s.textContent);
+      const names = [...el.shadowRoot!.querySelectorAll(".fp-active-row .fp-ov-name")].map((s) => s.textContent);
       expect(names).toContain("Living light");
     });
 
-    it("says 'Nothing on' when nothing is active but the camera still keeps the panel open (a camera is always listed)", async () => {
+    it("says 'Nothing on' when nothing is active (the camera is left out as it was when a camera was always listed)", async () => {
       const el = await mount();
       const noCam = structuredClone(L);
       noCam.floors.ground.devices = noCam.floors.ground.devices.filter((d) => d.type !== "camera");
@@ -1633,25 +1646,27 @@ describe("FloorplanStudioCard", () => {
       el.hass = stubHass() as never; // every device off in the stub
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-active-empty")?.textContent).toBe("Nothing on");
-      expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("0");
+      expect(chips(el)).toBe("Nothing on"); // S24.7: no chips; the header said "0" until then
     });
 
     it("a real click on a row opens that row's own popup (no operation), whose More info fires hass-more-info for its entity, not another's", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L) });
-      el.hass = stubHass({ "light.demo_living": st("on") }) as never;
+      // S24.3: the Hall camera row this test clicked is no longer listed; a playing speaker has no operation either.
+      el.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
       await el.updateComplete;
       const events: CustomEvent[] = [];
       el.addEventListener("hass-more-info", (e) => events.push(e as CustomEvent));
+      await allFloors(el); // S24.7: the speaker is on the first floor
       const rows = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-active-row")];
-      const cameraRow = rows.find((r) => r.querySelector("span")?.textContent === "Hall camera")!;
-      cameraRow.click();
+      const mediaRow = rows.find((r) => r.querySelector(".fp-ov-name")?.textContent === "Office speaker")!;
+      mediaRow.click();
       await el.updateComplete;
       expect(events).toHaveLength(0);
-      expect(el.shadowRoot!.querySelector(".fp-pop")!.getAttribute("aria-label")).toBe("Hall camera");
+      expect(el.shadowRoot!.querySelector(".fp-pop")!.getAttribute("aria-label")).toBe("Office speaker");
       el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-pop-more")!.click();
       expect(events).toHaveLength(1);
-      expect(events[0]!.detail).toEqual({ entityId: "camera.demo_hall" });
+      expect(events[0]!.detail).toEqual({ entityId: "media_player.demo_office" });
     });
 
     it("the collapse button hides the body but keeps the header and count, and is reachable by keyboard as a real button", async () => {
@@ -1665,7 +1680,7 @@ describe("FloorplanStudioCard", () => {
       collapseBtn.click();
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
-      expect(el.shadowRoot!.querySelector(".fp-active-count")!.textContent).toBe("2"); // the light plus the always-listed camera
+      expect(chips(el)).toBe("1 light"); // the light; S24.3: the camera is no longer listed; S24.7: chips, not a number
     });
 
     it("kiosk hides the panel even though active_list defaults to shown", async () => {

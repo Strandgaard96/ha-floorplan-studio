@@ -13,6 +13,7 @@ import {
   findPowerSensor,
   haFloorIdsForPlanFloor,
   migrate,
+  parseLayers,
   placeableDevicesInArea,
   placedEntities,
   planPivot,
@@ -25,7 +26,19 @@ import {
   validate,
   viewBoxFor,
 } from "../core";
-import type { CatalogEntry, DeviceType, Floor, HaData, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
+import type {
+  CatalogEntry,
+  DeviceType,
+  Floor,
+  HaData,
+  LayerId,
+  Layout,
+  Pt,
+  Stairs,
+  SwitchChoice,
+  Theme,
+  Trace,
+} from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
 import { MAX_ZOOM, MIN_ZOOM } from "../card/viewport";
@@ -215,8 +228,8 @@ export class EditorState {
     }
   }
   views: Record<string, View> = {};
-  /** The toolbar's device-type filter: empty shows every type, several may be checked at once. */
-  filter: DeviceType[] = [];
+  /** S24.6: the Layers not drawn (`core/layers.ts`). Empty shows everything. View memory, not an edit. */
+  hidden: LayerId[] = [];
   showNames = false;
   /** S4.5: the Group menu's chosen HA group entity, dimming every device not among its members. Kept for the session, never the layout. */
   activeGroup: string | null = null;
@@ -360,6 +373,12 @@ export class EditorState {
     this.planBlocked = this.planLocked;
     return !this.planLocked;
   }
+  /** A writer that says no for its own reason (an empty title, the last floor) clears the flag first, so an earlier
+   *  refusal is never blamed on the lock (Opus re-check of task/s22-fix). */
+  private fresh(): true {
+    this.planBlocked = false;
+    return true;
+  }
   /** The floor with its devices and objects (heater, TV...) taken out: what a plan lock holds still. Walls, rooms, doors, windows, areas, stairs and furniture are the plan. */
   private static plan(f: Floor): string {
     return JSON.stringify({
@@ -373,7 +392,7 @@ export class EditorState {
   /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {
     const t = title.trim();
-    if (!t || !this.planOpen()) return "";
+    if (!this.fresh() || !t || !this.planOpen()) return "";
     const base = slug(t) || "floor";
     let key = base;
     for (let n = 2; hasOwn(this.layout.floors, key); n++) key = `${base}-${n}`;
@@ -402,20 +421,28 @@ export class EditorState {
     return key;
   }
 
-  /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. */
-  addStairsEverywhere(t: Omit<Stairs, "id">): void {
-    if (!this.planOpen()) return;
+  /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. False when the plan is fixed. */
+  addStairsEverywhere(t: Omit<Stairs, "id">): boolean {
+    if (!this.planOpen()) return false;
     this.snapshot();
     for (const [key, fl] of Object.entries(this.layout.floors))
       fl.stairs.push({ ...structuredClone(t), id: newId(fl, key, "stairs") });
     this.sel = { t: "stairs", i: this.f.stairs.length - 1 };
     this.confirmDelete = false;
+    return true;
   }
 
   /** Changes the title only; the key stays. False for an empty title, the same title or an unknown key. */
   renameFloor(key: string, title: string): boolean {
     const t = title.trim();
-    if (!t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t || !this.planOpen()) return false;
+    if (
+      !this.fresh() ||
+      !t ||
+      !hasOwn(this.layout.floors, key) ||
+      this.layout.floors[key].title === t ||
+      !this.planOpen()
+    )
+      return false;
     this.snapshot();
     this.layout.floors[key].title = t;
     return true;
@@ -425,7 +452,7 @@ export class EditorState {
   deleteFloor(key: string): boolean {
     const ks = Object.keys(this.layout.floors),
       i = ks.indexOf(key);
-    if (i < 0 || ks.length < 2 || !this.planOpen()) return false;
+    if (!this.fresh() || i < 0 || ks.length < 2 || !this.planOpen()) return false;
     this.snapshot();
     this.layout.floors = floorsOf(ks.filter((k) => k !== key).map((k) => [k, this.layout.floors[k]]));
     delete this.views[key];
@@ -443,7 +470,16 @@ export class EditorState {
     const ks = Object.keys(this.layout.floors),
       i = ks.indexOf(key),
       j = i + delta;
-    if (i < 0 || !Number.isInteger(delta) || delta === 0 || j < 0 || j >= ks.length || !this.planOpen()) return false;
+    if (
+      !this.fresh() ||
+      i < 0 ||
+      !Number.isInteger(delta) ||
+      delta === 0 ||
+      j < 0 ||
+      j >= ks.length ||
+      !this.planOpen()
+    )
+      return false;
     this.snapshot();
     ks.splice(i, 1);
     ks.splice(j, 0, key);
@@ -530,6 +566,7 @@ export class EditorState {
   exportView(): ViewMemory {
     const m: ViewMemory = { floor: this.floor, labels: this.labels };
     if (this.viewRot) m.rotation = this.viewRot;
+    if (this.hidden.length) m.hidden = [...this.hidden];
     const deg = (this.layout.rotate ?? 0) + this.viewRot;
     const rot = deg % 360 ? { deg, pivot: planPivot(this.layout) } : undefined;
     const zooms: [string, { zoom: number; focus: Pt }][] = [];
@@ -554,6 +591,7 @@ export class EditorState {
   importView(m: ViewMemory): void {
     if (m.labels !== undefined) this.labels = m.labels !== false;
     if (m.rotation !== undefined) this.viewRot = normaliseRotation(m.rotation);
+    this.hidden = parseLayers(m.hidden);
     if (m.floor !== undefined && hasOwn(this.layout.floors, m.floor)) {
       this.floor = m.floor;
       this.sel = null;
@@ -609,7 +647,7 @@ export class EditorState {
   /** Turns the whole plan to `deg` (a multiple of 45, taken modulo 360): one undo step, no step when it is already there. The views are dropped so each floor is fitted again. */
   setRotate(deg: number): boolean {
     const n = (((Math.round(deg / 45) * 45) % 360) + 360) % 360;
-    if (n === (this.layout.rotate ?? 0) || !this.planOpen()) return false;
+    if (!this.fresh() || n === (this.layout.rotate ?? 0) || !this.planOpen()) return false;
     this.snapshot();
     this.layout.rotate = n;
     this.views = {};

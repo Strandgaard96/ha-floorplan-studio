@@ -107,7 +107,7 @@ describe("2.5D openings", () => {
     });
     expect(html).toMatch(/<line data-d="0" class="door door-door open" [^>]*stroke-width="4"/);
     expect(html).toContain('class="door-alert"');
-    expect(flat(f)).toMatch(/<line data-d="0" class="door door-door" [^>]*stroke-width="20"/);
+    expect(flat(f)).toMatch(/<line data-d="0" class="door door-door quiet" [^>]*stroke-width="20"/); // S23.7: closed, the line is quiet
   });
 
   it("decides every DoorKind (a new kind fails here until someone chooses what fills its hole)", () => {

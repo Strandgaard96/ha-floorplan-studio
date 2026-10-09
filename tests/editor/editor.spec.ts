@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { DEVICE_COLOURS, planPivot, rotateAbout, viewBoxFor } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
-import { GUIDE_STEPS } from "../../src/editor/guide";
+import { GUIDE_STEPS, plainBody } from "../../src/editor/guide";
 import { decodePng, pixelAt } from "../core/util/png";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
@@ -459,6 +459,23 @@ const screenOf = (page: Page, x: number, y: number) =>
     },
     [EDITOR, x, y] as const,
   );
+/** S24.5: the Outline column (open from 1100 px) narrows the plan. A test whose geometry was written for the full-width
+ *  canvas (a snap radius or an icon overlap in screen pixels, a popover over a plan point) shuts it first, so it keeps
+ *  the scale it was written for. */
+async function shutSide(page: Page) {
+  const b = page.locator(`${EDITOR} #sideToggle`);
+  if ((await b.getAttribute("aria-expanded")) === "true") await b.click();
+  await expect(b).toHaveAttribute("aria-expanded", "false");
+  // The plan is drawn for the new width only after the editor measured it (ResizeObserver): wait for that, not for the button.
+  await expect
+    .poll(() =>
+      page.evaluate((tag) => {
+        const el = document.querySelector(tag) as any;
+        return Math.abs(el.rect.w - el.shadowRoot.querySelector(".canvas > svg").getBoundingClientRect().width) < 1;
+      }, EDITOR),
+    )
+    .toBe(true);
+}
 // A tall panel makes the page scroll when a control in it is clicked; bring the plan back before reading screen coordinates.
 const planInView = (page: Page) =>
   page.evaluate((tag) => {
@@ -488,6 +505,7 @@ test("stairs draw edges and corner handles, and a corner can be dragged", async 
 });
 
 test("Shift while dragging a stairs corner moves only that corner", async ({ page }) => {
+  await shutSide(page);
   // put another polygon's corner on the stairs corner, so Shift has something to leave behind
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any,
@@ -2037,73 +2055,17 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
   expect((await groundOf(page)).rooms.at(-1)!.kind).toBe("zone");
 });
 
-test("the plan filter checks several device types at once, dropping any one un-checks it, All clears the filter", async ({
-  page,
-}) => {
-  const total = await page.locator("svg .dev").count();
-  const lights = await page.locator("svg .dev-light").count(),
-    switches = await page.locator("svg .dev-switch").count();
-  expect(total).toBeGreaterThan(lights + switches); // the demo has other device types too, or this test proves nothing
-
-  await page.locator("#filter summary").click();
-  await page.locator('#filter [data-filter="light"]').click();
-  await expect(page.locator("svg .dev:visible")).toHaveCount(lights);
-  await expect(page.locator('#filter [data-filter="light"]')).toHaveAttribute("aria-pressed", "true");
-
-  await page.locator('#filter [data-filter="switch"]').click();
-  await expect(page.locator("svg .dev:visible")).toHaveCount(lights + switches);
-  await expect(page.locator("#filter summary")).toHaveText("Filter: 2 types");
-
-  await page.locator('#filter [data-filter="light"]').click(); // un-check one, the other stays checked
-  await expect(page.locator("svg .dev:visible")).toHaveCount(switches);
-  await expect(page.locator('#filter [data-filter="switch"]')).toHaveAttribute("aria-pressed", "true");
-
-  await page.locator("#filterAll").click();
-  await expect(page.locator("svg .dev:visible")).toHaveCount(total);
-  await expect(page.locator("#filter summary")).toHaveText(`Filter: all (${total})`);
-});
-
-test("Opus review CSS pair: a pressed filter-menu row is visually highlighted, not just aria-pressed", async ({
-  page,
-}) => {
-  const styleOf = (sel: string) =>
-    page.locator(sel).evaluate((el) => {
-      const s = getComputedStyle(el);
-      return { bg: s.backgroundColor, color: s.color };
-    });
-  await page.locator("#filter summary").click();
-  const before = await styleOf('#filter [data-filter="light"]');
-  await page.locator('#filter [data-filter="light"]').click();
-  const pressed = await styleOf('#filter [data-filter="light"]');
-  const stillUnpressed = await styleOf('#filter [data-filter="switch"]');
-  expect(pressed).not.toEqual(before); // pressing must change the row's own look
-  expect(pressed).not.toEqual(stillUnpressed); // ...and set it apart from a row that is not pressed
-});
-
-test("the plan filter hides device types with no instance on the current floor, keeps the ones that have some", async ({
-  page,
-}) => {
-  await page.locator("#filter summary").click();
-  await expect(page.locator('#filter [data-filter="light"]')).toBeVisible(); // ground has 2
-  await expect(page.locator('#filter [data-filter="humidity"]')).toHaveCount(0); // ground has 0
-  await expect(page.locator('#filter [data-filter="tv"]')).toHaveCount(0); // ground has 0
-});
+// S24.6: the Filter menu is gone. Its three tests and its CSS pair moved to tests/editor/studio-layers.spec.ts as Layers
+// tests: hide a family in one click, a family with nothing on the floor dimmed, a hidden row struck through.
 
 // ---- S1.12/S8.5 Add > Device panel --------------------------------------------
 const search = (page: Page) => page.locator("#addDevSearch");
 const shown = (page: Page) => page.locator("#addDevPanel button[data-add]:visible");
 
-test("the toolbar order is Filter, Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({
+test("the toolbar order is Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({
   page,
 }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText([
-    "Filter: all (8)",
-    "Add",
-    "Draw",
-    "View",
-    "Edit",
-    "File",
-  ]); // S8.1: Filter, and an Edit menu
+  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "View", "Edit", "File"]); // S8.1: an Edit menu; S24.6: Filter gone, Layers is a tab
   await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
@@ -2184,14 +2146,14 @@ test("S8.10 follow-up: the right-aligned cluster is tight — equal gaps, Redo f
   const bar = (await page.locator(".bar").boundingBox())!;
   const redo = (await page.locator("#redo").boundingBox())!;
   expect(bar.x + bar.width - (redo.x + redo.width), "Redo right edge vs toolbar right edge").toBeLessThanOrEqual(4);
-  const filterXBefore = (await page.locator("#filter").boundingBox())!.x;
+  const filterXBefore = (await page.locator("#mAdd").boundingBox())!.x; // S24.6: Add, now the cluster's first menu
   await page.evaluate(([tag, m]) => (document.querySelector(tag) as any).saveDone(true, m), [
     EDITOR,
     "Saved to Home Assistant",
   ] as const);
   await expect(page.locator("#status")).toHaveText("Saved to Home Assistant");
-  const filterXAfter = (await page.locator("#filter").boundingBox())!.x;
-  expect(filterXAfter, "Filter's x must not move when the status text changes").toBeCloseTo(filterXBefore, 0);
+  const filterXAfter = (await page.locator("#mAdd").boundingBox())!.x;
+  expect(filterXAfter, "Add's x must not move when the status text changes").toBeCloseTo(filterXBefore, 0);
 });
 
 test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-width row below the floor chips, right-aligned, chips top-aligned", async ({
@@ -2238,7 +2200,7 @@ test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-
 test("S8.10 follow-up (Opus review): every menu's dropdown box stays inside the viewport at every toolbar width", async ({
   page,
 }) => {
-  const menus = ["filter", "mAdd", "mDraw", "mOpt", "mEdit", "mFile"];
+  const menus = ["mAdd", "mDraw", "mOpt", "mEdit", "mFile"]; // S24.6: no Filter menu
   for (const width of [380, 600, 769, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     for (const id of menus) {
@@ -2996,18 +2958,20 @@ test("Add, Door lands on a free wall when that is the nearest edge, along its di
   expect(len(d)).toBe(90);
 });
 
-test("a zone's plan label is drawn muted: its class has a rule, unlike a room label", async ({ page }) => {
+test("S23.1: a zone's plan label is solid like a room's, and smaller", async ({ page }) => {
   const style = (sel: string) =>
     page
       .locator(sel)
       .first()
       .evaluate((el) => {
         const c = getComputedStyle(el);
-        return { fill: c.fill, opacity: c.opacity };
+        return { opacity: c.opacity, weight: c.fontWeight, size: parseFloat(c.fontSize) };
       });
-  const zone = await style("svg text.lbl.zone"),
-    room = await style("svg text.lbl:not(.zone)");
-  expect(zone).not.toEqual(room);
+  const zone = await style("svg text.lbl.zone[data-rl]"),
+    room = await style("svg text.lbl:not(.zone):not(.out)[data-rl]");
+  expect([zone.opacity, zone.weight]).toEqual(["1", "500"]);
+  expect([room.opacity, room.weight]).toEqual(["1", "500"]);
+  expect(zone.size).toBeLessThanOrEqual(room.size);
 });
 
 test("a floor property named like an Object.prototype key does not cancel a draw or change the floor", async ({
@@ -3050,6 +3014,7 @@ test("a dragged zone corner dropped 4 cm from a room corner lands on the grid, n
 });
 
 test("a dragged zone corner lines up with another corner of the same zone, and with nothing else", async ({ page }) => {
+  await shutSide(page);
   const g0 = await groundOf(page),
     zi = g0.rooms.findIndex((r) => r.kind === "zone"),
     z = g0.rooms[zi];
@@ -4467,16 +4432,17 @@ test("S1.31: the cone is dark grey at 25 % alpha in the browser, the disc is 75 
     return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents };
   });
   expect(st).toEqual({ fill: "rgb(74, 74, 72)", op: "0.25", pe: "none" });
-  // the disc behind every icon is its own: white at 50 % (Diego, 2026-09-23), a 1 px grey border (S1.45)
+  // S23.4: an off icon has no visible disc and no border (it was white at 50 % with a grey ring, 2026-09-23); the clear
+  // disc is still painted, so it takes the click
   const disc = await page.locator("svg .dev .halo").evaluateAll((els) => [
     ...new Set(
       els.map((e) => {
         const s = getComputedStyle(e);
-        return [s.fill, s.fillOpacity, s.stroke, s.strokeWidth].join("|");
+        return [s.fill, s.fillOpacity, s.stroke].join("|");
       }),
     ),
   ]);
-  expect(disc).toEqual(["rgb(255, 255, 255)|0.5|rgb(139, 133, 120)|1px"]);
+  expect(disc).toEqual(["rgb(255, 255, 255)|0|none"]);
   // the cone is 100 cm deep: its box is 100 cm tall on screen (rot 0 points up)
   const box = await cone.evaluate((el) => el.getBoundingClientRect().height);
   const one = Math.abs((await screenOf(page, CAM.x, CAM.y - 100)).y - (await screenOf(page, CAM.x, CAM.y)).y);
@@ -5491,14 +5457,25 @@ test("S1.42: at plan rotations 0, 45, 90 and 135 no name box overlaps a device h
         const b = e.getBoundingClientRect();
         return [b.left, b.top, b.right, b.bottom];
       };
+      // S23.3: a name with every spot in its room covered is a tag drawn over the icons (`lbl-on`), on purpose: at 45
+      // degrees the Reading corner zone is a diamond whose only spot that fits holds a lamp. A tag is drawn after the
+      // last icon, so it is read, not hidden.
+      const all = [...root.querySelectorAll("text.lbl")].filter(
+        (t) => t.textContent && ["Living", "Kitchen", "Hall", "Reading corner"].includes(t.textContent),
+      );
+      const lastIcon = [...root.querySelectorAll("g[data-x]")].pop()!;
       return {
-        names: [...root.querySelectorAll("text.lbl")]
-          .filter((t) => t.textContent && ["Living", "Kitchen", "Hall", "Reading corner"].includes(t.textContent))
-          .map((t) => [t.textContent, ...r(t)]),
+        names: all.filter((t) => !t.classList.contains("lbl-on")).map((t) => [t.textContent, ...r(t)]),
+        count: all.length,
+        tagsOnTop: all
+          .filter((t) => t.classList.contains("lbl-on"))
+          .every((t) => !!(lastIcon.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING)),
         halos: [...root.querySelectorAll("circle.halo")].map(r),
       };
     }, EDITOR);
-    expect(boxes.names, `rotation ${deg}`).toHaveLength(4);
+    expect(boxes.count, `rotation ${deg}`).toBe(4);
+    expect(boxes.tagsOnTop, `rotation ${deg}`).toBe(true);
+    expect(boxes.names.length, `rotation ${deg}`).toBeGreaterThanOrEqual(3);
     expect(boxes.halos.length).toBeGreaterThan(3);
     for (const [name, l, t, rr, b] of boxes.names as [string, number, number, number, number][])
       for (const h of boxes.halos)
@@ -5507,6 +5484,54 @@ test("S1.42: at plan rotations 0, 45, 90 and 135 no name box overlaps a device h
           `rotation ${deg}: ${name} ${[l, t, rr, b]} under a halo ${h}`,
         ).toBe(false);
   }
+});
+
+test("Opus review M1: a click on a device under a tagged name selects the device, not the room", async ({ page }) => {
+  await shutSide(page);
+  // A small room packed with switches: every spot is covered, so its name goes on a tag over them (S23.3).
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any,
+      l = JSON.parse(JSON.stringify(el.layout)),
+      g = l.floors.ground;
+    const pts = [
+      [0, 0],
+      [300, 0],
+      [300, 120],
+      [0, 120],
+    ];
+    g.rooms = [{ id: "den", name: "Den", area: "", kind: "room", pts, wk: pts.map(() => "wall") }];
+    g.devices = [];
+    for (let x = 10; x < 300; x += 20)
+      for (let y = 10; y < 120; y += 20)
+        g.devices.push({ id: `s${x}-${y}`, type: "switch", entity: `switch.s${x}_${y}`, x, y });
+    g.doors = [];
+    g.stairs = [];
+    g.furniture = [];
+    g.extras = [];
+    g.unlinked = [];
+    g.openings = [];
+    g.walls = [];
+    el.layout = l;
+  }, EDITOR);
+  await expect(page.locator("svg text.lbl-on").first()).toBeVisible();
+  const hit = await page.evaluate((tag) => {
+    const root = document.querySelector(tag)!.shadowRoot!;
+    for (const text of root.querySelectorAll("svg text.lbl-on")) {
+      const t = text.getBoundingClientRect();
+      for (const g of root.querySelectorAll("svg g[data-x]")) {
+        const h = g.querySelector(".halo")!.getBoundingClientRect(),
+          x = h.x + h.width / 2,
+          y = h.y + h.height / 2;
+        if (x > t.left + 2 && x < t.right - 2 && y > t.top + 2 && y < t.bottom - 2)
+          return { x, y, i: g.getAttribute("data-x") };
+      }
+    }
+    return null;
+  }, EDITOR);
+  expect(hit, "a device sits under a tagged name").not.toBeNull();
+  await page.mouse.click(hit!.x, hit!.y);
+  await expect(page.locator("g.dev.sel")).toHaveCount(1);
+  await expect(page.locator("g.dev.sel")).toHaveAttribute("data-x", hit!.i!);
 });
 
 // ---- rotation buttons (S1.43) -----------------------------------------------------------
@@ -5605,7 +5630,7 @@ test("S1.46: room, zone, device and extra names and the edge length are dark gre
   await menu(page, "View"); // S8.1: Names lives in View
   await page.locator("#names").click();
   await page.mouse.click(...(Object.values(await screenOf(page, 500, 200)) as [number, number])); // a click on the shared edge shows its length
-  const kinds = ["svg text.lbl:not(.zone)", "svg text.lbl.zone", "svg text.len"];
+  const kinds = ["svg text.lbl[data-rl]:not(.zone)", "svg text.lbl.zone", "svg text.len"];
   const widths: string[] = [];
   for (const sel of kinds) {
     const st = await page
@@ -5613,21 +5638,30 @@ test("S1.46: room, zone, device and extra names and the edge length are dark gre
       .first()
       .evaluate((el) => {
         const s = getComputedStyle(el);
-        return [s.fill, s.stroke, s.paintOrder.split(" ")[0], s.strokeWidth];
+        return [s.fill, s.stroke, s.paintOrder.split(" ")[0], s.strokeWidth, s.getPropertyValue("--fp-under").trim()];
       });
-    expect(st.slice(0, 3), sel).toEqual(["rgb(58, 58, 58)", "rgb(255, 255, 255)", "stroke"]);
+    // S23.1: a room or zone name is the text mixed into what it sits on; the edge length keeps the plain text colour.
+    if (sel === "svg text.len") expect(st[0], sel).toBe("rgb(58, 58, 58)");
+    else expectNear(st[0], mix92("rgb(58, 58, 58)", st[4]), sel);
+    expect(st.slice(1, 3), sel).toEqual(["rgb(255, 255, 255)", "stroke"]);
     widths.push(st[3]);
   }
   expect(widths, "the edge length outline is as wide as the names' (3, not 3 x zoom)").toEqual(["3px", "3px", "3px"]);
   const names = await page.locator("svg text.lbl").evaluateAll((els) =>
     els.map((el) => {
       const s = getComputedStyle(el);
-      return [el.textContent, s.fill, s.stroke];
+      return [
+        el.textContent,
+        s.fill,
+        s.stroke,
+        el.hasAttribute("data-rl") ? s.getPropertyValue("--fp-under").trim() : "",
+      ];
     }),
   );
   expect(names.length).toBeGreaterThan(8); // rooms, the zone, device names, the extra
-  for (const [t, fill, stroke] of names) {
-    expect(fill, String(t)).toBe("rgb(58, 58, 58)");
+  for (const [t, fill, stroke, under] of names) {
+    if (under) expectNear(fill, mix92("rgb(58, 58, 58)", under), String(t)); // a room's name: mixed into the room
+    else expect(fill, String(t)).toBe("rgb(58, 58, 58)"); // a device's or an extra's name: the plain text colour
     expect(stroke, String(t)).toBe("rgb(255, 255, 255)");
   }
   expect(names.some(([t]) => t === "Shed")).toBe(true);
@@ -5869,7 +5903,8 @@ test("Opus review a11y: the turn buttons are a labelled group and their names ca
 // ---- Opus review: every CSS rule that render.test.ts only matches as a string is checked here in the browser ----
 
 const rgb = (hex: string) => {
-  const n = parseInt(hex.slice(1), 16);
+  const h = hex.length === 4 ? [...hex.slice(1)].map((c) => c + c).join("") : hex.slice(1),
+    n = parseInt(h, 16);
   return `rgb(${n >> 16}, ${(n >> 8) & 255}, ${n & 255})`;
 };
 /** Adds shapes below the house: one room per kind, one wall per kind, a room with a "none" edge, a temp sensor in a garden. */
@@ -6007,7 +6042,8 @@ test("S8.9 CSS pair: a plain wall is 10cm thick, an external wall 20cm, each hal
   expect(await wByTitle("External")).toBe(20); // s89-de, on the external wall
 });
 
-test("CSS pair: furniture has its own fixed grey token, decoupled from idle devices", async ({ page }) => {
+// S23.6: furniture follows the theme (light keeps #79766e, midnight is now #3f66b0); it was one fixed grey everywhere.
+test("CSS pair: furniture has its own theme token, decoupled from idle devices", async ({ page }) => {
   await addCssFixtures(page); // adds a "css-gate" furniture piece (patio-wood)
   const furn = await page
     .locator("svg g.furn")
@@ -6017,7 +6053,7 @@ test("CSS pair: furniture has its own fixed grey token, decoupled from idle devi
     .locator("svg g.dev path:not(.halo)")
     .first()
     .evaluate((e) => getComputedStyle(e).fill);
-  expect(furn).toBe(rgb("#79766e"));
+  expect(furn).toBe(rgb("#79766e")); // addCssFixtures sets light
   expect(furn).not.toBe(idle);
   await setTheme(page, "midnight");
   expect(
@@ -6025,7 +6061,7 @@ test("CSS pair: furniture has its own fixed grey token, decoupled from idle devi
       .locator("svg g.furn")
       .first()
       .evaluate((e) => getComputedStyle(e).color),
-  ).toBe(rgb("#79766e"));
+  ).toBe(rgb("#3f66b0"));
 });
 
 test("CSS pair: a room name's leader line is drawn in the text colour, faint, and takes no clicks", async ({
@@ -6177,7 +6213,7 @@ test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera a
   expect(out).toBe(rgb("#3f8f4f"));
 });
 
-test("Opus review CSS pair: a lamp's aura fills with --fp-aura at --fp-alpha and lets a real click pass through to the room under it (render.test.ts:S2.8)", async ({
+test("Opus review CSS pair: a lamp's aura fills with --fp-aura at .55, screens on blueprint (S23.8) and lets a real click pass through to the room under it (render.test.ts:S2.8)", async ({
   page,
 }) => {
   // The editor has no live `hass` state, so no aura is ever drawn by renderFloor here; this pins the .aura rule
@@ -6196,17 +6232,19 @@ test("Opus review CSS pair: a lamp's aura fills with --fp-aura at --fp-alpha and
   }, EDITOR);
   const style = await page.locator("svg circle.aura").evaluate((e) => {
     const s = getComputedStyle(e);
-    return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents };
+    return { fill: s.fill, op: s.fillOpacity, pe: s.pointerEvents, blend: s.mixBlendMode };
   });
   expect(style.fill).toBe(rgb("#ff8a1f")); // blueprint's --fp-aura collapses to the single accent
-  expect(style.op).toBe("0.25");
+  expect(style.op).toBe("0.55"); // S23.8: the falloff mask thins it from the lamp out, so the core is stronger than the old flat .25
+  expect(style.blend).toBe("screen"); // blueprint is a dark theme: light adds
   expect(style.pe).toBe("none");
   await page.mouse.click(c.x, c.y); // the aura visually covers this point; pointer-events:none must let the click fall through to the room
   await expect(page.locator("#rk")).toHaveValue("room");
   await expect(page.locator("#ra")).toHaveValue("living");
 });
 
-test("Opus review CSS pair: a motion sensor that is on still fades: the fill follows --fp-fade (render.test.ts:107)", async ({
+// S23.4: an on sensor is a solid disc with an ink glyph; the fade now drives the glyph of a sensor that has gone off.
+test("Opus review CSS pair: a motion sensor that went off still fades: the fill follows --fp-fade (render.test.ts:107)", async ({
   page,
 }) => {
   const g = page.locator("svg g.dev-motion").first();
@@ -6228,11 +6266,13 @@ test("Opus review CSS pair: a motion sensor that is on still fades: the fill fol
           .map((n) => Math.round(+n * 255))
       : c.match(/\d+/g)!.map(Number);
   const idle = chan(await fillAt("0", false));
-  expect(chan(await fillAt("1", true))).toEqual([255, 138, 31]); // fully faded in: blueprint's motion colour collapses to the single accent
-  expect(chan(await fillAt("0", true))).toEqual(idle); // fully faded out: idle, not the "on" colour
-  const half = chan(await fillAt("0.5", true));
+  expect(chan(await fillAt("1", false))).toEqual([255, 138, 31]); // fully faded in: blueprint's motion colour collapses to the single accent
+  const half = chan(await fillAt("0.5", false));
   expect(half).not.toEqual(idle);
-  expect(half).not.toEqual([214, 69, 69]);
+  expect(half).not.toEqual([255, 138, 31]);
+  // on: the glyph is the ink on the disc, whatever the fade (g.dev.on path outranks .dev.dev-motion path, finding 10)
+  expect(chan(await fillAt("0.5", true))).toEqual(chan(await fillAt("1", true)));
+  expect(chan(await fillAt("1", true))).not.toEqual([255, 138, 31]);
 });
 
 test("Opus review CSS pair: S8.13 a triggered motion sensor pings in its own colour and its disc beats a lit lamp's (render.test.ts:S8.13)", async ({
@@ -6266,9 +6306,11 @@ test("Opus review CSS pair: S8.13 a triggered motion sensor pings in its own col
   expect(motion.fill).toBe("none");
   expect(motion.pe).toBe("none");
   expect(motion.anim).toBe("fp-ping");
-  expect(motion.haloOp).toBe("0.6");
-  expect(motion.haloStroke).toBe(rgb(motion.dev));
-  expect(Number(light.haloOp)).toBeLessThan(Number(motion.haloOp));
+  // S23.4: every on disc is solid; a triggered one is set apart by its outline ring (and the ping), a lit lamp has none
+  expect(motion.haloOp).toBe("1");
+  expect(light.haloOp).toBe("1");
+  expect(motion.haloStroke).not.toBe("none");
+  expect(light.haloStroke).toBe("none");
 });
 
 test("Opus review CSS pair: S8.13 under reduced motion nothing pulses: the ping holds at 1.5x and 60 %, the door line at 45 %", async ({
@@ -6500,6 +6542,7 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
   page,
 }) => {
   await addCssFixtures(page);
+  // S23.4: the disc wears the colour, solid; the glyph wears the ink picked for it (--fp-dev-ink), never the colour itself.
   // The editor has no live hass state, so .on is never set by renderFloor here; toggling it by hand pins the CSS
   // rule itself in a real browser, the same technique as the motion-fade pair test above.
   const read = (type: string) =>
@@ -6513,6 +6556,7 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
         const halo = e.querySelector(".halo")!;
         const r = {
           devVar: s.getPropertyValue("--fp-dev").trim(),
+          ink: s.getPropertyValue("--fp-dev-ink").trim(),
           pathFill: getComputedStyle(path).fill,
           haloFill: getComputedStyle(halo).fill,
           haloOp: getComputedStyle(halo).fillOpacity,
@@ -6522,42 +6566,51 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
       });
   const light = await read("light");
   expect(light.devVar).toBe("#e0a800");
-  expect(light.pathFill).toBe(rgb("#e0a800"));
+  expect(light.pathFill).toBe(rgb(light.ink));
+  expect(light.ink).not.toBe("#e0a800");
   expect(light.haloFill).toBe(rgb("#e0a800"));
-  expect(light.haloOp).toBe("0.25");
+  expect(light.haloOp).toBe("1"); // S23.4: a solid disc
 
   const heater = await read("heater");
-  expect(heater.pathFill).toBe(rgb("#e8801a"));
+  expect(heater.pathFill).toBe(rgb(heater.ink));
+  expect(heater.ink).not.toBe("#e8801a");
   expect(heater.haloFill).toBe(rgb("#e8801a"));
 
   const climate = await read("climate");
-  expect(climate.pathFill).toBe(rgb("#e8801a"));
+  expect(climate.pathFill).toBe(rgb(climate.ink));
+  expect(climate.ink).not.toBe("#e8801a");
   expect(climate.haloFill).toBe(rgb("#e8801a"));
 
   const tv = await read("tv");
-  expect(tv.pathFill).toBe(rgb("#2c7fb8"));
+  expect(tv.pathFill).toBe(rgb(tv.ink));
+  expect(tv.ink).not.toBe("#2c7fb8");
   expect(tv.haloFill).toBe(rgb("#2c7fb8"));
 
   const plug = await read("plug");
-  expect(plug.pathFill).toBe(rgb("#2c7fb8"));
+  expect(plug.pathFill).toBe(rgb(plug.ink));
+  expect(plug.ink).not.toBe("#2c7fb8");
   expect(plug.haloFill).toBe(rgb("#2c7fb8"));
 
   const computer = await read("computer");
-  expect(computer.pathFill).toBe(rgb("#2c7fb8"));
+  expect(computer.pathFill).toBe(rgb(computer.ink));
+  expect(computer.ink).not.toBe("#2c7fb8");
   expect(computer.haloFill).toBe(rgb("#2c7fb8"));
 
   const contact = await read("contact");
-  expect(contact.pathFill).toBe(rgb("#d64545"));
+  expect(contact.pathFill).toBe(rgb(contact.ink));
+  expect(contact.ink).not.toBe("#d64545");
   expect(contact.haloFill).toBe(rgb("#d64545"));
 
   // switch and humidity draw no brighter on than off: --fp-dev falls back to idle grey.
   const sw = await read("switch");
   expect(sw.devVar).toBe("#8b8578");
-  expect(sw.pathFill).toBe(rgb("#8b8578"));
+  expect(sw.pathFill).toBe(rgb(sw.ink));
+  expect(sw.ink).not.toBe("#8b8578");
   expect(sw.haloFill).toBe(rgb("#8b8578"));
   const hum = await read("humidity");
   expect(hum.devVar).toBe("#8b8578");
-  expect(hum.pathFill).toBe(rgb("#8b8578"));
+  expect(hum.pathFill).toBe(rgb(hum.ink));
+  expect(hum.ink).not.toBe("#8b8578");
 
   // motion: the icon path keeps following --fp-fade (the S1.6 fix), but the halo reads --fp-dev normally, red.
   const motion = await page
@@ -6579,7 +6632,8 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
   expect(motion.haloFill).toBe(rgb("#d64545"));
 });
 
-test("Opus review CSS pair: S2.9 break-it, a light that is on and unavailable keeps the unavailable opacity (render.test.ts:S2.9)", async ({
+// S23.5: unavailable is no longer a 45 % ghost but its own mark; the colour rule must still never paint over it.
+test("Opus review CSS pair: S2.9 break-it, a light that is on and unavailable keeps the unavailable mark (render.test.ts:S2.9)", async ({
   page,
 }) => {
   const g = page.locator("svg g.dev-light").first();
@@ -6588,13 +6642,14 @@ test("Opus review CSS pair: S2.9 break-it, a light that is on and unavailable ke
       (e, [o, u]) => {
         e.classList.toggle("on", o as boolean);
         e.classList.toggle("unavailable", u as boolean);
-        return getComputedStyle(e).opacity;
+        const h = getComputedStyle(e.querySelector(".halo")!);
+        return `${getComputedStyle(e).opacity}|${h.fillOpacity}|${h.strokeDasharray === "none" ? "solid" : "dashed"}`;
       },
       [on, unavailable] as const,
     );
-  expect(await opacityWith(false, false)).toBe("1");
-  expect(await opacityWith(true, false)).toBe("1");
-  expect(await opacityWith(true, true)).toBe("0.45"); // the colour rule never overrides unavailable
+  expect(await opacityWith(false, false)).toBe("1|0|solid");
+  expect(await opacityWith(true, false)).toBe("1|1|solid");
+  expect(await opacityWith(true, true)).toBe("1|0|dashed"); // the colour rule never overrides unavailable
   await opacityWith(false, false); // leave the fixture clean
 });
 
@@ -7111,12 +7166,28 @@ test("S1.51 break it: a corner dragged past its opposite one clamps at 5 cm inst
 // ---- S1.53 / S2.12 themes: blueprint (default), light, Home Assistant ---------------------------------------------------------
 
 // Blueprint palette (role-generated, 2026-09-22): base #1c3f73 shaded into ground #0c1521 / wall #6394dd, fg #eef3fb,
-// line (measure) #35d47a. An unpainted room (the demo's Living, room 0) is --fp-room-empty, #d6d6d2 = rgb(214, 214, 210)
-// in every theme, unchanged since 2026-09-22.
+// line (measure) #35d47a. An unpainted room (the demo's Living, room 0) is --fp-room-empty: #d6d6d2 = rgb(214, 214, 210)
+// on a light theme; on a dark one, since S23.6, the theme's own room shade (blueprint #132237 = rgb(19, 34, 55)).
 const ROOM_EMPTY = "rgb(214, 214, 210)";
+/** S23.1: a room name's fill is `color-mix(in srgb, text 92%, the room)`. Chromium reports it as `color(srgb r g b)`. */
+const colourOf = (css: string): number[] => {
+  const h = /^#([0-9a-f]{6})$/i.exec(css.trim());
+  if (h) return [0, 2, 4].map((i) => parseInt(h[1].slice(i, i + 2), 16));
+  const m = /color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)/.exec(css);
+  return m ? [m[1], m[2], m[3]].map((v) => Number(v) * 255) : (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+};
+const mix92 = (text: string, under: string) => {
+  const a = colourOf(text),
+    b = colourOf(under);
+  return a.map((v, i) => 0.92 * v + 0.08 * b[i]);
+};
+const expectNear = (css: string, rgb: number[], what: string) =>
+  colourOf(css).forEach((v, i) =>
+    expect(Math.abs(v - rgb[i]), `${what}: ${css} vs ${rgb.map(Math.round)}`).toBeLessThan(1.5),
+  );
 const DARK_TH = {
   bg: "rgb(12, 21, 33)",
-  room: ROOM_EMPTY,
+  room: "rgb(19, 34, 55)",
   wall: "rgb(99, 148, 221)",
   text: "rgb(238, 243, 251)",
   outline: "rgb(12, 21, 33)",
@@ -7134,13 +7205,13 @@ const LIGHT_TH = {
   outline: "rgb(255, 255, 255)",
 };
 
-test("CSS pair: an off icon's disc is 50 % in every theme (Diego, 2026-09-23)", async ({ page }) => {
+test("CSS pair: an off icon has no disc in every theme (S23.4; was 50 %, Diego, 2026-09-23)", async ({ page }) => {
   for (const t of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"] as const) {
     await setTheme(page, t);
     const ops = await page
       .locator("svg .dev:not(.on) .halo")
       .evaluateAll((els) => [...new Set(els.map((e) => getComputedStyle(e).fillOpacity))]);
-    expect(ops, t).toEqual(["0.5"]);
+    expect(ops, t).toEqual(["0"]);
   }
 });
 
@@ -7159,7 +7230,7 @@ test("S2.12: blueprint, the default, has the dark page background, room fill, wa
     const host = document.querySelector(tag) as HTMLElement;
     const room = root.querySelector('svg polygon[data-r="0"]')!,
       wall = root.querySelector("svg line.e")!;
-    const lbl = root.querySelector("svg text.lbl")!,
+    const lbl = root.querySelector("svg text.lbl[data-rl]")!,
       halo = root.querySelector("svg .dev .halo")!,
       mg = root.querySelector("svg line.mg")!;
     const s = (el: Element) => getComputedStyle(el);
@@ -7176,7 +7247,7 @@ test("S2.12: blueprint, the default, has the dark page background, room fill, wa
   expect(got.bg).toBe(DARK_TH.bg);
   expect(got.room).toBe(DARK_TH.room);
   expect(got.wall).toBe(DARK_TH.wall);
-  expect(got.lblFill).toBe(DARK_TH.text); // a room name on a dark room: light fill...
+  expectNear(got.lblFill, mix92(DARK_TH.text, DARK_TH.room), "room name"); // S23.1: the light text mixed into its room...
   expect(got.lblStroke).toBe(DARK_TH.outline); // ...with a dark outline, the S1.46 trick inverted
   expect(got.disc).toBe(DARK_TH.disc);
   expect(got.mg).toBe(DARK_TH.measure);
@@ -7189,7 +7260,7 @@ test("S1.53: light theme keeps its values", async ({ page }) => {
     const host = document.querySelector(tag) as HTMLElement;
     const room = root.querySelector('svg polygon[data-r="0"]')!,
       wall = root.querySelector("svg line.e")!;
-    const lbl = root.querySelector("svg text.lbl")!;
+    const lbl = root.querySelector("svg text.lbl[data-rl]")!;
     const s = (el: Element) => getComputedStyle(el);
     return {
       bg: s(host).backgroundColor,
@@ -7202,7 +7273,7 @@ test("S1.53: light theme keeps its values", async ({ page }) => {
   expect(got.bg).toBe(LIGHT_TH.bg);
   expect(got.room).toBe(LIGHT_TH.room);
   expect(got.wall).toBe(LIGHT_TH.wall);
-  expect(got.lblFill).toBe(LIGHT_TH.text);
+  expectNear(got.lblFill, mix92(LIGHT_TH.text, LIGHT_TH.room), "room name"); // S23.1
   expect(got.lblStroke).toBe(LIGHT_TH.outline);
 });
 
@@ -7281,7 +7352,7 @@ test("S1.53 break it: a per-room colour stays the same colour in both themes, an
     page.evaluate((tag) => {
       const root = (document.querySelector(tag) as any).shadowRoot as ShadowRoot;
       const poly = root.querySelector('svg polygon[data-r="0"]')!,
-        lbl = root.querySelector("svg text.lbl")!;
+        lbl = root.querySelector('svg text.lbl[data-rl="0"]')!;
       return {
         fill: getComputedStyle(poly).fill,
         lblFill: getComputedStyle(lbl).fill,
@@ -7294,7 +7365,7 @@ test("S1.53 break it: a per-room colour stays the same colour in both themes, an
   await setTheme(page, "blueprint");
   const dark = await fillOf();
   expect(dark.fill).toBe(light.fill); // unchanged by theme
-  expect(dark.lblFill).toBe(DARK_TH.text); // the name still reads: light fill, dark outline
+  expectNear(dark.lblFill, mix92(DARK_TH.text, "rgb(170, 187, 204)"), "name on #aabbcc"); // S23.1: mixed into the user's own colour; light fill, dark outline
   expect(dark.lblStroke).toBe(DARK_TH.outline);
 });
 
@@ -7928,6 +7999,7 @@ const LABELLED = [
 test("S8.1: Edit, Home Assistant is disabled until something labelled is listed; it opens a popover with X top-left and an explanation, rows open the item in HA, and the menu closes", async ({
   page,
 }) => {
+  await shutSide(page);
   await withHaMenu(page, { list: [] });
   await menu(page, "Edit");
   await expect(haBtn(page)).toBeDisabled();
@@ -8311,10 +8383,10 @@ test("Opus review CSS pair: S7.8 a person glides (transform .6s), is 35 % when a
       const away = cs().opacity;
       e.classList.remove("away");
       e.classList.add("on", "home");
-      const home = { op: cs().opacity, fill: getComputedStyle(path).fill };
+      const home = { op: cs().opacity, fill: getComputedStyle(e.querySelector(".halo")!).fill }; // S23.4: the disc wears it
       e.classList.add("unavailable");
       e.classList.remove("on", "home");
-      const gone = cs().opacity;
+      const gone = `${cs().opacity}|${getComputedStyle(e.querySelector(".halo")!).strokeDasharray !== "none"}`;
       return { glide, plain, away, home, gone };
     });
   expect(got.glide).toEqual({ prop: "transform", dur: "0.6s" });
@@ -8322,7 +8394,7 @@ test("Opus review CSS pair: S7.8 a person glides (transform .6s), is 35 % when a
   expect(got.away).toBe("0.35");
   expect(got.home).toEqual({ op: "1", fill: rgb("#1b9e77") });
   expect(got.plain.fill).not.toBe(rgb("#1b9e77"));
-  expect(got.gone).toBe("0.45");
+  expect(got.gone).toBe("1|true"); // S23.5: unavailable is the dashed ring, not a 45 % ghost
 });
 
 test("S7.9: the Targets field shows only for a radar, add/remove writes target pairs, and changing type away drops them", async ({
@@ -8377,9 +8449,11 @@ test("Opus review CSS pair: S7.9 a radar wears --fp-dev-radar when on, and a tar
     .locator("svg g.dev-radar")
     .first()
     .evaluate((e) => {
-      const path = e.querySelector("path:not(.halo)")!;
       e.classList.add("on");
-      const on = { fill: getComputedStyle(path).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() };
+      const on = {
+        fill: getComputedStyle(e.querySelector(".halo")!).fill,
+        devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim(),
+      }; // S23.4: the disc
       e.classList.remove("on");
       const target = document.createElementNS("http://www.w3.org/2000/svg", "circle");
       target.setAttribute("class", "target");
@@ -8416,7 +8490,10 @@ test("Opus review CSS pair: S7.10 a vacuum wears --fp-dev-vacuum when on, and sp
     .evaluate((e) => {
       const path = e.querySelector("path:not(.halo)")!;
       e.classList.add("on");
-      const on = { fill: getComputedStyle(path).fill, devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim() };
+      const on = {
+        fill: getComputedStyle(e.querySelector(".halo")!).fill,
+        devVar: getComputedStyle(e).getPropertyValue("--fp-dev").trim(),
+      }; // S23.4: the disc
       const notSpinning = getComputedStyle(path).animationName;
       e.classList.add("spin");
       const spinning = {
@@ -9996,7 +10073,7 @@ test("S5.5: Help opens a step-by-step guide, matching GUIDE_STEPS, and closes wi
   expect(await steps.count()).toBe(GUIDE_STEPS.length);
   for (let i = 0; i < GUIDE_STEPS.length; i++) {
     await expect(steps.nth(i)).toContainText(GUIDE_STEPS[i].title);
-    await expect(steps.nth(i)).toContainText(GUIDE_STEPS[i].body);
+    await expect(steps.nth(i)).toContainText(plainBody(GUIDE_STEPS[i].body));
   }
   await page.keyboard.press("Escape");
   await expect(help).toHaveAttribute("aria-expanded", "false");
@@ -10014,7 +10091,7 @@ test("S5.5: each guide step is a collapsible section, closed by default, with a 
   await first.locator("summary").click();
   await expect(first).toHaveJSProperty("open", true);
   await expect(first.locator("p")).toBeVisible();
-  await expect(first.locator("p")).toContainText(GUIDE_STEPS[0].body);
+  await expect(first.locator("p")).toContainText(plainBody(GUIDE_STEPS[0].body));
   // a second step opens independently, the first stays open
   const second = page.locator("#panel .guide > li").nth(1).locator("details");
   await second.locator("summary").click();
@@ -11096,14 +11173,14 @@ test("S10.1: picking the value that is already set adds no undo step", async ({ 
   expect((await groundOf(page)).devices[i].entity).toBe(""); // one undo reaches the start: the re-pick made no step
 });
 
-test("Opus review CSS pair: a room name and a zone name are drawn at half opacity", async ({ page }) => {
+test("Opus review CSS pair, S23.1: a room name and a zone name are solid, never faded", async ({ page }) => {
   const opacity = (sel: string) =>
     page
       .locator(sel)
       .first()
       .evaluate((el) => Number(getComputedStyle(el).opacity));
-  expect(await opacity('svg text.lbl[font-weight="600"]')).toBe(0.5);
-  expect(await opacity("svg text.lbl.zone")).toBe(0.5);
+  expect(await opacity("svg text.lbl[data-rl]:not(.zone)")).toBe(1);
+  expect(await opacity("svg text.lbl.zone")).toBe(1);
 });
 
 // ---- heights (docs/specs/heights-and-2-5d.md): every field is optional; empty means "the default" ----

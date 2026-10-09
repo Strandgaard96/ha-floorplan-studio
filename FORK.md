@@ -5,6 +5,7 @@ What this fork changed compared with upstream
 Newest first. Add an entry with every change that upstream does not have.
 
 **Forked from:** upstream `main` at `27fb096` (release 0.20.0, 2026-10-07).
+**Last synced:** upstream `main` at `05a5e8a` (release 0.22.1, 2026-10-09).
 
 To see the full difference at any time:
 
@@ -14,6 +15,21 @@ git fetch upstream
 git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
+
+## 2026-10-09: Sync with upstream 0.22.1 (branch `task/upstream-sync`)
+
+Merged upstream `05a5e8a`. Every conflict was in a file this fork had only
+reformatted, so upstream's side was taken and `task fix` re-ran oxfmt.
+Two upstream build scripts needed APIs our toolchain no longer has:
+
+- `scripts/minify-output.mjs` called Vite's `transformWithEsbuild`, which
+  Vite 8 dropped. It now calls oxc's `minify` (re-exported by Vite) with
+  compress and mangle off: whitespace and non-legal comments only, as before.
+- `scripts/strip-css-comments.mjs` and `tests/card/size-budget.spec.ts` parse
+  source with the TypeScript compiler API, which TypeScript 7 (native) does
+  not ship. They import `typescript-api`, an npm alias for TypeScript 5.9.
+  Both packages install a `tsc` bin, so `npm run typecheck` calls
+  `node_modules/typescript/bin/tsc` (7.x) by path.
 
 ## 2026-10-08: Modern dev workflow (branch `task/dev-workflow`)
 
