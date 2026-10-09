@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { FURNITURE_PARTS, partsOverlap, type Part } from "../../src/core/furniture-parts";
 import { FURNITURE_SOLID } from "../../src/core/solids";
-import { FURNITURE_SYMBOLS, type FurnitureSymbol } from "../../src/core/schema";
+import { FURNITURE_SYMBOLS, type Floor, type FurnitureSymbol } from "../../src/core/schema";
+import { buildScene, type Solid } from "../../src/core/scene";
+import { furnitureBottom, furnitureHeight } from "../../src/core/heights";
 
 // Written out on purpose (finding 17): how many boxes each symbol is drawn with in 3D; 0 = one box, as before.
 const PART_COUNT: Record<FurnitureSymbol, number> = {
@@ -66,5 +68,81 @@ describe("FURNITURE_PARTS", () => {
     expect(FURNITURE_PARTS.sofa![0]).toEqual({ x0: 0, y0: 0, x1: 100, y1: 28, z0: 0, z1: 1 });
     expect(FURNITURE_PARTS.table![0]).toEqual({ x0: 0, y0: 0, x1: 100, y1: 100, z0: 0.92, z1: 1 });
     expect(FURNITURE_PARTS.chair![0]).toEqual({ x0: 0, y0: 0, x1: 100, y1: 100, z0: 0.5, z1: 0.56 });
+  });
+});
+
+const floorWith = (furniture: unknown[]): Floor =>
+  ({
+    title: "T",
+    outline: [
+      [0, 0],
+      [800, 0],
+      [800, 600],
+      [0, 600],
+    ],
+    owk: ["external", "external", "external", "external"],
+    rooms: [],
+    walls: [],
+    stairs: [],
+    doors: [],
+    openings: [],
+    extras: [],
+    devices: [],
+    furniture,
+    unlinked: [],
+  }) as never;
+const prism = (s: Solid) => {
+  if (s.shape.type !== "prism") throw new Error("not a prism");
+  return s.shape;
+};
+const centre = (s: Solid): [number, number] => {
+  const b = prism(s).base;
+  return [b.reduce((a, q) => a + q[0], 0) / b.length, b.reduce((a, q) => a + q[1], 0) / b.length];
+};
+
+describe("scene: furniture parts", () => {
+  // Asymmetric on purpose (finding 4): w != h, a turn that is not a right angle, a stored height and a lift.
+  const sofa = { id: "s", symbol: "sofa", x: 400, y: 300, rot: 30, w: 210, h: 95, height: 80, z: 10 };
+  const sol = () => buildScene(floorWith([sofa])).solids.filter((s) => s.kind === "furniture");
+
+  it("a sofa is four solids in table order, all of piece 0", () => {
+    const s = sol();
+    expect(s.map((x) => x.id)).toEqual(["furniture:0:p0", "furniture:0:p1", "furniture:0:p2", "furniture:0:p3"]);
+    for (const x of s) {
+      expect(x.ref.index).toBe(0);
+      expect(x.tag).toBe("sofa");
+      expect(x.paint.role).toBe("furniture-sofa");
+    }
+  });
+  it("parts span the piece's bottom to its top", () => {
+    const s = sol(),
+      b = furnitureBottom(sofa as never),
+      top = b + furnitureHeight(sofa as never);
+    expect(b).toBe(10);
+    expect(Math.min(...s.map((x) => prism(x).z0))).toBe(b);
+    expect(Math.max(...s.map((x) => prism(x).z1))).toBeCloseTo(top, 9);
+    expect(prism(s[1]).z1).toBeCloseTo(b + 0.5 * 80, 9); // the seat, half way
+  });
+  it("the back lies on the turned back side of the centre", () => {
+    const back = centre(sol()[0]);
+    // Unturned, the back's centre is (0, -0.36 h) from the piece's centre: y0..28 of 100 -> mid at 14, 14 - 50 = -36.
+    const dy = (14 / 100 - 0.5) * 95,
+      r = (30 * Math.PI) / 180;
+    // turnAbout is clockwise on screen (y down), as the 2D `rotate`: (x, y) -> (x cos - y sin, x sin + y cos).
+    expect(back[0]).toBeCloseTo(400 - dy * Math.sin(r), 6);
+    expect(back[1]).toBeCloseTo(300 + dy * Math.cos(r), 6);
+  });
+  it("a symbol with no parts is still one solid with the old id", () => {
+    const s = buildScene(
+      floorWith([{ id: "c", symbol: "cabinet", x: 100, y: 100, rot: 0, w: 100, h: 45 }]),
+    ).solids.filter((x) => x.kind === "furniture");
+    expect(s.map((x) => x.id)).toEqual(["furniture:0"]);
+  });
+  it("a linked tv is still one solid carrying its entity", () => {
+    const s = buildScene(
+      floorWith([{ id: "t", symbol: "tv", x: 100, y: 100, rot: 0, w: 120, h: 10, entity: "media_player.tv" }]),
+    ).solids.filter((x) => x.kind === "furniture");
+    expect(s).toHaveLength(1);
+    expect(s[0].ref.entity).toBe("media_player.tv");
   });
 });

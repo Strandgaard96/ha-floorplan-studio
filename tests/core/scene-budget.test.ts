@@ -97,4 +97,20 @@ describe("scene builder time budget", () => {
     };
     expect(z0("room:1")).toBeGreaterThan(z0("room:0"));
   });
+  it("5000 tables (25 000 parts) build in under 2 s", () => {
+    const furniture = Array.from({ length: 5000 }, (_, i) => ({
+      id: `f${i}`,
+      symbol: "table",
+      x: (i % 100) * 10,
+      y: Math.floor(i / 100) * 10,
+      rot: i % 360,
+      w: 50,
+      h: 50,
+    }));
+    const t = performance.now();
+    const scene = buildScene({ ...floorOf([]), furniture } as never);
+    const ms = performance.now() - t;
+    expect(ms, `took ${Math.round(ms)} ms`).toBeLessThan(2000);
+    expect(scene.solids.filter((s) => s.kind === "furniture")).toHaveLength(25000);
+  });
 });

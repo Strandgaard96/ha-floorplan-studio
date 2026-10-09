@@ -6,8 +6,8 @@
 //   - a room's floor, or furniture standing on it, is that room;
 //   - a wall, a stair, the slab and furniture on no room are "other": they stop the ray and a tap on them clears the pick.
 // A hatched fill (a room of kind "fill") is not a room and is looked through. A wall the view has lowered is only as
-// tall as it is drawn (`zOf`), so a ray goes over it. Every solid has a bounding box tested first, so 5000 pieces of
-// furniture cost 5000 box tests per tap.
+// tall as it is drawn (`zOf`), so a ray goes over it. Every solid has a bounding box tested first, so 5000 tables (a top
+// and four legs each) cost 25 000 box tests per tap.
 import type { Solid } from "../../core/scene";
 
 type V3 = [number, number, number];
