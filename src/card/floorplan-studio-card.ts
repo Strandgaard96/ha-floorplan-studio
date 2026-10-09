@@ -952,13 +952,16 @@ export class FloorplanStudioCard extends LitElement {
       return;
     }
     if (ev.key === "Escape" && this._viewOpen) {
+      // Only when focus is in the toolbar: a control inside the menu is about to go, so focus goes back to the toggle. A
+      // field elsewhere on the page keeps its focus (Opus re-check).
+      const inBar = !!this.shadowRoot?.activeElement?.closest(".fp-zoom, .fp-viewonly");
       this._viewOpen = false;
       this.requestUpdate();
       ev.preventDefault();
-      // A control inside the menu had focus and is about to go: focus goes back to the toggle.
-      void this.updateComplete.then(() =>
-        this.shadowRoot?.querySelector<HTMLElement>(".fp-view-toggle")?.focus({ preventScroll: true }),
-      );
+      if (inBar)
+        void this.updateComplete.then(() =>
+          this.shadowRoot?.querySelector<HTMLElement>(".fp-view-toggle")?.focus({ preventScroll: true }),
+        );
       return;
     }
     if (ev.key === "Escape" && this._popup) {
