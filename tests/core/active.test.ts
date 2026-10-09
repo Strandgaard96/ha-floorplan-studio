@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DEVICE_TYPES, type Device, type Layout } from "../../src/core/schema";
-import { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "../../src/core/active";
+import { ACTIVE_LIST_RULE, activeDevices, colorVarFor, groupActiveByType } from "../../src/core/active";
 
 const st = (state: string, attributes: Record<string, unknown> = {}) => ({
   state,
@@ -102,10 +102,6 @@ describe("S9.5: every DeviceType is a decided list membership (CLAUDE.md finding
     const entity = `x.${t}`;
     const rule = ACTIVE_LIST_RULE[t];
     const onState = ON_STATE[t] ?? st("on");
-    if (rule === "always") {
-      expect(activeDevices(layoutOf([dev(t, entity)]), { [entity]: onState }).map((i) => i.type)).toContain(t);
-      return;
-    }
     if (rule === "never") {
       expect(activeDevices(layoutOf([dev(t, entity)]), { [entity]: onState }).map((i) => i.type)).not.toContain(t);
       return;
@@ -137,10 +133,15 @@ describe("activeDevices", () => {
     expect(activeDevices(l, { "vacuum.a": st("cleaning") }).map((i) => i.entity)).toEqual(["vacuum.a"]);
   });
 
-  it("a camera is listed whatever its state, including one HA has never reported", () => {
+  it("S24.3 (G1): a camera is never listed, whatever its state; it is a view, not something on", () => {
+    expect(ACTIVE_LIST_RULE.camera).toBe("never");
     const l = layoutOf([dev("camera", "camera.a")]);
-    expect(activeDevices(l, {}).map((i) => i.entity)).toEqual(["camera.a"]);
-    expect(activeDevices(l, { "camera.a": st("idle") }).map((i) => i.entity)).toEqual(["camera.a"]);
+    for (const s of [undefined, "idle", "streaming", "recording", "on"]) {
+      expect(
+        activeDevices(l, s ? { "camera.a": st(s) } : {}).map((i) => i.entity),
+        String(s),
+      ).toEqual([]);
+    }
   });
 
   it("Opus review finding 9: a device with an empty entity is never listed, of any type, camera included", () => {
@@ -235,8 +236,8 @@ describe("activeDevices", () => {
   });
 
   it("Opus review finding 10: a camera's row colour is --fp-ink, not --fp-dev-camera (that resolves to the same shade as --fp-idle/--fp-room in blueprint, unreadable on the panel's own --fp-room background)", () => {
-    const l = layoutOf([dev("camera", "camera.a")]);
-    expect(activeDevices(l, { "camera.a": st("idle") })[0].colorVar).toBe("--fp-ink");
+    // S24.3: a camera is no longer listed, so this reads the colour rule itself, which the room rows share.
+    expect(colorVarFor(dev("camera", "camera.a"), { "camera.a": st("idle") })).toBe("--fp-ink");
   });
 
   it("an ac takes its colour var from acMode: cool or heat, never a flat --fp-dev-ac", () => {
@@ -279,7 +280,14 @@ describe("S10.3: a door's own contact/vibration sensors join the active list und
     const l = layoutWithDoor({ sensors: ["binary_sensor.front"] });
     const on = activeDevices(l, { "binary_sensor.front": st("on") });
     expect(on).toEqual([
-      { entity: "binary_sensor.front", name: "Front door", type: "contact", floor: "f", colorVar: "--fp-open-door" },
+      {
+        entity: "binary_sensor.front",
+        name: "Front door",
+        type: "contact",
+        floor: "f",
+        colorVar: "--fp-open-door",
+        at: { what: "door", index: 0 },
+      },
     ]);
     expect(activeDevices(l, { "binary_sensor.front": st("off") })).toEqual([]);
   });
@@ -288,7 +296,14 @@ describe("S10.3: a door's own contact/vibration sensors join the active list und
     const l = layoutWithDoor({ vibration: ["binary_sensor.shake"] });
     const on = activeDevices(l, { "binary_sensor.shake": st("on") });
     expect(on).toEqual([
-      { entity: "binary_sensor.shake", name: "Front door", type: "vibration", floor: "f", colorVar: "--fp-open-door" },
+      {
+        entity: "binary_sensor.shake",
+        name: "Front door",
+        type: "vibration",
+        floor: "f",
+        colorVar: "--fp-open-door",
+        at: { what: "door", index: 0 },
+      },
     ]);
     expect(activeDevices(l, { "binary_sensor.shake": st("off") })).toEqual([]);
   });
@@ -332,6 +347,7 @@ describe("S10.3: a door's own contact/vibration sensors join the active list und
         type: "contact",
         floor: "f",
         colorVar: "--fp-dev-contact",
+        at: { what: "device", index: 0 },
       },
     ]);
   });
@@ -346,22 +362,23 @@ describe("S10.3: a door's own contact/vibration sensors join the active list und
 
 describe("groupActiveByType", () => {
   it("groups by type in DEVICE_TYPES' own order, dropping empty types", () => {
+    // S24.3: a climate in place of the camera that used to be first, now that a camera is never listed.
     const items = activeDevices(
       layoutOf([
-        dev("camera", "camera.a"),
+        dev("climate", "climate.a"),
         dev("light", "light.a"),
         dev("light", "light.b"),
         dev("motion", "motion.a"),
       ]),
       {
-        "camera.a": st("idle"),
+        "climate.a": st("heat", { hvac_action: "heating" }),
         "light.a": st("on"),
         "light.b": st("on"),
         "motion.a": st("on"),
       },
     );
     const grouped = groupActiveByType(items);
-    expect(grouped.map(([t]) => t)).toEqual(["light", "motion", "camera"]); // DEVICE_TYPES order, not insertion order
+    expect(grouped.map(([t]) => t)).toEqual(["light", "motion", "climate"]); // DEVICE_TYPES order, not insertion order
     expect(grouped.find(([t]) => t === "light")![1]).toHaveLength(2);
   });
 

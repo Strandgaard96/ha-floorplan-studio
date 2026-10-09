@@ -2595,3 +2595,189 @@ Not in this sprint: car in 3D/2D, old worktree clean-up.
 Diego, 2026-10-07: "when selecting a room, in the menu, lights, add an 'All Off' button. Allow selecting the floor (clicking on the floor pill name) same as rooms; doing so loads the side menu." Card only; branch `task/s20-floor-select`. Each task: one outcome, its failing test first.
 - [x] S20.1 All off in the room panel. One `light.turn_off` over the lights of the room whose own entity is on (`presetCalls`, the scene preset's builder); a lamp lit only by its bound relay is not a target. Hidden when none is. Accessible name "Turn off all lights in <name>". Test: real clicks, a stub `callService`, exact call; lamp off, relay-bound lamp, plug not in it.
 - [x] S20.2 Select a floor from its pill. The pill shows the floor as before and opens the same side panel on a floor summary (`floorSummary`, one builder with `roomSummary`): lights on, devices, sensors, doors over every room. All off acts on the whole floor. A room pick replaces it; Escape, the empty plan, the x and the pill again clear it; a `hass` update keeps it; `setConfig` clears it. `aria-pressed` still marks the floor shown; `aria-expanded` and the class `fp-floor-picked` mark the floor selected. With `active_list: false` a pill only switches. Opus review fixes done 2026-10-07.
+
+
+## Sprint 21: open items
+
+Branch `task/s21-open-items`. Each task: one outcome, its failing test first.
+- [x] S21.1 Camera cone clip (was S19.E5). The cone stops at the walls of the room its camera stands in; a camera in no room keeps the free cone. An inline `<clipPath>` in the same svg, named by a `clip-path` attribute on the cone, so it resolves inside the card's shadow root and the editor's. Tests: unit (id, polygon, transform round trip, 2.5D lift, no-room, ids), a Playwright pixel check that fails without the clip. The two pinned snapshots and one regex were changed on purpose.
+- [x] S21.2 Humidity, motion, contact and vibration join `NO_TOGGLE`, as `temp` did in S19.E4. A test iterates `DEVICE_TYPES`: each type is in `NO_TOGGLE` or in a written list of types that toggle, with the reason.
+- [x] S21.3 Verify: `npm run lint`, `npm test`, `npx playwright test`, each read bare.
+
+## Roadmap after the 2026-10-08 review (sprints 22 to 30)
+
+Diego, 2026-10-08: "do a review of the menus, submenus, right click menus, general user interface and usability of the studio and the card [...] propose a plan to make it better, cleaner, easier to use and navigate when one like me has hundreds of devices." Added: auto-align floors, floors below in 3D, an animated floor switch, "no cramming stuff in stacks". He said yes to this plan on 2026-10-08.
+
+Review basis: a seeded stress house (3 floors, 46 rooms, 437 devices, 718 entities), three Opus reviews, 81 findings. Ids below: U = Studio, C/F/G/L/A/H = card, V = visual. Direction: one side sheet in the card (Overview › Floor › Room › Device), one Inspector and an Outline in the Studio, one ⌘K search in both, the same context menu per object everywhere. Off is quiet, on is solid.
+
+| Sprint | Release | Goal | Exit test |
+|---|---|---|---|
+| 22 | 0.20.2 | Hotfix: C1, C3, U11, U1, U4, U12, U23 | A relay-lit lamp turns off from the card, real clicks |
+| 23 | 0.21.0 | Visual foundations: off quiet, on solid, label token and 11 px floor, label placement, theme ramp for empty rooms and furniture, door arcs and three-line windows, glow falloff, unavailable mark | `npm run shots` on every theme, looked at; contrast test over every theme |
+| 24 | 0.22.0 | Find and navigate: ⌘K search, Studio Outline, Layers replace Filter, card Overview sheet with Attention and Active by floor, rows locate devices, floor counts | Find a named device on the stress house in 2 actions, keyboard only |
+| 25 | 0.23.0 | Scale on the plan: semantic zoom, room badges with rollups, spiderfy, CSS-px label placement, incremental render | One sensor update writes only its device |
+| 26 | 0.24.0 | Studio editing at scale: Inspector modes, marquee and multi-select, bulk Controlled by, one Lock, context menus, menu clean-up, status bar, typed lengths, 15° snap | Bind 20 lights in 3 actions, one undo step |
+| 27 | 0.25.0 | Floors: floor offset in the schema, Align to floor below with a score, ghost floor in 2D, floors below in 3D (off, ghost, solid), animated switch with a reduced-motion cut | A misaligned floor aligns within 2 cm; both motion paths tested |
+| 28 | 0.26.0 | 2.5D and 3D polish: shadows, lighting, tree crowns, framed openings, 3D label collision | Shots at 4x, three themes |
+| 29 | 0.27.0 | Card layout and touch: chrome around the plan, fit to height, phone bottom sheet, ⋯ menu, 44 px targets, keyboard on the plan | Tablet and phone tasks at target tap counts |
+| 30 | 0.28.0 | Extras: saved views, favourites, heat map, dashboard strategy, tap_action, fan type | One acceptance test each |
+
+Separate product, not in this repo: the FloorPlan Digital Twin iOS app. A RoomPlan spike (T0) after sprint 24, in its own repo, after its own design and spec.
+
+## Sprint 22 (0.20.2): hotfix from the review
+
+Branch `task/s22-hotfix`. Each task: one outcome, its failing test first.
+- [x] S22.1 (C1) A lamp lit by its bound relay can be turned off from the card. Its popup reads on, names the relay, and Turn off calls `switch.turn_off` on the relay (and `light.turn_off` on the light if that is on). Room and floor All off add every bound relay that is on. The relay is offered in the More info chooser. Test: real clicks, stub `callService`, exact calls.
+- [x] S22.2 (C3) The device popup stays inside the visible viewport on a card taller than the screen. Test: a tap near the bottom of a tall card, popup box inside `innerHeight`.
+- [x] S22.3 (U11) The Studio's Place and Add panels fit the window; their buttons are reachable. Test: 1440x900 and 1024x768, the Place button inside the viewport and clickable.
+- [x] S22.4 (U1) A refused edit snaps back in its field, and the status line offers Unlock. Test: rename under a fixed plan, field shows the old name; Unlock, rename works.
+- [x] S22.5 (U4) Escape closes an open toolbar menu. Test: open each menu, Escape, menu gone, focus back on its button.
+- [x] S22.6 (U12) The room aside scrolls on its own; the plan stays put. Test: scroll the aside, the canvas bounding box does not move.
+- [x] S22.7 (U23) The guide matches the UI. Test: every control the guide names exists by its label.
+
+### Follow-ups from the Sprint 22 review
+
+Fixed on `task/s22-fix`: every Fix plan refusal raises the Untick Fix plan banner (paint, floors, rotate, add floor,
+add stairs, texture and furniture sliders); the menu Escape tests fail with the early return removed; All off's title
+warns about a shared relay. Still open, each with its failing test first:
+- [x] S22.F1 `card-3d-floors.spec.ts:86` "20 switches" times out under full-suite parallel load (about 12 s alone, 30 s budget). It predates Sprint 22. Find the cause (finding 13); no retries, no longer timeout. Done: every switch recompiled the 3D shader programs; the view now keeps one material per program (DECISIONS 2026-10-08). 29 s alone before, 4.5 s after.
+- [ ] S22.F2 A lamp whose relay is off and whose bulb is unavailable cannot be turned on from the card. Turn on should call the relay. Test: real tap, stub `callService`, exact call.
+- [ ] S22.F3 The guide test checks control names, not menu paths. Test: each "[Menu], then [Item]" path in the guide opens with real clicks.
+- [ ] S22.F4 A room panel row for a relay-lit lamp shows the light's own state ("off") while the plan draws it on. Test: the row reads on, via the relay.
+- [ ] S22.F5 The "Plan unlocked" toast overlaps the top of the Place popup at 1024x768. Test: the two boxes do not intersect.
+
+## Sprint 23 (0.21.0): visual foundations
+
+Branch `task/s23-visual`. From the visual review (V-ids, review of 2026-10-08). Direction: calm plan, live accents; off is quiet, on is solid. Each task: one outcome, its failing test first; every rule that matters gets its `getComputedStyle` pair (finding 10); every per-type rule iterates `DEVICE_TYPES` (finding 17). Out of scope here: semantic zoom and count chips (sprint 25), reference-scale placement (sprint 25), 3D shadows, trees and openings (sprint 28), card chrome (sprint 29).
+- [x] S23.1 (V2, V7, V8) One label style. Room names lose `opacity=".5"`; new token `--fp-label` (text mixed into the room colour), 12 px, weight 500, halo at `--fp-outline`. One `--fp-font` (HA's body font, else system-ui) for labels, values and chrome. Values use tabular-nums and a narrow no-break space before the unit. Zone and outdoor names: 10 px, 500, no opacity, outdoor in italic. Test: computed-style pairs; a contrast test over every theme, label against its room, at least 4.5:1.
+- [x] S23.2 (V1) An 11 px floor. On a narrow card, room names never render under 11 CSS px and device discs never under 28 CSS px. Test: the card at 390 px wide, measured boxes of a room name and a disc.
+- [x] S23.3 (V3, V6) Names stay in their room. More candidates (horizontal offsets, the pole of inaccessibility), a smaller font (down to 7k) before leaving the room, a tag on top when every spot is covered, and 2.5D stem feet count as obstacles. Test: on the demo and the stress layout, no room name's box lies in another room, and none sits under a device disc; 2.5D Hall stays in Hall.
+- [x] S23.4 (V9 first rule, V10, V11) Off is quiet, on is solid. Off and idle devices: glyph only, no disc, `--fp-idle` at .7. On: a filled `--fp-dev` disc with an ink glyph chosen per theme for 4.5:1. Blueprint idle is desaturated. Test: iterate `DEVICE_TYPES` x every theme, on-glyph contrast at least 4.5:1; computed-style pairs for off and on.
+- [x] S23.5 (V12) Unavailable is its own mark: a dashed `--fp-warn` ring, the glyph at idle, a small slash badge. A dead light, switch or plug is drawn unavailable, not off. Test: iterate `DEVICE_TYPES`, unavailable differs from off in the DOM and in computed style.
+- [x] S23.6 (V16, V17, V23) Every surface follows the theme. Dark themes take empty rooms from their ramp; midnight gardens, terrace and pavement come from the ramp; furniture takes body and edge from the ramp; user paint is dimmed on dark themes (`--fp-paint-dim`), never recoloured; the checker texture is softened. Test: over every theme, empty room vs board and label vs empty room contrast; computed-style pairs.
+- [x] S23.7 (V19, V20) Plan symbols. A door is a gap, a 1 px leaf and a 90° swing arc; a window is three hairlines across the wall; `--fp-glass` is window blue; red only when open. Outdoor kinds draw no outline; zones a 1 px dash at 35 %. 2D and 2.5D. Test: unit on the drawn paths (arc present, three lines), computed-style pairs, open still red.
+- [x] S23.8 (V13, V14) Light is light. 2D glow is a radial falloff clipped to the light's room (the cone's clipPath), screen-blended on dark themes, multiply on light. 3D light-theme glow capped and warm-white. Test: a pixel probe just outside the room's wall shows no glow; computed blend per theme kind.
+- [x] S23.9 Verify: lint, unit, Playwright bare; `npm run shots` on every theme, looked at, before and after in the report.
+
+### Follow-ups from the Sprint 23 review
+
+- [ ] S23.F1 Leaders at 375 px with the controls in a column: add each placed leader to the obstacles and prefer spots off
+      other rooms' interiors. "Garden pond" crosses the Hall's outer wall and the Garden leader runs through it
+      (`render.ts` leader fallback).
+- [ ] S23.F2 Window lines under 3:1 on the new pane in light (2.4) and solarized (2.8). Try the pane as `--fp-bg` mixed
+      15 % glass, and check the cut does not read as a hole again.
+- [x] S23.F3 Put `--fp-text-out` in the generic `:host,.fp,[data-theme]` defaults so a nested theme group cannot inherit
+      solarized's outdoor ink.
+- [x] S23.F4 `strip-css-comments.mjs`: inside `url(`, skip a leading quoted string first, so `url("a)b")` cannot flip the
+      quote state.
+- [ ] S23.F5 Left by the coders: paint dim in 3D; a heavier dash on a selected zone; 3D walls on HA dark still mix 55 %;
+      JSDoc still ships in the card (about 16 KB gzip); `docs/img/themes/*.png` are out of date.
+- [x] S23.F6 Door swing arcs removed (Diego, 2026-10-08).
+      JSDoc still ships in the card (about 16 KB gzip; done in S24.4); `docs/img/themes/*.png` are out of date.
+
+## Sprint 24 (0.22.0): find and navigate
+
+Branch `task/s24-find`. From the UX reviews of 2026-10-08 (U-, C-, F-, G-, A-ids). Goal: on the stress house (437
+devices) any device is two keystrokes away, and the card says what is wrong before what is on. Design rules from the
+review: one search everywhere (⌘K or `/`), Enter goes to the thing; chrome sits beside the plan, not over it; a list row
+is one target. Each task: one outcome, its failing test first; per-type rules iterate `DEVICE_TYPES` (finding 17);
+every CSS rule that matters gets its `getComputedStyle` pair (finding 10); real `page.mouse` and `page.keyboard`
+(finding 3). Out of scope here: per-device lock and the Inspector (sprint 26), semantic zoom and room badges (sprint 25),
+phone bottom sheet and ⋯ menu (sprint 29), drag from the Outline onto the plan (sprint 26).
+
+Wave 1, core (parallel):
+- [x] S24.1 (F1, U9) One search index. `src/core/search.ts` builds entries for floors, rooms and devices (friendly name,
+      entity id, room, floor, type label) and ranks a query: exact name, then name prefix, then word prefix, then
+      substring, then entity id, then room. Case and accents ignored; several words must all match. Test: on
+      `tests/fixtures/stress-layout.json`, "bedside guest" ranks the guest bedroom bedside lamp first, an entity id
+      finds its device, an empty query returns nothing, 437 devices query in under 5 ms.
+- [x] S24.2 One search box for both apps. `<fp-search>` in `src/card/search-box.ts`: an ARIA combobox (input,
+      listbox, `aria-activedescendant`), each option shows name and "room · floor · type", arrows move, Enter picks
+      and fires `fp-pick`, Escape clears then closes. The host binds ⌘K, Ctrl+K and `/` on itself, never `window`
+      (finding 6). Colours only through `--fp-*`. Test: Playwright on a harness page, real keyboard, every step.
+- [x] S24.3 (G1, G2, G3) What is wrong. `src/core/attention.ts`: triggered alarm, then armed alarm, open doors and
+      windows, unlocked locks, water and smoke on, low battery (under 20 %), unavailable (one folded row with a count).
+      Per-floor counts and an alarm flag for the floor tabs. Room and floor facts split "Open" from "Unlocked"; an
+      unlocked lock is no longer "open". Cameras leave the Active list (`ACTIVE_LIST_RULE` no longer "always").
+      Test: iterate `DEVICE_TYPES`, each type's attention rule written down; the stress fixture's counts by hand.
+- [x] S24.4 (S23.F5, S23.F3) Room for the sprint in the card budget: JSDoc out of the shipped card, the size limit
+      unchanged; `--fp-text-out` in the generic defaults. Test: the size test; a nested group under solarized keeps
+      its own theme's outdoor ink.
+
+Wave 2, the apps (Studio and card in parallel, two tasks each in order):
+- [x] S24.5 (U9, U20) Studio search and Outline. `<fp-search>` in the top bar; Enter switches floor, selects, centres
+      at no less than 1:1 and pulses the device. A left column with an Outline tab: floors › rooms › devices with
+      counts, a filter field, a tree with arrow keys; a click or Enter selects and centres. The last node, "Unplaced
+      from HA", groups entities by area; a click opens Add > Device with it picked. The canvas `svg` gets
+      `role="img"` and `aria-label="Floor plan, <floor>"`. The column collapses with a button and starts collapsed
+      under 1100 px. Test: on the stress layout, `/`, a few letters, Enter: the device is selected and its icon's box
+      sits in the canvas centre; the same through the tree by keyboard alone.
+- [x] S24.6 (U6, U17, U16) Studio Layers replace Filter. A Layers tab beside Outline: one eye per family (the card's
+      categories plus Furniture), all visible by default, one click hides, alt-click shows only that family. The
+      status line names what is hidden ("Layers: lights hidden", "3 of 10 hidden"). Placing under a hidden layer says
+      "Placed 7; 3 hidden by Layers [Show]". Room-scoped lists show friendly names with the id as small text, reuse
+      Place's filter, and dedupe areas by id with the floor added when names repeat. Test: hide lights in one click,
+      no light icon drawn; the status text; the Filter menu is gone.
+- [x] S24.7 (G1, G2, F2, F3, A3, S22.F4) Card Overview sheet. The Active panel becomes the Overview: Attention on top,
+      then Active by category with state text on each row; scope is the shown floor by default with an "All floors"
+      toggle; the header shows count chips ("6 lights · 2 alerts") instead of one number. A row tap switches floor,
+      pans to the device, pulses it and opens its popup. The whole row is the target; the ▸ chevron goes, its details
+      move into the popup. A relay-lit lamp's row reads on, via the relay. Floor tabs read "Ground · 3" and turn
+      `--fp-warn` on an alarm. Test: a `floor: ground` card on the stress layout lists ground only; a row tap on
+      another floor's device (All floors) switches floor and the popup opens for it.
+- [x] S24.8 (F1, C2, layers) Card search, floor off, layers. `<fp-search>` at the top of the sheet and on ⌘K and `/`;
+      Enter locates like a row tap. "Turn off on this floor…" opens a checklist (lights with their relays, switches,
+      plugs, media) with counts and one confirm; the exact service calls follow. Room "All off" becomes "Lights off";
+      the preset All off leaves Scenes where the room button exists. Layer chips in the sheet, one per family, per
+      viewer (kept in view memory). Test: on the stress layout, `/`, letters, Enter opens the popup of the right
+      device on its floor; the checklist sends exactly the calls ticked; a hidden family draws no icon.
+      Done 2026-10-09 on `task/s24-cardfind`: search, "Turn off on this floor…", "Lights off", and the layer chips.
+- [x] S24.9 Verify: lint, unit, Playwright bare; new tests `--repeat-each=10`; `npm run shots` looked at; the
+      sprint test, "find a named device on the stress house in two actions, by keyboard alone", in both apps.
+      Done 2026-10-09 at e7d3177: lint 0, unit 0 (3326), Playwright 0 (1449 passed, 1 skipped: panel-live);
+      shots looked at; the walk passed in the card (`/`, letters, Enter) and the Studio (⌘K, Enter) in the Opus
+      review, which then re-checked R1–R12 closed.
+
+### Follow-ups found during Sprint 24
+
+- [x] S24.F1 `card.spec.ts:1058` "S7.15: a vertical swipe … pans the plan once zoomed" failed once under full-suite
+      load: the page scrolled 1 px (`scrollY` 1, expected 0). Passes alone 30 of 30. A race in the card's touch
+      handling (finding 13): find it, no retries. Done: the race was in the test, not the card. The first swipe's
+      fling outlived the reset; the swipe now carries its own timestamps and rests before it lifts (no fling), and
+      waits for `scrollend`. See DECISIONS 2026-10-09.
+- [x] S24.R4 (Opus review 4) The Outline keyed a device or piece row by its bare id, and a piece's id is unique on its
+      floor only. Two linked TVs with the id `tv` on Ground and First: "First TV" selected First on the plan but opened
+      Ground › Living and marked no row. Row ids are now `d:<floor>:<id>`. Test: that layout, `/`, Enter, the First row
+      marked, for a piece and for a device sharing an id with a piece on another floor.
+- [x] S24.R8 (Opus review 8) A small tv, speaker or computer is picked from a padded box (`furnitureNear`, S18.10),
+      which ignored Layers: with Furniture hidden, a click on the floor over the piece selected it and it came back.
+      The pick now skips what `layerHides` (`src/core/layers.ts`) leaves off the plan, the selection kept as the plan
+      keeps it. Devices have no computed pick; a hidden one has no element to hit. Test: real `page.mouse` in the
+      padding, hidden, shown, and kept by a search.
+- [x] S24.R10a (Opus review 10a) Adding an appliance under a hidden layer said "Added ups; hidden by Layers", the raw
+      type id. It now says the type's label in lower case, an initialism kept: "Added UPS", "Added server"
+      (`typeNoun`, `src/editor/panels.ts`). Test: every `DEVICE_TYPES` member reads without an underscore; the status
+      line after Add > Unlinked device under hidden Power and Computing.
+
+### Fixes from the Sprint 24 review (core and card)
+
+- [x] S24.R5 Search: a test that fails without the shorter-name tie-break (two name prefixes, the longer first in
+      the layout).
+- [x] S24.R10b Search: `normalize` folds the letters NFD leaves whole (ø, ß, æ, ł, đ, þ, œ, ð, ı), so "Soren" finds
+      "Søren" and "grosse" finds "Große".
+- [x] S24.R3 Search: Escape twice gives focus back. `focus()` recorded `document.activeElement`, a shadow host that
+      cannot take focus, so the input kept it and the next `/` typed a slash. It now records the deepest focused
+      element; with nothing to go back to the input blurs. Tests: the card hovered, and a harness two shadow roots
+      deep like Home Assistant's panel.
+- [x] S24.R1 Low battery as HA reports it: a `battery` attribute, a battery sensor or binary_sensor placed as an icon,
+      and the battery entity of a placed device's own HA device (`hass.entities`). Storage types never; a `battery`
+      icon only when HA files its entity as diagnostic.
+- [x] S24.R2 A jammed lock raises Jammed, between Open and Unlocked.
+- [x] S24.R6 A device that is on stays in Active when its battery is low.
+- [x] S24.R7 The card's pulse keyframes renamed `fp-pulse-ring`; a test reads both rings' keyframes.
+- [x] S24.R9 `attention().floors` is a null-prototype object; a floor named `__proto__` is counted.
+- [x] S24.R12 A sibling battery sensor counts only when HA files it diagnostic, so a home battery's or a car's charge
+      on a switch's or plug's device is not an alert; the lowest of several is reported (now tested); a battery
+      sensor in volts is not read as %.
+- [x] S24.R11 `render.ts` drops its private copy of the Layers rule and imports `layerHides`; `src/core/index.ts`
+      exports it. No behaviour change: the existing Layers tests stay green.

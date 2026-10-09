@@ -6,6 +6,8 @@ export { applyHaNames } from "./ha";
 export type { HaData } from "./ha";
 export {
   addCandidates,
+  areaChoices,
+  areaMenuEntities,
   AREA_NOISE_TYPES,
   AREA_PLACEABLE_TYPES,
   areaMove,
@@ -30,10 +32,31 @@ export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
 export * from "./render";
 export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./bind";
 export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
-export type { ActiveDevice } from "./active";
+export type { ActiveDevice, ThingRef } from "./active";
+export { ATTENTION_KINDS, ATTENTION_RULE, BATTERY_LOW, attention } from "./attention";
+export type {
+  Attention,
+  AttentionItem,
+  AttentionKind,
+  AttentionRef,
+  AttentionRegistry,
+  AttentionRule,
+  FloorAttention,
+} from "./attention";
 export { CATEGORIES, CATEGORY_OF, groupByCategory } from "./categories";
+export {
+  LAYERS,
+  layerCounts,
+  layerHides,
+  layerOfType,
+  layersSummary,
+  parseLayers,
+  soloLayer,
+  toggleLayer,
+} from "./layers";
+export type { LayerId } from "./layers";
 export type { CategoryGroup, CategoryId } from "./categories";
-export { entitiesOfDevice, entitiesOfDoor, playerOf } from "./attachments";
+export { entitiesOfDevice, entitiesOfDoor, moreInfoEntities, playerOf } from "./attachments";
 export * from "./heights";
 export {
   HEAT_FROM,
@@ -49,16 +72,35 @@ export type { PowerCandidate } from "./power";
 export * from "./stairs";
 export { UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, pieceDevice, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
-export { customCalls, customScene, haScenesFor, presetCalls, roomScenes, sceneNeedsConfirm } from "./room-scenes";
+export {
+  customCalls,
+  customScene,
+  haScenesFor,
+  lampOffCalls,
+  presetCalls,
+  roomScenes,
+  sceneNeedsConfirm,
+} from "./room-scenes";
 export type { HaSceneRow, RoomSceneMenu, SceneCall, SceneHass } from "./room-scenes";
 export {
+  ALL_OFF_SHARED,
+  ALL_OFF_TITLE,
   ROOM_ROW_TAP,
+  allOffTitle,
+  deviceCentre,
   deviceInfo,
   filterToRoom,
+  formatAge,
   formatChanged,
+  relayText,
   floorSummary,
+  lampOffEntities,
   roomAreaM2,
   roomSummary,
 } from "./room-info";
 export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } from "./room-info";
 export { meanText, readingText, stateText } from "./state-text";
+export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } from "./search";
+export type { SearchEntry, SearchIndex } from "./search";
+export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";
+export type { OffGroup, OffRow } from "./floor-off";

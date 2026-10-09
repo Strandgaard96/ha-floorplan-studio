@@ -53,7 +53,7 @@ describe("liveOf", () => {
       },
       NOW,
     );
-    expect(l.rooms[0]?.readout).toBe("21.5 °C");
+    expect(l.rooms[0]?.readout).toBe("21.5\u202F°C");
     expect(l.rooms[0]?.motion).toMatchObject({ on: true, v: 1 });
     expect(l.rooms[0]?.motion?.pulseAge).toBeCloseTo(1, 1);
     expect(l.devices[f.devices.length - 1]).toBeNull();
@@ -82,14 +82,14 @@ describe("liveOf", () => {
       m = upper.devices.findIndex((d) => d.entity === "media_player.demo_office");
     expect(u.devices[m]?.playing).toBe(true);
     expect(u.devices[m]?.icon).toContain("wave");
-    expect(live({ "light.demo_living": st("unavailable") }).devices[0]?.state).toBe("off"); // a dead light reads as off
+    expect(live({ "light.demo_living": st("unavailable") }).devices[0]?.state).toBe("unavailable"); // S23.5: a dead light is unavailable, not off
     expect(live({ "climate.demo_living": st("unavailable") }).devices[heater]?.state).toBe("unavailable");
   });
   it("a sensor reads as the plan prints it, and junk as a dash", () => {
     const i = ground.devices.findIndex((d) => d.entity === "sensor.demo_living_temperature");
     expect(
       live({ "sensor.demo_living_temperature": st("20.5", { unit_of_measurement: "°C" }) }).devices[i]?.value,
-    ).toBe("20.5 °C");
+    ).toBe("20.5\u202F°C");
     expect(live({ "sensor.demo_living_temperature": st("warm") }).devices[i]?.value).toBe("–");
   });
   it("junk layouts and junk state never throw", () => {

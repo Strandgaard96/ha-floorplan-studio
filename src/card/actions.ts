@@ -16,8 +16,13 @@ export const NO_TOGGLE: ReadonlySet<string> = new Set([
   "vacuum",
   "alarm",
   "temp",
+  "humidity",
+  "motion",
+  "contact",
+  "vibration",
 ]);
 // S19.E4: `temp` is watched, never switched: the popup button follows the entity's domain, so a temp device on a climate or switch entity offered "Turn off".
+// S21.2: humidity, motion, contact and vibration are sensors with the same flaw; they join it.
 
 /** What a press on the plan can land on that is its own thing and never a room pick: a device icon, a door, an unlinked appliance, a linked furniture piece. */
 export const THINGS = "g[data-x], line[data-d], g[data-u], g[data-f][data-linked]";

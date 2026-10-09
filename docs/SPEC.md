@@ -95,7 +95,7 @@ in `prompts/`, then fixed in the editor.
   `--fp-dev-ac-heat`, orange), one knob cannot name two of them. Decided in
   S2.10; a cool and a heat knob can come later if anyone asks.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
-  `room.area` is the HA area id. A zone is a dotted subdivision inside a room
+  `room.area` is the HA area id. A zone is a dashed subdivision inside a room
   (a reading corner, a kitchen in an open living room): every edge is a
   `boundary`, may carry its own HA area. Water is a pool, pond or lake. Fill is
   drawn grey with diagonal hatching: floor area that is not a usable room.
@@ -155,10 +155,14 @@ in `prompts/`, then fixed in the editor.
 - `room.free` (optional): the user has unsnapped this room, so its corners are
   no snap, stitch or merge target and it can be rotated even where it still
   touches a neighbour.
-- `wall.kind`: wall (internal), boundary (dotted), external, fence, edge
-  (outdoor boundary such as a property line), parapet (a balcony's half wall:
-  120 cm tall, 20 cm thick as an external wall). The same six are the kinds of
-  a room edge.
+- `wall.kind`: wall (internal), boundary (no wall: the line between two rooms
+  of an open plan), external, fence, edge (outdoor boundary such as a property
+  line), parapet (a balcony's half wall: 120 cm tall, 20 cm thick as an
+  external wall). The same six are the kinds of a room edge. A boundary is a
+  1.5 cm dash (8 6) over its white twin. On a zone it is fainter: a 1 px dash
+  (4 3) at 35 %, the same width at any zoom, with no twin (S23.7). A boundary
+  edge of a garden, terrace, pavement or water draws nothing; the editor keeps
+  its faint guide (S23.7).
 - `stairs.shape`: straight (a polygon with treads drawn across it) or round (a
   spiral of outer diameter `dia` around an empty well of diameter `inner`,
   treads drawn as spokes). There is no curved shape: an angled or curved
@@ -267,22 +271,38 @@ in `prompts/`, then fixed in the editor.
 
 ## Card behaviours
 
-Every wall and edge line has a white twin under it, so a dark line stays visible on a dark floor.
-Every text on the plan (room, zone, device and extra names, values, edge lengths) is dark grey (`--fp-text`, #3a3a3a) with a white outline (`--fp-outline`), on any background.
-Every device icon sits on a white disc at 75 % alpha with a 1 px grey border,
-three units wider than the icon, and is drawn
-above everything else on the plan, room names included. A room name that would
-sit under a device moves down, or up, by 32 units; if both spots are taken it
-stays where it is. When a device is active, the icon and its halo (the disc)
+Every wall and edge line has a white twin under it (`--fp-outline`), so a dark line stays visible on a dark floor. A zone's
+dashed edge has none.
+Every text on the plan has an outline in `--fp-outline` and is never faded with opacity (S23.1). A room or zone name is
+`--fp-label`: `--fp-text` mixed 92 % into what the name sits on (the room's own paint, else its kind's colour; a zone
+takes the room under it), so it reads at 4.5:1 or better in every theme and on every surface. A theme may give outdoor
+names their own ink, `--fp-text-out` (solarized: base2), mixed the same way; every other theme group sets it to its own `--fp-text`, so a
+group nested in a solarized one keeps its own ink. Device and
+extra names and values keep `--fp-text`. Room names
+are 12k, outdoor and zone names 10k, weight 500, outdoor names in italic. The font is `--fp-font`: Home Assistant's body
+font, else system-ui. Values use tabular figures and a narrow space before the unit. On the card a name is never under
+11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom).
+Every device icon sits on a disc three units wider than the icon (the halo), and is drawn above everything else on the
+plan, room names included. A name stays in its own room (S23.3): it goes only where its whole box is inside the room and
+inside no smaller named room, clear of icons and other text. It tries the centroid (or the room's pole of
+inaccessibility), then spots up to 144 units left and right and 64 up and down, nearest first, then smaller sizes. When
+every spot is covered it goes on a tag, an `--fp-outline` plate drawn over the icons; neither plate nor name takes a click,
+so a tap there reaches the device under it. A garden, terrace, pavement or water too small for its name first tries the
+bare ground beside it that no other room covers; a leader is left only after that, for an area too small for its name at
+the floor size. On the card every name, tag and leader stays inside the plan's frame, minus the strip a column of
+controls covers (`bounds` in `RenderOpts`); the editor and the 3D overlay pass no bounds.
+When a device is active, the icon and its halo (the disc)
 take the colour of its type (S2.9): one `--fp-dev-<type>` variable per type,
-set on the device group as `--fp-dev` when it carries the `on` class and read
-by both the icon fill and the halo fill (the halo keeps its 25 % alpha). A
-switch or a humidity sensor falls back to idle grey, so those two look the
-same on and off. A contact device draws red whether it is a device icon or a
-door sensor. An unavailable device keeps its 45 % opacity styling regardless
-of the colour rule, no strikethrough — a drawn line across a device icon this
-small reads as noise, not signal, and Home Assistant's own dashboards dim an
-unavailable entity rather than strike it through. The camera cone stays at 25 % alpha,
+set on the device group as `--fp-dev` when it carries the `on` class. Since
+S23.4 the halo is a solid disc in that colour and the glyph on it wears
+`--fp-dev-ink`, the theme's ink that reads at 4.5:1 or better on it (else pure
+black or white). An off or idle device has no disc: its glyph alone, in
+`--fp-idle` at .7. A switch or a humidity sensor falls back to an idle grey
+disc when on. A contact device draws red whether it is a device icon or a
+door sensor. An unavailable or unknown device, of any type (S23.5), is its own
+mark: no disc, a dashed `--fp-warn` ring, the glyph at idle and a small slashed
+badge on the disc's edge, whatever the colour rule says. A bound light is
+unavailable only when every state it has is dead. The camera cone stays at 25 % alpha,
 its own grey. A room with an `entity` (never a room with an `area`) draws an
 outline in `--fp-active` while that entity is on, open or playing; the fill
 never moves. An earlier version tinted the fill instead, mixing 25 %
@@ -303,6 +323,15 @@ fainter, when it is on. `room_glow` (below) keeps the fill-mix mechanism: it
 is a distinct signal, light spilling into a room, and a warm tint is the
 honest metaphor there.
 
+Plan symbols (S23.7). A door or glass door is a gap cut in the wall with a 1 px leaf, square to the wall and as long as the
+opening, and no swing arc (S23.F6); the leaf stands into the indoor room, else any room, else the smaller one. A window is three
+hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a window or slit
+also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a hairline jamb, so
+the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors,
+windows and slits cut the wall; a sealed door does not and draws no symbol. Doors wear `--fp-door`, windows and slits
+`--fp-window`, glass doors `--fp-glass`, which is the window blue in every theme. A closed door's own line paints nothing;
+open, alarm and an open cover draw it and the symbol red. The symbols take no clicks; the hit line under them does. 2.5D draws the same symbols on the floor.
+
 S14.2 (interaction model): a tap on a device, a door, an unlinked appliance or an Active row never operates it. Wherever
 the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read: the tap opens a popup (name, state, one
 44 px primary button, More info). The button does the old toggle as `turn_on` / `turn_off` / `open_cover` / `close_cover` /
@@ -314,15 +343,15 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 
 | Entity domain / device type | Idle | Active | Colour | Click |
 |---|---|---|---|---|
-| light | grey icon | yellow icon and halo, brightness as opacity, plus a round aura 300 cm across (S8.13) in the same colour at 25 % alpha, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | popup (Turn on/off); long press: more-info |
+| light | grey icon | a solid yellow disc with the glyph in its ink; brightness scales the aura, not the disc (S23.4); plus a round aura 300 cm across (S8.13) in the same colour, 55 % at the lamp and falling to nothing at its edge (S23.8), clipped to the lamp's room, screen-blended on a dark theme and multiplied on a light one, drawn under walls, doors and names | `--fp-dev-light` (#e0a800) | popup (Turn on/off); long press: more-info |
 | smart light (`rgb_color`) | grey icon | icon, halo and aura in the light's own colour from HA, yellow when it reports none | the light's own `rgb_color`, or `--fp-dev-light` | popup (Turn on/off); long press: more-info |
 | light with `bound` switch | grey icon | active when the light or the switch is on; unavailable only if every known state is | as light | popup for the light entity; long press: more-info for it (the switch is reachable from that dialog — `bound` is deliberately never one of S10.4's chooser entities, see docs/DECISIONS.md) |
 | switch (wall switch) | grey | grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | popup (Turn on/off) |
 | plug | grey | blue icon and halo while it draws `plug_watts` (2 W) or more; a plug switched on but idle stays grey. With no power sensor: while the switch is on | `--fp-dev-plug` (#2c7fb8) | popup (Turn on/off) |
 | binary_sensor on a door or window, or an attached `lock` left unlocked | door drawn normally | door drawn red and dashed, over a wide red line pulsing under it (S8.13 line, S9.1 dash; steady under reduced motion), the same for an open contact or an unlocked lock (2026-09-28). A cover door's own open state is undashed and keeps its plain orange, even on a door with both | `--fp-open-door`, default `var(--fp-dev-contact)` (#d64545); card's `open_color` overrides both the door and the line (S9.1) | more-info for its one entity; a door naming more than one (a contact sensor and a vibration sensor, or either plus a `lock`) opens a chooser listing all of them instead (S10.4). Never on a door with a `cover`: a plain tap there always opens its own confirm dialog, but a long press opens the chooser instead, the cover entity included (S10.3 review) |
 | door with a `vibration` sensor triggered | door drawn normally | door drawn the same red as an open contact, over the same pulsing alert line, but solid — dashed still means "open" alone. Open and vibrating together stay dashed (open wins the dash) and share one alert line, not two (S10.3) | `--fp-open-door`, same token and `open_color` override as an open contact | more-info (on the vibration sensor; it also joins the Active panel under the door's name); as above, a chooser instead when the door names more than one entity (S10.4), the long-press chooser on a `cover` door (S10.3 review) |
-| contact (device icon) | grey | red icon, halo filled at 60 % and ringed red, and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
-| motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds (default 120) from the moment it goes off (`last_changed`); halo red at once, filled at 60 % and ringed red, with a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
+| contact (device icon) | grey | a solid red disc with a 2 px `--fp-outline` ring (S23.4), and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
+| motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds (default 120) from the moment it goes off (`last_changed`); halo a solid red disc at once with a 2 px `--fp-outline` ring (S23.4), and a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
 | temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | `--fp-dev-garden` (#3f8f4f) idle, as its type when on | more-info |
 | heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | with `trvs`/`tempSensors` attached: tap opens a chooser listing the heater plus all of them, never a guess (S10.4); long press opens more-info for the heater alone (S10.3 review). With none attached: popup; long press: more-info, unchanged |
@@ -346,7 +375,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | vacuum (`vacuum.*`) | `docked`, `idle`, `paused`: grey icon, no brighter than off | `cleaning`: teal icon and halo, slowly spinning; `returning`: teal icon and halo, not spinning; `error`: `--fp-danger` icon, neither on nor off | `--fp-dev-vacuum` (#2f8f8f) / `--fp-danger` (#b02a2a) on error | opens a dialog: Start, Pause, Return to dock, each a `vacuum.*` service call; Cancel closes it. `unavailable`/`unknown` disables the three actions, Cancel stays enabled |
 | room with `entity` | own kind colour, no outline | own kind colour, unmoved, plus an outline when the entity is on, open or playing | `--fp-active` stroke (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
 | furniture with `entity` | idle grey (`currentColor`) | `--fp-active`, chosen per theme for at least 3:1 contrast against both `--fp-room` and `--fp-bg` | `--fp-active` (#8a5117 light / #e0a800 dark) | none (S2.9 adds no click behaviour) |
-| unavailable / unknown | 45 % opacity, no strikethrough | — | — | more-info |
+| unavailable / unknown (any type, S23.5) | no disc, a dashed `--fp-warn` ring, the glyph at `--fp-idle` .7, and a small badge (a circle in `--fp-bg` with a `--fp-warn` slash) at the disc's top right; not faded | — | `--fp-warn` | more-info |
 | night (S7.6) | day: no overlay | after sunset every room (outdoor kinds too; zones, structures and stairs share their room's) is covered by `--fp-night`; a room with an on light inside it stays clear | `--fp-night` (rgba(4, 10, 30, .45), every theme) | none |
 
 S10.4: wherever the table above says "more-info" or "chooser" for a device,
@@ -491,9 +520,48 @@ than `v`'s own aspect after Re-center left `st.view` a different shape than
 keeps the card's box at least as tall and as wide as `v`). A pinned card is
 meant for one floor; `floor:` picks which one.
 
-`active_list` (S9.5, default `true`): a floating panel over the plan, open by default in the top-left, listing every active device across every floor of the layout, not only the one the plan is showing. "Active" reuses `classOf` (`src/core/render.ts`, exported for this) — the same function that colours the plan — so the list and the plan can never disagree about a device's on/off state; a `light` with `bound` counts through its switch, the same as on the plan. The one addition beyond `classOf`'s own "on": a `vacuum` is listed only while `cleaning`, narrower than `classOf`'s own on-plan colour (which also covers "returning" to the dock) — a robot heading home is winding down, not something to check. A `camera` is listed whatever its state, since a camera is a view, not an on/off thing — except an `unavailable`/`unknown` one, or any device of any type with an empty `entity`: neither has a real more-info to open, so `isActive` (Opus review finding 9) excludes them regardless of `ACTIVE_LIST_RULE`. `src/core/active.ts`'s `ACTIVE_LIST_RULE` writes down every `DeviceType`'s membership explicitly (`"on"`, `"always"`, `"cleaning"` or `"never"`), tested by iterating `DEVICE_TYPES` (CLAUDE.md finding 17), so a new type is a decision made in the open, not a silent fall-through.
+`active_list` (S9.5, default `true`): a floating panel over the plan, open by default in the top-left, listing every active device across every floor of the layout, not only the one the plan is showing (since S24.7 the floor on show by default, every floor under "All floors"; see the Overview sheet below). "Active" reuses `classOf` (`src/core/render.ts`, exported for this) — the same function that colours the plan — so the list and the plan can never disagree about a device's on/off state; a `light` with `bound` counts through its switch, the same as on the plan. The one addition beyond `classOf`'s own "on": a `vacuum` is listed only while `cleaning`, narrower than `classOf`'s own on-plan colour (which also covers "returning" to the dock) — a robot heading home is winding down, not something to check. A `camera` is never listed (S24.3, G1): a camera is a view, not something on, and ten idle cameras made the count meaningless. An `unavailable`/`unknown` device, or any device with an empty `entity`, has no real more-info to open, so `isActive` (Opus review finding 9) excludes them regardless of `ACTIVE_LIST_RULE`. `src/core/active.ts`'s `ACTIVE_LIST_RULE` writes down every `DeviceType`'s membership explicitly (`"on"`, `"cleaning"` or `"never"`), tested by iterating `DEVICE_TYPES` (CLAUDE.md finding 17), so a new type is a decision made in the open, not a silent fall-through.
 
-Rows are grouped by category (S14.6, `src/core/categories.ts`: `CATEGORY_OF` places every `DeviceType` in one of ten categories, `CATEGORIES` fixes their order: lights, climate, security, media, power, covers, computers and network, sensors, people, other; a type nobody placed falls to "other"). Each category is a header `<button aria-expanded>` that folds its rows; groups start open and the fold is kept per card (`localStorage`, try/catch, key `fp-active-cats:<hash of the same source seed>`, separate ids for the Active list and the Room panel, which is grouped the same way). Each row has that type's icon and colour — a `camera` row is the one exception, taking `--fp-ink` (the panel's own text colour) rather than `--fp-dev-camera`, since that token is tuned for the plan's own room background and read illegibly close to the panel's `--fp-room` background in the dark themes (Opus review finding 10) — and its `name ?? friendly_name ?? entity`; a click or Enter fires `hass-more-info` for that entity, the same event the plan's own tap already fires. The header shows "Active", a live count and a collapse toggle; dragging the header repositions the panel. Its position is kept as a fraction of the card's own free space and reapplied after every render and on a `ResizeObserver` of the card's host, not only while dragging (Opus review findings 3 and 4), so it can never be lost off-screen — including after the card itself is resized, or after a collapse/drag-to-bottom/expand cycle. With nothing yet stored and the card narrower than 500px, the panel starts collapsed and takes `min(200px, 45%)` of the width instead of a flat 200px (Opus review finding 5, an assumption: 500px as "phone width" is not tested against a real device, only Chromium's viewport emulation). Position and collapsed state are kept in `localStorage`, wrapped in try/catch, under a key hashed from the layout's *source* — `layout_url`, else `"inline"` for a config `layout`, else `"ws"` for the websocket fetch — plus the card's own `floor`/`floors` (Opus review finding 7: the old key hashed the layout's *content*, so two cards in websocket mode, the default install with no `layout`/`layout_url`, shared one key even when pinned to different floors, and an inline layout's own autosave changed the key on every edit). `kiosk: true` hides the panel too — a wall tablet shows only the plan.
+Rows are grouped by category (S14.6, `src/core/categories.ts`: `CATEGORY_OF` places every `DeviceType` in one of ten categories, `CATEGORIES` fixes their order: lights, climate, security, media, power, covers, computers and network, sensors, people, other; a type nobody placed falls to "other"). Each category is a header `<button aria-expanded>` that folds its rows; groups start open and the fold is kept per card (`localStorage`, try/catch, key `fp-active-cats:<hash of the same source seed>`, separate ids for the Active list and the Room panel, which is grouped the same way). Each row has that type's icon and colour — a `camera` row is the one exception, taking `--fp-ink` (the panel's own text colour) rather than `--fp-dev-camera`, since that token is tuned for the plan's own room background and read illegibly close to the panel's `--fp-room` background in the dark themes (Opus review finding 10) — and its `name ?? friendly_name ?? entity`; a click or Enter fires `hass-more-info` for that entity, the same event the plan's own tap already fires. The header shows "Active", a live count and a collapse toggle (since S24.7 a crumb and count chips); dragging the header repositions the panel. Its position is kept as a fraction of the card's own free space and reapplied after every render and on a `ResizeObserver` of the card's host, not only while dragging (Opus review findings 3 and 4), so it can never be lost off-screen — including after the card itself is resized, or after a collapse/drag-to-bottom/expand cycle. With nothing yet stored and the card narrower than 500px, the panel starts collapsed and takes `min(200px, 45%)` of the width instead of a flat 200px (Opus review finding 5, an assumption: 500px as "phone width" is not tested against a real device, only Chromium's viewport emulation). Position and collapsed state are kept in `localStorage`, wrapped in try/catch, under a key hashed from the layout's *source* — `layout_url`, else `"inline"` for a config `layout`, else `"ws"` for the websocket fetch — plus the card's own `floor`/`floors` (Opus review finding 7: the old key hashed the layout's *content*, so two cards in websocket mode, the default install with no `layout`/`layout_url`, shared one key even when pinned to different floors, and an inline layout's own autosave changed the key on every edit). `kiosk: true` hides the panel too — a wall tablet shows only the plan.
+
+**Attention (S24.3, G2 and G3).** `src/core/attention.ts` lists what is wrong in the house, before what is on. `attention(layout, state, reg?)` is pure and reads every floor; `reg` is Home Assistant's entity registry (the card passes `hass.entities`). It returns `items`, `unavailable` and `floors`. Kinds, most severe first (`ATTENTION_KINDS`):
+
+1. `alarm-triggered`: an `alarm` whose state is `triggered`.
+2. `alarm-armed`: `armed_*`, `arming` or `pending`.
+3. `open`: a `contact` that is `on`; a `cover` only while `coverActive` says so (garage, gate or door, never a blind); a door whose own contact sensor is on, or whose own garage or door cover stands open.
+4. `jammed`: a `lock`, or a door's lock, whose state is `jammed` (S24.R2): it cannot lock, a person must go.
+5. `unlocked`: a `lock`, or a door's lock, whose state is `unlocked`.
+6. `leak`: an `other` `binary_sensor` that is `on` with device class `moisture`.
+7. `smoke`: the same with `smoke`, `carbon_monoxide` or `gas`.
+8. `battery-low`: a device's own battery (S24.R1). For any placed device, and any lock or contact sensor a door carries, the first of these with a reading decides: the entity is itself a battery entity (`device_class: battery`: a `sensor` under 20 %, `BATTERY_LOW`, in % or with no unit, or a `binary_sensor` that is `on`); its `battery_level` or `battery` attribute (Zigbee2MQTT's name) is a number under 20; with neither, a battery entity of the same HA device (`reg[entity].device_id`) that HA files `entity_category: "diagnostic"` reads low, the lowest if several, unless that entity is placed as its own icon. One item per placed entity; a battery entity found for two of them is reported once. The item stays on the placed entity and carries `level` (when a number) and `source` (the battery entity, when another). The storage types, `battery`, `inverter`, `ups` and `car`, read only an attribute: their charge is a reading, not an alert. A `battery` icon whose entity HA files as `diagnostic` is a device's battery after all and reads as one. A device can raise two kinds, an unlocked lock with a low battery for one.
+9. `unavailable`: any device or door entity whose state is `unavailable`. `unknown` and a missing state are not. These go to their own list, sorted by name, for one folded row with a count.
+
+`ATTENTION_RULE` writes down each `DeviceType`'s rule (`alarm`, `open`, `unlocked`, `hazard` or `none`); a test iterates `DEVICE_TYPES`. Items sort by kind, then name. Each carries its floor, where it is (`device`, `piece` or `door` and an index), the entity, a name, its room, its type, the raw state and `last_changed`. An entity placed as its own icon is reported by the icon, not again by its door; an entity on two icons is reported once. A door's room is the first room in layout order that borders it. `floors[key]` holds `count` (the things, a device, piece or door, with at least one item: an unlocked lock with a low battery is two items and one thing; unavailable left out), `unavailable` and `alarm` (an alarm on that floor is triggered), for every floor of the layout. Junk input reports nothing and never throws.
+
+**Open and Unlocked are separate facts (S24.3, G3).** `doorStateOf` returns `contact` (a contact sensor is on) and `unlocked` (a lock is unlocked) as well as `open`. The plan still draws a door red for either (2026-09-28). The Room and floor panels' facts read "Open" (doors and windows whose contact is open) and "Unlocked" (doors with an unlocked lock). "Unlocked" shows only where a door in scope has a lock.
+
+**The Overview sheet (S24.7, G1, G2, F2, F3, A3, S22.F4).** The `active_list` panel is the Overview (`aria-label` "Overview"). Its header reads "Home › Ground" (the floor on show, or "All floors"), a collapse button, and count chips: the alerts first, in `--fp-warn`, then one chip per category with something on ("2 alerts · 6 lights · 1 plug"), or "Nothing on". Folded, the header is one line: the crumb hides and the chips end in an ellipsis, alerts still first. The body is:
+
+1. the search box, `<fp-search>` in `<div class="fp-ov-search" data-slot="search">` (S24.8);
+2. one row of tools (`.fp-ov-scopes`): "Turn off on this floor…" (S24.8, below), the Layers button (S24.8, below, not in live 3D), and an "All floors" toggle (`aria-pressed`), only on a card that can show more than one floor;
+3. the layer chips while unfolded, and the note for a kept thing, in `<div class="fp-ov-layers" data-slot="layers">`, hidden while empty;
+4. "Attention · N": `attention()` items in its order, each row with its state ("triggered", "open", "jammed", "unlocked", "battery 12 %", "battery low") and its age since `last_changed` ("12 min", `formatAge`), then "Unavailable" with a count, folded until opened;
+5. "Active · N": `activeDevices()` by category, the S14.6 folds kept, leaving out any entity already in Attention for a kind other than `battery-low` (S24.R6: a lamp on and low is in both);
+6. the hint "Tap a row: the plan goes to it."
+
+The scope is the floor on show by default; "All floors" lists every floor and badges each row with its floor. The toggle is kept with the panel's position (`all` in `fp-active-panel:`). With a room or floor picked, the lists are cut to it as before (S11.3, S20.2). A row is one `<button>` (at least 40 px under `pointer: coarse`) with the icon, the name, the room and the state; the state is the popup's own text, so a lamp lit by its relay reads "on · via" the relay. The ▸ details chevron is gone from every row, room rows too; the same details (manufacturer, model, firmware, area, entity, state, last changed) are a `<details>` "Details" in the device's popup, not in kiosk.
+
+A row tap locates its thing (`_locate`): it switches to the row's floor when the card can show it, centres the plan on the thing at 2× or closer (with `zoom: false`, at the zoom on show), rings it for 2.4 s (`.fp-pulse`, card chrome outside the svg; under reduced motion it stands still), and opens its popup beside the row. A linked piece opens more-info instead, as its tap on the plan does. In 3D the tap switches floor and opens the popup; it does not pan, and no ring shows. A card pinned to one floor with "All floors" on only opens the popup of another floor's row. A hass update keeps the scope, the folds and the popup.
+
+**Search (S24.8, F1).** ⌘K, Ctrl+K or `/` opens the search when the card owns the keys (focused, else hovered: the view keys' gate). `/` typed in a text field is a slash. The chord clears a picked room or floor, closes a popup, unfolds a folded sheet (as the fold button would) and focuses the box; with no sheet (kiosk, `active_list: false`) the page keeps the key. The entries are `layoutEntries` over the layout, built once per layout: devices and linked pieces on every floor, floors and rooms only where the card can show them. Enter on a device or piece locates it as a row tap does, the popup beside the sheet. Enter on a floor shows it. Enter on a room shows its floor and opens the room's section (no pan), focus on its close button.
+
+**Turn off on this floor… (S24.8, C2).** A button in the Overview and in the floor's panel, for the floor on show. It opens a modal checklist of what is on (`floorOffRows`): Lights (a lamp with its bound relay when on, read "with" the relay), Switches, Plugs, Media (tv, media, speaker), each a `fieldset` whose legend counts its rows ("Lights · 2"). On is any state but off, standby, unavailable and unknown. Every row starts ticked. The confirm names the count ("Turn off 4") and is disabled at 0; Cancel and Escape send nothing. The confirm sends one `turn_off` per domain over the ticked rows' entities, each once (`floorOffCalls`): `light`, `switch`, `media_player`, else `homeassistant`. With nothing on, the button is disabled with the title "Nothing is on on this floor". Focus starts on Cancel and returns to the card; Tab stays in the dialog.
+
+**Layer chips (S24.8).** The Layers button (`button.fp-layers-toggle`, `aria-expanded`) unfolds them; it starts folded, so the sheet covers no more of the plan, and counts what is hidden ("Layers · 2 hidden", else "Layers"), with the Studio's sentence as its title (`layersSummary`: "Layers: lights hidden"). One text chip per family that has something on the floor on show (`layerCounts`): the card's categories, then Furniture (`LAYERS`, the Studio's Layers). `button.fp-layer[data-layer]`, `aria-pressed` true while shown; a hidden one is dashed and struck through. A click hides or shows the family (`toggleLayer`); Alt-click shows it alone, and again shows all (`soloLayer`). The plan passes the hidden list to `renderFloor` (`hiddenLayers`): no icon, aura or piece of a hidden family. The list is the viewer's, in the view memory (`layers` in `fp-view:`, read through `parseLayers`), and holds on every floor. Live 3D draws every family and shows no chips. Search and row taps do not follow Layers: a located device or piece of a hidden family is drawn anyway (`keep`) on its floor, and the chips end in "Hidden by Layers: lights" with Show, which shows that family. Another floor or any chip change drops the kept thing.
+
+**Lights off (S24.8, C2).** The room and floor panel's "All off" reads "Lights off"; its action and aria-label ("Turn off all lights in …") are unchanged. Scenes has no preset All off; "All on" stays.
+
+Floor tabs read "Ground · 3": the floor's attention count, things not items (`attention().floors`), nothing at 0. A floor with an alarm triggered wears `--fp-warn` on its border and count. A single-floor card has no tabs.
 
 Opus review, 2026-09-27: with the same `floor`, several S9.6 cards pinned to
 different rooms still shared one storage key, so collapsing or dragging one
@@ -521,7 +589,7 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
 
 **View memory per floor (S14.4).** The card remembers, per browser, what each floor was left looking like: in 2D and 2.5D the zoom, the spot zoomed to and the turn; in 3D the camera (azimuth, polar angle, distance, look-at point). Coming back to a floor, by its chip or by a reload, restores it; a floor never touched starts at the config's look. Storage is `localStorage` only, in a `floors` list of `[floor key, view]` inside the card's `fp-view:` entry, wrapped in try/catch; with storage blocked the floors still remember for the life of the page. The 3D distance is stored as a multiple of the distance that frames the floor and the look-at point as an offset from the floor's centre, so a restore in a differently shaped card frames the same. Reset view (and Reset camera, in 3D) clears the shown floor's memory and no other floor's. Every stored number is untrusted and bounded on read. The editor already keeps its own zoom per floor and does not draw 3D; its single turn stays single (see DECISIONS, 2026-10-06 S14.4).
 
-`theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
+`theme` is blueprint unless the dashboard says otherwise. `light` is the paper-and-ink set; `midnight` is the project's first dark theme, kept under its own name once blueprint moved on to a new palette (2026-09-22). `ha` inherits the dashboard's own theme: ground from `--card-background-color`, rooms from `--secondary-background-color`, walls and text from `--primary-text-color`, measure marks from `--secondary-text-color`. Each has the plain light or midnight set as its fallback, chosen by `hass.themes.darkMode`, so a dashboard that defines none of them still draws. In HA's dark mode a 2.5D wall's side face is 30 % of the wall into the background, not the 55 % every other theme uses, so a light wall colour still makes a dark slab (Opus review of Sprint 23, S2). Warn, danger and primary (the UI chrome, not a device's own colour) never follow the theme: they and their on-dark/on-light text are the same fixed pair everywhere, because they already clear 4.5:1 against it. The card ignores the OS colour scheme.
 
 ### Role-generated themes (S4.21, 2026-09-22)
 
@@ -539,19 +607,90 @@ card. The editor is unchanged — it always passed its own zoom, never `1`.
 | `carpenter-brut` | near-black maroon | pale pink | dark crimson | hot pink |
 | `beach-house` | sand (light) | driftwood brown | sea teal | palm green |
 
-A theme's role definition may also override `roomEmpty`, the fill an unpainted room gets (below): left out, every theme
-shares the same light grey; `a-team`, `space`, `cyberpunk` and `carpenter-brut` each set their own dark shade instead, since
-that fixed light grey read as a hole punched through their own dark, saturated walls (Diego, 2026-09-28). `coffee` and
-`beach-house` keep the shared default — coffee's own base already warms the plan enough around it, and beach-house is a
-light theme like `light`/`slate`, where the shared grey was never the problem.
+Every surface follows the theme (S23.6). An unpainted room on a dark theme takes the theme's own room shade from its ramp
+(blueprint #132237, midnight and HA dark `--fp-room`, solarized #06323d); a light theme keeps the light grey #d6d6d2. A
+theme's role definition may still override `roomEmpty`. Furniture is a ramp shade too, not one flat grey. On a dark theme a
+room or stair painted its own colour is dimmed by a filter (`--fp-paint-dim`); the stored colour never changes. Garden,
+terrace and pavement take ramp shades on the generated themes. The values per theme are in docs/DECISIONS.md, 2026-10-08
+(S23.6).
 
 `solarized` is bespoke, not role-generated: the real Solarized dark palette (base03 ground through base3 linework, its eight accent hues), each device type kept in its own Solarized colour rather than collapsed to one accent — Diego's call, 2026-09-22, real Solarized fidelity over reuse.
 
 `ha` is untouched by this system: its neutrals still come from Home Assistant's CSS variables, with `midnight`'s fixed hexes as the fallback, not blueprint's new palette.
 
+## Search (both apps)
+
+One index, `src/core/search.ts` (S24.1). Entries are every floor, every named room and every device and linked piece
+(tv, speaker, computer), each with its name (the plan name, else HA's friendly name, else the entity id), entity id,
+room (`roomAt`; none for a person or a device outside every room), floor and type label. An entry carries what going
+there needs: floor key, room index, device index (furniture index for a piece). A host may add its own command entries
+(`kind: "command"`, an id and a name); they rank like the rest.
+
+Ranking: exact name or entity id, then name prefix, then every word a prefix of a word in the name, then every word in
+the name, then every word in the entity id, then every word somewhere in name, entity, room, floor or type. Ties go to
+the shorter name, then layout order. Case and accents are ignored, and ø, ß, æ, ł, đ, ð, þ, œ and ı fold to plain
+letters (S24.R10b); several words must all match; a blank query matches
+nothing. A layout of the wrong shape is skipped, never thrown on.
+
+The box is `<fp-search>` (`src/card/search-box.ts`, S24.2), one element for both apps. It takes `entries` and `limit`
+(10). An ARIA combobox: the input names the active option with `aria-activedescendant`; each option shows the name and
+"room · floor · type". Nothing shows for an empty query; "No match" when nothing matches. Up and Down move and wrap,
+the active option stays scrolled into view. Enter or a click fires `fp-pick` (bubbling, composed, the entry in
+`detail`) and clears the box. Escape clears the query; on an empty query it closes: focus returns to where it was when
+the host called `focus()` (the deepest focused element, through shadow roots), else the input blurs, and `fp-close`
+fires (S24.R3). Each host binds `isSearchChord` (`src/card/view-keys.ts`) on itself:
+Cmd-K or Ctrl-K anywhere, `/` outside a text field.
+
 ## Editor
 
-- Toolbar: floor chips, the device filter ("Filter: all (N)"), menus Add /
+- Search and Outline (S24.5). The top bar holds `<fp-search>` after the floor
+  chips ("Search or run a command ⌘K"); Cmd-K, Ctrl-K or `/` focuses it,
+  bound on the editor host. Its entries are the plan's (search index above)
+  and six commands that run the menus' own code: Fix or Unfix plan, Draw
+  room, Add device…, Zoom to fit, Undo, Save. A pick goes there: a floor
+  switches; a room or device switches floor, is selected, and is centred
+  with the zoom kept or raised to fit, never zoomed out further than fit; a
+  device or piece is ringed (renderFloor's `locate`: three pulses, a still
+  ring under reduced motion). Selecting is not an edit: no undo step. Focus
+  returns to the editor after a pick, so Delete and the arrows act on it.
+  The Outline shows where the pick is: its floor and room open, its row the
+  tree's tab stop and scrolled into view.
+- Left column, beside the canvas, never over it: tabs (Outline, Layers), collapsed to a 36 px rail by a button, open at 260 px. It starts
+  open at 1100 px wide and more. Under 900 px it stacks above the canvas.
+  The Outline: a filter field (every word, in names and entity ids; the
+  branches holding a match open) and an ARIA tree, floors › rooms ›
+  devices with device counts, "No room" last on a floor, a light with a
+  relay as "Floor lamp → Relay 3". Only open branches render. The floor on
+  show starts open. Keys follow the WAI-ARIA tree pattern (Up, Down, Home,
+  End, Right opens then enters, Left closes then goes up, Enter or Space
+  goes); the arrows stay in the tree and do not pan the plan. A click or
+  Enter on a floor, room or device goes there as a search pick does. The
+  last node, "Unplaced from HA · N", groups what Place would offer by HA
+  area; an entity opens Add > Device listing only it, its row focused, so
+  Enter places it.
+- Layers (S24.6, replaced the Filter menu): one row per family, the card's
+  categories then Furniture (`LAYERS`, `src/core/layers.ts`). Each row is a
+  button with `aria-pressed` (shown), an eye, the label and the count on the
+  floor on show; a family with none here is dimmed, still listed. A click
+  hides or shows the family; Alt-click (Option) shows only that one, and
+  again shows all. Show all clears it. A device or unlinked appliance belongs
+  to its type's family; every furniture piece, a linked tv too, to Furniture.
+  `renderFloor`'s `hiddenLayers` draws none of a hidden family, except the
+  selection (`selection`, `keep`). The hidden set is part of the remembered
+  view. When anything is hidden the toolbar shows `#layersNote` ("Layers:
+  lights hidden", "Layers: 3 of 11 hidden", "Layers: only security shown");
+  it opens the tab. Search and the Outline do not follow Layers: a hidden
+  pick is selected and drawn, and the banner says "Hidden by Layers: lights"
+  with Show. A placement (Place, Add device, Add furniture or unlinked, the
+  room menu, the catalog) that lands on a hidden family says "Placed 4
+  devices; 3 hidden by Layers" with Show. Fit ignores Layers.
+- Room-scoped lists (S24.6): the room's right-click lists what Place lists
+  (`areaMenuEntities`), each by name with the entity id in small type. A
+  sensor picker shows the HA name with the id small, never the raw id alone.
+  The area select lists an area once by id, and two areas of one name carry
+  their floor ("Stair hall - Ground") (`areaChoices`).
+- The canvas `svg` has `role="img"` and `aria-label="Floor plan, <floor>"`.
+- Toolbar: floor chips, the Layers line when something is hidden, menus Add /
   Draw / View / Edit / File, Help, Undo, Redo, the status line. View holds
   what only changes the look (snap, measure grid, lengths, names, Preview
   night, theme, Re-center, Fit to window). Edit holds what changes the plan
@@ -564,7 +703,7 @@ light theme like `light`/`slate`, where the shared grey was never the problem.
 - Draw is its own menu: room, zone, water, outline, wall of any kind, opening,
   structure line, by clicking points (double-click or Enter ends, Esc cancels).
   Walls that close, a click back on the first corner after three or more,
-  become a room (wall, external), a zone (dotted) or a garden (fence, edge)
+  become a room (wall, external), a zone (dashed) or a garden (fence, edge)
   and the walls go. It has no HA area yet, is selected, and its name field
   has focus. One undo removes it. The perimeter outline is not converted.
 - A new wall, structure, zone, stairs or piece of furniture lands top right,

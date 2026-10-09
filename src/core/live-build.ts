@@ -144,7 +144,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
           value = bad
             ? "–"
             : s.state +
-              (typeof s.attributes.unit_of_measurement === "string" ? ` ${s.attributes.unit_of_measurement}` : "");
+              (typeof s.attributes.unit_of_measurement === "string" ? `\u202F${s.attributes.unit_of_measurement}` : ""); // S23.1: as render.ts
         }
         const where = d.type === "person" ? personRoom(d, rooms, o) : -1,
           ring = where >= 0 ? ringOf(rooms[where]) : null;

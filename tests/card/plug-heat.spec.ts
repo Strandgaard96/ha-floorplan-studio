@@ -55,8 +55,9 @@ const rgb = (page: Page, css: string): Promise<number[]> =>
     x.fillRect(0, 0, 1, 1);
     return Array.from(x.getImageData(0, 0, 1, 1).data).slice(0, 3);
   }, css);
+// S23.4: an on plug is a solid disc in the heat colour; the glyph on it is ink. Read the disc.
 const plugFill = (page: Page, view: string) =>
-  (view === "3d" ? card(page).locator('css=.fp3-ic[data-i="3"] path') : card(page).locator("css=g.dev-plug path"))
+  (view === "3d" ? card(page).locator('css=.fp3-ic[data-i="3"] .halo') : card(page).locator("css=g.dev-plug .halo"))
     .first()
     .evaluate((p) => getComputedStyle(p).fill);
 /** What `--fp-dev-plug` resolves to for this plug: the colour a plug with no reading wears. */
@@ -64,7 +65,7 @@ const ownPlugColour = async (page: Page, view: string) =>
   rgb(
     page,
     await (
-      view === "3d" ? card(page).locator('css=.fp3-ic[data-i="3"] path') : card(page).locator("css=g.dev-plug path")
+      view === "3d" ? card(page).locator('css=.fp3-ic[data-i="3"] .halo') : card(page).locator("css=g.dev-plug .halo")
     )
       .first()
       .evaluate((p) => {
@@ -131,9 +132,9 @@ test("every theme: the ramp runs from a blue end to a red end on the plan's own 
   for (const theme of THEMES)
     for (const mode of ["light", "dark"]) {
       await page.setContent(
-        `<style>${FLOORPLAN_CSS}</style><svg><g data-theme="${theme}" data-mode="${mode}">${[0, 0.5, 1].map((h) => `<g class="dev dev-plug on" style="--fp-heat:${h}"><path d="M0 0h5v5z"/></g>`).join("")}</g></svg>`,
+        `<style>${FLOORPLAN_CSS}</style><svg><g data-theme="${theme}" data-mode="${mode}">${[0, 0.5, 1].map((h) => `<g class="dev dev-plug on" style="--fp-heat:${h}"><circle class="halo" r="5"/><path d="M0 0h5v5z"/></g>`).join("")}</g></svg>`,
       );
-      const fills = await page.locator("path").evaluateAll((ps) => ps.map((p) => getComputedStyle(p).fill));
+      const fills = await page.locator(".halo").evaluateAll((ps) => ps.map((p) => getComputedStyle(p).fill));
       const [cool, mid, hot] = [await rgb(page, fills[0]), await rgb(page, fills[1]), await rgb(page, fills[2])];
       expect(cool[2], `${theme} ${mode} cool`).toBeGreaterThan(cool[0]);
       expect(hot[0], `${theme} ${mode} hot`).toBeGreaterThan(hot[2]);

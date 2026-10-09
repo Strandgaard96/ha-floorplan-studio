@@ -7,6 +7,7 @@
 import {
   CylinderGeometry,
   DirectionalLight,
+  type Material,
   BufferAttribute,
   BufferGeometry,
   Color,
@@ -517,6 +518,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       clearTimeout(restoreTimer);
       restoreTimer = null;
     }
+    freeKeepers();
     resize(); // sets the size again and asks for a frame
   };
   canvas.addEventListener("webglcontextlost", onLost);
@@ -539,9 +541,24 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
     return p;
   };
+  // S22.F1: three destroys a shader program when the last material that used it is disposed, so a floor switch, which disposes
+  // every material of the old floor before the new one is drawn, compiled all its programs again: about 0.7 s a switch in the
+  // tests' software GL, a stall on a wall tablet too. The first material to give up a program is kept, unused, for the life of
+  // the view, so the program stays and the next floor or theme finds it. One per program: a handful, and no buffers or maps.
+  const keepers = new Map<object, Material>();
+  const retire = (m: Material) => {
+    const prog = (renderer.properties.get(m) as { currentProgram?: object }).currentProgram; // three's own record of the material
+    if (prog && !keepers.has(prog)) keepers.set(prog, m);
+    else m.dispose();
+  };
+  /** A restored context starts a new program cache, and the view's end ends it: the kept materials go. */
+  function freeKeepers() {
+    for (const m of keepers.values()) m.dispose();
+    keepers.clear();
+  }
   const dropMat = (m: MeshLambertMaterial) => {
     m.map?.dispose();
-    m.dispose();
+    retire(m);
   };
   const dispose = (list: Mesh[]) => {
     for (const m of list) {
@@ -655,19 +672,19 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     pieceBodies = [];
     ballIdx = [];
     ballRest = [];
-    rings.dispose();
+    rings.dispose(retire);
     roomShapes = [];
     roomSolid.clear();
     if (ring) {
       scene.remove(ring);
       ring.geometry.dispose();
-      (ring.material as LineDashedMaterial).dispose();
+      retire(ring.material as LineDashedMaterial);
       ring = null;
     }
     if (markers) {
       scene.remove(markers);
       markers.geometry.dispose();
-      (markers.material as MeshLambertMaterial).dispose();
+      retire(markers.material as MeshLambertMaterial);
       markers.dispose();
       markers = null;
     }
@@ -1040,6 +1057,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     );
     container.dataset.pools = `${pools.visible()}/${here.length}`;
     // The same lamps light the walls of their rooms: a lamp's own height is its icon's (held under the walls), else a standing lamp's.
+    // S23.8: the theme kind is the one the 2D glow blends by (`--fp-glow-blend`, ink.ts themeExtras): multiply means a light theme.
+    const light = getComputedStyle(probe).getPropertyValue("--fp-glow-blend").trim() === "multiply";
     glowSpecs = pickLights(here, centre, MAX_POOLS).map((l) => {
       const r = roomSolid.get(l.room)!;
       return {
@@ -1051,6 +1070,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         room: l.room,
         boost: mode.boost,
         scale: l.scale,
+        light,
       };
     });
     glow.set(glowSpecs, wallSides, sidesVersion, roomShapes);
@@ -1272,6 +1292,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.removeEventListener("webglcontextrestored", onRestored);
       if (restoreTimer !== null) clearTimeout(restoreTimer);
       clear(); // the ring too
+      freeKeepers();
       pools.dispose();
       glow.dispose();
       rasters.dispose();
@@ -1351,6 +1372,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       },
       /** three's own count of what the graphics card holds: 21 floor switches must leave it where 2 did. */
       memory: () => ({ geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures }),
+      /** The ids of the shader programs alive now. three numbers each program it compiles, so a switch that compiled again shows new ids (S22.F1). */
+      programs: () => (renderer.info.programs ?? []).map((p) => p.id).sort((a, b) => a - b),
       /** The meshes that wear a floor texture: what the tile is, whether its map has arrived, and the UVs of the first three vertices (with the plan position they belong to). */
       textured() {
         return texMeshes.map(({ mesh, mat, tile }) => {

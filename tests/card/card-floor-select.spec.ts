@@ -11,8 +11,8 @@ const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
-// Ground: Living (room 0) gets two more lamps, one off and one on; Kitchen's lamp is on. The Living lamp is bound to a switch (the
-// card still acts on the light entity), and the TV plug (a switch) is on in the Living room: neither may appear in the call.
+// Ground: Living (room 0) gets two more lamps, one off and one on; Kitchen's lamp is on. The Living lamp is bound to a relay that is
+// on: S22.1 adds it to All off as one switch.turn_off. The TV plug (a switch) is on in the Living room and is never in the call.
 const layout = structuredClone(demo);
 const lamp = (id: string, x: number, y: number) => ({ id, type: "light", entity: `light.${id}`, name: id, x, y });
 layout.floors.ground.devices.push(lamp("demo_living2", 100, 100), lamp("demo_living3", 150, 300));
@@ -113,7 +113,7 @@ const factOf = (page: Page, label: string) =>
     .locator("dd");
 
 test.describe("S20.1 All off in the room panel", () => {
-  test("one light.turn_off with only the lights that are on; not the lamp that is off, the switch-bound relay or the plug", async ({
+  test("one light.turn_off with the lights that are on and one switch.turn_off on the bound relay that is on; not the lamp that is off or the plug", async ({
     page,
   }) => {
     await boot(page);
@@ -122,6 +122,7 @@ test.describe("S20.1 All off in the room panel", () => {
     await allOff(page).click();
     expect(await calls(page)).toEqual([
       ["light", "turn_off", { entity_id: ["light.demo_living", "light.demo_living3"] }],
+      ["switch", "turn_off", { entity_id: ["switch.demo_living_relay"] }],
     ]);
   });
 
@@ -159,16 +160,15 @@ test.describe("S20.1 All off in the room panel", () => {
     expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_kitchen"] }]]);
   });
 
-  test("a lamp lit only by its bound relay is not a target: its light entity is off, so there is no button for it and no call names it", async ({
+  test("a lamp lit only by its bound relay is a target (S22.1, supersedes S20.1): the button shows and the call names the relay, not the light", async ({
     page,
   }) => {
     await boot(page, 1280, { ...STATES(), "light.demo_living": st("off"), "light.demo_living3": st("off") }); // relay still on
     await click(page, await floorPoint(page, 0));
-    await expect(factOf(page, "Lights on")).toHaveText("Living light"); // the plan still draws it on
-    await expect(allOff(page)).toHaveCount(0);
-    await setStates(page, { ...STATES(), "light.demo_living": st("off") }); // a second lamp is really on: the call names that one only
+    await expect(factOf(page, "Lights on")).toHaveText("Living light"); // the plan draws it on
+    await expect(allOff(page)).toHaveCount(1);
     await allOff(page).click();
-    expect(await calls(page)).toEqual([["light", "turn_off", { entity_id: ["light.demo_living3"] }]]);
+    expect(await calls(page)).toEqual([["switch", "turn_off", { entity_id: ["switch.demo_living_relay"] }]]);
   });
 
   test("read-only Home Assistant (no callService) does not throw", async ({ page }) => {
@@ -214,6 +214,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await allOff(page).click();
     expect(await calls(page)).toEqual([
       ["light", "turn_off", { entity_id: ["light.demo_living", "light.demo_kitchen", "light.demo_living3"] }],
+      ["switch", "turn_off", { entity_id: ["switch.demo_living_relay"] }],
     ]);
   });
 
@@ -262,11 +263,14 @@ test.describe("S20.2 selecting a floor from its pill", () => {
   test("the selection survives a hass update and follows the state", async ({ page }) => {
     await boot(page);
     await pill(page, "Ground").click();
-    await card(page).locator("css=.fp-room-devices .fp-info-btn").first().click(); // an open details block must survive too
+    // S24.7: a row's details live in its popup now (the ▸ chevron went); an open popup with its Details open must survive too
+    await card(page).locator("css=.fp-room-devices .fp-active-row").first().click();
+    await card(page).locator("css=.fp-pop .fp-pop-info > summary").click();
+    await expect(card(page).locator("css=.fp-pop .fp-pop-info[open]")).toHaveCount(1);
     await setStates(page, { ...STATES(), "light.demo_kitchen": st("off") });
     await expect(pill(page, "Ground")).toHaveClass(/fp-floor-picked/);
     await expect(factOf(page, "Lights on")).toHaveText("Living light, demo_living3");
-    await expect(card(page).locator("css=.fp-room-devices .fp-info")).toHaveCount(1);
+    await expect(card(page).locator("css=.fp-pop .fp-pop-info[open]")).toHaveCount(1);
   });
 
   test("setConfig clears it", async ({ page }) => {
@@ -316,9 +320,8 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await expect(pill(page, "Ground")).toHaveClass(/fp-floor-picked/);
   });
 
-  test("the two All off buttons have names that tell them apart, and the name is text, not markup", async ({
-    page,
-  }) => {
+  // S24.8 (C2): the room's button reads "Lights off" (what it does); its name still says which room, as text, not markup.
+  test("the Lights off button names its room, and the name is text, not markup", async ({ page }) => {
     const bad = structuredClone(layout);
     bad.floors.ground.rooms[0].name = '"><b>x</b>';
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -336,12 +339,8 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     );
     await click(page, await floorPoint(page, 0));
     await card(page).locator("css=button.fp-scenes-head").click(); // the Scenes section starts folded
-    const names = await card(page)
-      .locator("css=button", { hasText: /^All off$/ })
-      .evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") ?? b.textContent!.trim()));
-    expect(names).toHaveLength(2);
-    expect(new Set(names).size).toBe(2);
-    await expect(allOff(page)).toHaveText("All off");
+    await expect(card(page).locator("css=button", { hasText: /^All off$/ })).toHaveCount(0);
+    await expect(allOff(page)).toHaveText("Lights off");
     await expect(allOff(page)).toHaveAttribute("aria-label", 'Turn off all lights in "><b>x</b>');
     await pill(page, "Ground").click();
     await expect(allOff(page)).toHaveAttribute("aria-label", "Turn off all lights in Ground");

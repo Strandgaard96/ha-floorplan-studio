@@ -109,7 +109,7 @@ test("S7.11: the card never draws a floor's trace image, even one that is on", a
   expect(counts.images).toBe(0);
 });
 
-test("S2.2 review: a lit light's rgb_color resolves through the cascade to the icon's actual computed fill", async ({
+test("S2.2 review: a lit light's rgb_color resolves through the cascade to the disc's actual computed fill (S23.4: the disc wears it)", async ({
   page,
 }) => {
   await open(page);
@@ -128,8 +128,7 @@ test("S2.2 review: a lit light's rgb_color resolves through the cascade to the i
   );
   const fill = await page.locator("floorplan-studio-card").evaluate((el) => {
     const g = el.shadowRoot!.querySelector('g[data-x="1"]')!;
-    const path = g.querySelector("path")!;
-    return getComputedStyle(path).fill;
+    return getComputedStyle(g.querySelector(".halo")!).fill;
   });
   expect(fill).toBe("rgb(255, 0, 0)");
 });
@@ -145,8 +144,7 @@ test("S2.2 review: with no rgb_color the icon's computed fill falls back to --fp
   );
   const fill = await page.locator("floorplan-studio-card").evaluate((el) => {
     const g = el.shadowRoot!.querySelector('g[data-x="1"]')!;
-    const path = g.querySelector("path")!;
-    return getComputedStyle(path).fill;
+    return getComputedStyle(g.querySelector(".halo")!).fill;
   });
   expect(fill).not.toBe("rgb(255, 0, 0)");
 });
@@ -175,7 +173,7 @@ test("S2.5 CSS pair: the heater bar's stroke is idle grey off and the heater col
       },
     },
   );
-  expect(await heaterStroke()).toBe("rgb(43, 86, 151)"); // blueprint's --fp-idle, #2b5697
+  expect(await heaterStroke()).toBe("rgb(136, 143, 153)"); // blueprint's --fp-idle, #888f99 since S23.4 (V11: a desaturated idle; was #2b5697)
 
   await configure(
     page,
@@ -551,12 +549,12 @@ test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating,
       { layout, theme: "light" },
       { states: { "climate.demo_ac": { state, attributes, last_changed: new Date().toISOString() } } },
     );
-    return page
-      .locator("floorplan-studio-card")
-      .evaluate(
-        (el, i) => getComputedStyle(el.shadowRoot!.querySelector(`g[data-x="${i}"] path:not(.cone)`)!).fill,
-        idx,
-      );
+    // S23.4: on, the disc wears the colour; off, there is no disc and the glyph is idle. Read the disc when it shows.
+    return page.locator("floorplan-studio-card").evaluate((el, i) => {
+      const g = el.shadowRoot!.querySelector(`g[data-x="${i}"]`)!,
+        h = getComputedStyle(g.querySelector(".halo")!);
+      return parseFloat(h.fillOpacity) > 0 ? h.fill : getComputedStyle(g.querySelector("path:not(.cone)")!).fill;
+    }, idx);
   };
   expect(await fillFor("cool", { hvac_action: "cooling" })).toBe("rgb(44, 127, 184)");
   expect(await fillFor("heat", { hvac_action: "heating" })).toBe("rgb(232, 128, 26)");
@@ -565,8 +563,8 @@ test("S2.10 CSS pair: an air conditioner's icon is blue cooling, orange heating,
   expect(await fillFor("off", { hvac_action: "cooling" })).toBe(idle);
 });
 
-// S2.13: the four monitored types draw their own icon in the idle grey on the round disc, whatever the entity says.
-test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in idle grey on the disc", async ({
+// S2.13: the four monitored types wear the idle grey whatever the entity says. S23.4: "on", that grey is the solid disc.
+test("S2.13 CSS pair: battery, inverter, server and access point draw an icon on an idle grey disc", async ({
   page,
 }) => {
   await open(page);
@@ -594,7 +592,7 @@ test("S2.13 CSS pair: battery, inverter, server and access point draw an icon in
           const g = el.shadowRoot!.querySelector(`g[data-x="${(f as number) + k}"]`)!;
           return {
             d: g.querySelector("path")!.getAttribute("d")!.length,
-            fill: getComputedStyle(g.querySelector("path")!).fill,
+            fill: getComputedStyle(g.querySelector("circle.halo")!).fill,
             halo: !!g.querySelector("circle.halo"),
           };
         }),
@@ -1104,7 +1102,8 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
 
     await expect(card(page).locator("css=.fp-active")).toHaveCount(1);
-    await expect(card(page).locator("css=.fp-active-row")).not.toHaveCount(0);
+    // S24.3: nothing in states() is on now that the camera is no longer listed; the panel says so instead of a row.
+    await expect(card(page).locator("css=.fp-active-empty")).toHaveText("Nothing on");
   });
 
   test("the icon scale matches the whole-floor card at the same zoom: S9.2's scale still reads fit, not the pin", async ({
@@ -1273,11 +1272,14 @@ test.describe("S7.4 touch", () => {
   });
 
   /** Two fingers through CDP (Playwright's touchscreen has only tap). One session for the whole gesture: CDP keeps
-   * the touch state per session. */
+   * the touch state per session. `timestamp` (seconds) replaces the dispatch time, which load makes noise. */
   async function toucher(page: Page) {
     const cdp = await page.context().newCDPSession(page);
-    return (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: { x: number; y: number; id: number }[]) =>
-      cdp.send("Input.dispatchTouchEvent", { type, touchPoints });
+    return (
+      type: "touchStart" | "touchMove" | "touchEnd",
+      touchPoints: { x: number; y: number; id: number }[],
+      timestamp?: number,
+    ) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints, ...(timestamp === undefined ? {} : { timestamp }) });
   }
 
   test("a two-finger pinch inside the plan zooms in", async ({ page }) => {
@@ -1320,13 +1322,26 @@ test.describe("S7.4 touch", () => {
     const x = b.x + b.width / 2,
       y0 = b.y + b.height - 40;
     const touch = await toucher(page);
+    // S24.F1: the swipe carries its own clock, 16 ms a step, and the finger rests 100 ms before it lifts. Stamped with
+    // dispatch times, it ended in a fling whose speed was whatever the machine's load made it: the page went on
+    // scrolling after the reset below (its tail, or Playwright scrolling Zoom in back into view, left the page at
+    // 1 px before the second swipe began), or flung back to 0. A finger at rest has no speed, so there is no fling,
+    // and `scrollend` marks the end of the page's scroll.
     const swipeUp = async () => {
-      await touch("touchStart", [{ x, y: y0, id: 1 }]);
-      for (let s = 1; s <= 8; s++) await touch("touchMove", [{ x, y: y0 - s * 30, id: 1 }]);
-      await touch("touchEnd", []);
+      const t0 = Date.now() / 1000;
+      await touch("touchStart", [{ x, y: y0, id: 1 }], t0);
+      for (let s = 1; s <= 8; s++) await touch("touchMove", [{ x, y: y0 - s * 30, id: 1 }], t0 + s * 0.016);
+      await touch("touchEnd", [], t0 + 8 * 0.016 + 0.1);
     };
+    type Ended = { __scrollEnded: Promise<void> };
+    await page.evaluate(() => {
+      (window as unknown as Ended).__scrollEnded = new Promise((r) =>
+        addEventListener("scrollend", () => r(), { once: true }),
+      );
+    });
     await swipeUp();
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
+    await page.evaluate(() => (window as unknown as Ended).__scrollEnded);
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(50);
     expect(await viewBox(page)).toEqual(fit);
     expect(await page.evaluate(() => (window as unknown as { __calls: unknown[] }).__calls)).toEqual([]);
 
@@ -1335,12 +1350,10 @@ test.describe("S7.4 touch", () => {
     await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').tap();
     const z = await viewBox(page);
     expect(z.w).toBeLessThan(fit.w);
-    // S8.2 review: the two taps just added `touch-action: none` to the svg (`.fp-zoomed`); Chromium applies
-    // touch-action on the compositor thread, a frame or two after the main-thread style/class change, so a touch
-    // that starts in the same tick can occasionally scroll the page by a stray pixel before it takes effect. Two
-    // rendered frames is the standard wait for a style change to have actually been committed and painted; it is
-    // not a blind sleep, and its absence was a real, reproducible (about 1 swipe in 10) race, not test flakiness.
-    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    // Nothing has moved the page since the reset, so the last line measures only the swipe below. S8.2 waited two
+    // frames here for `fp-zoomed` to reach the compositor; that was the same fling misread. 400 swipes under load
+    // with no frame wait never scrolled the page (S24.F1).
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
     await swipeUp();
     await expect.poll(async () => (await viewBox(page)).y).toBeGreaterThan(z.y);
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
@@ -1936,7 +1949,7 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
     html2 = await svgHtml(page, "card2");
   const ids1 = maskIdsIn(html1),
     ids2 = maskIdsIn(html2);
-  expect(ids1, "the first floor's one opening should produce exactly one mask").toHaveLength(1);
+  expect(ids1, "the first floor's opening and window share exactly one mask").toHaveLength(1);
   expect(ids2).toEqual(ids1); // same content -> same deterministic id, in each card's own scope
   expect(html1).toContain(`mask="url(#${ids1[0]})"`);
   expect(html2).toContain(`mask="url(#${ids2[0]})"`);
@@ -1944,10 +1957,12 @@ test("S8.11: two cards showing the same floor mint the same (content-derived) ma
   // Mutate only card2 (a different opening: different content -> a different id, or none at all here) and
   // confirm card1's own svg — id, mask content, everything — is untouched by whatever card2 now does.
   const layout2 = structuredClone(demo);
+  // S23.7: a window cuts the wall too, so card2 drops the window as well as the opening
   layout2.floors.first.openings = [];
+  layout2.floors.first.doors = [];
   await configureId(page, "card2", { layout: layout2, floor: "first" }, { states: {} });
   const html2b = await svgHtml(page, "card2");
-  expect(maskIdsIn(html2b), "card2 now has no openings, so no mask at all").toHaveLength(0);
+  expect(maskIdsIn(html2b), "card2 now has no openings or windows, so no mask at all").toHaveLength(0);
   const html1b = await svgHtml(page, "card");
   expect(html1b).toBe(html1); // card1 rendered nothing new: still the same markup, same mask, same id
 });
@@ -2303,13 +2318,24 @@ test.describe("S9.5: the active-devices panel", () => {
 
   test("a real click on a panel row fires hass-more-info with that row's own entity", async ({ page }) => {
     await open(page);
-    await configureRecordingMoreInfo(page, { layout: structuredClone(demo) }, { states: states() });
-    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
+    // S24.3: the Hall camera row this test used is no longer listed. The hall motion sensor stands in: one entity, no
+    // operation (the living light names a relay too, so its More info opens a chooser instead).
+    await configureRecordingMoreInfo(
+      page,
+      { layout: structuredClone(demo) },
+      {
+        states: {
+          ...states(),
+          "binary_sensor.demo_hall_motion": { state: "on", attributes: {}, last_changed: new Date().toISOString() },
+        },
+      },
+    );
+    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall motion" });
     const box = (await row.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     expect(await moreInfo(page)).toEqual([]); // a tap opens the popup first
     await page.locator("floorplan-studio-card").locator("css=.fp-pop-more").click();
-    expect(await moreInfo(page)).toEqual([{ entityId: "camera.demo_hall" }]);
+    expect(await moreInfo(page)).toEqual([{ entityId: "binary_sensor.demo_hall_motion" }]);
   });
 
   // Opus review CSS pair (CLAUDE.md finding 10): the camera row's icon used to take `--fp-dev-camera`, which
@@ -2319,14 +2345,30 @@ test.describe("S9.5: the active-devices panel", () => {
   // reads by (`.fp-active{color:var(--fp-ink)}`), which is picked precisely so it is never the same shade as the
   // background it sits on. Reading the resolved `fill`, not just asserting the source string, is what makes this
   // a real Chromium check and not a text match blind to which rule actually won (CLAUDE.md finding 10 itself).
-  test("S9.5 CSS pair: a camera row's icon resolves to --fp-ink (legible on --fp-room), not --fp-dev-camera", async ({
-    page,
-  }) => {
-    await open(page);
-    await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" });
-    const fill = await row.locator("css=svg").evaluate((el) => getComputedStyle(el).fill);
-    expect(fill).toBe(DARK_INK); // blueprint's --fp-ink/--fp-text, #eef3fb — not --fp-dev-camera's idle navy
+  // S24.3 (G1): that camera row is gone. A camera is never on the Active list, so the pair above has no row to read; the
+  // colour rule itself is still unit-tested (`colorVarFor`, active.test.ts). This checks the row stays gone in a real card.
+  test("S24.3: a camera has no Active row, whatever its state", async ({ page }) => {
+    for (const s of ["idle", "streaming", "recording"]) {
+      await open(page);
+      await configure(
+        page,
+        { layout: structuredClone(demo) },
+        {
+          states: {
+            ...states(),
+            "camera.demo_hall": { state: s, attributes: {}, last_changed: new Date().toISOString() },
+          },
+        },
+      );
+      await expect(
+        page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Living light" }),
+        s,
+      ).toHaveCount(1);
+      await expect(
+        page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall camera" }),
+        s,
+      ).toHaveCount(0);
+    }
   });
 
   // S10.3: the demo's front door (doors[0]) carries a contact sensor (binary_sensor.demo_front_door) that is not
@@ -3472,9 +3514,9 @@ test("CSS pair: an open garage cover is drawn in the cover colour, an open curta
     page.locator("floorplan-studio-card").evaluate((el, i) => {
       const g = el.shadowRoot!.querySelector(`svg g[data-x="${i}"]`)!;
       return {
-        fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill,
+        fill: getComputedStyle(g.querySelector(".halo")!).fill,
         cover: getComputedStyle(g).getPropertyValue("--fp-dev-cover").trim(),
-      };
+      }; // S23.4: the disc wears it
     }, idx);
   const rgbOf = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
   const now = new Date().toISOString();
