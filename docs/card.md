@@ -766,7 +766,7 @@ lights, so every room is dark there.
 
 `view: 3d`, or **3D** in the View dropdown, draws the floor as a model: walls with
 their real thickness and height, floors, doors and windows (glass is see-through),
-stairs, furniture, and the radiator, speaker and TV bodies. Colours come from the
+stairs, furniture (a sofa, table, bed, chair, sink, toilet, bathtub or car as a few boxes: seat, back and arms, top and legs; anything else one block), and the radiator, speaker and TV bodies. Colours come from the
 theme (the same `--fp-*` variables as 2D), and a room, wall or furniture piece
 with its own colour keeps it. There are no textures and no shadows.
 

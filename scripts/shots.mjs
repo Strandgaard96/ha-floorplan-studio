@@ -411,6 +411,35 @@ Object.assign(
   { texture: "wood-dark" },
 );
 
+// Furniture parts in 3D, on a clone: one piece of every symbol that has parts, in free floor (the Hall, the north-east
+// Kitchen corner and the Living top left), a second sofa with height 120 to show the scaling, and the 450 cm car just
+// south of the ground outline because no free floor inside fits it.
+const furnLayout = structuredClone(layout);
+// Default sizes, copied from FURNITURE in src/core/icons.ts (a .mjs script cannot import the TypeScript).
+const FSZ = {
+  table: [160, 90],
+  sofa: [200, 90],
+  bed: [160, 200],
+  chair: [45, 45],
+  sink: [60, 45],
+  toilet: [40, 65],
+  bathtub: [170, 75],
+  car: [450, 180],
+};
+furnLayout.floors.ground.furniture.push(
+  ...[
+    ["table", 90, 500, 0],
+    ["sofa", 290, 500, 30],
+    ["bed", 500, 500, 0],
+    ["chair", 640, 470, 0],
+    ["sink", 700, 440, 0],
+    ["toilet", 765, 460, 0],
+    ["bathtub", 110, 55, 0],
+    ["car", 300, 720, 0],
+  ].map(([symbol, x, y, rot]) => ({ id: `furn-${symbol}`, symbol, x, y, rot, w: FSZ[symbol][0], h: FSZ[symbol][1] })),
+  { id: "furn-sofa-tall", symbol: "sofa", x: 650, y: 345, rot: 0, w: 200, h: 90, height: 120 },
+);
+
 const shots = [];
 const errors = [];
 mkdirSync("shots", { recursive: true });
@@ -896,6 +925,15 @@ try {
     shots3d.push({ name: `card-ground-popup-${t.id}-3d`, floor: "ground", t, orbit: false, tap: 0 });
     shots3d.push({ name: `card-ground-tooltip-${t.id}-3d`, floor: "ground", t, orbit: false, hover: 0 });
   }
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light"))
+    for (const orbit of [false, true])
+      shots3d.push({
+        name: `card-ground-furniture-${t.id}-3d${orbit ? "-orbit" : ""}`,
+        floor: "ground",
+        t,
+        orbit,
+        furn: true,
+      });
   for (const s of shots3d) {
     const ctx = await browser.newContext({
       viewport: { width: 900, height: 700 },
@@ -931,7 +969,15 @@ try {
       },
       [
         {
-          layout: s.tex ? texLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout,
+          layout: s.furn
+            ? furnLayout
+            : s.tex
+              ? texLayout
+              : s.rooms
+                ? roomLayout
+                : s.floor === "ground"
+                  ? monLayout
+                  : layout,
           floor: s.floor,
           theme: s.t.theme,
           view: "3d",

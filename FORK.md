@@ -15,6 +15,10 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-09: Furniture parts in 3D (branch `task/furniture-parts`)
+
+- 3D view draws table, sofa, bed, chair, sink, toilet, bathtub and car as a few boxes each instead of one block (`src/core/furniture-parts.ts`, `src/core/scene-build.ts`). 2.5D unchanged.
+
 ## 2026-10-08: Modern dev workflow (branch `task/dev-workflow`)
 
 **Safety**
