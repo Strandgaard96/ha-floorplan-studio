@@ -340,6 +340,16 @@ test.describe("3D view: devices", () => {
     await boot(page);
     const ball = async (i: number) => (await live(page)).balls.find((b) => b.index === i)!;
     const off = (await ball(0)).colour;
+    // Ui review: an off ball is the disc colour, not the glyph's idle grey, or the grey glyph drawn on it vanishes.
+    const disc = await page.locator("floorplan-studio-card").evaluate((el) => {
+      const p = document.createElement("i");
+      p.style.color = "var(--fp-disc)";
+      el.shadowRoot!.appendChild(p);
+      const m = getComputedStyle(p).color.match(/\d+/g)!.slice(0, 3).map(Number);
+      p.remove();
+      return "#" + m.map((n) => n.toString(16).padStart(2, "0")).join("");
+    });
+    expect(off).toBe(disc);
     await setStates(page, {
       ...QUIET(),
       "light.demo_living": st("on", {}, iso(5)),

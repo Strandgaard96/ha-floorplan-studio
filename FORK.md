@@ -30,7 +30,7 @@ git diff upstream/main --stat           # files we changed
 - A light popup with a brightness slider says "on" above it, not the same "50 %" twice.
 - Pill chips and floor-off buttons are 40 px tall under a coarse pointer.
 - An entity with no name or `friendly_name` is listed as its id in words ("Demo living temp2"), not `sensor.demo_living_temp2`.
-- The Overview header spells out alerts plus three categories, then "+N more"; an empty list drops its "Active · 0" heading.
+- The Overview header spells out the first four chips (alerts first), then "+N more"; an empty list drops its "Active · 0" heading.
 
 ## 2026-10-09: Furniture parts in 3D (branch `task/furniture-parts`)
 

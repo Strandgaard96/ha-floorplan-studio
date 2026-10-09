@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Card: below 480 px the view, walls, theme, labels and names controls fold behind one View options button, so they no longer cover the plan. Escape closes it and gives focus back to the button.
+- Card: on a narrow card the popup spans the card. Its sliders always keep one whole slider in view, and on a very short card the popup scrolls instead of spilling past its edge. Details has a disclosure triangle.
+- Card: a light's popup says "on" above its brightness slider instead of "50 %" twice. A turn off's second press reads "Yes, turn off" in the danger colour.
+- Card: a toolbar toggle that is on has a ring in the primary colour; one that is off is no longer dimmed like a disabled button.
+- Card: an entity with no name or `friendly_name` is listed as its id in words ("Demo living temp2"), not `sensor.demo_living_temp2`.
+- Card: the Overview header shows the first four chips, then "+N more"; the full list is in its tooltip. A room with nothing on drops the "Active · 0" heading.
+- Card: chips and floor-off buttons are 40 px tall on a touch screen.
+- Card: in 3D an off device's ball is the disc colour, so its grey icon no longer disappears into a grey ball.
+- Studio: the Fix plan switch shows a lock icon instead of an emoji; the floor panel's help is one line.
+
 ## 0.22.1 - 2026-10-09
 
 - Card and studio: doors lose their swing arc. A door is the gap in the wall and its thin leaf into the room.
