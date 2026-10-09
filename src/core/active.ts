@@ -3,6 +3,7 @@ import type { Device, DeviceType, Door, Floor, Layout, Pt } from "./schema";
 import { acMode, classOf, ROOM_OWNS, roomAt, type RenderOpts, type StateOverlay } from "./render";
 import { onEdge } from "./geometry";
 import { pieceDevice } from "./solids";
+import { entityLabel } from "./fmt";
 
 /**
  * S9.5: one row the card's floating active-devices panel can show. `floor` is the layout's own floor key (not the
@@ -169,12 +170,12 @@ function isActive(d: Device, state: StateOverlay | undefined, opts: ActiveOpts):
   return classOf(d, { scale: 1, state, ...opts }) === "on";
 }
 
-/** A device's name for the list: its own plan name, else HA's `friendly_name`, else its entity id — the same
+/** A device's name for the list: its own plan name, else HA's `friendly_name`, else its entity id as words — the same
  *  fallback order the task asked for, and the only one that can never come up empty. Untrusted state: anything
  *  that is not text is skipped. */
 export function nameFor(d: Device, state: StateOverlay | undefined): string {
   const friendly = state?.[d.entity]?.attributes?.friendly_name;
-  return d.name ?? (typeof friendly === "string" && friendly ? friendly : d.entity);
+  return d.name ?? (typeof friendly === "string" && friendly ? friendly : entityLabel(d.entity));
 }
 
 /** S10.3: a contact or vibration sensor attached to a door (not placed as its own device icon) still belongs on

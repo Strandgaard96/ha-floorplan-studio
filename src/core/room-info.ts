@@ -6,6 +6,7 @@ import { doorStateOf } from "./door-state";
 import { entitiesOfDevice, entitiesOfDoor } from "./attachments";
 import { colorVarFor, nameFor, type ActiveOpts } from "./active";
 import { meanReading, stateOf } from "./readings";
+import { entityLabel } from "./fmt";
 
 export { meanReading };
 
@@ -303,7 +304,7 @@ function summarise(
       const friendly = stateOf(state, e)?.attributes?.friendly_name;
       sensors.push({
         entity: e,
-        name: typeof friendly === "string" && friendly ? friendly : e,
+        name: typeof friendly === "string" && friendly ? friendly : entityLabel(e),
         kind,
         state: stateText(state, e),
       });

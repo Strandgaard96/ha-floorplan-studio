@@ -112,7 +112,7 @@ test.describe("2D popup", () => {
     await expect(pop(page)).toBeVisible();
     await expect(pop(page)).toHaveAttribute("role", "dialog");
     await expect(pop(page)).toHaveAttribute("aria-label", "Living light");
-    await expect(pop(page).locator("css=.fp-pop-state")).toHaveText("50 %");
+    await expect(pop(page).locator("css=.fp-pop-state")).toHaveText("on"); // the brightness slider carries the 50 %
     const b = pop(page).locator("css=.fp-pop-do");
     await expect(b).toHaveText("Turn off");
     expect((await b.boundingBox())!.height).toBeGreaterThanOrEqual(44);

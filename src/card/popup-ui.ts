@@ -50,7 +50,10 @@ export const POPUP_CSS = css`
   /* S14.2: the tap popup and the hover tooltip are card chrome like the dialogs, outside the plan. The popup's buttons are 44 px tall, a touch target. */
   .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(240px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; padding: 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
   /* The sliders scroll inside the card-high cap; the name, the state and the buttons stay put. */
-  .fp-pop-sliders { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; flex: 0 1 auto; }
+  .fp-pop.fp-pop-wide { width: calc(100% - 8px); }
+  /* The sliders scroll so the button stays in view, but never below one whole slider (label + 44 px track): on a
+     250 px card they were squeezed to the label alone and the track vanished. */
+  .fp-pop-sliders { display: flex; flex-direction: column; gap: 8px; min-height: 62px; overflow-y: auto; flex: 0 1 auto; }
   .fp-pop > * { flex-shrink: 0; }
   .fp-pop > .fp-pop-sliders { flex-shrink: 1; }
   .fp-pop-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
@@ -67,7 +70,11 @@ export const POPUP_CSS = css`
   .fp-pop input.fp-pop-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
   .fp-pop input.fp-pop-hue::-moz-range-thumb { width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
   /* S24.7: the details the row chevron used to open, folded under the buttons. */
-  .fp-pop-info summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; font-size: 12px; opacity: 0.8; }
+  .fp-pop-info summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.8; list-style: none; }
+  .fp-pop-info summary::-webkit-details-marker { display: none; }
+  /* display:flex drops the native marker, so the disclosure triangle is drawn here. */
+  .fp-pop-info summary::before { content: ""; border: 5px solid transparent; border-left-color: currentColor; border-right-width: 0; transition: transform 0.15s; }
+  .fp-pop-info[open] summary::before { transform: rotate(90deg); }
   .fp-pop-info dl { margin: 4px 0 0; font-size: 11px; line-height: 1.4; }
   .fp-pop-info dl > div { display: flex; gap: 6px; }
   .fp-pop-info dt { flex: 0 0 84px; opacity: 0.8; }

@@ -342,10 +342,18 @@ test.describe("toolbar", () => {
     }
   });
 
-  test("a wrapped toolbar on a narrow card does not cover the Active list's fold button", async ({ page }) => {
+  test("a narrow card folds the look controls behind View options; opened, they wrap and do not cover the Active list's fold button", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
+    const toggle = card(page).locator('css=.fp-zoom button[aria-label="View options"]');
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(card(page).locator('css=.fp-zoom select[aria-label="Theme"]')).toHaveCount(0);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await expect(card(page).locator('css=.fp-zoom select[aria-label="Theme"]')).toHaveCount(1);
     const r = await card(page).evaluate((el) => {
       const bar = el.shadowRoot!.querySelector(".fp-zoom")!.getBoundingClientRect();
       const head = el.shadowRoot!.querySelector(".fp-active-collapse")!.getBoundingClientRect();

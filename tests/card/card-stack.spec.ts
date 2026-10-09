@@ -97,8 +97,11 @@ for (const width of [1280, 375]) {
       expect(g.chipsMeet).toBe(false);
       // The toolbar keeps the look controls only.
       for (const l of STACK) expect(g.toolbarButtons).not.toContain(l);
-      for (const l of ["View", "Tilt", "Walls", "Theme", "Labels", "Device names"])
-        expect(g.toolbarButtons).toContain(l);
+      // Wide: the look controls themselves. Narrow: one View options button holds them, so they do not cover the plan.
+      if (width < 480) expect(g.toolbarButtons).toEqual(["View options"]);
+      else
+        for (const l of ["View", "Tilt", "Walls", "Theme", "Labels", "Device names"])
+          expect(g.toolbarButtons).toContain(l);
     });
 
     test("a click on Rotate right at its real coordinates turns the plan, and Rotate left turns it back", async ({

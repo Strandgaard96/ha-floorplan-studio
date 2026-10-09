@@ -310,7 +310,7 @@ test.describe("the room section and the filtered list", () => {
       names.filter((n) => n.startsWith("Living temperature")).length,
       "a placed sensor that the room owns is listed once",
     ).toBe(1);
-    expect(names.some((n) => n.includes("binary_sensor.demo_living_motion"))).toBe(true); // owned, never placed: listed by entity id
+    expect(names.some((n) => n.includes("Demo living motion"))).toBe(true); // owned, never placed: its entity id as words
     await room(page).locator("css=.fp-room-devices .fp-active-row", { hasText: "Living light" }).click();
     await expect(card(page).locator("css=.fp-pop")).toHaveAttribute("aria-label", "Living light");
     expect(await calls(page)).toEqual([]); // a tap on a row operates nothing

@@ -252,6 +252,8 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /** Below this card width the Active list starts folded: it would cover the plan. */
 const ACTIVE_FOLD_BELOW_PX = 480;
+/** How many summary chips the Overview header spells out before the rest become "+N more". */
+const CHIPS_SHOWN = 4;
 /** Two taps closer than this in time and space are a double-tap. */
 const DOUBLE_TAP_MS = 350;
 const DOUBLE_TAP_PX = 24;
@@ -546,6 +548,8 @@ export class FloorplanStudioCard extends LitElement {
     .fp-ov-hint { margin: 8px 2px 0; font: 10px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* One target per row, finger-sized on a touch screen (S24.7). */
     @media (pointer: coarse) { .fp-active-row { min-height: 40px; } }
+    /* A finger needs about 40 px: the pill chips and the floor-off buttons are 24 to 32 px for a mouse. */
+    @media (pointer: coarse) { .fp-layer, .fp-layers-toggle, .fp-layer-note button, .fp-ov-scope, .fp-alloff, .fp-floor-off, .fp-floors button { min-height: 40px; } }
     /* S24.7: the ring a row tap puts on its thing. Card chrome over the plan, never a hit target. Reduced motion: a steady ring. */
     .fp-pulse { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-primary); border-radius: 50%; transform: translate(-50%, -50%); animation: fp-pulse-ring 0.8s ease-out 3; }
     /* Not fp-locate: that is the plan's own ring (render.ts), and one name in one shadow root means one wins (S24.R7). */
@@ -710,6 +714,10 @@ export class FloorplanStudioCard extends LitElement {
    * `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the panel forgets
    * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
   private _activeCollapsed = false;
+  /** A card narrower than ACTIVE_FOLD_BELOW_PX folds the look controls (view, walls, theme, labels, names) behind
+   * one View button, so they do not cover the plan; `_viewOpen` is whether that menu is open. */
+  private _narrow = false;
+  private _viewOpen = false;
   /** S14.6: the category groups the viewer folded, as `list:category` ids (`a:` Active list, `r:` Room panel). Per card, in browser storage. */
   private _foldedCats = new Set<string>();
   private _activePos: { x: number; y: number } | null = null;
@@ -940,6 +948,12 @@ export class FloorplanStudioCard extends LitElement {
     // S24.8: ⌘K, Ctrl+K or / opens the search, under the same gate as the view keys: the card focused, else hovered.
     if (isSearchChord(ev)) {
       if (this._openSearch()) ev.preventDefault();
+      return;
+    }
+    if (ev.key === "Escape" && this._viewOpen) {
+      this._viewOpen = false;
+      this.requestUpdate();
+      ev.preventDefault();
       return;
     }
     if (ev.key === "Escape" && this._popup) {
@@ -2349,7 +2363,8 @@ export class FloorplanStudioCard extends LitElement {
     };
     return popupTemplate({
       subject: s,
-      text: this._subjectText(s),
+      // The brightness slider already says "50 %"; the line above it says only that the lamp is on.
+      text: caps?.brightness && st?.state === "on" ? "on" : this._subjectText(s),
       op,
       confirming: p.confirming,
       kiosk: this._kiosk(),
@@ -2440,6 +2455,8 @@ export class FloorplanStudioCard extends LitElement {
       el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
     if (this._popup && el) {
       const o = this._popup.opener;
+      // A narrow card: the popup spans the card's width, so nothing of a panel behind it peeks out at the side.
+      el.classList.toggle("fp-pop-wide", this._narrow);
       placeNear(
         el,
         this,
@@ -2883,10 +2900,15 @@ export class FloorplanStudioCard extends LitElement {
    * folded under 480px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
    * `display:none`, not laid out yet) decides nothing. */
   private _applyWidthDefault(): void {
-    if (this._activeUserChose) return;
     const width = this.getBoundingClientRect().width;
     if (width === 0) return;
     const narrow = width < ACTIVE_FOLD_BELOW_PX;
+    if (narrow !== this._narrow) {
+      this._narrow = narrow;
+      this._viewOpen = false;
+      this.requestUpdate();
+    }
+    if (this._activeUserChose) return;
     if (narrow === this._activeCollapsed) return;
     this._activeCollapsed = narrow;
     this.requestUpdate();
@@ -3262,7 +3284,7 @@ export class FloorplanStudioCard extends LitElement {
       </section>`
         : nothing
     }
-      <section class="fp-ov-section fp-ov-act"><div class="fp-ov-head">Active · ${items.length}</div>
+      <section class="fp-ov-section fp-ov-act">${groups.length ? html`<div class="fp-ov-head">Active · ${items.length}</div>` : nothing}
         ${
           groups.length
             ? groups.map((g) =>
@@ -3287,7 +3309,12 @@ export class FloorplanStudioCard extends LitElement {
     }));
     // What is wrong comes first, so a folded header that cuts the line short still shows it.
     if (alerts) parts.unshift({ text: `${alerts} ${alerts === 1 ? "alert" : "alerts"}`, warn: true });
-    return html`<span class="fp-ov-chips" title=${parts.map((p) => p.text).join(" · ")}>${parts.length ? parts.map((p, i) => html`${i ? " · " : ""}<span class=${p.warn ? "fp-chip fp-chip-warn" : "fp-chip"}>${p.text}</span>`) : "Nothing on"}</span>`;
+    // A long run ("2 alerts · 2 lights · 4 sensors · 5 playing · 1 plug ...") wrapped to four lines in the panel: the
+    // first CHIPS_SHOWN read, the rest are a count; the title and the list below keep every one.
+    const title = parts.map((p) => p.text).join(" · ");
+    const rest = parts.length - CHIPS_SHOWN;
+    if (rest > 1) parts.splice(CHIPS_SHOWN, rest, { text: `+${rest} more`, warn: false });
+    return html`<span class="fp-ov-chips" title=${title}>${parts.length ? parts.map((p, i) => html`${i ? " · " : ""}<span class=${p.warn ? "fp-chip fp-chip-warn" : "fp-chip"}>${p.text}</span>`) : "Nothing on"}</span>`;
   }
 
   /** S9.5, S24.7: the floating Overview, card chrome outside the `<svg>` (finding 8). What is wrong (`attention`) comes before
@@ -3694,6 +3721,16 @@ export class FloorplanStudioCard extends LitElement {
   /** Everything that changes how the plan looks, but not where it is zoomed: the View select, the Tilt slider while
    * the view is 2.5D, the Theme select and the Labels toggle. All hidden together (`view_switch: false`, kiosk). */
   private _viewControls(current: CardView) {
+    if (!this._narrow) return this._lookControls(current);
+    const toggle = html`<button type="button" class="fp-view-toggle" aria-label="View options" title="View options" aria-expanded=${this._viewOpen ? "true" : "false"} @click=${() => {
+      this._viewOpen = !this._viewOpen;
+      this.requestUpdate();
+    }}>${this._icon(UI_ICONS.view)}</button>`;
+    return this._viewOpen ? html`${this._lookControls(current)}${toggle}` : toggle;
+  }
+
+  /** The look controls themselves: in the toolbar on a wide card, behind the View button on a narrow one. */
+  private _lookControls(current: CardView) {
     const labels = this._labels();
     const names = this._names();
     const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider

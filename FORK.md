@@ -16,6 +16,15 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-09: Phone-width card and clearer panel text (branch `task/ui-review-1`)
+
+- Below 480 px the card folds view, walls, theme, labels and names behind one View options button (Escape closes it), so they no longer cover the plan.
+- The popup spans the card's width on a narrow card; its sliders keep at least one whole slider in view (the track vanished on a 250 px card); Details has a disclosure triangle.
+- A light popup with a brightness slider says "on" above it, not the same "50 %" twice.
+- Pill chips and floor-off buttons are 40 px tall under a coarse pointer.
+- An entity with no name or `friendly_name` is listed as its id in words ("Demo living temp2"), not `sensor.demo_living_temp2`.
+- The Overview header spells out alerts plus three categories, then "+N more"; an empty list drops its "Active · 0" heading.
+
 ## 2026-10-09: Furniture parts in 3D (branch `task/furniture-parts`)
 
 - 3D view draws table, sofa, bed, chair, sink, toilet, bathtub and car as a few boxes each instead of one block (`src/core/furniture-parts.ts`, `src/core/scene-build.ts`). 2.5D unchanged.
