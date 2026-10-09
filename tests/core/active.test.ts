@@ -1,3 +1,4 @@
+import { entityLabel } from "../../src/core/fmt";
 import { describe, it, expect } from "vitest";
 import { DEVICE_TYPES, type Device, type Layout } from "../../src/core/schema";
 import { ACTIVE_LIST_RULE, activeDevices, colorVarFor, groupActiveByType } from "../../src/core/active";
@@ -207,7 +208,7 @@ describe("activeDevices", () => {
     const names = Object.fromEntries(activeDevices(l, state).map((i) => [i.entity, i.name]));
     expect(names["light.a"]).toBe("Kitchen"); // plan name wins over friendly_name it never even reads
     expect(names["light.b"]).toBe("Bedroom light");
-    expect(names["light.c"]).toBe("light.c");
+    expect(names["light.c"]).toBe("C"); // the entity id as words, never the raw id
   });
 
   it("Opus review finding 2: a playing speaker is listed (it already pulses on the plan; the list must agree)", () => {
@@ -343,7 +344,7 @@ describe("S10.3: a door's own contact/vibration sensors join the active list und
     expect(items).toEqual([
       {
         entity: "binary_sensor.front",
-        name: "binary_sensor.front",
+        name: "Front",
         type: "contact",
         floor: "f",
         colorVar: "--fp-dev-contact",
@@ -384,5 +385,13 @@ describe("groupActiveByType", () => {
 
   it("no active devices: an empty list, not an empty group", () => {
     expect(groupActiveByType([])).toEqual([]);
+  });
+});
+
+describe("entityLabel", () => {
+  it("reads an entity id as words, and leaves odd input as text", () => {
+    expect(entityLabel("sensor.demo_living_temp2")).toBe("Demo living temp2");
+    expect(entityLabel("sensor.")).toBe("sensor.");
+    expect(entityLabel(5)).toBe("5");
   });
 });

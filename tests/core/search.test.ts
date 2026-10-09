@@ -77,7 +77,7 @@ describe("S24.1 search entries", () => {
     const l = tiny({ g: floor({ devices: [{ id: "d", type: "light", entity: "light.x", x: 1, y: 1 }] }) });
     const st = { "light.x": { state: "on", attributes: { friendly_name: "Desk lamp" }, last_changed: "" } };
     expect(layoutEntries(l, st).find((e) => e.kind === "device")!.name).toBe("Desk lamp");
-    expect(layoutEntries(l, undefined).find((e) => e.kind === "device")!.name).toBe("light.x");
+    expect(layoutEntries(l, undefined).find((e) => e.kind === "device")!.name).toBe("X");
   });
 
   it("a device outside every room has no room; a linked piece is a device of its type", () => {

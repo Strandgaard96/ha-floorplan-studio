@@ -5,6 +5,16 @@ import type { Pt } from "./schema";
 /** Text for markup. A name that is not text (a layout that skipped `validate`) is shown as text, never thrown on. */
 export const esc = (t: unknown) =>
   String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+/** An entity id as a name, for an entity with no `friendly_name`: "sensor.demo_living_temp2" reads "Demo living temp2".
+ *  Not text, or nothing after the dot: the input as text, unchanged. */
+export function entityLabel(id: unknown): string {
+  const s = String(id ?? "");
+  const words = s
+    .slice(s.indexOf(".") + 1)
+    .replace(/_+/g, " ")
+    .trim();
+  return words ? words[0]!.toUpperCase() + words.slice(1) : s;
+}
 export const num = (n: number) => String(Math.round(n * 100) / 100);
 export const pts = (p: Pt[]) => p.map((q) => `${num(q[0])},${num(q[1])}`).join(" ");
 /** A short, deterministic tag for a string (FNV-1a, 32-bit, base36). Not security-sensitive: only used to keep a
