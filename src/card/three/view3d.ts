@@ -140,6 +140,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   canvas.setAttribute("role", "img");
   canvas.setAttribute("aria-label", "3D view of the floor");
   container.appendChild(canvas);
+  /** cm. How far under the deepest non-slab solid the ground lies, so a face at that depth does not fight it. */
+  const GROUND_GAP = 1;
   const probe = document.createElement("span");
   probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none";
   container.appendChild(probe);
@@ -475,12 +477,22 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     scene.add(m);
     return m;
   };
+  /** The lowest the ground may lie for these solids: a slab's bottom, or a hair under anything drawn lower than that (a stair going down sinks 60 cm, a slab is 25), so the plane never hides a flight. */
+  const lowestOf = (solids: Plan3D["solids"]): number => {
+    let slab = Infinity, deep = Infinity;
+    for (const s of solids) {
+      if (s.shape.type !== "prism" || !Number.isFinite(s.shape.z0)) continue;
+      if (s.kind === "floor") slab = Math.min(slab, s.shape.z0);
+      else deep = Math.min(deep, s.shape.z0 - GROUND_GAP);
+    }
+    return Math.min(slab, deep);
+  };
   /** S28.8: the ground under the house: 1.5 times the box of everything drawn, at the lowest slab bottom (the floors below's included), in the `ground` role. Never picked. */
   const buildGround = () => {
     dispose(ground ? [ground] : []); ground = null;
     if (!plan) return;
     let low = belowLow;
-    for (const s of plan.solids) if (s.kind === "floor" && s.shape.type === "prism") low = Math.min(low, s.shape.z0);
+    low = Math.min(low, lowestOf(plan.solids));
     const b = plan.bounds, box = groundBox({ min: [Math.min(b.min[0], belowBox?.min[0] ?? Infinity), Math.min(b.min[1], belowBox?.min[1] ?? Infinity)], max: [Math.max(b.max[0], belowBox?.max[0] ?? -Infinity), Math.max(b.max[1], belowBox?.max[1] ?? -Infinity)] });
     if (!box || !Number.isFinite(low)) return;
     const g = new PlaneGeometry(box.x1 - box.x0, box.y1 - box.y0);
@@ -778,7 +790,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           m.raycast = () => undefined; // never picked
         }
         belowMeshes.push(...made);
-        for (const x of sc.solids) if (x.kind === "floor" && x.shape.type === "prism") belowLow = Math.min(belowLow, x.shape.z0);
+        belowLow = Math.min(belowLow, lowestOf(sc.solids));
         const had = belowBox as { min: number[]; max: number[] } | null;
         belowBox = { min: [Math.min(had?.min[0] ?? Infinity, sc.bounds.min[0]), Math.min(had?.min[1] ?? Infinity, sc.bounds.min[1])], max: [Math.max(had?.max[0] ?? -Infinity, sc.bounds.max[0]), Math.max(had?.max[1] ?? -Infinity, sc.bounds.max[1])] };
         const dark = shadeOf(sc.solids, ghost ? GHOST_OPACITY : 1);
