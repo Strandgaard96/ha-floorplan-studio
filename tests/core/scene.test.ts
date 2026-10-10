@@ -667,3 +667,24 @@ describe("scene: framed openings (S28.10)", () => {
     expect(() => buildScene(floor({ doors: [{ id: "d", a: [NaN, 0], b: [Infinity, 0], kind: "door", sensors: [] }, { id: "e", a: [100, 0], b: [100, 0], kind: "window", sensors: [] }] as never }))).not.toThrow();
   });
 });
+
+describe("scene: a stairwell opens the slab and the room fill (0.26.1)", () => {
+  const flr = () => floor({
+    outline: [[0, 0], [800, 0], [800, 600], [0, 600]],
+    rooms: [{ name: "Hall", kind: "room", pts: [[0, 0], [400, 0], [400, 600], [0, 600]] }, { name: "Den", kind: "room", pts: [[400, 0], [800, 0], [800, 600], [400, 600]] }] as never,
+    stairs: [{ id: "s", name: "S", pts: [[100, 100], [180, 100], [180, 260], [100, 260]], shape: "straight", steps: 4, rot: 0, direction: "down" }] as never,
+  });
+  it("cuts the footprint out of the slab and of the room that holds it, and of no other", () => {
+    const sc = buildScene(flr());
+    const slab = sc.solids.find((s) => s.kind === "floor")!, hall = sc.solids.find((s) => s.id === "room:0")!, den = sc.solids.find((s) => s.id === "room:1")!;
+    for (const s of [slab, hall]) { expect(s.shape.type === "prism" && s.shape.holes).toHaveLength(1); }
+    expect(den.shape.type === "prism" && den.shape.holes).toBeUndefined();
+  });
+  it("cuts nothing for a flight going up, nor for one that crosses the edge of its room", () => {
+    const up = flr(); (up.stairs![0] as { direction: string }).direction = "up";
+    expect(buildScene(up).solids.some((s) => s.shape.type === "prism" && s.shape.holes)).toBe(false);
+    const across = flr(); (across.stairs![0] as { pts: number[][] }).pts = [[360, 100], [440, 100], [440, 260], [360, 260]];
+    const sc = buildScene(across);
+    expect(sc.solids.filter((s) => s.shape.type === "prism" && s.shape.holes).map((s) => s.kind)).toEqual(["floor"]); // the slab holds it whole; neither room does
+  });
+});

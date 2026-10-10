@@ -24,9 +24,10 @@ function emit(out: Triangles, a: number[], b: number[], c: number[], want: numbe
  * Adds the prism over `base` from `z0` to `z1` to `out`: a top cap, a bottom cap and one quad per edge, each facing
  * outward whichever way the base is wound. A concave base is triangulated (earcut, from three). Returns whether
  * anything was added; a base with fewer than three distinct points, a line, a non-finite or huge coordinate, or a
- * flat height adds nothing.
+ * flat height adds nothing. `holes` (0.26.1, a stairwell) are polygons inside the base that the prism does not fill: each is
+ * dropped when it cannot be drawn, and its edges get walls that face into the hole.
  */
-export function prismTriangles(base: unknown, z0: number, z1: number, out: Triangles): boolean {
+export function prismTriangles(base: unknown, z0: number, z1: number, out: Triangles, holes: unknown = undefined): boolean {
   if (!Array.isArray(base) || !(typeof z0 === "number" && typeof z1 === "number" && Math.abs(z0) <= LIMIT && Math.abs(z1) <= LIMIT && z1 > z0)) return false;
   if (!base.every(finitePt)) return false;
   const p: Pt[] = [];
@@ -36,24 +37,36 @@ export function prismTriangles(base: unknown, z0: number, z1: number, out: Trian
   // Shoelace in plan coordinates (y down): positive is clockwise on the page.
   const area = p.reduce((s, a, i) => { const b = p[(i + 1) % p.length]; return s + a[0] * b[1] - b[0] * a[1]; }, 0) / 2;
   if (!(Math.abs(area) > 1e-9)) return false;
+  const hs: Pt[][] = [];
+  if (Array.isArray(holes)) for (const h of holes) {
+    if (!Array.isArray(h) || !h.every(finitePt)) continue;
+    const q: Pt[] = [];
+    for (const v of h as Pt[]) { const l = q[q.length - 1]; if (!l || l[0] !== v[0] || l[1] !== v[1]) q.push(v); }
+    while (q.length > 1 && q[0][0] === q[q.length - 1][0] && q[0][1] === q[q.length - 1][1]) q.pop();
+    if (q.length >= 3) hs.push(q);
+  }
+  const all = [p, ...hs].flat(); // earcut numbers the contour's points first, then each hole's
   let faces: number[][];
-  try { faces = ShapeUtils.triangulateShape(p.map((q) => new Vector2(q[0], q[1])), []); } catch { return false; }
+  try { faces = ShapeUtils.triangulateShape(p.map((q) => new Vector2(q[0], q[1])), hs.map((h) => h.map((q) => new Vector2(q[0], q[1])))); } catch { return false; }
   const before = out.position.length;
   for (const [i, j, k] of faces) {
-    if (p[i] === undefined || p[j] === undefined || p[k] === undefined) continue;
+    if (all[i] === undefined || all[j] === undefined || all[k] === undefined) continue;
     const at = (q: Pt, z: number) => [q[0], z, q[1]];
-    emit(out, at(p[i], z1), at(p[j], z1), at(p[k], z1), [0, 1, 0]);
-    emit(out, at(p[i], z0), at(p[j], z0), at(p[k], z0), [0, -1, 0]);
+    emit(out, at(all[i], z1), at(all[j], z1), at(all[k], z1), [0, 1, 0]);
+    emit(out, at(all[i], z0), at(all[j], z0), at(all[k], z0), [0, -1, 0]);
   }
-  p.forEach((a, i) => {
-    const b = p[(i + 1) % p.length], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+  const walls = (ring: Pt[], into: number) => ring.forEach((a, i) => {
+    const b = ring[(i + 1) % ring.length], dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
     if (!(len > 0)) return;
-    // Outward is (dy, -dx) for a positive area, the other way for a negative one.
-    const s = area > 0 ? 1 : -1, want = [(s * dy) / len, 0, (-s * dx) / len];
+    const ar = ring.reduce((t, c, n) => { const d = ring[(n + 1) % ring.length]; return t + c[0] * d[1] - d[0] * c[1]; }, 0);
+    // Outward is (dy, -dx) for a positive area, the other way for a negative one; a hole's wall faces the other way (into the hole).
+    const s = (ar > 0 ? 1 : -1) * into, want = [(s * dy) / len, 0, (-s * dx) / len];
     const A = [a[0], z0, a[1]], B = [b[0], z0, b[1]], C = [b[0], z1, b[1]], D = [a[0], z1, a[1]];
     emit(out, A, B, C, want);
     emit(out, A, C, D, want);
   });
+  walls(p, 1);
+  for (const h of hs) walls(h, -1);
   if (out.position.length === before) return false;
   return true;
 }

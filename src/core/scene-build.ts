@@ -23,7 +23,7 @@ export type SceneDeps = Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "f
   & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape">;
 
 /** A vertical extrusion of a polygon from `z0` to `z1` (every box is one), or a single point (a device with no body of its own). */
-export type Shape = { type: "prism"; base: Pt[]; z0: number; z1: number } | { type: "point"; at: Pt; z: number };
+export type Shape = { type: "prism"; base: Pt[]; z0: number; z1: number; /** Polygons inside `base` the prism does not fill: a stairwell. Optional. */ holes?: Pt[][] } | { type: "point"; at: Pt; z: number };
 export type SolidKind = "floor" | "room" | "wall" | "opening" | "furniture" | "unlinked" | "stair" | "device";
 /**
  * What the viewer needs to find the thing again. `poly` is "o" (the outline), "r<n>" (room n) or "w" (a free wall) and
@@ -158,14 +158,25 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       if (shape.type === "prism") {
         if (shape.base.length < 3 || !shape.base.every(isPt) || !fin(shape.z0) || !fin(shape.z1) || !(shape.z1 > shape.z0)) return;
         const at = ref.crown ? { ...ref, crown: { ...ref.crown, z0: ref.crown.z0 + lift, z1: ref.crown.z1 + lift } } : ref; // the crown's z range is given without the lift, like the shape
-        solids.push({ id, kind, tag, shape: { type: "prism", base: shape.base.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]), z0: shape.z0 + lift, z1: shape.z1 + lift }, ref: at, paint });
+        const holes = shape.holes?.filter((h) => h.length >= 3 && h.every(isPt)).map((h) => h.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]));
+        solids.push({ id, kind, tag, shape: { type: "prism", base: shape.base.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]), z0: shape.z0 + lift, z1: shape.z1 + lift, ...(holes?.length ? { holes } : {}) }, ref: at, paint });
       } else if (isPt(shape.at) && fin(shape.z)) solids.push({ id, kind, tag, shape: { type: "point", at: [shape.at[0] + sh[0], shape.at[1] + sh[1]], z: shape.z + lift }, ref, paint });
     };
     /** Runs one piece's builder; whatever it throws, the piece is lost and the scene is not. */
     const piece = (fn: () => void) => { try { fn(); } catch (e) { debugOnce("3D scene: a piece of the layout could not be built and was left out", e); } };
 
+    // The footprints of the flights that go down: the slab and the room fills are open there, or the flight lies under a lid (0.26.1).
+    const wells: Pt[][] = [];
+    list(f.stairs).forEach((t) => piece(() => {
+      const blocks = isObj(t) ? stairBlocks(t as never) : null;
+      if (blocks && resolveStairDirection(t as never, opts?.around) === "down") wells.push(blocks.foot(0));
+    }));
+    /** The wells that lie wholly inside `base`: a hole that crosses the edge cannot be cut, and that part of the flight stays as it was. */
+    const onEdge = (v: Pt, q: Pt[]) => q.some((a, k) => { const b = q[(k + 1) % q.length], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, ((v[0] - a[0]) * dx + (v[1] - a[1]) * dy) / l2)) : 0; return Math.hypot(v[0] - (a[0] + t * dx), v[1] - (a[1] + t * dy)) <= 1; });
+    const holesIn = (base: Pt[]) => { const h = wells.filter((w) => w.every((v) => isPt(v) && inside(v, base) && !onEdge(v, base))); return h.length ? { holes: h } : {}; };
+
     // The slab under the house, its top at the walking surface.
-    piece(() => { const o = ring(f.outline); if (o) add("floor", "floor", "slab", { type: "prism", base: o, z0: -floorSlab(f), z1: 0 }, {}, { role: "slab" }); });
+    piece(() => { const o = ring(f.outline); if (o) add("floor", "floor", "slab", { type: "prism", base: o, z0: -floorSlab(f), z1: 0, ...holesIn(o) }, {}, { role: "slab" }); });
 
     // Room fills. A zone is an overlay and a structure has no floor of its own (ROOM_OWNS in render.ts says neither owns a point);
     // a fill with no name is not drawn, as in render.ts. Both keep their edges as walls. A room inside a bigger one sits above it.
@@ -218,7 +229,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       if (typeof r.texture === "string") paint.texture = r.texture;
       if (typeof r.textureRot === "number") paint.textureRot = r.textureRot;
       if (typeof r.textureScale === "number") paint.textureScale = r.textureScale;
-      add("room", `room:${i}`, r.kind, { type: "prism", base: p, z0, z1: z0 + ROOM_THICKNESS }, { room: i }, paint);
+      add("room", `room:${i}`, r.kind, { type: "prism", base: p, z0, z1: z0 + ROOM_THICKNESS, ...holesIn(p) }, { room: i }, paint);
     }));
 
     // Walls, each cut by the openings that lie in it: a block under the sill, a header over the head, nothing between.

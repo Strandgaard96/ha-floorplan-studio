@@ -406,9 +406,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (!z) continue;
       const p = paintOf(s.paint.role, s.paint.color), flat = group(`${p.colour.getHexString()}|${p.opacity}`, p.colour, p.opacity);
       const tile = textured && s.paint.texture !== undefined ? opts.deps.texture(s.paint.texture, s.paint.textureRot, s.paint.textureScale) : null;
-      if (!tile) { prismTriangles(s.shape.base, z[0], z[1], flat.tris); continue; }
+      if (!tile) { prismTriangles(s.shape.base, z[0], z[1], flat.tris, s.shape.holes); continue; }
       const all: Triangles = { position: [], normal: [] };
-      prismTriangles(s.shape.base, z[0], z[1], all);
+      prismTriangles(s.shape.base, z[0], z[1], all, s.shape.holes);
       const top = group(`tex|${textureKey(tile)}|${tile.rot}`, dimTile(tile.preview), 1, tile);
       for (let t = 0; t < all.position.length; t += 9) {
         const to = all.normal[t + 1] > 0.5 ? top : flat; // the cap that faces up wears the texture

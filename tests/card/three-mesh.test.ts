@@ -91,3 +91,26 @@ describe("prismTriangles", () => {
     expect(t.position.every(Number.isFinite)).toBe(true);
   });
 });
+
+describe("prismTriangles: holes (a stairwell, 0.26.1)", () => {
+  const sq = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  it("leaves the hole open in both caps and walls it on the inside", () => {
+    const out: Triangles = { position: [], normal: [] };
+    expect(prismTriangles(sq(0, 0, 100, 100), 0, 10, out, [sq(40, 40, 60, 60)])).toBe(true);
+    let area = 0, inward = 0;
+    for (let t = 0; t < out.position.length; t += 9) {
+      const p = out.position.slice(t, t + 9);
+      if (out.normal[t + 1] === 1) area += Math.abs((p[3] - p[0]) * (p[8] - p[2]) - (p[6] - p[0]) * (p[5] - p[2])) / 2;
+      if (out.normal[t + 1] === 0 && Math.abs(p[0] - 50) <= 10 && Math.abs(p[2] - 50) <= 10) inward += out.normal[t] * (50 - p[0]) + out.normal[t + 2] * (50 - p[2]) > 0 ? 1 : 0;
+    }
+    expect(area).toBeCloseTo(100 * 100 - 20 * 20, 3); // the top cap lacks the hole
+    expect(inward).toBe(8); // 4 walls, 2 triangles each, every normal points towards the hole's middle
+  });
+  it("ignores a hole that cannot be drawn and never throws", () => {
+    for (const h of [[[0, 0], [NaN, 1], [2, 2]], [[1, 1]], "x", null, [[[40, 40], [60, 40]]]]) {
+      const out: Triangles = { position: [], normal: [] };
+      expect(() => prismTriangles(sq(0, 0, 100, 100), 0, 10, out, [h])).not.toThrow();
+      expect(out.position.length).toBe(12 * 9); // the plain box: 12 triangles
+    }
+  });
+});

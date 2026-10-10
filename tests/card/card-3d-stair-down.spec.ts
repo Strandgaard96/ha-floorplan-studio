@@ -11,10 +11,10 @@ interface Hook {
 }
 const hook = <T, A = undefined>(page: Page, fn: (h: Hook, a: A) => T, arg?: A) => page.evaluate(`(${fn.toString()})(window.__fp3d, ${JSON.stringify(arg ?? null)})`) as Promise<Awaited<T>>;
 const STAIR = "#ff00aa";
-const withStair = () => {
+const withStair = (inside = false) => {
   const l = structuredClone(demo);
   const st = structuredClone(demo.floors.ground.stairs[0]);
-  st.pts = st.pts.map(([x, y]: number[]) => [x - 400, y + 250]); // x 300..380, y 670..830: south of the first floor's slab (y 0..600), where nothing covers the flight
+  st.pts = st.pts.map(([x, y]: number[]) => (inside ? [x, y] : [x - 400, y + 250])); // x 300..380, y 670..830: south of the first floor's slab (y 0..600), where nothing covers the flight
   l.floors.first.stairs = [{ ...st, id: "down-1", direction: "down", color: STAIR }];
   return l;
 };
@@ -42,6 +42,20 @@ async function rgbAt(page: Page, p: { x: number; y: number }): Promise<number[]>
     const d = g.getImageData(1, 1, 1, 1).data;
     return [d[0], d[1], d[2]];
   }, buf.toString("base64"));
+}
+
+// Inside the floor outline and inside the Office room (x 0..800, y 300..600): the slab and the room fill lay over the flight in 0.25.0 as well
+// (checked by building that tag): a hole is cut through both. The stair is at x 700..780, y 420..580, steps run along y, step k's top is -60 + 15 k.
+for (const theme of ["light", "dark"]) {
+  test(`${theme}: a stair going down inside a room shows through a hole in the slab and the room fill`, async ({ page }) => {
+    await boot(page, withStair(true), theme);
+    await hook(page, (h) => h.look(0, 0.1));
+    const p = await hook(page, (h, a: number[]) => h.project(a[0], a[1], a[2]), [740, 560, -60]); // step 0, the deepest, lies under 60 cm of slab and fill
+    await expect.poll(async () => { const [r, g, b] = await rgbAt(page, p); return r > g + 40 && b > g + 20; }, { timeout: 8000 }).toBe(true);
+    const q = await hook(page, (h, a: number[]) => h.project(a[0], a[1], a[2]), [600, 500, 0]); // the room's floor beside the well is still the room's
+    const [r, , b] = await rgbAt(page, q);
+    expect(b).toBeGreaterThan(r);
+  });
 }
 
 for (const theme of ["light", "dark"]) {
