@@ -26,6 +26,16 @@ Spec: `docs/specs/card-ui-refactor.md`, items 5 to 8.
 - Red is for alerts only: motion has its own non-red colour in every theme (`ThemeRoles.motion`), and a motion sensor that lights its
   room's outline draws no ring of its own.
 - `ha` theme in dark mode draws walls in a mid grey mixed from HA's text and card colours instead of the text colour itself.
+## 2026-10-11: Card UI refactor — 3D (branch `task/ui-3d`)
+
+- The 3D ground fades to transparent toward its border, so it has no visible edge on any page (`view3d.ts` `buildGround`).
+- 3D labels (room names, readouts, device values and names) are chips on the 2D label tag colour. The declutter never keeps a
+  room's readout when it drops that room's name.
+- Idle devices in 3D are full markers: lit size, opaque `--fp-disc` disc, thin `--fp-idle` edge, full-opacity glyph at 3:1 or
+  better (`overlay.ts`, `inkFor`). Never hidden.
+- The first 3D view frames the house box in the free area: 85 % of the view under the toolbar and beside the Active list,
+  centred, on every floor; Reset camera returns to it (`orbit.ts`, new `top` inset and `shiftY`; the card passes the
+  toolbar's bottom edge).
 
 ## 2026-10-11: Sync with upstream 0.26.2 (branch `task/upstream-sync-0.26.2`)
 

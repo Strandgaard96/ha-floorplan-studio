@@ -2202,7 +2202,14 @@ export class FloorplanStudioCard extends LitElement {
         else right = Math.max(0, Math.min(1, (h.right - p.left) / h.width));
       }
     }
-    view.setInset(left, right);
+    // The toolbar floats over the top of the view: the house is framed under it (UI refactor item 11).
+    const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
+    let top = 0;
+    if (bar && h.height > 0) {
+      const b = bar.getBoundingClientRect();
+      if (b.width > 0 && b.height > 0) top = Math.max(0, Math.min(1, (b.bottom - h.top + 4) / h.height));
+    }
+    view.setInset(left, right, top);
   }
 
   /**

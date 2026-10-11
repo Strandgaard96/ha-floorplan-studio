@@ -17,6 +17,41 @@ In the `ha` theme in dark mode `--fp-wall` and `--fp-wall-external` were Home As
 ## 2026-10-11: the stack fan clears the discs it draws (UI refactor, item 8)
 
 At close zoom the fan's members sat on top of each other. Cause, confirmed by a failing Playwright test first (6 of 6 cases at zoom 3 and 6 failed on "disc 0 / disc 1"): `spiderLayout` sized the ring in screen px (40 px radius, 44 px apart), but an icon disc is 32k plan units, so it grows with the zoom. At 6x a disc is 235 px across and the ring was 44 px. `spiderLayout` now takes the drawn size (`SpiderSize`: disc px, widest name tag px, font px) and widens the ring from its old minimum until no disc or name tag lies on another disc or tag (3 px of air), so it holds at near, mid and far. The old fixed ring is the floor, so a small disc fans exactly as before. The card passes `disc = 32k/unit`, with the same `k` renderFloor draws with, and a tag width estimated from the longest member name. A ring too big for the view still centres and clips rather than shrinking: a fan that is readable and cut by the card edge beats one that overlaps. `renderFloor` decides a tag's side with a 1e-6 tolerance so the top and bottom members do not flip with float noise; the layout uses the same rule.
+## 2026-10-11: the 3D ground fades out toward its border (card UI refactor item 11a)
+
+The canvas is transparent over the card, and the ground was an opaque rectangle 1.5 times the house: on a light Home Assistant
+page with the dark blueprint theme it showed as a dark stripe with white bands above and below. The ground is now a 24 x 24
+grid with a per-vertex alpha, solid out to 72 % of each half extent (the house fills the inner 67 %) and smoothstepped to
+nothing at the border, no depth write, `renderOrder` -1 so the contact shadows and ghost floors still draw over it. It has no
+edge in any theme, day or night; the shade and below-floor ground tests are unchanged.
+
+## 2026-10-11: 3D labels are chips; a room's readout never outlives its name (card UI refactor items 10, 11b)
+
+3D labels were bare text with a halo, hard to read on a wall or the ground. Room names, readouts and a device's value and
+name are now chips on the colour the 2D plan gives its labels (`--fp-outline`, `.lbl-tag`), 3 px radius, 1 x 5 px padding.
+The declutter measures each chip's own box (a room's name and readout are two chips of their own width, 2 px apart; a
+device's value and name step 17 px). Live on Magnus's house the living room showed its readout with no name: a marker
+over the name dropped it, the readout beside it did not meet the marker. After the greedy pass a readout is now dropped
+whenever its room's name was.
+
+## 2026-10-11: idle devices are full markers in 3D (card UI refactor item 9)
+
+Magnus: devices that are off are not noise; the 3D view is for controlling them. An idle icon was a glyph at .7 opacity on
+a disc at 0 opacity, over a small translucent ball. The 3D overlay layer (`overlay.ts` only; 2D keeps its quiet look) now
+gives every idle, non-alert device the lit marker's size, an opaque `--fp-disc` disc with a 1 px `--fp-idle` edge, and the
+glyph at full opacity. The theme's idle colours (`--fp-idle`, `--fp-dev-camera`, `--fp-dev-garden`) are measured against
+the disc on this layer and pushed toward black or white until they keep 3.3:1 (blueprint's idle grey was 2.93:1 on its
+light disc). Hit radius was already the same for both (`HIT_PX`), and a test now holds it.
+
+## 2026-10-11: the first 3D view frames the house box in the free area (card UI refactor item 11)
+
+The fit was a sphere round the house at 0.85 of its radius, so a long low house left a band at the top and the toolbar sat
+on the picture. `Orbit.fitDistance` now projects the box's eight corners from the first view (its azimuth, polar, the
+vertical field and the aspect) and bisects the distance until the box fills 85 % of the free part along the tighter
+axis. The free part is the view less the Active list (left, right) and the toolbar (new `top` inset, read by the card
+from `.fp-zoom`); `shift` and the new `shiftY` slide the picture to centre the box in it. Floors below are not in the
+box: the spec says the house, and a ghost floor under it may run past the margin. Zoom 1 now means the new fit, so a
+camera stored before this release restores a little nearer or further.
 
 ## 2026-10-11: a piece built from parts casts one contact shadow (fork, upstream 0.26.2 sync)
 

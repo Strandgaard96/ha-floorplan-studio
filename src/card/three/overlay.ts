@@ -52,21 +52,70 @@ export const ROOM_PRIORITY: Record<RoomKind, number> = {
 /** The rank of a room's name. The kind comes from layout data, so an unknown one ranks as a room. */
 export const roomPriority = (kind: string): number =>
   Object.prototype.hasOwnProperty.call(ROOM_PRIORITY, kind) ? ROOM_PRIORITY[kind as RoomKind] : P_ROOM;
+// UI refactor item 9, in the stylesheet below: in 3D an idle device is a control, not clutter. It is the lit marker's size, an opaque
+// --fp-disc disc with a thin --fp-idle edge (so it reads on a white floor, a dark one and the ground) and its glyph at full opacity.
+// `inkFor` makes --fp-idle at least INK_RATIO against the disc on this layer, in any theme. The plan's own idle look (core/render.ts:
+// no disc, a .7 glyph) is for 2D, where the floor is one flat colour; these rules win by specificity, and only in this layer.
+/** Item 10: a label is a chip on the 2D plan's tag colour (`.lbl-tag`, --fp-outline). A device's value and its name stack one chip apart:
+ *  11 px text at line-height 1.2 is 13.2 px, plus 1 px padding above and below, plus a 2 px gap. */
+const CHIP_GAP = 2,
+  CHIP_STEP = 17;
 const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
 .fp3-ov *{pointer-events:none}
 .fp3-dev,.fp3-rm{position:absolute;left:0;top:0;will-change:transform}
 .fp3-dev{width:0;height:0}
 .fp3-ic{position:absolute;left:-${ICON_PX / 2}px;top:-${ICON_PX / 2}px;width:${ICON_PX}px;height:${ICON_PX}px;overflow:visible}
+.fp3-ic g.dev:not(.on):not(.danger) .halo{fill:var(--fp-disc);fill-opacity:1;stroke:var(--fp-idle);stroke-width:1}
+.fp3-ic g.dev:not(.on):not(.danger) path{fill-opacity:1}
 .fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:11px/1.2 var(--fp-font,system-ui,sans-serif)}
 .fp3-dv{top:${ICON_PX / 2 + 1}px}
-.fp3-dn{top:${ICON_PX / 2 + 13}px;opacity:.85}
-.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{color:var(--fp-text);text-shadow:0 0 2px var(--fp-outline),0 0 2px var(--fp-outline),0 0 3px var(--fp-outline),0 0 5px var(--fp-outline)}
-.fp3-rm{text-align:center;white-space:nowrap;font:500 12px/1.25 var(--fp-font,system-ui,sans-serif)}
+.fp3-dn{top:${ICON_PX / 2 + 1 + CHIP_STEP}px}
+.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{color:var(--fp-text);background:var(--fp-outline);border-radius:3px;padding:1px 5px}
+.fp3-rm{display:flex;flex-direction:column;align-items:center;gap:${CHIP_GAP}px;text-align:center;white-space:nowrap;font:500 12px/1.25 var(--fp-font,system-ui,sans-serif)}
 .fp3-name,.fp3-val{display:block}
 .fp3-val{font-weight:400;font-size:11px}
 .fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:opacity .12s linear}
 .fp3-ov .fp3-lose{opacity:0}
 @media (prefers-reduced-motion:reduce){.fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:none}}`;
+
+/** The least contrast (WCAG ratio) the idle glyph and the disc's edge keep against the disc: 3 is the rule, this leaves a margin. */
+const INK_RATIO = 3.3;
+/** The colours an idle glyph is filled with (the plan's idle grey, a camera's, an outdoor device's). */
+const INK_VARS = ["--fp-idle", "--fp-dev-camera", "--fp-dev-garden"];
+type RGB = [number, number, number];
+/** A computed colour (`rgb(...)`, `rgba(...)` or `color(srgb r g b)`) as 0..255 channels, or null. */
+export function parseRgb(c: string): RGB | null {
+  const m = /^(rgba?|color)\(\s*(?:srgb\s+)?([^)]*)\)$/.exec(c.trim());
+  if (!m) return null;
+  const v = m[2]
+      .split(/[\s,/]+/)
+      .filter(Boolean)
+      .slice(0, 3)
+      .map(Number),
+    k = m[1] === "color" ? 255 : 1;
+  return v.length === 3 && v.every(Number.isFinite) ? (v.map((x) => x * k) as RGB) : null;
+}
+const lum = (c: RGB) => {
+  const f = (v: number) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]);
+};
+const ratio = (a: RGB, b: RGB) => {
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+};
+/**
+ * The idle ink to draw on `disc`: `idle` itself when it already keeps INK_RATIO against the disc, else `idle` pushed toward black (a light
+ * disc) or white (a dark one) a step at a time until it does. Null says keep the theme's own idle colour. Pure.
+ */
+export function inkFor(idle: RGB, disc: RGB): RGB | null {
+  if (ratio(idle, disc) >= INK_RATIO) return null;
+  const end: RGB = lum(disc) > 0.18 ? [0, 0, 0] : [255, 255, 255];
+  for (let t = 0.05; t <= 1.0001; t += 0.05) {
+    const c = idle.map((v, i) => Math.round(v + (end[i] - v) * t)) as RGB;
+    if (ratio(c, disc) >= INK_RATIO) return c;
+  }
+  return end;
+}
 
 interface Item {
   el: HTMLElement;
@@ -140,6 +189,30 @@ export function createOverlay(container: HTMLElement) {
   window.addEventListener("pointercancel", onUp, true);
   document.addEventListener("visibilitychange", onHide);
   document.fonts?.addEventListener?.("loadingdone", onFonts);
+  // The idle ink (item 9): this layer's --fp-idle is the theme's own unless that is too faint on the theme's disc. Measured again when the
+  // theme's colours change (the key), never per frame.
+  const probe = document.createElement("span");
+  probe.style.cssText = "position:absolute;visibility:hidden;pointer-events:none";
+  container.appendChild(probe); // beside the layer, not in it: the layer's own --fp-idle is what this measures against
+  let inkKey = "";
+  const refreshInk = () => {
+    const colour = (v: string) => {
+      probe.style.color = "";
+      probe.style.color = v;
+      return getComputedStyle(probe).color;
+    };
+    const disc = colour("var(--fp-disc)"),
+      key = [disc, ...INK_VARS.map((v) => colour(`var(${v})`))].join("|");
+    if (key === inkKey) return;
+    inkKey = key;
+    const d = parseRgb(disc);
+    for (const v of INK_VARS) {
+      const c = parseRgb(colour(`var(${v})`)),
+        ink = c && d ? inkFor(c, d) : null;
+      if (ink) root.style.setProperty(v, `rgb(${ink.join(",")})`);
+      else root.style.removeProperty(v);
+    }
+  };
   const text = (cls: string, s: string) => {
     const e = document.createElement("span");
     e.className = cls;
@@ -149,6 +222,7 @@ export function createOverlay(container: HTMLElement) {
 
   /** Brings the elements in line with the live state: made, changed or removed in place. A change of nothing writes nothing. */
   function set(live: Live3D, anchors: Anchors) {
+    refreshInk();
     const seenD = new Set<number>(),
       seenR = new Set<number>();
     anchors.devices.forEach((a, i) => {
@@ -217,7 +291,7 @@ export function createOverlay(container: HTMLElement) {
         it.dn = null;
         dirty = true;
       }
-      if (it.dn) it.dn.style.top = `${ICON_PX / 2 + (val ? 13 : 1)}px`;
+      if (it.dn) it.dn.style.top = `${ICON_PX / 2 + (val ? 1 + CHIP_STEP : 1)}px`;
     });
     for (const [i, it] of icons)
       if (!seenD.has(i)) {
@@ -346,18 +420,32 @@ export function createOverlay(container: HTMLElement) {
       }
       if (it.dn) {
         const [w, h] = sizeOf(it.dn);
-        add(it.dn, it.x - w / 2, it.y + ICON_PX / 2 + (it.dv ? 13 : 1), w, h, P_DNAME, 0, i);
+        add(it.dn, it.x - w / 2, it.y + ICON_PX / 2 + (it.dv ? 1 + CHIP_STEP : 1), w, h, P_DNAME, 0, i);
       }
     }
+    // A room's name and readout are two chips, each its own width, centred on the label's point.
+    const roomEls = new Map<number, { name: number; val: number }>();
     for (const [r, it] of rooms) {
       if (!it.shown) continue;
-      const [w, h] = sizeOf(it.el),
-        nameH = it.name.hidden ? 0 : sizeOf(it.name)[1],
-        valH = it.val.hidden ? 0 : sizeOf(it.val)[1];
-      if (!it.name.hidden) add(it.name, it.x - w / 2, it.y - h / 2, w, nameH, roomPriority(it.kind), it.area, r);
-      if (!it.val.hidden) add(it.val, it.x - w / 2, it.y - h / 2 + nameH, w, valH, P_READOUT, it.area, r);
+      const [, h] = sizeOf(it.el),
+        [nw, nh] = it.name.hidden ? [0, 0] : sizeOf(it.name),
+        [vw, vh] = it.val.hidden ? [0, 0] : sizeOf(it.val),
+        top = it.y - h / 2,
+        pair = { name: -1, val: -1 };
+      if (!it.name.hidden) {
+        pair.name = els.length;
+        add(it.name, it.x - nw / 2, top, nw, nh, roomPriority(it.kind), it.area, r);
+      }
+      if (!it.val.hidden) {
+        pair.val = els.length;
+        add(it.val, it.x - vw / 2, top + (nh ? nh + CHIP_GAP : 0), vw, vh, P_READOUT, it.area, r);
+      }
+      roomEls.set(r, pair);
     }
     const keep = declutter(boxes);
+    // 11b: a room's readout never outlives its name. The name outranks it, so a marker over the name leaves the readout the only chip
+    // of the room standing; it goes too (the readout is dropped first, never the name).
+    for (const { name, val } of roomEls.values()) if (name >= 0 && val >= 0 && !keep[name]) keep[val] = false;
     els.forEach((e, k) => e.classList.toggle(LOSE, !keep[k]));
   }
 
@@ -411,6 +499,7 @@ export function createOverlay(container: HTMLElement) {
       document.removeEventListener("visibilitychange", onHide);
       document.fonts?.removeEventListener?.("loadingdone", onFonts);
       root.remove();
+      probe.remove();
       icons.clear();
       rooms.clear();
       sizes.clear();
