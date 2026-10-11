@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.9, the Align panel's buttons, and what a press does to the plan
+
+`src/editor/inspector.ts` (`alignView`), `src/editor/editor-app.ts`.
+- **Wiring.** A Move button calls `nudgeFloor(key, screenDir, step, st.turnDeg)`, a Turn button `turnFloor(key, +-angle, floorPivot(floor))`, Apply `setPose(key, poseFromPlace(...))`. No second pose path. `st.turnDeg` is the layout's own `rotate` plus the user's view turn, the turn the plan is drawn with.
+- **The preview reads the turn.** `alignPreview` takes `floorPlace(layout, key, below).turn`, keys the memo on `alignKeyOf(upper, turn)` and searches with it; the offset Apply writes comes from `poseFromPlace`, so a turned floor keeps its rotation. The words are still whole cm ("Under 1 cm" for a smaller move, since offsets are now 0.1 cm).
+- **Steps.** 1, 5, 50 cm (5) and 0.1, 0.5, 1, 3 degrees (0.5), in `localStorage` key `fp-align-steps` as `{move, turn}`. Read lazily, every access in try/catch; a value not on the list falls back to its default, field by field.
+- **Read-only plan.** Opening Align clears the selection; while open the overlay draws only the pivot cross (`g.align-pivot`, `pointer-events:none` by class rule) and `renderFloor` gets `handles: false`, so no `circle.h`. Rejected: ignoring clicks on the plan; the existing S28.12 test drags a device while Align is open and that stays allowed.
+- **`handles` option in `RenderOpts`.** The editor's corner handles come from `render.ts`, so leaving them out needed a flag there. Absent means as before; the render snapshot is unchanged.
+- **`normaliseTurn` was inexact.** `((d % 360) + 360) % 360` turned 0.1 into 0.10000000000002274, which the writer then stored. It now wraps by one subtraction, exact for an angle already in range (S29.2's helper, found when a stored rotation of 0.1 read back wrong).
+- **While the view turns.** A press during the 45 degree turn animation uses the angle at that moment (`st.turnDeg`). Left as is: nobody presses within 200 ms of turning.
 ## 2026-10-11: S29.8, Align stairs: the reversed flight
 
 `src/core/hand-align.ts`. A straight flight has a low end and a top end (the middles of its low and top edges, from

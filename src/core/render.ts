@@ -50,7 +50,7 @@ export interface RenderOpts {
    *  its leader may use: the card passes its fit box less the strip its controls cover. A candidate that leaves it is
    *  rejected. Omitted (the editor), nothing changes. */
   bounds?: { x: number; y: number; w: number; h: number };
-  state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
+  state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean; /** S29.9: false leaves out the editor's corner handles (Align mode is read-only); absent is as before. */ handles?: boolean;
   /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point placed by `placePoint({ turn, shift })` (`floorPlace`; `turn` in degrees clockwise, absent is 0, so a ghost without a turn is drawn exactly as before; a `turn` that is not a finite number within -360..360 draws nothing). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
   ghost?: { floor: Floor; shift: Pt; turn?: number };
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
@@ -1878,7 +1878,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   out.push(...tags); // S23.3: over every icon, under the editor's handles
   if (showText) out.push(...badges({ f, state: o.state, attn: o.attention, k: kt, up, screenOff, anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 } })); // S25.3: shown by CSS at far and mid only; text, so none with labels off
-  if (o.editor)
+  if (o.editor && o.handles !== false)
     for (const P of polys) P.pts.forEach((p, j) => out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`));
   out.push(...ringOut);
   const body = out.join("\n");

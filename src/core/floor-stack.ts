@@ -60,8 +60,8 @@ function turned(v: Pt, deg: number): Pt {
 
 /** Degrees wrapped into (-180, 180]. */
 export function normaliseTurn(deg: number): number {
-  const m = ((deg % 360) + 360) % 360;
-  return m > 180 ? m - 360 : m;
+  const m = deg % 360; // exact for an angle already in range: adding 360 first left 0.1 as 0.10000000000002274
+  return m > 180 ? m - 360 : m <= -180 ? m + 360 : m;
 }
 
 /** A floor's stored pose. Junk (a rotation that is not a finite number from -180 to 180, a bad offset) and an unknown key read as identity, field by field. */

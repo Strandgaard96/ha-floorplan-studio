@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio, Align to floor below: six buttons move this floor up, down, left and right (as drawn on screen, so a turned view still moves the right way) and turn it anticlockwise and clockwise about the centre of its structure, by steps you choose (1, 5, 50 cm; 0.1, 0.5, 1, 3 degrees; the choice is remembered in this browser). One press, one undo step. The floor below is drawn turned as faint lines, the plan shows only a cross at the pivot while the panel is open, and Apply keeps the floor's turn. Fixed on the way: a stored rotation such as 0.1 was written as 0.10000000000002274.
 - 3D: the floors below turn with their `rotation`. Slabs, walls, stairs, crowns and contact shadows are placed by the turn and then the shift; the card gives the view `floorPlace`, so a change of rotation alone redraws the ghost and the floors below.
 - The ghost floor can turn: `renderFloor`'s `ghost` takes a `turn` (degrees, clockwise) and places every point with it before the shift. No turn, or 0, draws exactly what it drew.
 - A floor can carry a `rotation` (degrees, clockwise, about its stored origin, before the offset). The schema and `migrate` accept and check it; no view reads it yet.

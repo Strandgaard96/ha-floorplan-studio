@@ -290,3 +290,13 @@ describe("hand-align-house fixture (S29.2)", () => {
     expect(f.rot).toBeCloseTo(1.5, 12);
   });
 });
+
+describe("normaliseTurn keeps an angle that is already in range exactly (S29.9)", () => {
+  it("returns 0.1, 0.01, -0.3 and 179.99 unchanged, and wraps 180 and -180 to 180", () => {
+    for (const a of [0.1, 0.01, -0.3, 3.25, -179.99, 179.99, 0.5]) expect(normaliseTurn(a)).toBe(a);
+    expect(normaliseTurn(180)).toBe(180);
+    expect(normaliseTurn(-180)).toBe(180);
+    expect(normaliseTurn(540.1)).toBeCloseTo(-179.9, 9);
+    expect(normaliseTurn(-190)).toBeCloseTo(170, 9);
+  });
+});

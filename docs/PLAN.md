@@ -3546,7 +3546,7 @@ Lane report (a new `src/core/hand-align.ts`):
 Wave 2, one lane after wave 1 is merged; tasks run in order (they share `editor-app.ts` and `inspector.ts`):
 
 Lane studio (`src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/guide.ts`, `src/editor/styles.ts`):
-- [ ] S29.9 The Studio's ghost and the panel's buttons (Sonnet). `ghostOpts` uses `floorPlace`; the ghost shows while
+- [x] S29.9 The Studio's ghost and the panel's buttons (Sonnet). `ghostOpts` uses `floorPlace`; the ghost shows while
       Align is open; no edit handles, the pivot cross by class rule; the Move cross, the Turn pair and the two step
       controls with their defaults and `localStorage` memory as the spec says; the "this floor moves" line and the
       button labels; Apply keeps the turn (S29.7) through `setPose`. Test, real `page.mouse` at each button's centre on

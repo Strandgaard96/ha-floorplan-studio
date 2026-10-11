@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, floorBelow, floorShift, floorSwitch, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -30,7 +30,7 @@ import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
 import { EditorState, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
-import { asideView, inspectorCss } from "./inspector";
+import { asideView, inspectorCss, readAlignSteps, writeAlignSteps, type AlignSteps } from "./inspector";
 import type { AsideMode } from "./inspector";
 import { ctxMenuCss, ctxMenuView, ctxTargetFor, fitCtxMenu, type CtxTarget } from "./ctx-menu";
 
@@ -571,6 +571,7 @@ export class FloorplanStudioEditor extends LitElement {
     .furn{pointer-events:all}
     .hl{fill:none;stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .h{cursor:move} .h.on{fill:var(--fp-ink)}
+    .align-pivot{pointer-events:none} .align-pivot line{stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke}
     .len{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;pointer-events:none;user-select:none}
     .lbl{pointer-events:none;user-select:none}
     .dev,.door,.heater{cursor:move}
@@ -2636,7 +2637,7 @@ export class FloorplanStudioEditor extends LitElement {
   openAlign() {
     this.closeMenus();
     if (floorBelow(this.st.layout, this.st.floor) === null) return;
-    this.stopDraw(); this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null;
+    this.stopDraw(); this.st.sel = null; this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
     if (this.st.helpOpen) this.st.setHelp(false);
     this.requestUpdate();
   }
@@ -2645,30 +2646,59 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.asideMode === "align") this.asideMode = "selection";
     if (update) this.requestUpdate();
   }
-  /** The Align mode's numbers, from the live layout: the floor below, the best move (S27.4, memoised per pair of floor objects, so a hass update does not search again), and the offset Apply would write. */
+  /** The Align mode's numbers, from the live layout: the floor below, the best move (S27.4, memoised per pair of floor objects, so a hass update does not search again), and the pose Apply would write. The search keeps the floor's turn (S29.7), so a turned floor previews its own best offset. */
   alignPreview() {
     const st = this.st, key = this.alignKey;
     const bk = key === null ? null : floorBelow(st.layout, key);
     if (key === null || bk === null) return null;
     const upper = st.layout.floors[key], lower = st.layout.floors[bk];
+    const place = floorPlace(st.layout, key, bk);
     // A drag edits the floor on every pointer move, and every edit is a new floor object: searching each time would stall the drag.
     // The preview keeps the last answer while a drag is in progress and searches once when it ends.
     const dragging = this.drag !== null && this.drag.type !== "pan" && this.drag.type !== "marquee" && this.drag.moved;
-    // S28.12: keyed on what the search reads (`alignKey`), not on the floor objects: a nudge or an undo makes new objects with the same structure.
-    const k = dragging && this.alignMemo ? this.alignMemo.key : `${alignKeyOf(upper)}#${alignKeyOf(lower)}`;
-    if (!this.alignMemo || this.alignMemo.key !== k) { this.alignSearches++; this.alignMemo = { key: k, r: alignFloor(upper, lower) }; }
-    const r = this.alignMemo.r, cur = upper.offset ?? [0, 0], lo = lower.offset ?? [0, 0];
-    const next: Pt | null = r ? [Math.round(lo[0] + r.t[0]) + 0, Math.round(lo[1] + r.t[1]) + 0] : null;
-    return { key, belowKey: bk, belowTitle: lower.title || bk, r, cur, next, delta: next ? ([next[0] - cur[0], next[1] - cur[1]] as Pt) : null };
+    // S28.12: keyed on what the search reads (`alignKey`), not on the floor objects: a nudge or an undo makes new objects with the same structure. S29.9: the key holds the turn, so a move does not search and a turn does.
+    const k = dragging && this.alignMemo ? this.alignMemo.key : `${alignKeyOf(upper, place.turn)}#${alignKeyOf(lower)}`;
+    if (!this.alignMemo || this.alignMemo.key !== k) { this.alignSearches++; this.alignMemo = { key: k, r: alignFloor(upper, lower, place.turn) }; }
+    const r = this.alignMemo.r, pose = floorPose(st.layout, key), cur = pose.off;
+    const to = r ? poseFromPlace(st.layout, key, bk, { turn: place.turn, shift: r.t }) : null;
+    const tenth = (n: number) => Math.round(n * 10) / 10 + 0;
+    const next: Pt | null = to ? [tenth(to.off[0]), tenth(to.off[1])] : null;
+    return { key, belowKey: bk, belowTitle: lower.title || bk, r, cur, rot: pose.rot, next, delta: next ? ([tenth(next[0] - cur[0]), tenth(next[1] - cur[1])] as Pt) : null };
   }
-  /** Apply: the best offset in one undo step. */
+  /** Apply: the best pose in one undo step; the floor keeps its turn and only the offset changes. */
   applyAlign() {
     const a = this.alignPreview();
     if (!a || !a.r || !a.next) return;
-    if (this.st.setOffset(a.key, a.next)) { this.changed(`Aligned to ${a.belowTitle}: ${Math.round(a.r.score)} % match`); return; }
+    if (this.st.setPose(a.key, { rot: a.rot, off: a.next })) { this.changed(`Aligned to ${a.belowTitle}: ${Math.round(a.r.score)} % match`); return; }
     if (this.st.planBlocked) { this.refused(); return; }
-    // Not locked, so the offset was unchanged or out of range: say which (it was always "Already aligned").
+    // Not locked, so the pose was unchanged or out of range: say which (it was always "Already aligned").
     this.status = a.delta && a.delta[0] === 0 && a.delta[1] === 0 ? "Already aligned" : `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
+    this.requestUpdate();
+  }
+  /** S29.9: the two remembered step choices (move in cm, turn in degrees), read from `localStorage` on first use. */
+  private stepsNow: AlignSteps | null = null;
+  get alignSteps(): AlignSteps { return (this.stepsNow ??= readAlignSteps()); }
+  setAlignStep(kind: "move" | "turn", n: number) { this.stepsNow = { ...this.alignSteps, [kind]: n }; writeAlignSteps(this.stepsNow); this.requestUpdate(); }
+  /** One press of a Move button: this floor moves by the step along `dir` on screen (the view's turn is taken into account); one undo step. */
+  moveAlign(dir: Pt) {
+    const key = this.alignKey;
+    if (key === null) return;
+    const cm = this.alignSteps.move;
+    if (this.st.nudgeFloor(key, dir, cm, this.st.turnDeg)) { this.changed(`Moved this floor ${cm} cm ${dir[0] > 0 ? "right" : dir[0] < 0 ? "left" : dir[1] < 0 ? "up" : "down"}`); return; }
+    this.pressRefused();
+  }
+  /** One press of a Turn button, about the floor's pivot (its place in the house does not change); one undo step. */
+  turnAlign(sign: 1 | -1) {
+    const key = this.alignKey;
+    if (key === null) return;
+    const deg = this.alignSteps.turn;
+    if (this.st.turnFloor(key, sign * deg, floorPivot(this.st.layout.floors[key]))) { this.changed(`Turned this floor ${deg}\u00B0 ${sign > 0 ? "clockwise" : "anticlockwise"}`); return; }
+    this.pressRefused();
+  }
+  /** A press that wrote nothing: the lock says so; otherwise the pose would pass the coordinate limit. */
+  private pressRefused() {
+    if (this.st.planBlocked) { this.refused(); return; }
+    this.status = `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
     this.requestUpdate();
   }
   /** One of the two offset fields (cm): a number, one undo step; junk or the same value changes nothing and the field shows the layout again. */
@@ -2682,11 +2712,13 @@ export class FloorplanStudioEditor extends LitElement {
   }
   resetAlignOffset() { const a = this.alignPreview(); if (a && (a.cur[0] !== 0 || a.cur[1] !== 0)) { if (this.st.setOffset(a.key, [0, 0])) this.changed("Floor offset reset"); else this.refused(); } }
   /** The floor below as `renderFloor`'s ghost: while the Align mode is open, or when View, Floor below is on (S27.11). */
-  private ghostOpts(): { floor: Floor; shift: Pt } | undefined {
+  private ghostOpts(): { floor: Floor; shift: Pt; turn: number } | undefined {
     const st = this.st, bk = floorBelow(st.layout, st.floor);
     if (bk === null) return undefined;
     const aligning = this.asideMode === "align" && this.alignKey === st.floor;
-    return aligning || st.ghostFloor ? { floor: st.layout.floors[bk], shift: floorShift(st.layout, bk, st.floor) } : undefined;
+    if (!aligning && !st.ghostFloor) return undefined;
+    const p = floorPlace(st.layout, bk, st.floor);
+    return { floor: st.layout.floors[bk], shift: p.shift, turn: p.turn };
   }
   async startAddFloor() {
     this.addingFloor = true;
@@ -2865,6 +2897,11 @@ export class FloorplanStudioEditor extends LitElement {
 
   private overlay(k: number): string {
     const st = this.st, f = st.f, s = st.sel, o: string[] = [];
+    // S29.9: while Align is open the plan is read-only: no handle, no highlight, only the cross at the pivot the Turn buttons turn about.
+    if (this.asideMode === "align" && this.alignKey === st.floor) {
+      const c = floorPivot(f), r = 9 * k;
+      return `<g class="align-pivot"><line x1="${num(c[0] - r)}" y1="${num(c[1])}" x2="${num(c[0] + r)}" y2="${num(c[1])}"/><line x1="${num(c[0])}" y1="${num(c[1] - r)}" x2="${num(c[0])}" y2="${num(c[1] + r)}"/></g>`;
+    }
     const line = (a: Pt, b: Pt, cls: string, extra = "") => `<line class="${cls}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}" ${extra}/>`;
     const deg = st.turnDeg, upright = (x: number, y: number) => (deg % 360 ? ` transform="rotate(${num(-deg)} ${num(x)} ${num(y)})"` : "");
     const len = (a: Pt, b: Pt) => `<text class="len" x="${num((a[0] + b[0]) / 2)}" y="${num((a[1] + b[1]) / 2)}"${upright((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)} text-anchor="middle" font-size="${num(10 * k)}">${(dist(a, b) / 100).toFixed(2)} m</text>`;
@@ -2938,7 +2975,7 @@ export class FloorplanStudioEditor extends LitElement {
     const { activeGroup } = floorGroups(st);
     const dimmed = activeGroup ? new Set(f.devices.filter((d) => d.entity && !(activeGroup.members ?? []).includes(d.entity)).map((d) => d.entity)) : undefined;
     // The grid is placed before renderFloor's own output, so the plan draws over it; a turned plan turns grid and overlay the same way.
-    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, ghost: this.ghostOpts(), labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
+    const body = turnG(grid) + renderFloor(f, { scale: s, selection: sel, keep: st.sel && (st.sel.t === "furn" || st.sel.t === "unl") ? { t: st.sel.t, i: st.sel.i } : null, hiddenLayers: st.hidden, detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode), showNames: st.showNames, editor: true, handles: !(this.asideMode === "align" && this.alignKey === st.floor), trace: true, rotate: rot, colors: st.layout.colors, theme: st.theme, dark: this.isDark(), dimmed, night: st.night, state: this.stateForRender(), now: Date.now(), roomGlow: true, ghost: this.ghostOpts(), labels: st.labels, around: floorsAroundKey(st.layout, st.floor), locate: this.locate?.floor === st.floor ? { t: this.locate.t, i: this.locate.i } : null }) + turnG(overlay);
     const find = this.findData();
     return html`
       ${this.banner ? html`<div class="banner ${this.banner.level}"><span class="banner-text" id="status" role=${this.banner.level === "error" ? "alert" : "status"}>${this.banner.text}</span>${this.banner.action ? html`<button class="banner-act" id=${this.banner.action.id} @click=${this.banner.action.run}>${this.banner.action.label}</button>` : nothing}<button class="banner-x" id="bannerClose" aria-label="Close message" @click=${() => this.closeBanner()}>×</button></div>` : nothing}
