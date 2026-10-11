@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: Sprint 30 planned: Align searches the turn (assumptions, pending Diego)
+
+`docs/PLAN.md` (Sprint 30), `docs/specs/hand-align.md` (section "Sprint 30", criteria 13 to 24).
+- **Why now.** The fixture reproduces Diego's case: the first floor scores 19.7 % at turn 0 and 81.9 % at its true 4
+  degrees, and 81.3 % at -176. So the plan must find the turn and must not lock on the half turn.
+- **Assumed, Diego to confirm (the plan's open questions):** the whole circle is searched, a turn within 10 degrees of
+  the floor's current turn is preferred, and a far turn wins only by 15 points and not weak; a fit of another turn
+  within 5 points is named in the panel; no preview before Apply (Apply, then Undo).
+- **The memo leaves the turn out.** `alignCandidates` reads only the stored structure, so it is memoised without the
+  turn; the cheap `chooseAlign` reads the current turn on every render. This supersedes S29.9's key with the turn: a
+  Turn press no longer searches.
+- **`alignFloor`'s third argument changes meaning**, from "search at this turn" to "the current turn, preferred". The
+  0.27.0 function lives on as `alignShift`.
+- **Weak evidence is never applied without Apply**, and Apply stays a button whatever the score, as in 0.27.0.
+- The constants (histogram, triage, refinement, margins) are proposals until the S30.1 design note (Opus) fixes them
+  with probe numbers.
+
 ## 2026-10-11: Sprint 29 review fixes, round 2: the Outline is shut, typed limits speak
 
 `src/editor/editor-app.ts`, `tests/editor/align-review.spec.ts`.

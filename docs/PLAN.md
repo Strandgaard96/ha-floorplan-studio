@@ -3596,10 +3596,191 @@ Wave 3, in order on `task/s29-hand-align`:
 Review (one Opus pass on the integrated build) then fixes with their tests; exit test: Align stairs lines the 3D stairs
 up within 2 cm and 0.2 degrees.
 
-## Sprint 30: Release 0.28.0, align searches angles (outline)
+## Sprint 30: Release 0.28.0, align searches angles
 
-To plan in full after 0.27.0 ships. `alignFloor` searches the turn as the spec's Sprint 30 section says: candidate angles
-from the direction histograms, small first, the translation search per angle, a joint robust refinement; it reports the
-turn; the Align tab says the angle; budget under 600 ms on the stress layout. Judgement: the search design (an Opus
-design note, Sonnet code). Exit: the hand-align fixture's first floor, from identity, aligns automatically within 2 cm
-and 0.2 degrees.
+Branch `task/s30-align-angles`. Lanes branch off it as `task/s30-<lane>`, each in its own worktree with its own
+`PW_PORT`, and merge back into `task/s30-align-angles`. Diego, 2026-10-11: his floors are turned against each other by a
+few degrees, Auto align scores about 20 % on his house, and his stairs are not drawn alike on every floor. 0.27.0 gave
+him hand align and Align stairs; this sprint makes Auto align find the turn itself. Spec: `docs/specs/hand-align.md`,
+section "Sprint 30 (0.28.0)" (the search, the choice, weak evidence, the memo, criteria 13 to 24). Exit test: on
+`hand-align-house.json` with no pose, Auto align then Apply on the ground and then on the first floor, with real
+clicks, puts every outline corner of each floor within 2 cm of where the truth puts it and the turn within 0.2 degrees,
+and the 3D stairs line up within 2 cm.
+
+What the fixture says today (measured 2026-10-11, `alignFloor` of 0.27.0 at a given turn): the first floor scores 19.7 %
+at turn 0, 81.9 % at its true 4 degrees and 81.3 % at -176; the ground 25.3 % at 0, 68.4 % at -2.5 and 68.4 % at 177.5.
+So the fixture reproduces Diego's 20 % and also the trap: a half turn of a near-rectangular floor fits as well as the
+right answer. The design must pick the small turn and say that the other one exists.
+
+Rules. As Sprint 29: each task one outcome, its failing test written first and watched failing (finding 5), and the
+report says how it failed; layout input is untrusted, every new core function never throws and checks every number
+(finding 1); real `page.mouse` and `page.keyboard` at real coordinates on the real top element (finding 3); one undo step
+per Apply, none when nothing changes (finding 6); a writer that builds a pose gets a test over every combination of its
+inputs and every result passes `validate` (finding 12); a new Playwright test runs `--repeat-each=10` (finding 13); run
+each command bare and read `$?` on its own line (finding 14); a change to a stylesheet runs `npm run shots` and is looked
+at (finding 16). Test angles are asymmetric and not round (4.00, -2.50, 7.30, -9.70, 93.00), turned about a point that is
+not the origin, so a sign, an axis or a pivot error fails. No coordinate from Diego's house anywhere: the fixtures are
+`hand-align-house.json`, `align-house.json`, `stress-layout.json`, `demo/` and shapes built in the test.
+
+Out of scope: a ghost preview of the proposal before Apply (Apply then Undo does it; open question 3); scale; matching
+stairs or rooms as evidence for the search (stairs differ between Diego's floors, which is why Align stairs is a button);
+aligning to any floor but the one below; a search run off the main thread; any card change (the card reads the pose).
+
+Models. Every coder is Sonnet (`docs/WORKFLOW.md`). S30.1 is a design note owned by Opus: it fixes the constants, the
+choice rule and the speed plan, and writes no product code. Marked **judgement** below: the brief carries the design
+note's text and the coordinator reads the coder's own note (a comment block at the top of the change) before it accepts
+the code. Opus reviews the integrated build once, as always.
+
+Assumptions (Diego's open questions, below, each with the default this plan builds): the whole circle is searched, a
+small change from the current turn is preferred and a far turn must win clearly; a symmetric floor's other answer is
+named in the panel; no preview before Apply.
+
+Wave 0, on `task/s30-align-angles`, before any code:
+- [ ] S30.1 Design note (Opus, **judgement**; no product code). Fix, with a number and a reason each: the histogram (bin
+      width, smoothing, the shortest line that counts, how many peaks), the candidate turns, the triage that keeps the
+      full translation search affordable (what is evaluated must not depend on the current turn, see the spec's memo
+      rule), the joint refinement (unknowns, linearisation point, weights, cap on the turn it may move, stop rule), the
+      choice (`SMALL_TURN`, `FAR_MARGIN`, `ALT_WITHIN`, the tie order), determinism, and the time budget split. Probe the
+      constants on the fixtures with a scratch script (scratchpad, never the repo) and paste the numbers: per candidate
+      turn the score of the first and the ground floor, and the timing of the stress pair and the heavy floor. The
+      spec's Sprint 30 section is the starting point; where the note changes it, the spec changes in the same commit.
+      Done when: every constant in the spec has a value and a reason, the probe output is in the DECISIONS entry, and
+      the coordinator has read it. Files: `docs/DECISIONS.md`, `docs/specs/hand-align.md`.
+
+Wave 1, after S30.1. Two lanes in parallel, each in its own worktree; tasks inside a lane run in order.
+
+Lane search (`src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, a new `tests/core/align-turn.test.ts`,
+a new `tests/fixtures/align-turn.ts`):
+- [ ] S30.2 Candidate turns from direction histograms (Sonnet, **judgement**: the circular correlation and its peaks).
+      0.27.0's `alignFloor(upper, lower, turn)` is renamed `alignShift` (same code, same answers); the S29.7 tests move to
+      it unchanged. `turnCandidates(upper, lower)` returns the candidate turns in degrees, as S30.1 fixed them: each
+      correlation peak `θ` in (-45, 45] and `θ ± 90`, `θ + 180`, plus 0; sorted, deduplicated, at most the cap; `[0]` for
+      junk or a floor with no lines. A new test helper `tests/fixtures/align-turn.ts`: `turnedFloor(floor, deg, about,
+      shift)` (structure points and stairs placed by a known place, with the true place it returns), a seeded noise
+      generator, a symmetric square house, a plus-shaped house, and a floor with no lines. Test, failing first: for the
+      `align-house` first floor and the hand-align first and ground floors, turned by each of -9.70, -6.20, -3.30, -1.10,
+      -0.35, 0.40, 1.80, 4.00, 7.30, 9.95, 23.00, -31.00 and 93.00 degrees about `[370, -120]`, the candidates hold the
+      true turn within 0.5 degree; at most the cap for a 10 000-point circle (a flat histogram); `[0]` for junk and no
+      lines; the same input twice gives the same array; the outline started at another vertex and the walls in
+      reverse order give the same array.
+      Files: `src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, `tests/core/align-turn.test.ts`,
+      `tests/fixtures/align-turn.ts`.
+- [ ] S30.3 Joint refinement of turn and shift (Sonnet, **judgement**: the linearisation point and the weights).
+      `refinePlace(samples, lines, place)` as S30.1 says: robust weighted least squares in turn and shift together,
+      linearised about the samples' weighted centre, the same weights as `refine`, the turn moved by at most the note's
+      cap, kept only when the score is no lower and the residual smaller (as `refine`). Test, failing first: from a start
+      0.6 degree and 8 cm off the truth, on the turned `align-house` first floor and on a plain rectangle, it ends within
+      0.05 degree and 0.5 cm, in both directions of each error; a start already at the truth stays within 0.01 degree
+      and 0.1 cm; a floor with lines in one direction only leaves the turn alone; junk never throws. With the turn
+      unknown removed (shift only), the first case fails.
+      Files: `src/core/align.ts`, `tests/core/align-turn.test.ts`.
+- [ ] S30.4 `alignFloor` searches the turn (Sonnet, **judgement**: the choice rule and the tie order).
+      `alignCandidates(upper, lower)` (every candidate turn, triaged, searched with `alignShift`'s translation search,
+      the best refined by `refinePlace`, scored on all samples at the rounded values; independent of any current turn);
+      `chooseAlign(fits, from = 0)` (the spec's choice: small tier about `from`, far tier by `FAR_MARGIN` and not weak,
+      ties, `alt`); `alignFloor(upper, lower, from = 0)` is the two together and returns `{ turn, t, score, weak, alt }`
+      or null. Test, failing first (they fail with `alignFloor` = `alignShift`):
+      - the hand-align first floor from identity: the truth within 0.2 degree and every outline corner within 2 cm; the
+        same for the ground; `alt` names a turn within 1 degree of the half turn (the rectangle and the L's block fit
+        both ways), and `weak` is false;
+      - each of the turns in S30.2's list, in both directions, on the three floors, from `from = 0`: within 0.2 degree
+        and 2 cm at every outline corner for the small ones; 93.00 degrees on the `align-house` L is found (the far
+        tier wins by its margin); 23.00 and -31.00 on the L are found;
+      - prior: the hand-align first floor with `from = 184` gives 184 (within 0.2), with `from = 0` gives 4;
+      - a symmetric square house turned 2 degrees: the answer is 2 within 0.2 and `alt` is not null; never a confident
+        answer (`weak` false and `alt` null) on it;
+      - noisy but answerable: the `align-house` first floor turned 3.40 degrees, every point jittered up to 4 cm (seeded)
+        and 15 stray lines added: within 0.5 degree and 5 cm, and its score below the clean one's;
+      - no answer: two unrelated seeded random floors: `weak` is true or `alt` is not null, for each of 20 seeds;
+      - a floor with no lines, or a lower floor with none: null; junk floors and junk `from` (`NaN`, `"4"`, `null`, `[4]`,
+        `1e308`) never throw, junk `from` reads as 0;
+      - determinism: twice deep equal; another start vertex, reversed walls and shuffled rooms within 0.01 degree and
+        0.1 cm; `alignCandidates` is equal whatever `from` the caller later passes;
+      - every S27, S28 and S29 `alignFloor` test still passes with `turn` 0 (the demo's identical floors give turn 0
+        exactly, `t` `[0, 0]`, score 100; the 200 seeded corner rectangles never land in another corner or at 90
+        degrees).
+      Files: `src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, `tests/core/align-turn.test.ts`.
+- [ ] S30.5 Time budget (Sonnet). Make the search fit the budget without changing an answer: every S30.4 test still
+      passes. Test (vitest, the slower of two runs counts): each consecutive floor pair of `stress-layout.json`, as stored
+      and with the upper floor turned 7.30 degrees about its centre, under 600 ms; the stress first floor with the 300
+      short external walls of `align-mode.spec.ts` on it and on the ground, under 600 ms; the 10 000-point circle still
+      under 8000 ms; `alignShift` on the stress pair still under 200 ms. Report the measured numbers.
+      Files: `src/core/align.ts`, `tests/core/align.test.ts`.
+
+Lane words (a new `src/core/align-words.ts`; reads only the result shape S30.1 fixed):
+- [ ] S30.6 What the panel says (Sonnet). `alignSummary(result, place, pivot)` returns the panel's lines as plain
+      strings: the score line (match, weak, or alt as the spec words them), the change from the current place in words
+      ("Turn 4.0° clockwise, move the centre 34 cm right, 12 cm up"; the move is the pivot's, in the floor below's frame;
+      no turn words under 0.05 degree; "Already aligned" when nothing changes), and Apply's status ("Aligned to Ground: 82
+      % match, turned 4.0°"). Test, failing first: each of the spec's states with asymmetric numbers; clockwise and
+      anticlockwise; a turn that crosses 180 says the short way ("turn 3.0° anticlockwise", not 357); `alt` of the half
+      turn reads "a half turn (-176.0°)"; junk numbers give no `NaN` in any string; a name with `"><script>` is never
+      in the output unescaped where it is HTML (it is text: the panel renders it with Lit text bindings, finding 2).
+      Files: `src/core/align-words.ts`, `src/core/index.ts`, a new `tests/core/align-words.test.ts`.
+
+Wave 2, after wave 1 is merged. Two lanes in parallel:
+
+Lane state (`src/editor/state.ts`):
+- [ ] S30.7 `alignToBelow` applies the turn (Sonnet). `EditorState.alignToBelow(key)` reads `from` from
+      `floorPlace(layout, key, below).turn`, calls `alignFloor(upper, lower, from)` and writes
+      `poseFromPlace(layout, key, below, { turn: r.turn, shift: r.t })` through `setPose`: one undo step, none when the
+      pose does not change, refused under Lock plan, the exact session pose starts again from the stored one. Test,
+      failing first: on the hand-align house from no pose, `alignToBelow("ground")` then `"first"`: each floor's outline
+      corners in the house within 2 cm of the truth's and the rotation within 0.2 degree; every combination of (upper
+      rotation absent, 4, -176) x (lower rotation absent, -2.5) x (offset absent, set) x (lock on, off) x (lowest,
+      middle, unknown floor): every result passes `validate`, each no-op leaves no undo step; a turn press after it
+      still moves by one step (hand align after Apply).
+      Files: `src/editor/state.ts`, `tests/editor/floor-offset-state.test.ts`, `tests/editor/floor-pose.test.ts`.
+
+Lane studio (`src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/styles.ts`):
+- [ ] S30.8 The Align panel shows and applies the turn (Sonnet, **judgement**: the memo split). `alignPreview`
+      memoises `alignCandidates` on `alignKeyOf(upper)#alignKeyOf(lower)` (no turn: the expensive part does not read it)
+      and calls `chooseAlign(fits, place.turn)` on every render (cheap). The panel's Auto align block shows
+      `alignSummary`'s lines: `#alignScore`, a new `#alignAlt` (only with `alt`), `#alignMove`; Apply writes the turn and
+      the offset through `setPose` with `alignSummary`'s status. Apply stays a button whatever the score; Move, Turn,
+      the boxes and Align stairs work after it. Test, real `page.mouse` on `hand-align-house.json` (a new
+      `tests/editor/align-turn.spec.ts`): the ground from no pose shows "Turn 2.5° anticlockwise" in `#alignMove` and an
+      `#alignAlt` line, Apply puts the ground's outline corners within 2 cm of the truth, one undo step, Undo restores
+      no pose; then a Move right press moves by the step; a Turn press, ten Move presses and ten undos run no search
+      (`alignSearches` unchanged) and a moved wall runs one; with the first floor stored at the truth's pose the panel
+      says "Already aligned" and Apply is disabled; a weak case (a lower floor that shares only one wall) shows the weak
+      line and Apply still applies; Lock plan refuses Apply and writes nothing; opening Align on the heavy stress
+      floor shows `#alignScore` within 1500 ms of the click. `align-mode.spec.ts` and `align-buttons.spec.ts` follow
+      (the old "a turn searches once" and the preview of a turned floor change meaning: say so in the DECISIONS entry).
+      A `getComputedStyle` pair for `#alignAlt` if it gets its own rule (finding 10). At 1024 x 768 and 380 x 800 with
+      the toolbar wrapped, Apply and `#alignAlt` are their own top element at their centre.
+      Files: `src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/styles.ts`, a new
+      `tests/editor/align-turn.spec.ts`, `tests/editor/align-mode.spec.ts`, `tests/editor/align-buttons.spec.ts`.
+
+Wave 3, in order on `task/s30-align-angles`:
+- [ ] S30.9 Exit test and docs (Sonnet; the docs part may go to Haiku). `tests/editor/align-turn-exit.spec.ts`: load
+      the hand-align house with no pose in the Studio; Align on the ground, Apply; Align on the first floor, Apply; with
+      real clicks; Save; the saved file validates; each floor's outline corners in the house within 2 cm of the truth's
+      and the rotation within 0.2 degree; the card with `floors_below: solid` on the first floor: each floor's stair
+      footprint corners within 2 cm of the one below's in the hook's bounds. Docs: `docs/SPEC.md` (Align finds the turn;
+      the 0.28.0 note), `docs/editor.md` (Auto align: what it says, the other-turn line, Apply), the guide, the README
+      state table, CHANGELOG under Unreleased, DECISIONS (one entry per assumption that held and each change from it).
+      Files: a new `tests/editor/align-turn-exit.spec.ts`, `src/editor/guide.ts`, the docs.
+- [ ] S30.10 Shots (Sonnet; the coordinator looks). `npm run shots` gains the Align panel on the hand-align ground from
+      no pose (the turn line and the other-turn line showing) and after Apply, at 1280 and 380, in blueprint, light and
+      ha-dark. The coordinator opens them and lists what each shows.
+      Files: `scripts/shots.mjs`.
+- [ ] S30.11 Verify (Sonnet): `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line;
+      new tests `--repeat-each=10`; the S30.5 budget numbers read on their own; the exit test walked by hand once in the
+      Studio; each S30.4 group run once with the turn search removed (`alignFloor` = `alignShift`) to see it fail, then
+      restored.
+
+Review (one Opus pass on the integrated build, against `docs/WORKFLOW.md`'s checklist plus: can any path write a pose
+the user did not press Apply for; can a symmetric floor get a confident wrong answer; is the result the same on a second
+run and in another line order), then fixes with their tests and the re-check. Exit test: S30.9.
+
+### Open questions for Diego (each with the default this plan builds)
+
+1. **How far does Auto align look?** Default: the whole circle, but a turn within 10 degrees of the floor's current turn
+   is preferred, and a turn further away wins only when it scores 15 points better and is not weak. Other option: look
+   only within 10 degrees (faster, simpler, never finds a plan traced sideways).
+2. **Say when another turn fits as well?** Default: yes, one line under the score, such as "A half turn (-176.0°) fits
+   about as well (81 %). Check the plan before you apply it." On a near-rectangular house, likely yours, that line will
+   show every time. Other option: name it only when both turns are within 10 degrees of the current one.
+3. **Preview before Apply?** Default: no. Apply is one undo step, so Apply, look, Undo is the preview. Other option: draw
+   the proposed place as a second ghost while the panel is open (a render change, a day more).

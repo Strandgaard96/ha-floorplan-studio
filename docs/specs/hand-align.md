@@ -1,6 +1,7 @@
 # Hand align: move and turn a floor over the floor below
 
-Status: implemented in 0.27.0 (Sprint 29), 2026-10-11, revised the same day (buttons, not dragging). Plan:
+Status: implemented in 0.27.0 (Sprint 29), 2026-10-11, revised the same day (buttons, not dragging); the angle search
+for 0.28.0 (Sprint 30) planned the same day, section "Sprint 30" below. Plan:
 `docs/PLAN.md`, Sprint 29 (0.27.0) and Sprint 30 (0.28.0).
 
 ## Why
@@ -191,11 +192,134 @@ centres when the floors are right. Hence a button, not something automatic.
 
 ## Sprint 30 (0.28.0): Align searches angles
 
-`alignFloor` searches rotation too: candidate angles from the direction histograms of the two floors' structure lines
-(each pair of dominant directions, modulo 90 degrees), small angles first (-10 to 10), then the rest; for each, the
-existing translation search on the turned samples; the best few refined by a joint turn and translation least squares
-(small-angle linearised, the same robust weights). It reports `turn`, `t` and the score; the panel says the angle.
-Budget: the stress layout's floors in under 600 ms. Planned in full once 0.27.0 has shipped.
+Planned 2026-10-11 (`docs/PLAN.md`, Sprint 30). The constants below marked "S30.1" are proposals; the S30.1 design note
+fixes them, with the probe numbers, and changes this section in the same commit if it must.
+
+### Why
+
+0.27.0's Auto align keeps the floor's current turn and searches translation only. Diego's floors are turned against each
+other by a few degrees, so it scores about 20 %. The fixture reproduces it: the first floor scores 19.7 % at turn 0 and
+81.9 % at its true 4 degrees; the ground 25.3 % at 0 and 68.4 % at -2.5. It also shows the trap: the first floor scores
+81.3 % at -176 and the ground 68.4 % at 177.5. A near-rectangular floor fits upside down as well as the right way.
+
+### The API
+
+- `alignShift(upper, lower, turn)`: 0.27.0's `alignFloor` under a new name, translation only at a given turn,
+  `{ t, score, weak } | null`. Unchanged answers.
+- `turnCandidates(upper, lower)`: the candidate turns, degrees.
+- `refinePlace(samples, lines, place)`: the joint refinement (internal; exported for its test).
+- `alignCandidates(upper, lower)`: every candidate turn searched and the best refined; a list of fits
+  `{ turn, t, score, res }`, or null when either floor has no structure line. Reads the two floors' structure in their
+  stored frames and nothing else: no pose, no current turn.
+- `chooseAlign(fits, from = 0)`: picks one (below) and returns `{ turn, t, score, weak, alt } | null`.
+- `alignFloor(upper, lower, from = 0)` = `chooseAlign(alignCandidates(upper, lower), from)`. Its third argument changes
+  meaning: in 0.27.0 the search was held at that turn; now it is the floor's current turn, which the choice prefers.
+  Junk reads as 0.
+
+The result: `turn` in (-180, 180], to 0.01 degree; `t` to 0.1 cm; the place of the upper floor in the lower floor's
+stored frame is `{ turn, shift: t }`, the turn about the upper floor's stored origin, as S29.7; `score` as before (0 to
+100, the share of the upper floor's structure within `NEAR` of the lower's at that place); `weak` is `score < WEAK_BELOW`
+(50, unchanged); `alt` is null or `{ turn, score }` of the best fit whose turn differs from the chosen one by more than
+1 degree and whose score is within `ALT_WITHIN` of it. Nothing here throws.
+
+### The search
+
+1. Structure lines of both floors in stored frames (`structure`, unchanged).
+2. Direction histograms: each line's direction modulo 90 degrees, weighted by its length; lines shorter than 20 cm do
+   not count (S30.1). Bins of 0.25 degree, smoothed by a triangle of plus or minus 1 degree (S30.1). Modulo 90 because a
+   house's walls run in two directions at a right angle: one peak stands for both.
+3. Circular cross-correlation of the two histograms; its local maxima of at least half the highest, at most 3, each
+   sharpened to a fraction of a bin. Each peak `θ` in (-45, 45] gives four candidates, `θ`, `θ + 90`, `θ + 180`,
+   `θ - 90`; 0 is always a candidate. At most 13. A circle (a flat histogram) still gives at most 3 peaks.
+4. Each candidate turn: the translation search of `alignShift` on the upper floor's lines turned by it. To keep the time
+   budget, a cheap pass may rank the candidates first and send only some to the full search, but which ones must not
+   depend on `from` (the memo below holds the candidates for every `from`): S30.1 decides how, for example the best of
+   each of the four families of a peak, or a distance grid that makes every full search cheap.
+5. The best few fits (S30.1: 3, and the best of the small tier about 0) refined jointly: robust weighted least squares
+   in turn and shift, linearised for a small turn about the samples' weighted centre, the weights of `refine`; the turn
+   moves at most 2 degrees in all (it refines, it does not search); a step is kept when the score is no lower and the
+   mean residual smaller. Then every fit is scored on all samples at its rounded turn and shift.
+
+### The choice (how a wrong half turn or quarter turn is avoided, and how ties break)
+
+- The small tier: fits whose turn is within `SMALL_TURN` (10 degrees) of `from`. The far tier: the rest.
+- The best of the small tier is the answer unless a far fit scores at least `FAR_MARGIN` (15) points more and is not
+  weak. Why: Diego's floors are off by a few degrees; a half or quarter turn ties on any symmetric outline (the fixture
+  shows 81.9 against 81.3), and a turn far from where the floor is drawn needs clear evidence. A plan traced sideways
+  is still found: an L-shaped floor at 93 degrees scores far higher there than anywhere near 0.
+- Inside a tier, a tie (within 1 point) goes to the turn nearer `from`, then to the 0.27.0 rule for the move (the
+  smaller move; moves within 2 · `NEAR` are one answer and the smallest mean residual wins), then to the smaller turn
+  value. Every sort has a full key, so the answer never depends on the order the lines come in.
+- `alt` is reported whatever the tiers: the best fit more than 1 degree away from the answer within `ALT_WITHIN` (5)
+  points. A symmetric floor therefore never gets a confident answer: it is `weak`, or it carries `alt`.
+- With `from` the floor's current turn, a floor that was turned 180 degrees on purpose stays there; Auto align offers to
+  turn it back only when that fits 15 points better.
+
+### Determinism
+
+The same two floors give the same result, deep equal, on every run. Another start vertex of the outline, the walls in
+another order or reversed, the rooms shuffled: the same within 0.01 degree and 0.1 cm. No randomness; seeded only in
+tests.
+
+### Weak evidence: never applied silently
+
+- Only Apply writes Auto align's answer (and `alignToBelow`, which only a test calls). Opening the panel, a press, a key,
+  a `hass` update, a reload: none writes.
+- The panel's Auto align block, from `alignSummary` (`src/core/align-words.ts`):
+  - `#alignScore`: "82 % match", or, when weak, "Weak match: 20 %. Check the plan before you apply it" (as today);
+  - `#alignAlt`, only with `alt`: "A half turn (-176.0°) fits about as well (81 %). Check the plan before you apply
+    it." ("A quarter turn" near plus or minus 90, else "A turn of 7.5°");
+  - `#alignMove`: the change from the current place: "Turn 4.0° clockwise, move the centre 34 cm right, 12 cm up". The
+    move is the floor's pivot (`floorPivot`) in the floor below's frame; the turn the short way; no turn words under
+    0.05 degree; "Already aligned" when nothing changes.
+- Apply stays a button whatever the score, disabled only when nothing would change. It writes
+  `poseFromPlace(layout, key, below, { turn, shift: t })` through `setPose`: one undo step; the status says "Aligned to
+  Ground: 82 % match, turned 4.0°". The exact session pose starts again from the stored one, as after any writer.
+- Hand align stays: Move, Turn, the boxes, Reset and Align stairs work before and after Apply, as in 0.27.0.
+
+### The memo
+
+The expensive part, `alignCandidates`, reads only the two floors' structure in stored frames, so the editor memoises it
+on `alignKeyOf(upper)#alignKeyOf(lower)`, without the turn: a move, a turn, a box, Reset, Apply, undo and redo run no
+search; a structure edit runs one. `chooseAlign(fits, from)` runs on every render and is cheap. This replaces S29.9's
+key with the turn, which existed because the 0.27.0 search read the turn. `alignKey(f, turn)` keeps its argument for
+`alignShift`.
+
+### Time budget
+
+Measured in vitest, the slower of two runs: each consecutive floor pair of `stress-layout.json`, as stored and with the
+upper floor turned 7.3 degrees about its centre, under 600 ms; the stress first floor with 300 short external walls on
+it and on the ground (the heavy floor of `align-mode.spec.ts`), under 600 ms; the 10 000-point circle under 8000 ms (as
+today). In the Studio, opening Align on the heavy floor shows the score within 1500 ms. On 2026-10-11 the translation
+search alone took about 4 ms on a stress pair and 40 to 80 ms on the heavy floor, so 13 full searches do not fit
+without the triage or a faster score.
+
+### Non-goals (0.28.0)
+
+A preview of the proposal before Apply (Apply then Undo); stairs, rooms or devices as evidence (stairs are drawn
+differently on Diego's floors; Align stairs stays a button); scale; a worker thread; any card change.
+
+## Acceptance criteria (0.28.0)
+
+13. On `hand-align-house.json` with no pose, `alignFloor` from turn 0 puts every outline corner of the ground and of the
+    first floor within 2 cm of where the truth puts it, the turn within 0.2 degree, `weak` false, and `alt` naming the
+    half turn.
+14. Turned by each of -9.70, -6.20, -3.30, -1.10, -0.35, 0.40, 1.80, 4.00, 7.30 and 9.95 degrees about `[370, -120]`, the
+    `align-house` first floor and both hand-align floors align within 0.2 degree and 2 cm at every outline corner; the L
+    turned 23.00, -31.00 and 93.00 degrees is found too.
+15. A symmetric square house never gets a confident answer (`weak` false with `alt` null); two unrelated random floors
+    are weak or carry `alt`, for 20 seeds; a noisy copy (4 cm jitter, 15 stray lines) aligns within 0.5 degree and 5 cm.
+16. `from` is honoured: the first floor with `from` 184 stays at 184; with 0 it goes to 4.
+17. No lines on either floor: null and "Nothing to match"; junk floors and junk `from` never throw.
+18. The result is deep equal on a second run, and within 0.01 degree and 0.1 cm with the lines in another order.
+19. Every 0.27.0 `alignFloor` test still passes with turn 0, and `alignShift` gives 0.27.0's answers.
+20. The time budget above holds.
+21. In the Studio, with real clicks: the panel says the turn and the other turn, Apply writes turn and offset in one undo
+    step, Undo restores, hand align works after it, and a turn press runs no search.
+22. Weak and alt evidence is said and never applied without Apply; Lock plan refuses Apply.
+23. The panel's new lines are their own top element at 1024 x 768 and 380 x 800 with the toolbar wrapped.
+24. Exit: Auto align then Apply on the ground and the first floor of the hand-align house, Save, and in the card with
+    `floors_below: solid` the stairs of each floor lie within 2 cm of the one below's.
 
 ## Acceptance criteria (0.27.0)
 
