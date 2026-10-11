@@ -10,6 +10,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 import { renderFloor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
+import { openViewMenu } from "./view-menu";
 
 // The keys of the card: Up and Down zoom, Left and Right pan, Space resets. Who is listening is the point of these tests: the
 // card under the pointer or with focus, never a second card on the page, never someone typing.
@@ -273,6 +274,7 @@ describe("card keys: what they never take", () => {
 
   it("a range slider keeps its arrows: the Tilt slider in the card's own toolbar", async () => {
     const el = await mount({ view: "2.5d" });
+    await openViewMenu(el); // UI refactor 3: the slider is in the View options menu
     hover(el);
     const tilt = q<HTMLInputElement>(el, 'input[type="range"][aria-label="Tilt"]')!;
     expect(press("ArrowLeft", tilt)).toBe(false);
@@ -290,6 +292,7 @@ describe("card keys: what they never take", () => {
 
   it("arrows on a focused toolbar button do work: a button has no use for them", async () => {
     const el = await mount();
+    await openViewMenu(el); // UI refactor 3: Labels is in the View options menu
     hover(el);
     const labels = q<HTMLButtonElement>(el, 'button[aria-label="Labels"]')!;
     press("+");

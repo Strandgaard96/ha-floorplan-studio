@@ -627,3 +627,21 @@ describe("allOffTitle (Sprint 22 review): All off says when a shared relay reach
     ).toBe(ALL_OFF_TITLE);
   });
 });
+
+describe("UI refactor 1c and 1d: units only after a number, and short times", () => {
+  it("a state that is not a number never gets a unit", async () => {
+    const { readingText } = await import("../../src/core");
+    expect(readingText("unavailable", "°C")).toBe("unavailable");
+    expect(readingText("unknown", "%")).toBe("unknown");
+    expect(readingText("21.5", "°C")).toBe("21.5 °C");
+    expect(readingText("21.5", undefined)).toBe("21.5");
+  });
+  it("formatSince: the clock alone today, date and clock another day, unknown for junk", async () => {
+    const { formatSince } = await import("../../src/core");
+    const now = new Date(2026, 9, 11, 21, 0, 0).getTime();
+    expect(formatSince(new Date(2026, 9, 11, 19, 55, 23).toISOString(), now)).toBe("19:55");
+    expect(formatSince(new Date(2026, 9, 10, 7, 5, 0).toISOString(), now)).toBe("10 Oct 07:05");
+    expect(formatSince("nonsense", now)).toBe("unknown");
+    expect(formatSince(undefined, now)).toBe("unknown");
+  });
+});

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openViewMenu, viewControl } from "./shell-helpers";
 
 // The Walls select in the card toolbar, in a real Chromium with a real reload. The drawn wall height is read from
 // the DOM (the screen rectangle of the wall's side polygon), not from a string of the markup (CLAUDE.md findings
@@ -38,6 +39,7 @@ async function boot(page: Page, config: Record<string, unknown>) {
     },
     { config, layout: structuredClone(demo) },
   );
+  await openViewMenu(page); // UI refactor 3: the Walls select is in the View options menu
 }
 const CONFIG = { type: "custom:floorplan-studio-card", floor: "ground", view: "2.5d" };
 async function fresh(page: Page, config: Record<string, unknown> = CONFIG) {
@@ -72,7 +74,7 @@ test.describe("the card's Walls select (real browser, real reload)", () => {
     const s = select(page, "Walls");
     expect(await s.locator("option").allTextContents()).toEqual(["Full height", "Cutaway", "Low"]);
     expect(await s.inputValue()).toBe("cut");
-    await select(page, "View").selectOption("2d");
+    await viewControl(page).selectOption("2d");
     await expect(s).toHaveCount(0);
   });
 

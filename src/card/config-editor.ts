@@ -206,11 +206,12 @@ export class FloorplanStudioCardEditor extends LitElement {
   }
 
   private _detail(): DetailMode {
-    return parseDetailMode(this._config.detail);
+    const d = this._config.detail; // UI refactor 1a: unset (or junk) is `full`, the card's default
+    return typeof d === "string" && DETAIL_MODES.includes(d as DetailMode) ? (d as DetailMode) : "full";
   }
 
   private _onDetail(e: Event): void {
-    this._set("detail", parseDetailMode((e.target as HTMLSelectElement).value), "auto");
+    this._set("detail", parseDetailMode((e.target as HTMLSelectElement).value), "full");
   }
 
   private _onGhost(e: Event): void {

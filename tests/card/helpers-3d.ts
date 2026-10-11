@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { viewControl } from "./shell-helpers";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -56,7 +57,7 @@ export async function configure(page: Page, config: Record<string, unknown>) {
 }
 
 export const card = (page: Page) => page.locator("floorplan-studio-card");
-export const viewSelect = (page: Page) => card(page).locator('css=select[aria-label="View"]');
+export const viewSelect = (page: Page) => viewControl(page); // UI refactor 3: a segmented control with the select's two calls
 export const canvas = (page: Page) => card(page).locator("css=canvas");
 export const holder = (page: Page) => card(page).locator("css=.fp-3d");
 export const cam = (page: Page) =>

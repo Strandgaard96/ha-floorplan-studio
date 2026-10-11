@@ -146,12 +146,29 @@ function visibleBox(): { left: number; top: number; right: number; bottom: numbe
   return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
 }
 
+/** A box in client coordinates: the device a popup belongs to. */
+export interface Anchor {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** px between the device and the popup. */
+const BESIDE_GAP = 8;
+
 /**
- * Puts `el` (absolutely positioned in `host`) just below the point (client x, y), above it when there is no room below, and
- * inside the host either way. S22.2: "inside" is the host cut to what the user can see (`visibleBox`), so on a card taller than
- * the screen a tap low on the plan opens the popup above the point, not under the bottom edge. The popup's height is capped to
- * that box, and its sliders scroll (POPUP_CSS). A host scrolled almost out of sight (less than 40 px showing) falls back to the
- * host's own box, the rule before S22.2.
+ * Puts `el` (absolutely positioned in `host`) beside the thing it was opened from, inside the host either way. S22.2: "inside"
+ * is the host cut to what the user can see (`visibleBox`), so on a card taller than the screen the popup never ends under the
+ * bottom edge. The popup's height is capped to that box, and its sliders scroll (POPUP_CSS). A host scrolled almost out of
+ * sight (less than 40 px showing) falls back to the host's own box, the rule before S22.2.
+ *
+ * UI refactor 2: with an `anchor` (the device's box, or a small box round its screen point in 3D) the popup never covers it. It
+ * takes the side with the most room (right, left, below or above), measured as what is left after the popup's own size; when
+ * none holds the whole popup it goes above or below and its height is cut to the room there (it scrolls). `wide` (a card
+ * narrower than `ACTIVE_FOLD_BELOW_PX`) keeps the full-width sheet, so only above and below are on offer: it lands on the half
+ * of the card away from the device. Without an anchor (the old call) the popup sits just below the point (x, y), above it when
+ * there is no room.
  */
 export function placeNear(
   el: HTMLElement,
@@ -160,6 +177,8 @@ export function placeNear(
   y: number,
   gap = 14,
   beside: DOMRect | null = null,
+  anchor: Anchor | null = null,
+  wide = false,
 ): void {
   const h = host.getBoundingClientRect(),
     v = visibleBox();
@@ -168,9 +187,10 @@ export function placeNear(
     R = Math.min(h.right, v.right),
     B = Math.min(h.bottom, v.bottom);
   if (R - L < 40 || B - T < 40) ({ left: L, top: T, right: R, bottom: B } = h);
-  el.style.maxHeight = `${Math.max(0, Math.round(B - T - 16))}px`; // the CSS cap (100% - 16px) for a host in full view
-  const w = el.offsetWidth,
-    ht = el.offsetHeight;
+  const cap = Math.max(0, Math.round(B - T - 16)); // the CSS cap (100% - 16px) for a host in full view
+  el.style.maxHeight = `${cap}px`;
+  const w = el.offsetWidth;
+  let ht = el.offsetHeight;
   const clampTop = (t: number) => Math.max(T + 4, Math.min(B - ht - 4, t));
   // Beside a list row, the popup goes to the side of the list and lines up with the row, so the rows under it stay reachable.
   if (beside) {
@@ -178,6 +198,45 @@ export function placeNear(
       room = right + w + 4 <= R;
     el.style.left = `${Math.round(Math.max(L + 4, room ? right : beside.left - w - 8) - h.left)}px`;
     el.style.top = `${Math.round(clampTop(beside.top + beside.height / 2 - ht / 2) - h.top)}px`;
+    return;
+  }
+  if (anchor) {
+    const g = BESIDE_GAP;
+    const room = {
+      right: R - 4 - (anchor.right + g),
+      left: anchor.left - g - (L + 4),
+      below: B - 4 - (anchor.bottom + g),
+      above: anchor.top - g - (T + 4),
+    };
+    const slack: Record<"right" | "left" | "below" | "above", number> = {
+      right: room.right - w,
+      left: room.left - w,
+      below: room.below - ht,
+      above: room.above - ht,
+    };
+    // Beside first (right or left, whichever has more room left over once the popup is in), then above or below the same way.
+    const bestOf = (sides: (keyof typeof slack)[]) => {
+      const fits = sides.filter((k) => slack[k] >= 0);
+      return fits.reduce<keyof typeof slack | null>((m, k) => (m === null || slack[k] > slack[m] ? k : m), null);
+    };
+    let best = (wide ? null : bestOf(["right", "left"])) ?? bestOf(["below", "above"]);
+    if (best === null) {
+      // Nothing holds the whole popup: above or below, whichever has more room, and the popup is cut to it.
+      best = room.below >= room.above ? "below" : "above";
+      const fit = Math.max(0, Math.round(room[best]));
+      el.style.maxHeight = `${Math.min(cap, fit)}px`;
+      ht = el.offsetHeight;
+    }
+    const cx = (anchor.left + anchor.right) / 2,
+      cy = (anchor.top + anchor.bottom) / 2;
+    const across = (c: number) => Math.max(L + 4, Math.min(R - w - 4, c - w / 2));
+    let left: number, top: number;
+    if (best === "right") [left, top] = [anchor.right + g, clampTop(cy - ht / 2)];
+    else if (best === "left") [left, top] = [anchor.left - g - w, clampTop(cy - ht / 2)];
+    else if (best === "below") [left, top] = [wide ? L + 4 : across(cx), Math.max(T + 4, anchor.bottom + g)];
+    else [left, top] = [wide ? L + 4 : across(cx), Math.max(T + 4, anchor.top - g - ht)];
+    el.style.left = `${Math.round(Math.max(L + 4, left) - h.left)}px`;
+    el.style.top = `${Math.round(top - h.top)}px`;
     return;
   }
   const left = Math.max(L + 4, Math.min(R - w - 4, x - w / 2));

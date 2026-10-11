@@ -16,6 +16,13 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-11: Card UI refactor — shell (branch `task/ui-shell`)
+
+- The Overview starts folded at every width (one line: breadcrumb and chips); a tap on the line opens it; the pick is remembered per viewer.
+- The device popup sits beside the device it opened from (never over its icon); under 480 px it is the full-width sheet on the half away from the device.
+- One toolbar: a View segmented control and a View options menu holding every other look control, at every width; tilt has a label. Reset view is hidden until the view differs.
+- Default `detail` is `full` (was `auto`); a floor pill of another floor only switches; no unit after a non-numeric state; Motion times are short.
+
 ## 2026-10-11: Sync with upstream 0.26.2 (branch `task/upstream-sync-0.26.2`)
 
 Merged upstream `d1ec086` (0.23.0 to 0.26.2). The plain merge left 50 files in

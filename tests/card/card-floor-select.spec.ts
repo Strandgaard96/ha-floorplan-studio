@@ -188,11 +188,25 @@ test.describe("S20.1 All off in the room panel", () => {
 });
 
 test.describe("S20.2 selecting a floor from its pill", () => {
-  test("a pill click switches the floor, selects it and loads the panel with the floor's own summary", async ({
+  // UI refactor 1b: a pill of another floor only switches; the floor panel opens from a tap on the pill of the floor shown.
+  test("a pill of another floor only switches: no floor panel opens, the Overview keeps its state", async ({
     page,
   }) => {
     await boot(page);
     await expect(panel(page)).toHaveCount(0);
+    await pill(page, "First").click();
+    await expect(pill(page, "First")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "First")).not.toHaveClass(/fp-floor-picked/);
+    await expect(panel(page)).toHaveCount(0);
+    await expect(card(page).locator("css=.fp-active.fp-active-folded")).toHaveCount(1); // still the folded Overview
+  });
+
+  test("a second tap on the pill of the floor shown selects it and loads the panel with the floor's own summary", async ({
+    page,
+  }) => {
+    await boot(page);
+    await expect(panel(page)).toHaveCount(0);
+    await pill(page, "First").click();
     await pill(page, "First").click();
     await expect(pill(page, "First")).toHaveAttribute("aria-pressed", "true"); // aria-pressed still marks the floor shown
     await expect(pill(page, "First")).toHaveClass(/fp-floor-picked/);
@@ -252,12 +266,14 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await expect(pill(page, "Ground")).not.toHaveClass(/fp-floor-picked/);
   });
 
-  test("switching floor with a pill moves the selection to that floor; the old floor's is gone", async ({ page }) => {
+  test("switching floor with a pill drops the old floor's selection and opens none", async ({ page }) => {
     await boot(page);
     await pill(page, "Ground").click();
+    await expect(panel(page)).toHaveCount(1);
     await pill(page, "First").click();
     await expect(pill(page, "Ground")).not.toHaveClass(/fp-floor-picked/);
-    await expect(panel(page).locator("css=.fp-room-name")).toHaveText("First");
+    await expect(pill(page, "First")).not.toHaveClass(/fp-floor-picked/);
+    await expect(panel(page)).toHaveCount(0);
   });
 
   test("the selection survives a hass update and follows the state", async ({ page }) => {
@@ -305,7 +321,8 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await pill(page, "Ground").click();
     await expect(pill(page, "Ground")).toHaveAttribute("aria-expanded", "true");
     await expect(pill(page, "First")).toHaveAttribute("aria-expanded", "false");
-    await pill(page, "First").click();
+    await pill(page, "First").click(); // UI refactor 1b: another floor's pill only switches...
+    await pill(page, "First").click(); // ...and the next tap, on the floor now shown, selects it
     await expect(pill(page, "Ground")).toHaveAttribute("aria-expanded", "false");
     await expect(pill(page, "Ground")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "First")).toHaveAttribute("aria-expanded", "true");
@@ -362,6 +379,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
   test("the pill works from the keyboard", async ({ page }) => {
     await boot(page);
     await pill(page, "First").focus();
+    await page.keyboard.press("Enter"); // UI refactor 1b: the first Enter switches to First, the second selects it
     await page.keyboard.press("Enter");
     await expect(panel(page).locator("css=.fp-room-name")).toHaveText("First");
     await page.keyboard.press("Escape"); // focus is in the card, so it owns the key
@@ -373,6 +391,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
   test("a narrow card shows the panel on top of nothing else", async ({ page }) => {
     await boot(page, 375);
     await pill(page, "First").click();
+    await pill(page, "First").click(); // UI refactor 1b: switch, then select
     const covered = await panel(page).evaluate((el) => {
       const r = el.getBoundingClientRect();
       return !(el.getRootNode() as ShadowRoot).elementFromPoint(r.x + 8, r.y + 8)?.closest(".fp-room");
@@ -400,6 +419,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
       return e.updateComplete;
     }, bad);
     await card(page).locator("css=.fp-floors button").nth(1).click();
+    await card(page).locator("css=.fp-floors button").nth(1).click(); // UI refactor 1b: switch, then select
     await expect(panel(page).locator("css=.fp-room-name")).toHaveText('"><script>window.__pwned=1</script>');
     expect(await page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
   });

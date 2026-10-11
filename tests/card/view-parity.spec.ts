@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { serve, ORIGIN } from "./helpers-3d";
+import { openOverview, openViewMenu } from "./shell-helpers";
 
 // Diego, 0.12.22: "everything you do in studio must also be done in card". The rule for what is VIEWING: every
 // control the editor's View menu, its zoom group and its Filter menu draw is listed here with a decision, so a new
@@ -31,7 +32,7 @@ const PARITY: Record<string, Decision> = {
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },
   // S24.6: Layers replaced the Filter menu; S24.8 gives the card a text chip per family in its Overview, unfolded by this button.
-  // S25.8: the Detail button beside Layers, same three choices; the card starts on Auto, the Studio on Full.
+  // S25.8: the Detail button beside Layers, same three choices; the card and the Studio both start on Full (UI refactor 1a).
   detailSub: { card: "yes", has: ".fp-ov-scopes button.fp-detail-toggle" },
   tabLayers: { card: "yes", has: ".fp-ov-scopes button.fp-layers-toggle" },
   zin: { card: "yes", has: 'button[aria-label="Zoom in"]' },
@@ -44,7 +45,7 @@ const PARITY: Record<string, Decision> = {
 /** S12.1: the editor has no 2.5D, so these three are card only (the card keeps 2.5D as its low-power view). They are not
  * in PARITY, which is keyed by editor control; the card must still have them, and the editor must not. */
 const CARD_ONLY: Record<string, string> = {
-  "view-mode": 'select[aria-label="View"]',
+  "view-mode": '[role="group"][aria-label="View"]', // UI refactor 3: a segmented control, not a select
   tilt: 'input[aria-label="Tilt"]',
   walls: 'select[aria-label="Walls"]',
 };
@@ -87,6 +88,8 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
     el.hass = { states: {}, themes: { darkMode: false } };
     await el.updateComplete;
   }, demo);
+  await openViewMenu(page); // UI refactor 3: Theme, Labels, Device names, Floor below, Tilt and Walls are in the View options menu
+  await openOverview(page); // UI refactor 1: and Layers and Detail are in the Overview, which starts folded
   for (const [id, d] of Object.entries(PARITY)) {
     if (d.card !== "yes") continue;
     await expect(page.locator("floorplan-studio-card").locator(`css=${d.has}`), `${id}: ${d.has}`).toHaveCount(1);
@@ -110,6 +113,7 @@ test("in 3D the Floor below choice is the Floors below select, and the button is
     el.hass = { states: {}, callService: () => undefined };
     return el.updateComplete;
   }, demo);
+  await openViewMenu(page);
   await expect(page.locator("floorplan-studio-card").locator('css=select[aria-label="Floors below"]')).toHaveCount(1);
   await expect(page.locator("floorplan-studio-card").locator('css=button[aria-label="Floor below"]')).toHaveCount(0);
 });

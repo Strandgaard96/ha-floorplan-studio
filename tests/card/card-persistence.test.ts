@@ -5,6 +5,7 @@ import { THEMES } from "../../src/core";
 import { parseStoredView } from "../../src/card/view-state";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
+import { openViewMenu } from "./view-menu";
 
 // What the card writes, and when: the field report was a view that resets on every dashboard reload.
 
@@ -22,6 +23,7 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   document.body.appendChild(el);
   el.setConfig({ layout: structuredClone(L), ...config } as FloorplanStudioCardConfig);
   await el.updateComplete;
+  await openViewMenu(el); // UI refactor 3: Theme, Labels and the rest live in the View options menu
   return el;
 }
 const q = <T extends Element>(el: FloorplanStudioCard, sel: string) => el.shadowRoot!.querySelector<T>(sel);
@@ -120,9 +122,11 @@ describe("every touch is written soon", () => {
     expect(stored()[0]?.theme).toBe("light");
     await click(el, 'button[aria-label="Labels"]');
     expect(stored()[0]?.labels).toBe(false);
-    const view = q<HTMLSelectElement>(el, 'select[aria-label="View"]')!;
-    view.value = "2d";
-    view.dispatchEvent(new Event("change", { bubbles: true }));
+    // UI refactor 3: View is a segmented control, a click on the 2D segment is the pick
+    const seg2d = [
+      ...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('[role="group"][aria-label="View"] button'),
+    ].find((b) => b.textContent!.trim() === "2D")!;
+    seg2d.click();
     await el.updateComplete;
     expect(stored()[0]?.view).toBe("2d");
   });
@@ -162,6 +166,7 @@ describe("S25 fix: a stored Detail pick does not outlive a change of detail or k
   const level = (el: FloorplanStudioCard) => q(el, "svg g[data-detail]")?.getAttribute("data-detail");
   async function pickMinimal() {
     const a = await mount();
+    await click(a, ".fp-active-collapse"); // UI refactor 1: the Overview (and its Detail button) starts folded
     await click(a, ".fp-detail-toggle");
     await click(a, '.fp-detail[data-detail="minimal"]');
     expect(level(a)).toBe("far");

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openViewMenu } from "./shell-helpers";
 import { readGhostIn } from "../fixtures/ghost-contrast";
 
 // S27.13: the card's ghost floor. `ghost_floor` in YAML and the Floor below button. Real page.mouse clicks on the real top element
@@ -37,6 +38,7 @@ async function configure(page: Page, config: Record<string, unknown>) {
     { layout, floor: "first", ...config },
   );
   await expect(page.locator("floorplan-studio-card svg polygon[data-r]").first()).toBeVisible();
+  await openViewMenu(page); // UI refactor 3: the Floor below button is in the View options menu
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const ghosts = (page: Page) => card(page).locator("css=svg g.ghost");

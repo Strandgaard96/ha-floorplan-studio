@@ -1,3 +1,4 @@
+import { viewControl } from "./shell-helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { demo, open, configure, canvas, cam, drawn, card } from "./helpers-3d";
 
@@ -173,7 +174,7 @@ test.describe("3D view memory per floor (S14.4)", () => {
     await boot(page);
     await move(page, 130, 45, -300);
     await hasCam(page, "ground");
-    await card(page).locator('css=select[aria-label="View"]').selectOption("2d");
+    await viewControl(page).selectOption("2d");
     await expect(card(page).locator("css=canvas")).toHaveCount(0);
     await card(page).locator('css=button[aria-label="Zoom in"]').click();
     await expect.poll(async () => !!(await stored(page))[0]?.floors?.find(([k]) => k === "ground")?.[1].cam).toBe(true);

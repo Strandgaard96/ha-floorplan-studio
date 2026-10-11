@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOverview } from "./shell-helpers";
 
 // S11.3 and S11.4 (docs/specs/room-sensors.md, criteria 5 and 6): tap a room in the card, read it in the left panel,
 // open a device's details. Every click is a real page.mouse click at coordinates found with elementFromPoint, so a
@@ -94,6 +95,8 @@ async function boot(
       opts.registry === false ? {} : REGISTRY,
     ] as const,
   );
+  // UI refactor 1: the Overview starts folded at every width; before, it was open from 480 px up, and these specs were written for that.
+  if (width >= 480) await openOverview(page);
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);

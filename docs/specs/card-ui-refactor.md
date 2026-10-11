@@ -42,6 +42,13 @@ hide an idle device that is drawn today at the same zoom and detail setting.
    start, and its space in the stack collapses. Keyboard focus never lands on a
    hidden button.
 
+1a. **The default detail is `full`.** With `detail` unset the card draws every idle device at every zoom (it drew 8 of 26 on a
+    main floor and none of a basement's 17 at the default zoom). An explicit `detail: auto` and the viewer's own pick win.
+1b. **Switching floor does not open the floor panel.** A pill of another floor only switches; the Overview keeps its state. The
+    floor panel opens from a tap on the pill of the floor already shown.
+1c. **No unit after a non-numeric state** (`unavailable`, `unknown`, a word) anywhere the card prints a value with a unit.
+1d. **Short panel times.** "since 19:55" today, else "since 10 Oct 19:55"; the full timestamp in a `title`.
+
 ### Plan (lane `ui-plan`, `src/core/render.ts`, `src/core/theme-roles.ts`, `src/core/spider.ts`, `src/core/detail.ts`)
 
 5. **Far-zoom dots carry their glyph.** At far detail a device that is drawn
