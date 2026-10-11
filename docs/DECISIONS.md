@@ -2,6 +2,27 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: one type scale, spacing scale, two radii and two shadows (UI refactor, items 12 to 16)
+
+The card's chrome used eleven font sizes (10, 11, 12, 13, 14, 16 px and three `em` sizes), spacings of 2, 6, 10 and 14 px, radii of
+3, 4, 6, 8 and 10 px and four hand-written shadows, three of them `rgba(0, 0, 0, …)`. Now:
+
+- Type is 12 (secondary text, badges, group headings), 14 (rows, body, buttons in dialogs and the popup, the Overview title) and
+  16 (the popup's name and an open room's name). The View options menu rows went from 12 to 14 because they are rows. The
+  Overview header stays 14, not 16: it is one folded line that must hold the chips on a phone.
+- Spacing is `--fp-space-1..5` (4, 8, 12, 16, 24), radii `--fp-radius-control` (6) and `--fp-radius-surface` (12) plus a pill,
+  shadows `--fp-shadow-sm` (controls) and `--fp-shadow-lg` (panel, popup, dialog, tooltip, View options menu), a tight and a soft
+  layer each, mixed from `--fp-ink`. All sit on the card host; `<fp-search>` reads them with the old value as fallback. The dialog's
+  scrim is the background colour at 70 %, not black. Touch targets did not shrink: popup buttons 44 px, coarse-pointer chips 40 px.
+- A shadow mixed from the ink is a light glow on a dark theme. It is faint (12 to 24 %) and the surfaces are lighter than the
+  background there, so it reads as a soft lift, not a halo; look at it on blueprint before changing the percentages.
+- Panel hierarchy: section headings (Devices, Active …, Attention …, Active in this room) are 12 px, 600, capitals, in `--fp-ink`;
+  group headings (Lights, Climate …) are 12 px, 500, mixed case, in `--fp-text`. A fact's label is 12 px `--fp-text`, its value
+  14 px `--fp-ink`.
+- Plan labels (same draw path in the editor): a room name is 14 px on the screen, an outdoor or zone name 12, semibold; a
+  room's sensor readout and the room badges 12. The label fitter still shrinks a name to fit down to 7 px, as before.
+  In 3D the name chip is 14 px semibold, a device's value and name chip 12.
+
 ## 2026-10-11: outdoor kinds are drawn quiet (UI refactor, item 17)
 
 On the live card the garden was larger than the house and filled at full strength (brownish-mauve on the HA light theme), so

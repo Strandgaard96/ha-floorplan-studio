@@ -18,6 +18,13 @@ git diff upstream/main --stat           # files we changed
 
 ## 2026-10-11: Card UI refactor — system (branch `task/ui-system`)
 
+- One type scale (12 / 14 / 16 px), spacing scale (`--fp-space-1..5`: 4 / 8 / 12 / 16 / 24 px), radii (`--fp-radius-control` 6 px,
+  `--fp-radius-surface` 12 px, pill) and two shadow tokens (`--fp-shadow-sm`, `--fp-shadow-lg`, mixed from `--fp-ink`) on the card
+  host, replacing the off-scale sizes, radii and every `rgba(0, 0, 0, …)` in the card's CSS. Plan room names are 14 px semibold
+  (outdoor and zone names 12), readouts and room badges 12; the 3D chips follow.
+- Room panel: section headings (Devices, Active …) outrank group headings (Lights …); a fact's label is 12 px `--fp-text`,
+  its value 14 px `--fp-ink`.
+- Popup: More info is left-aligned with Details; the hue slider's thumb is round.
 - Outdoor kinds (garden, terrace, pavement, water) are drawn quiet: `--fp-<kind>-fill` mixes the kind colour into the
   background, closer to it than an unpainted room in every theme. The plan, the room-name surface (`--fp-under`) and the 3D
   ground read the fill tokens; trees keep the raw kind colour. Solarized's outdoor hexes were darkened to fit.

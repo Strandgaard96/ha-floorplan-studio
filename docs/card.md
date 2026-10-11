@@ -555,6 +555,12 @@ indoor room in every theme: each fills from `--fp-garden-fill`,
 mixed into the background, so a large lawn does not outweigh the house. A room
 with a colour or texture of its own is never touched.
 
+The card's own chrome (Overview, popup, dialogs, tooltip, toolbar) speaks one
+set of design tokens, defined on the card host: `--fp-space-1` to `--fp-space-5` (4, 8, 12, 16, 24 px),
+`--fp-radius-control` (6 px), `--fp-radius-surface` (12 px),
+`--fp-radius-pill`, and the shadows `--fp-shadow-sm` and `--fp-shadow-lg`
+(a tight and a soft layer, mixed from `--fp-ink`). Text is 12, 14 or 16 px.
+
 ## What a device looks like, on and off
 
 Every device sits on a white disc, above rooms and their names. An idle

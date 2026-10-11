@@ -159,7 +159,7 @@ for (const width of [1100, 375]) {
               overflow: body.scrollWidth > body.clientWidth,
             };
           });
-        expect(s.size).toBe("10px");
+        expect(s.size).toBe("12px"); // UI refactor 12 and 15: a group heading is 12 px
         expect(s.border).toBe("none");
         expect(s.bg).toBe("rgba(0, 0, 0, 0)");
         expect(s.cursor).toBe("pointer");

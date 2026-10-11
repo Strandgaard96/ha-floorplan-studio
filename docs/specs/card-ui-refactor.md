@@ -98,7 +98,8 @@ hide an idle device that is drawn today at the same zoom and detail setting.
     (CLAUDE.md rule 9).
 15. **Room panel hierarchy.** Labels (Area, Temperature …) in `--fp-text`,
     values in `--fp-ink`; the section heading ("Devices", "Active in this room")
-    outranks the group headings (Lights, Climate …).
+    outranks the group headings (Lights, Climate …). Built: facts 12 px / 14 px; sections 12 px 600 capitals in ink, groups
+    12 px 500 in `--fp-text`.
 16. **Popup details.** "More info" and "Details" share the left edge. The hue
     slider's thumb is round like the others.
 17. **Outdoor kinds are quiet.** (Magnus, from his live house.) A garden bigger than the house was filled at full strength
