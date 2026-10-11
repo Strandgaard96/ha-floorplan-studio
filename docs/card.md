@@ -34,7 +34,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `floor` | the switcher, if the layout has more than one floor; its only floor otherwise | which floor to pin to, by its id (`ground`, `first`, ...) — no switcher, just that floor; `all` shows the switcher explicitly; an id the layout doesn't have is treated the same as leaving `floor` unset |
 | `floors` | unset | an array of floor ids: shows a switcher over only these floors, in this order, defaulting to the first one. Takes precedence over `floor`. An id the layout doesn't have is dropped; if none of them match, this is the same as leaving `floors` unset |
 | `theme` | `blueprint` | `blueprint`, `light`, `midnight`, `slate`, `terminal`, `solarized`, or `ha` (see Themes, below) |
-| `fade` | `120` | seconds a motion sensor takes to fade from red to nothing after it goes off |
+| `fade` | `120` | seconds a motion sensor takes to fade from its colour to nothing after it goes off |
 | `plug_heat_from`, `plug_heat_to` | `0`, `2000` | the draw range a plug's colour runs over, in watts: blue at the low end, amber half way, red at the high end. Two numbers with from below to; anything else is `0` and `2000`. See Plugs |
 | `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
@@ -558,8 +558,10 @@ differently:
   or its switch is on. A tap's button always acts on the light itself; the switch is
   never one of the S10.4 chooser's entities (below) — it stays reachable from
   inside the light's own more-info dialog instead.
-- **Motion sensor** — red the moment it triggers, with a strong red disc and
-  a ring pulsing out from it while it stays on. It then fades back to grey
+- **Motion sensor** — in the motion colour the moment it triggers (magenta by
+  default, a colour of its own in every theme; red is kept for alerts), with a
+  strong disc and a ring pulsing out from it while it stays on, unless it lights
+  its room's outline, which is then the one ring. It then fades back to grey
   over `fade` seconds from when it last went off — even if it's already off
   by the time the card loads.
 - **Motion perimeter** — while a motion sensor (or a radar) stands in a room
@@ -845,7 +847,7 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   - *Lights.* A lit light device lights the room it hangs in (the 2D rule): its floor, furniture and walls take a lift toward the lamp's colour, and a soft pool sits under the lamp. The neighbouring room does not change. **At most 8 lamps get a pool**, the 8 nearest the middle of the house; every lit room is lifted whatever the count. The card says so in the view's `data-pools="shown/lit"`. Night (the sun rule) darkens the scene and leaves lit rooms bright.
   - *Doors and windows.* A plain door shows its leaf only while its sensor says closed (no sensor, unavailable or unknown: a hole); an open one (or an open cover door) swings about 70 degrees about its hinge, in red. A window's pane is there while it is closed and gone when it is open; a glass door's pane follows the door rule. Sealed doors do not change. An alarmed door (vibration) stays shut and turns red.
   - *Devices.* The small balls take their colour from the `--fp-dev-*` tokens and the state, as the 2D icons do. Person, radar, vibration and the plug-power rule are the 2D helpers. A speaker that is playing has lit drivers; a TV that is on has a lit screen; a heating radiator is tinted with `--fp-heater`. A device with a body, and a sensor that belongs to a room, shows no ball.
-  - *Room motion.* A room with a `motion` list gets a red edge on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
+  - *Room motion.* A room with a `motion` list gets an edge in the motion colour on its floor outline: three pulses when a sensor trips, then steady, then it fades by `last_changed` and the `fade` setting, as in 2D. With reduced motion the edge is steady. The view draws frames only while a pulse plays.
   - *Labels and icons.* An HTML layer over the model shows each room's name and its sensors' mean reading, and a real icon for every visible device. The Labels and Names buttons work in 3D. A label or icon behind a wall, or behind the camera, is hidden. The layer ignores the pointer, so a drag that starts on an icon still turns the model; a tap on an icon toggles or opens more-info as in 2D.
   - A Home Assistant update changes all of this in place: no rebuild, no camera move.
 - **Depth in 3D (always on, no key).** The house stands on a ground plane. A soft shadow lies along every wall foot and under furniture, boxes, device bodies and trees, on each floor drawn (floors below too), and none of it is tappable. A tree is a faceted crown on a trunk that ends where the crown starts. Doors, glass doors, windows, slits and full-height windows stand in a frame (a doorway, a sealed panel and a plain opening do not), and a tap on the frame is a tap on the door. A closed door's leaf is quiet; it is red only when open or alarmed. Wall tops, sun faces and shade faces read apart on every theme, and a room or stair with its own paint is dimmed on a dark theme as in 2D.

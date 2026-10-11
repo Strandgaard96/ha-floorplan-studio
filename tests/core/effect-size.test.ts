@@ -82,7 +82,10 @@ describe("fx in validate and migrate", () => {
 describe("which types draw an effect", () => {
   it("every device type is decided: it draws a ring, an aura or a wave exactly when FX_TYPES lists it", () => {
     for (const type of DEVICE_TYPES as readonly DeviceType[]) {
-      const html = draw([dev(type, "x.y", { fx: 150 })], { "x.y": st(ACTIVE(type)) });
+      // A motion sensor that lights its room's outline draws no ring of its own, so it stands outside every room here.
+      const html = draw([dev(type, "x.y", { fx: 150, ...(type === "motion" ? { x: -900, y: -900 } : {}) })], {
+        "x.y": st(ACTIVE(type)),
+      });
       const drew = /class="(aura|ping|wave|siren-ring)/.test(html);
       expect(drew, type).toBe((FX_TYPES as readonly string[]).includes(type));
       expect(drawsEffect({ type, entity: "x.y" }), type).toBe(drew);
