@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: Sprint 29 review fixes (Opus): Align is read-only, one pivot, same is not refused, one stair rule, decimals only
+
+`src/editor/editor-app.ts`, `src/editor/state.ts`, `src/editor/inspector.ts`, `src/core/hand-align.ts`, `tests/editor/align-review.spec.ts`, `tests/editor/align-review.test.ts`, `tests/card/card-ghost.spec.ts`.
+- **Align is read-only (supersedes S29.9's "a device may be dragged while Align is open").** S29.9 left the plan live and only cleared the selection on entering Align. A click then selected an edge, wall, room, stair, door or opening that had no handle, Delete removed it unseen, a draw could start with Align open, and `.` typed into a draw length turned the floor. Now `onDown` while Align is open on this floor starts a pan and nothing else (no selection, no marquee, no drag; the wheel still zooms); Delete, Backspace, Ctrl+A, double click and the right-click menu do nothing; `startDraw` closes Align first; `alignKeyDo` returns false during a draw. The S28.12 "no search during a drag" test now presses a device, gets a pan, and checks the light did not move. Rejected: ignoring only the geometry hits and leaving devices draggable (a device is plan geometry too, and a half read-only mode is harder to explain than a whole one).
+- **One pivot.** `EditorState.setRotation(key, rot, pivot)` is `turnFloor` by `rot - exact rotation`, so the rotation box and the Turn buttons share the writer, the undo step, the session pose and the rounding. The box used `setPose` with the offset kept, which turns about the stored origin and swings a floor whose pivot is far from [0, 0]. The same angle (to 0.01 degree, -180 equal to 180) writes nothing.
+- **Same is not refused.** `EditorState.lastPose` records "wrote", "same" or "refused" for the last pose write. `poseNone()` in the editor says "Already aligned" for "same" and the coordinate-limit message only for "refused" that is not the lock. Apply, Align stairs and a refused press all use it. Align stairs used to call a pose that rounded to the stored one "beyond the limit" whenever the move was 0.05 cm or more. `writePose` also reads a stored -180 as 180, so a no-op edit leaves -180 alone.
+- **One rule for "which stair below".** The upper floor's first stair (with a footprint) is paired with the lower floor's stair nearest by centre distance, the upper centre as the place draws it; the first wins a tie. `stairReport` and `stairPlace` both call `nearestBelow`. Before, the report took the nearest and the button the first in the list, so the panel could name one stair and align to another. Supersedes S29.8 and S29.11 where they say "the first stair of each floor".
+- **Decimals only.** `parseAlignNumber` accepts a sign, digits and one point or comma. `Number()` took `0x10`, `1e3`, `Infinity` and `0b11`.
+- **Ghost parity.** `card-ghost.spec.ts` opens the card and the Studio's Align on one turned layout and compares the two `g.ghost` markups, whole cm. With the Studio's turn removed it fails.
+- Judgement calls: the Add menu (Door, Wall...) still writes while Align is open, because the user presses it on purpose and sees the result; only invisible or accidental writes are shut. Turned textures: nothing added.
+
 ## 2026-10-11: S29.12, the exit test, `floorShift` removed, the docs
 
 `tests/editor/hand-align-exit.spec.ts`, `src/core/floor-stack.ts`, `src/core/index.ts`, SPEC, editor.md, card.md, the guide, CHANGELOG.

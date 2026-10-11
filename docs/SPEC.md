@@ -124,7 +124,7 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   a floor shown alone stays in its own frame. The Studio's Align panel moves the floor with four buttons and the arrow
   keys (1, 5 or 50 cm) and turns it about its centre with two buttons and `,` `.` (0.1, 0.5, 1 or 3 degrees), one undo
   step per press; boxes take a typed offset and rotation, Reset zeroes both, a stair report lists how far each stair lies
-  from the one below, and Align stairs lays the floor's first stair on the first stair below. Offsets are stored to
+  from the one below, and Align stairs lays the floor's first stair on the nearest stair below. The plan is read-only while Align is open. Offsets are stored to
   0.1 cm, rotations to 0.01 degree. Align to floor below keeps the floor's turn and searches translation only (the angle
   search is planned for 0.28.0). Design and acceptance criteria: `docs/specs/hand-align.md`.
 - **Ghost floor.** The floor below drawn as faint lines (`--fp-ghost`) under the shown one, at its place (the floors' offsets and rotations, `floorPlace`): no

@@ -40,9 +40,11 @@ Left to right:
   - **Offset and Rotation**: boxes that show the stored values (0.1 cm, 0.01 degree) and take typed ones, one undo step
     per change; text that is not a number changes nothing. **Reset** sets both to 0 in one step.
   - **Stairs**: each stair of this floor with the nearest stair below (distance, and degrees off for a straight flight),
-    live on every press. **Align stairs** lays this floor's first stair on the first stair below, moving and turning it
+    live on every press. **Align stairs** lays this floor's first stair on the stair below nearest to it (the one the first row of the list names), moving and turning it
     (a round stair only moves), and says what it did; one undo step.
   The two step choices are kept in this browser (not in the plan, not an undo step).
+  While Align is open the plan is read-only: a press only pans (the wheel still zooms), nothing is selected, dragged or
+  deleted, and the right-click menu is off. Starting a draw closes Align.
 - **View** — how the plan looks while you work: snap grid, measure grid, lengths, a Labels submenu (Device names, Names and values),
   Floor below (the floor under this one as faint lines, kept in this browser, no undo step),
   Preview night, theme, Detail (Auto, Full or Minimal), Re-center and Fit to window. The editor draws the plan

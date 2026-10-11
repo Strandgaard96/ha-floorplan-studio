@@ -1,6 +1,6 @@
 # Hand align: move and turn a floor over the floor below
 
-Status: proposed, 2026-10-11, revised the same day (buttons, not dragging). Waiting for Diego's yes. Plan:
+Status: implemented in 0.27.0 (Sprint 29), 2026-10-11, revised the same day (buttons, not dragging). Plan:
 `docs/PLAN.md`, Sprint 29 (0.27.0) and Sprint 30 (0.28.0).
 
 ## Why
@@ -159,7 +159,7 @@ bounding box (the point `stairBlocks` turns it about). The angle is between the 
 round stair has no axis and shows the distance only. It updates on every press. None on either floor: "No stairs on
 this floor" or "No stairs on Ground".
 
-Align stairs (enabled when both floors have a stair with a footprint) uses the first stair of each floor. A straight
+Align stairs (enabled when both floors have a stair with a footprint) uses the first stair of this floor and the stair of the floor below nearest to it by centre distance (the stair report's rule, review 29). A straight
 flight gives two points: the middles of its low edge and of its top edge. The floor moves so the low points meet and
 turns about them so the flights lie on one line; of the two ways to match (same order, or reversed for a flight drawn
 the other way) the one with the smaller turn wins. A round stair gives its centre: move only, and the status says
