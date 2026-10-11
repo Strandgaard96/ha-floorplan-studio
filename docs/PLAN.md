@@ -3589,7 +3589,7 @@ Wave 3, in order on `task/s29-hand-align`:
       floors below solid; the coordinator opens them in blueprint, light and ha-dark and the Align panel at 1280 and
       380, dark and light, and lists what each shows.
       Files: `scripts/shots.mjs`.
-- [ ] S29.14 Verify (Sonnet): `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new
+- [x] S29.14 Verify (Sonnet): `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new
       tests `--repeat-each=10`; the size test and `card-3d-perf.spec.ts` read on their own; the exit test walked by hand
       once in the Studio.
 
