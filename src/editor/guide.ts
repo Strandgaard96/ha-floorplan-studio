@@ -3,6 +3,8 @@ export interface GuideStep { title: string; body: string }
 /** The view keys, for the Help panel's controls table. The same keys the card takes (`view-keys.ts`). */
 export const CONTROLS: { keys: string; does: string }[] = [
   { keys: "Arrow keys", does: "Pan the view up, down, left and right" },
+  { keys: "Arrow keys in Align", does: "Move the floor you are aligning by the chosen step" },
+  { keys: ",  and  .", does: "Turn the floor you are aligning anticlockwise and clockwise, in Align" },
   { keys: "+  and  -", does: "Zoom in and out" },
   { keys: "[  and  ]", does: "Turn the plan 45 degrees left and right" },
   { keys: "Space", does: "Reset the view: the whole floor, upright" },

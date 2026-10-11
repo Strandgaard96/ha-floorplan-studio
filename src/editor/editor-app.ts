@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, normaliseTurn, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -1728,6 +1728,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (isSaveChord(ev) && !ev.defaultPrevented && !ev.isComposing) { ev.preventDefault(); this.saveByKey(); return; }
     // S24.5: Cmd/Ctrl+K from anywhere in the editor, "/" from anywhere but a text field, goes to the search box.
     if (isSearchChord(ev)) { ev.preventDefault(); this.renderRoot.querySelector<FpSearch>("#search")?.focus(); return; }
+    if (this.alignKeyDo(ev)) return;
     const vk = viewKeyFor(ev);
     if (vk) { this.doViewKey(vk, ev); return; }
     // S22.5: Escape closes an open toolbar menu first, and does nothing else on that press. Ahead of the input check,
@@ -2640,6 +2641,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.stopDraw(); this.st.sel = null; this.alignKey = this.st.floor; this.asideMode = "align"; this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
     if (this.st.helpOpen) this.st.setHelp(false);
     this.requestUpdate();
+    this.focus({ preventScroll: true }); // S29.10: the keys are heard on the host, so the menu click must leave focus there
   }
   closeAlign(update = true) {
     this.alignKey = null; this.alignMemo = null;
@@ -2710,7 +2712,29 @@ export class FloorplanStudioEditor extends LitElement {
     const to: Pt = axis === 0 ? [n, a.cur[1]] : [a.cur[0], n];
     if (this.st.setOffset(a.key, to)) this.changed("Floor offset set"); else this.refused();
   }
-  resetAlignOffset() { const a = this.alignPreview(); if (a && (a.cur[0] !== 0 || a.cur[1] !== 0)) { if (this.st.setOffset(a.key, [0, 0])) this.changed("Floor offset reset"); else this.refused(); } }
+  /** S29.10: the rotation box (degrees, a comma works); one undo step, the offset kept; junk or the same value changes nothing and the box shows the layout again. */
+  setAlignRotation(text: string) {
+    const a = this.alignPreview();
+    if (!a) return;
+    const n = text.trim() === "" ? NaN : Number(text.trim().replace(",", "."));
+    if (!Number.isFinite(n)) { this.status = "Type a number of degrees"; this.requestUpdate(); return; }
+    if (this.st.setPose(a.key, { rot: normaliseTurn(n), off: a.cur })) this.changed("Floor rotation set"); else if (this.st.planBlocked) this.refused(); else this.requestUpdate();
+  }
+  /** Reset: rotation and offset both to zero, one undo step. */
+  resetAlignOffset() { const a = this.alignPreview(); if (a && (a.rot !== 0 || a.cur[0] !== 0 || a.cur[1] !== 0)) { if (this.st.setPose(a.key, { rot: 0, off: [0, 0] })) this.changed("Floor offset and rotation reset"); else this.refused(); } }
+  /** S29.10: while Align is open on this floor, the arrows move it and `,` `.` turn it, by the selected steps. Held keys (auto-repeat) do nothing; a text field keeps its keys. */
+  private alignKeyDo(ev: KeyboardEvent): boolean {
+    if (this.asideMode !== "align" || this.alignKey !== this.st.floor) return false;
+    if (ev.defaultPrevented || ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey) return false;
+    const dir: Record<string, Pt> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const d = dir[ev.key];
+    if (!d && ev.key !== "," && ev.key !== ".") return false;
+    if (takesTyping(ev.composedPath()[0] as HTMLElement | undefined)) return false;
+    ev.preventDefault();
+    if (ev.repeat) return true;
+    if (d) this.moveAlign(d); else this.turnAlign(ev.key === "." ? 1 : -1);
+    return true;
+  }
   /** The floor below as `renderFloor`'s ghost: while the Align mode is open, or when View, Floor below is on (S27.11). */
   private ghostOpts(): { floor: Floor; shift: Pt; turn: number } | undefined {
     const st = this.st, bk = floorBelow(st.layout, st.floor);

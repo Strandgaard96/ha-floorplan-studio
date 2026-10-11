@@ -276,7 +276,10 @@ export function alignView(h: FloorplanStudioEditor) {
     <p id="alignWho">This floor moves. The floor below (faint lines) is drawn moving the other way.</p>
     <h4 class="pnl-h">Offset (cm)</h4>
     ${field("alignX", "x (right)", 0)}${field("alignY", "y (down)", 1)}
-    <button class="btn keep" id="alignReset" ?disabled=${a.cur[0] === 0 && a.cur[1] === 0} @click=${() => h.resetAlignOffset()}>Reset</button>
+    <h4 class="pnl-h">Rotation (degrees)</h4>
+    <label for="alignRot">turn (clockwise)</label>
+    <input id="alignRot" type="text" inputmode="decimal" autocomplete="off" .value=${live(String(a.rot))} @change=${(e: Event) => h.setAlignRotation((e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}>
+    <button class="btn keep" id="alignReset" ?disabled=${a.rot === 0 && a.cur[0] === 0 && a.cur[1] === 0} @click=${() => h.resetAlignOffset()}>Reset</button>
   </div>`;
 }
 

@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.10, Align keys, the rotation box and Reset
+
+`src/editor/editor-app.ts` (`alignKeyDo`), `src/editor/inspector.ts`, `src/editor/guide.ts`.
+- **Keys.** `onKey` on the host asks `alignKeyDo` before the view keys. While Align is open on this floor, an arrow calls `moveAlign` and `,` `.` call `turnAlign`, by the selected steps. Not with Ctrl, Meta or Alt, not from a text field (`takesTyping`), and `ev.repeat` is swallowed, so a held key is one step. Outside Align the arrows pan as before. A keydown on `window` is not heard (finding 6).
+- **Focus.** `openAlign` focuses the host, so the keys work right after the menu click.
+- **Turning shifts the offset.** `turnFloor` turns about the pivot, so the floor's place does not move and the stored offset changes too. A test counts undo steps, not offsets, after a turn.
+- **Rotation box.** `#alignRot`, degrees, comma accepted, written by `setPose` with the offset kept; junk or the same value writes nothing and the box shows the layout again.
+- **Reset** is one `setPose(key, {rot:0, off:[0,0]})`; disabled when both are zero.
+- **Help** gets two rows in `CONTROLS`.
+
 ## 2026-10-11: S29.9, the Align panel's buttons, and what a press does to the plan
 
 `src/editor/inspector.ts` (`alignView`), `src/editor/editor-app.ts`.

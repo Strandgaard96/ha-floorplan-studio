@@ -3557,7 +3557,7 @@ Lane studio (`src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/
       `pointer-events`.
       Files: `src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/styles.ts`,
       `tests/editor/align-mode.spec.ts`, a new `tests/editor/align-buttons.spec.ts`.
-- [ ] S29.10 Keys, readout and Reset (Sonnet). Arrows and `,` `.` on the editor host while Align is open, by the selected
+- [x] S29.10 Keys, readout and Reset (Sonnet). Arrows and `,` `.` on the editor host while Align is open, by the selected
       steps; `ev.repeat` ignored; nothing while a text field has focus; arrows still pan outside Align; the offset and
       rotation boxes (typed values, one step per change, junk shows the value again); Reset zeroes both in one step;
       Help lists the keys. Test, real `page.keyboard`: one press, one step of the right size and sign for each of the
