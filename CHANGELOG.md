@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 3D: the floors below turn with their `rotation`. Slabs, walls, stairs, crowns and contact shadows are placed by the turn and then the shift; the card gives the view `floorPlace`, so a change of rotation alone redraws the ghost and the floors below.
 - The ghost floor can turn: `renderFloor`'s `ghost` takes a `turn` (degrees, clockwise) and places every point with it before the shift. No turn, or 0, draws exactly what it drew.
 - A floor can carry a `rotation` (degrees, clockwise, about its stored origin, before the offset). The schema and `migrate` accept and check it; no view reads it yet.
 - Core: pose helpers (`floorPlace`, `placePoint`, `composePlace`, `poseFromPlace`, `floorPivot` and friends) turn and shift a floor into another's frame, ready for the ghost, 3D and the Align panel. Test fixture `hand-align-house.json`.

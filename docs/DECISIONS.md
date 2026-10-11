@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.4, a floor below turns by its points, not by its `ref`
+
+`SceneOpts.turn` turns every solid in `add`, the one choke point of `scene-build.ts`, before the shift: base, holes and
+the point, each as `placePoint({ turn, shift })`.
+- **What reads points.** Slabs, room fills, walls, stair steps, and every footprint: they are turned with the points.
+- **What reads `ref`.** A crown (tree, shrub, pond lights) is a centre, a size and a `rot`. The centre turns with the point;
+  `rot` gets `+ turn`; size and ids stay. A stair's `faces` (wall normals) turn without the shift. Why: the crown's
+  ellipse axis and a face normal are directions, not places. Turning only the centre would leave a crown looking the
+  old way on a turned house.
+- **Untouched.** `crowns.ts` and `shade.ts` read the solids as given, so they follow with no change. A junk turn reads as 0.
+- **The cache.** The below cache keys on elevation, shift and turn. The card compares `[elevation, shift, turn]`, so a
+  rotation alone redraws.
+- **The card** takes `floorPlace` for the ghost and for `_sync3dBelow`. `floorShift` is no longer imported there.
+
 ## 2026-10-11: S29.2, the pose maths: sign, composition, pivot
 
 Design note for `src/core/floor-stack.ts`, written before the code.
