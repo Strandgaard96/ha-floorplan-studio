@@ -25,6 +25,7 @@ const frame = (page: Page, i: number) => page.evaluate(([tag, i]) => {
   const ed = document.querySelector(tag as string) as any, d = ed.st.f.devices[i as number];
   ed.st.views[ed.st.floor] = { x: d.x - 250, y: d.y - 250, w: 500, h: 500 };
   ed.requestUpdate();
+  return ed.updateComplete; // measured only after the render that draws the new frame
 }, [EDITOR, i] as const);
 
 /** Every drawn point device whose centre is well inside the canvas, centre in screen pixels. */
@@ -73,7 +74,6 @@ async function rectSomewhere(page: Page, want: (inside: Box[]) => boolean): Prom
   const lights = stress.floors.ground.devices.flatMap((d, i) => (d.type === "light" ? [i] : [])).slice(0, 30);
   for (const i of lights) {
     await frame(page, i);
-    await page.waitForTimeout(50);
     try { return await findRect(page, want); } catch { /* next frame */ }
   }
   throw new Error("no frame offers a rectangle");
@@ -94,6 +94,10 @@ async function shiftDrag(page: Page, r: Rect, midDrag?: () => Promise<void>) {
   await page.mouse.up();
   await page.keyboard.up("Shift");
 }
+
+/** Where the plan's svg sits on the screen. */
+const planOrigin = (page: Page) => page.evaluate((tag) => { const b = (document.querySelector(tag) as any).shadowRoot.querySelector(".canvas > svg").getBoundingClientRect(); return { x: b.x as number, y: b.y as number }; }, EDITOR);
+const shifted = (r: Rect, dx: number, dy: number): Rect => ({ x0: r.x0 + dx, y0: r.y0 + dy, x1: r.x1 + dx, y1: r.y1 + dy, inside: r.inside.map((b) => ({ ...b, x: b.x + dx, y: b.y + dy })), start: { x: r.start.x + dx, y: r.start.y + dy }, end: { x: r.end.x + dx, y: r.end.y + dy } });
 
 const sorted = (a: number[]) => [...a].sort((p, q) => p - q);
 
@@ -126,10 +130,15 @@ test("a device of a hidden layer inside the rectangle is not taken", async ({ pa
   await load(page);
   const r = await rectSomewhere(page, (ins) => ins.filter((b) => b.type === "light").length === 4 && ins.length <= 7 && ins.some((b) => b.type !== "light"));
   const other = r.inside.find((b) => b.type !== "light")!;
+  const origin = await planOrigin(page);
   // Hide that device's family through the real Layers control would move the pointer; the state is the same list.
   await page.evaluate(([tag, layer]) => { const ed = document.querySelector(tag as string) as any; ed.st.hidden = [layer]; ed.requestUpdate(); }, [EDITOR, layerOfType(other.type)] as const);
   await expect(page.locator(`${EDITOR} .canvas > svg g.dev[data-x="${other.i}"]`)).toHaveCount(0);
-  await shiftDrag(page, r);
+  // Hiding changes the status line; on a font wide enough to wrap the toolbar that changes its height and moves the plan under
+  // the rectangle measured before. Move the rectangle by however far the plan moved.
+  const moved = await planOrigin(page);
+  const r2 = shifted(r, moved.x - origin.x, moved.y - origin.y);
+  await shiftDrag(page, r2);
   const s = await state(page);
   const lights = r.inside.filter((b) => layerOfType(b.type) !== layerOfType(other.type)).map((b) => b.i);
   expect(sorted(s.sel!.is!)).toEqual(sorted(lights));
