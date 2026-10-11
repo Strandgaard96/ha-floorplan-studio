@@ -58,6 +58,8 @@ const read = (page: Page) =>
       return {
         group: getComputedStyle(g).display,
         glyph: getComputedStyle(p).display,
+        glyphTf: getComputedStyle(p).transform,
+        glyphOrigin: getComputedStyle(p).transformOrigin,
         halo: getComputedStyle(h).display,
         haloTf: getComputedStyle(h).transform,
         cls: g.getAttribute("class")!,
@@ -81,7 +83,7 @@ test("far: an idle device is not drawn, for every type", async ({ page }) => {
 });
 
 for (const [name, f] of sets) {
-  test(`far: a device that is ${name} stays as a dot (disc kept and smaller, glyph gone), for every type`, async ({
+  test(`far: a device that is ${name} stays as a dot (disc kept and smaller, glyph kept inside it), for every type`, async ({
     page,
   }) => {
     await page.setContent(plan("far", states(f)));
@@ -89,10 +91,12 @@ for (const [name, f] of sets) {
     for (const [i, d] of devs.entries()) {
       const t = ALL[i].type;
       expect(d.group, t).not.toBe("none");
-      expect(d.glyph, `${t} glyph`).toBe("none");
+      expect(d.glyph, `${t} glyph`).not.toBe("none");
       expect(d.halo, `${t} disc`).not.toBe("none");
-      // asymmetric: a 0.5 scale, not the identity (matrix(1, 0, 0, 1, 0, 0)) and not "none"
-      expect(d.haloTf, `${t} dot`).toMatch(/^matrix\(0\.5, 0, 0, 0\.5,/);
+      // asymmetric: the dot is a 0.64 scale, not the identity (matrix(1, 0, 0, 1, 0, 0)) and not "none"; the glyph 0.5 about the icon's centre (12, 12)
+      expect(d.haloTf, `${t} dot`).toMatch(/^matrix\(0\.64, 0, 0, 0\.64,/);
+      expect(d.glyphTf, `${t} glyph`).toBe("matrix(0.5, 0, 0, 0.5, 0, 0)");
+      expect(d.glyphOrigin, `${t} glyph origin`).toBe("12px 12px");
     }
   });
 }
@@ -102,7 +106,7 @@ test("far: a danger device (a siren that sounds) is a dot too", async ({ page })
   const d = (await read(page))[DEVICE_TYPES.indexOf("siren")];
   expect(d.cls).toMatch(/\bon\b/);
   expect(d.group).not.toBe("none");
-  expect(d.glyph).toBe("none");
+  expect(d.glyph).not.toBe("none");
 });
 
 test("far: the selected device is drawn whole even if idle", async ({ page }) => {
@@ -233,3 +237,87 @@ for (const theme of ["light", "blueprint", "solarized"] as const) {
     expect(r[1].stroke).toBe("none");
   });
 }
+
+// UI refactor, item 5: a far dot carries its glyph, so the type reads in grayscale. The ink is 3:1 on the dot it sits on
+// (read from Chromium for every type and theme, finding 10) and the glyph lies inside the dot.
+const rgbOf = (c: string) => {
+  const s = /color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/.exec(c),
+    m = /rgba?\((\d+), (\d+), (\d+)(?:, ([\d.]+))?/.exec(c);
+  if (s) return { v: s.slice(1, 4).map(Number), a: 1 };
+  if (m) return { v: m.slice(1, 4).map((x) => Number(x) / 255), a: m[4] === undefined ? 1 : Number(m[4]) };
+  throw new Error(`not a colour: ${c}`);
+};
+const lumOf = (c: string) => {
+  const [r, g, b] = rgbOf(c).v.map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrastOf = (a: string, b: string) => {
+  const [x, y] = [lumOf(a), lumOf(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+};
+const dots = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll("#p g[data-x]")].map((g) => {
+      const p = g.querySelector("path:not(.cone)")!,
+        h = g.querySelector(".halo")!,
+        hs = getComputedStyle(h),
+        ps = getComputedStyle(p);
+      const hb = h.getBoundingClientRect(),
+        pb = p.getBoundingClientRect();
+      const cx = hb.x + hb.width / 2,
+        cy = hb.y + hb.height / 2;
+      const far = Math.max(
+        ...[
+          [pb.x, pb.y],
+          [pb.right, pb.y],
+          [pb.x, pb.bottom],
+          [pb.right, pb.bottom],
+        ].map(([x, y]) => Math.hypot(x - cx, y - cy)),
+      );
+      return {
+        cls: g.getAttribute("class")!,
+        dot: hs.fill,
+        dotOpacity: hs.fillOpacity,
+        ink: ps.fill,
+        inkOpacity: ps.fillOpacity,
+        reach: far,
+        radius: hb.width / 2,
+      };
+    }),
+  );
+
+for (const theme of ["light", "midnight", "blueprint", "solarized", "ha"] as const)
+  for (const [name, f] of [
+    ["on", onState],
+    ["unavailable", goneState],
+  ] as const)
+    test(`far: the glyph of a dot that is ${name} is 3:1 on the dot and inside it, every type (${theme})`, async ({
+      page,
+    }) => {
+      await page.setContent(plan("far", states(f), { theme }));
+      const r = await dots(page);
+      for (const [i, d] of r.entries()) {
+        const t = ALL[i].type;
+        expect(Number(d.dotOpacity), `${t}: the dot is solid`).toBe(1);
+        expect(Number(d.inkOpacity), `${t}: the glyph is solid`).toBe(1);
+        expect(contrastOf(d.ink, d.dot), `${t} ink ${d.ink} on dot ${d.dot}`).toBeGreaterThanOrEqual(3);
+        expect(d.reach, `${t}: glyph inside the dot`).toBeLessThanOrEqual(d.radius + 0.5);
+      }
+    });
+
+for (const theme of ["light", "midnight", "blueprint", "solarized"] as const)
+  test(`far: the glyph of an attention dot is 3:1 on it, and the outline stays (${theme})`, async ({ page }) => {
+    const dev2 = [
+      { id: "a", type: "contact", entity: "binary_sensor.a", x: 100, y: 100 },
+      { id: "b", type: "lock", entity: "lock.b", x: 300, y: 100 },
+    ];
+    const st2 = { "binary_sensor.a": st("off", { battery_level: 2 }), "lock.b": st("unlocked") };
+    await page.setContent(plan("far", st2, { theme }, { devices: dev2 }));
+    const r = await dots(page);
+    for (const d of r) {
+      if (!/needs-attention/.test(d.cls)) continue;
+      expect(contrastOf(d.ink, d.dot), `${d.cls}: ink ${d.ink} on dot ${d.dot}`).toBeGreaterThanOrEqual(3);
+      expect(d.reach).toBeLessThanOrEqual(d.radius + 0.5);
+    }
+    expect(r.some((d) => /needs-attention/.test(d.cls))).toBe(true);
+  });

@@ -19,7 +19,12 @@ export interface ThemeRoles {
   dark: boolean;
   devices?: Partial<Record<DeviceType, string>>;
   roomEmpty?: string;
+  /** Motion's own colour (rings, dots, a room's motion line and badge count): never red, which is for alerts only, and never the accent the lights wear. Left out, magenta on a light base and a lighter magenta on a dark one. A `devices.motion` override wins. */
+  motion?: string;
 }
+
+/** The motion colour a theme gets when its roles name none (UI refactor, item 6). */
+export const MOTION_DEFAULT = { light: "#b5389a", dark: "#e86ad0" } as const;
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -119,7 +124,8 @@ export function rolesToTokens(roles: ThemeRoles): string {
     string,
     string
   >;
-  const devFor = (t: DeviceType) => roles.devices?.[t] ?? roles.accent;
+  const motion = roles.devices?.motion ?? roles.motion ?? (roles.dark ? MOTION_DEFAULT.dark : MOTION_DEFAULT.light);
+  const devFor = (t: DeviceType) => (t === "motion" ? motion : (roles.devices?.[t] ?? roles.accent));
   const acCool = roles.devices?.ac ?? roles.accent,
     acHeat = roles.devices?.ac ?? roles.accent;
   return [

@@ -196,7 +196,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         return null;
       }
     });
-    let motion: ReturnType<typeof motionRooms> = { triggered: new Map(), pulsing: new Map() };
+    let motion: ReturnType<typeof motionRooms> = { triggered: new Map(), pulsing: new Map(), lit: new Set() };
     try {
       motion = motionRooms(safe, o, now);
     } catch (e) {

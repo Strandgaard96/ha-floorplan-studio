@@ -596,14 +596,17 @@ describe("S8.13: brighter alerts, wider light", () => {
   });
 
   it("a triggered motion or contact sensor carries a ping ring under its disc; idle, off, unavailable or another type do not", () => {
+    // The motion sensor stands outside every room here: one that lights its room's outline draws no ring of its own (one-red.spec.ts).
     for (const type of ["motion", "contact"]) {
-      const on = group(draw([dev(type, "binary_sensor.s")], { "binary_sensor.s": st("on") }));
+      const at = type === "motion" ? -900 : 400;
+      const on = group(draw([dev(type, "binary_sensor.s", at, at)], { "binary_sensor.s": st("on") }));
       expect(on, type).toMatch(/<circle class="ping" cx="12" cy="12" r="16"\/><circle class="halo"/);
       for (const s of ["off", "unavailable", "unknown"])
-        expect(group(draw([dev(type, "binary_sensor.s")], { "binary_sensor.s": st(s) })), `${type} ${s}`).not.toContain(
-          "ping",
-        );
-      expect(group(draw([dev(type, "binary_sensor.s")], {})), `${type} no state`).not.toContain("ping");
+        expect(
+          group(draw([dev(type, "binary_sensor.s", at, at)], { "binary_sensor.s": st(s) })),
+          `${type} ${s}`,
+        ).not.toContain("ping");
+      expect(group(draw([dev(type, "binary_sensor.s", at, at)], {})), `${type} no state`).not.toContain("ping");
     }
     for (const type of ["light", "plug", "switch", "person", "radar"])
       expect(group(draw([dev(type, "x.y")], { "x.y": st("on") })), type).not.toContain("ping");
@@ -1904,7 +1907,7 @@ describe("outdoor sensors and the palette (S1.30)", () => {
   it("carries the palette", () => {
     const want: Record<string, string> = {
       light: "#e0a800",
-      motion: "#d64545",
+      motion: "#b5389a", // its own colour, not red (UI refactor, item 6)
       contact: "#d64545",
       heater: "#e8801a",
       climate: "#e8801a",

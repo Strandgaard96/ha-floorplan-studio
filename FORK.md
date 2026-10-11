@@ -16,6 +16,17 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-11: Card UI refactor — plan (branch `task/ui-plan`)
+
+Spec: `docs/specs/card-ui-refactor.md`, items 5 to 8.
+
+- The stack fan's ring grows with the drawn disc and name tags, so members never overlap at any zoom
+  (`spiderLayout` takes a `SpiderSize`; the card passes it).
+- Far-zoom dots carry their glyph (half size, 3:1 ink on the dot); the dot grows from .5 to .64.
+- Red is for alerts only: motion has its own non-red colour in every theme (`ThemeRoles.motion`), and a motion sensor that lights its
+  room's outline draws no ring of its own.
+- `ha` theme in dark mode draws walls in a mid grey mixed from HA's text and card colours instead of the text colour itself.
+
 ## 2026-10-11: Sync with upstream 0.26.2 (branch `task/upstream-sync-0.26.2`)
 
 Merged upstream `d1ec086` (0.23.0 to 0.26.2). The plain merge left 50 files in

@@ -5,6 +5,7 @@ import {
   SPIDER_MAX,
   STACK_PX,
   spiderLayout,
+  tagWidth,
   stackGroups,
   DETAIL_LABELS,
   DETAIL_MODES,
@@ -2531,7 +2532,16 @@ export class FloorplanStudioCard extends LitElement {
     });
     // A turned plan is rotated after the drawing, so its view box is not in the drawing's frame: no clamp then.
     const room = rotate ? { x: -1e9, y: -1e9, w: 2e9, h: 2e9 } : box;
-    const at = spiderLayout(spots, 1 / (this._px * (fit.w / box.w)), room);
+    // The ring clears the discs and names as drawn: a disc is 32k plan units (grows with the zoom), a name keeps its size on screen.
+    const unit = 1 / (this._px * (fit.w / box.w)),
+      k = Math.max(1 / this._scale(fit), NAME_MIN_PX / (12 * this._px)),
+      font = 12 * k * this._px;
+    const chars = Math.max(...ids.map((i) => String(f.devices[i].name ?? f.devices[i].id).length));
+    const at = spiderLayout(spots, unit, room, {
+      disc: (32 * k) / unit,
+      tag: this._labels() ? tagWidth(chars, font) : 0,
+      font,
+    });
     return at.length ? ids.map((i, j) => ({ i, at: at[j] })) : undefined;
   }
 

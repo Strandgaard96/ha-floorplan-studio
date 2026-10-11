@@ -212,7 +212,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   plug: "#2c7fb8",
   temp: "#8b8578",
   humidity: "#8b8578",
-  motion: "#d64545",
+  motion: "#b5389a",
   contact: "#d64545",
   camera: "#4a4a48",
   climate: "#e8801a",
@@ -243,8 +243,8 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
---fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
+--fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#b5389a;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#b5389a;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -258,8 +258,8 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    Glass and window are a lighter blue, #5fa8e8: light's #2c7fb8 was 2.8:1 on the dark window pane, under the 3:1 a
    line on the plan needs. The TV keeps #2c7fb8 (S9.3). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
---fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
+--fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#e86ad0;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#e86ad0;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -273,6 +273,7 @@ const BLUEPRINT_TOKENS = rolesToTokens({
   line: "#35d47a",
   accent: "#ff8a1f",
   dark: true,
+  motion: "#ff5fc8",
 });
 const SLATE_TOKENS = rolesToTokens({
   base: "#9a9a96",
@@ -281,6 +282,7 @@ const SLATE_TOKENS = rolesToTokens({
   line: "#2f7a4a",
   accent: "#cc5500",
   dark: false,
+  motion: "#9c2f86",
 });
 const TERMINAL_TOKENS = rolesToTokens({
   base: "#0c1512",
@@ -289,6 +291,7 @@ const TERMINAL_TOKENS = rolesToTokens({
   line: "#35d47a",
   accent: "#ffb000",
   dark: true,
+  motion: "#ff5fd0",
 });
 
 // Five more role-generated presets (2026-09-28, Diego's picks), the same four-colour system as the three above.
@@ -300,6 +303,7 @@ const COFFEE_TOKENS = rolesToTokens({
   line: "#a9713c",
   accent: "#f2a134",
   dark: true,
+  motion: "#e07ab8",
 });
 const A_TEAM_TOKENS = rolesToTokens({
   base: "#141414",
@@ -308,6 +312,7 @@ const A_TEAM_TOKENS = rolesToTokens({
   line: "#cc1f1f",
   accent: "#d4af37",
   dark: true,
+  motion: "#e05cc0",
 });
 const SPACE_TOKENS = rolesToTokens({
   base: "#050814",
@@ -316,6 +321,7 @@ const SPACE_TOKENS = rolesToTokens({
   line: "#4fd8ff",
   accent: "#b14aff",
   dark: true,
+  motion: "#4fd8ff",
 });
 const CYBERPUNK_TOKENS = rolesToTokens({
   base: "#0b0014",
@@ -324,6 +330,7 @@ const CYBERPUNK_TOKENS = rolesToTokens({
   line: "#ff2bd6",
   accent: "#f9f002",
   dark: true,
+  motion: "#ff2bd6",
 });
 const CARPENTER_BRUT_TOKENS = rolesToTokens({
   base: "#170406",
@@ -332,6 +339,7 @@ const CARPENTER_BRUT_TOKENS = rolesToTokens({
   line: "#8f1022",
   accent: "#ff2f6e",
   dark: true,
+  motion: "#4fd8ff",
 });
 
 // beach-house (2026-09-28, Diego's pick): a light theme, sand for the base (bg through walls), sea teal for the
@@ -344,6 +352,7 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({
   line: "#1a7a8a",
   accent: "#2f9e44",
   dark: false,
+  motion: "#a8327f",
 });
 
 /* Solarized (bespoke, not role-generated - Diego's call, 2026-09-22: real Solarized fidelity matters more here than reuse).
@@ -354,15 +363,23 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({
    near 3.2:1 on the outdoor shades and 1.3:1 on the blue, so outdoor names take base2 (--fp-text-out) and water is
    Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#11424f;--fp-terrace:#124c5b;--fp-pavement:#135161;--fp-wall:#93a1a1;--fp-idle:#586e75;
---fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
+--fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#6c71c4;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#6c71c4;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
    nothing. Not mapped, on purpose: primary, danger, warn. HA's error and warning colours fail 4.5:1 against the fixed white or dark text on our
    buttons in some themes, and the device colours carry meaning that must not move with a theme. */
-const haTokens = (base: string, fb: Record<string, string>) => `${base};
---fp-ink:var(--primary-text-color,${fb.ink});--fp-text:var(--primary-text-color,${fb.text});--fp-bg:var(--card-background-color,${fb.bg});--fp-room:var(--secondary-background-color,${fb.room});--fp-wall:var(--primary-text-color,${fb.wall});--fp-wall-external:var(--primary-text-color,${fb.wallExternal});--fp-outline:var(--card-background-color,${fb.outline});--fp-disc:var(--card-background-color,${fb.disc});--fp-measure:var(--secondary-text-color,${fb.measure})`;
+const haTokens = (base: string, fb: Record<string, string>, wallMix?: { wall: number; external: number }) => {
+  // HA dark: walls in HA's text colour were near white and the loudest thing on the plan (13:1 on the board). A share of the
+  // text colour over the card's own background keeps them tied to the user's theme and mid grey.
+  const mix = (share: number) =>
+    `color-mix(in srgb,var(--primary-text-color,${fb.text}) ${share}%,var(--card-background-color,${fb.bg}))`;
+  const wall = wallMix ? mix(wallMix.wall) : `var(--primary-text-color,${fb.wall})`,
+    wallExternal = wallMix ? mix(wallMix.external) : `var(--primary-text-color,${fb.wallExternal})`;
+  return `${base};
+--fp-ink:var(--primary-text-color,${fb.ink});--fp-text:var(--primary-text-color,${fb.text});--fp-bg:var(--card-background-color,${fb.bg});--fp-room:var(--secondary-background-color,${fb.room});--fp-wall:${wall};--fp-wall-external:${wallExternal};--fp-outline:var(--card-background-color,${fb.outline});--fp-disc:var(--card-background-color,${fb.disc});--fp-measure:var(--secondary-text-color,${fb.measure})`;
+};
 const HA_LIGHT = haTokens(LIGHT_TOKENS, {
   ink: "#2b2a27",
   text: "#3a3a3a",
@@ -374,17 +391,21 @@ const HA_LIGHT = haTokens(LIGHT_TOKENS, {
   disc: "#fff",
   measure: "#3a3a3a",
 });
-const HA_DARK = haTokens(MIDNIGHT_TOKENS, {
-  ink: "#d8e2f2",
-  text: "#d8e2f2",
-  bg: "#0d1522",
-  room: "#14213a",
-  wall: "#8fb4f0",
-  wallExternal: "#b4cdf7",
-  outline: "#0d1522",
-  disc: "#14213a",
-  measure: "#8fb4f0",
-});
+const HA_DARK = haTokens(
+  MIDNIGHT_TOKENS,
+  {
+    ink: "#d8e2f2",
+    text: "#d8e2f2",
+    bg: "#0d1522",
+    room: "#14213a",
+    wall: "#8fb4f0",
+    wallExternal: "#b4cdf7",
+    outline: "#0d1522",
+    disc: "#14213a",
+    measure: "#8fb4f0",
+  },
+  { wall: 55, external: 68 },
+);
 
 /* S23.4 and S23.8: what each theme adds on top of its tokens (ink.ts `themeExtras`): a glyph ink per disc colour, picked for
    4.5:1 on that solid disc, and the glow's blend (screen on a dark theme, multiply on a light one). Written once here, after
@@ -734,13 +755,19 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}
 /* S25.2: semantic zoom. renderFloor writes data-detail on the plan root (far, mid or near; none is near); every level rule is here, so the editor and
-   the card cannot differ. Far: a device that is off or idle is not drawn; one that is on, alerting (class danger, or needs-attention: what the Overview lists) or unavailable keeps its disc as a half-size dot
-   (the glyph and the badges go). Far and mid: a device's name and reading go; a room's name and reading (data-rl, data-rv) and an extra's name stay.
+   the card cannot differ. Far: a device that is off or idle is not drawn; one that is on, alerting (class danger, or needs-attention: what the Overview lists) or unavailable keeps its disc as a smaller dot
+   (the glyph shrinks into it and holds still, a cleaning vacuum's spin included, which would overwrite the shrink; the badges go). Far and mid: a device's name and reading go; a room's name and reading (data-rl, data-rv) and an extra's name stay.
    The selected device is always whole. */
 [data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.needs-attention):not(.sel):not(.spider),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
-[data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone),[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
-[data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
+[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
+[data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.64)}
+/* UI refactor, item 5: the dot keeps its glyph, half size about the icon's centre (12, 12) so it lies inside the .64 dot, so the type reads in grayscale. The ink is the one the near disc already has: --fp-dev-ink on an on dot (g.dev.on path, S23.4), the danger ink on a danger dot, and below for the two that have no solid disc at near. */
+[data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone){transform-box:view-box;transform-origin:12px 12px;transform:scale(.5);animation:none}
+/* An unavailable device has no solid disc at near (a dashed warn ring); as a dot it is the board's colour, ringed, with its glyph in the plan's ink. */
+[data-detail="far"] .dev.unavailable:not(.sel):not(.spider) .halo{fill:var(--fp-bg);fill-opacity:1}
+[data-detail="far"] g.dev.unavailable:not(.sel):not(.spider) path:not(.cone){fill:var(--fp-ink);fill-opacity:1}
 [data-detail="far"] .dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) .halo{fill:var(--fp-warn);fill-opacity:1;stroke:var(--fp-ink);stroke-opacity:1;stroke-width:1.5px;vector-effect:non-scaling-stroke}
+[data-detail="far"] g.dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) path:not(.cone){fill:var(--fp-on-light);fill-opacity:1}
 [data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -1375,7 +1402,7 @@ export function motionRooms(
   f: Floor,
   o: RenderOpts,
   now: number,
-): { triggered: Map<number, RoomMotion>; pulsing: Map<number, number> } {
+): { triggered: Map<number, RoomMotion>; pulsing: Map<number, number>; lit: Set<number> } {
   const isAttached = attachedTest(f),
     stateOf = (e: string) =>
       o.state && Object.prototype.hasOwnProperty.call(o.state, e) && typeof o.state[e]?.state === "string"
@@ -1398,6 +1425,8 @@ export function motionRooms(
   const rings = f.rooms.map(ring),
     areas = rings.map((p) => (p ? ringArea(p) : 0));
   const triggered = new Map<number, RoomMotion>();
+  /** Indices of the motion icons that are on and light a room's outline: that outline is their alert, so they draw no ring of their own (one outline per alert). */
+  const lit = new Set<number>();
   f.devices.forEach((d, i) => {
     if (!MOTION_TYPES.includes(d.type) || "a" in d || isAttached(d)) return; // an attached sensor lights its room through the room's own list, below
     const cls = classOf(d, o),
@@ -1421,6 +1450,7 @@ export function motionRooms(
       }
     });
     if (at < 0) return;
+    if (on) lit.add(i);
     const t = triggered.get(at),
       mine = { radar: d.type === "radar", on, v };
     if (!t || (on && !t.on)) triggered.set(at, mine);
@@ -1453,7 +1483,7 @@ export function motionRooms(
     else if (on && !t.on) triggered.set(j, { radar: false, on: true, v: 1 });
     else if (on === t.on) t.v = Math.max(t.v, on ? 1 : v);
   });
-  return { triggered, pulsing };
+  return { triggered, pulsing, lit };
 }
 
 export interface DeviceMarkup {
@@ -1467,7 +1497,14 @@ export interface DeviceMarkup {
   s: StateOverlay[string] | undefined;
 }
 /** What a device icon wears, from the live state: the one place the plan (renderFloor) and the 3D overlay read it. `floorAt` is the device's floor point. */
-export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, floorAt: Pt): DeviceMarkup {
+export function deviceMarkup(
+  f: Floor,
+  d: Device,
+  o: RenderOpts,
+  now: number,
+  floorAt: Pt,
+  quiet = false,
+): DeviceMarkup {
   // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
   const outdoor =
     (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(floorAt, r.pts));
@@ -1514,7 +1551,7 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
       : "";
   // S8.13: a triggered motion or contact sensor sends out a ring from under its disc, so it reads at a glance.
   const ping =
-    (d.type === "motion" || d.type === "contact") && base === "on"
+    (d.type === "motion" || d.type === "contact") && base === "on" && !quiet
       ? `<circle class="ping" cx="12" cy="12" r="16"/>`
       : "";
   // S9.4: a speaker or media device playing sends out two arcs, staggered — exactly "playing", not the generic
@@ -1904,7 +1941,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // smallest room that holds it (a house in a garden lights the house); one screwed into the wall line goes to the
   // nearest room. The first sensor that is on in a room names the colour, a fading one only lends strength. Same pass
   // as the ring above, after the wall lines, so the 2.5D solids below still cover it.
-  const { triggered, pulsing } = motionRooms(f, o, now);
+  const { triggered, pulsing, lit } = motionRooms(f, o, now);
   for (const i of [...triggered.keys()].sort((a, b) => a - b)) {
     const t = triggered.get(i)!;
     out.push(motionPerimeter(f, rings[i]!, i, t.radar, t.on ? 1 : t.v, pulsing.get(i) ?? null));
@@ -2464,7 +2501,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const sp = spiderAt.get(i);
     const c = sp ?? iconAt(d, floorAt);
     const person = d.type === "person";
-    const { cls, style: styleParts, icon, s } = deviceMarkup(f, d, o, now, floorAt);
+    const { cls, style: styleParts, icon, s } = deviceMarkup(f, d, o, now, floorAt, lit.has(i));
     // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
     // has no facing, so `rot` is not applied.
     const origin = at([c[0] - 12 * k, c[1] - 12 * k]).replace(" ", "px,") + "px";
@@ -2527,7 +2564,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     );
     if (sp && showText) {
       // S25.5: the member's name, outward of the ring's side so it never covers the next member
-      const right = sp[0] >= ringCx,
+      const right = sp[0] >= ringCx - 1e-6, // the rule spiderLayout clears the tags by (no float flip at the top and bottom members)
         lx = sp[0] + (right ? 1 : -1) * 20 * k,
         ly = sp[1] + 4 * kt;
       ringOut.push(
