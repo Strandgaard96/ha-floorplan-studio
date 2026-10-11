@@ -2604,7 +2604,7 @@ Branch `task/s21-open-items`. Each task: one outcome, its failing test first.
 - [x] S21.2 Humidity, motion, contact and vibration join `NO_TOGGLE`, as `temp` did in S19.E4. A test iterates `DEVICE_TYPES`: each type is in `NO_TOGGLE` or in a written list of types that toggle, with the reason.
 - [x] S21.3 Verify: `npm run lint`, `npm test`, `npx playwright test`, each read bare.
 
-## Roadmap after the 2026-10-08 review (sprints 22 to 30)
+## Roadmap after the 2026-10-08 review (sprints 22 to 32)
 
 Diego, 2026-10-08: "do a review of the menus, submenus, right click menus, general user interface and usability of the studio and the card [...] propose a plan to make it better, cleaner, easier to use and navigate when one like me has hundreds of devices." Added: auto-align floors, floors below in 3D, an animated floor switch, "no cramming stuff in stacks". He said yes to this plan on 2026-10-08.
 
@@ -2619,8 +2619,10 @@ Review basis: a seeded stress house (3 floors, 46 rooms, 437 devices, 718 entiti
 | 26 | 0.24.0 | Studio editing at scale: Inspector modes, marquee and multi-select, bulk Controlled by, one Lock, context menus, menu clean-up, status bar, typed lengths, 15° snap | Bind 20 lights in 3 actions, one undo step |
 | 27 | 0.25.0 | Floors: floor offset in the schema, Align to floor below with a score, ghost floor in 2D, floors below in 3D (off, ghost, solid), animated switch with a reduced-motion cut | A misaligned floor aligns within 2 cm; both motion paths tested |
 | 28 | 0.26.0 | 2.5D and 3D polish: shadows, lighting, tree crowns, framed openings, 3D label collision | Shots at 4x, three themes |
-| 29 | 0.27.0 | Card layout and touch: chrome around the plan, fit to height, phone bottom sheet, ⋯ menu, 44 px targets, keyboard on the plan | Tablet and phone tasks at target tap counts |
-| 30 | 0.28.0 | Extras: saved views, favourites, heat map, dashboard strategy, tap_action, fan type | One acceptance test each |
+| 29 | 0.27.0 | Hand align: floor rotation in the schema, every stack view turned through `floorPlace`, drag, turn, keys, point pairs, stair report, Align stairs (Diego, 2026-10-11) | Align stairs on the hand-align fixture lines the 3D stairs up within 2 cm and 0.2° |
+| 30 | 0.28.0 | Align searches angles | The turned fixture aligns automatically within 2 cm and 0.2° |
+| 31 | 0.29.0 | Card layout and touch: chrome around the plan, fit to height, phone bottom sheet, ⋯ menu, 44 px targets, keyboard on the plan | Tablet and phone tasks at target tap counts |
+| 32 | 0.30.0 | Extras: saved views, favourites, heat map, dashboard strategy, tap_action, fan type | One acceptance test each |
 
 Separate product, not in this repo: the FloorPlan Digital Twin iOS app. A RoomPlan spike (T0) after sprint 24, in its own repo, after its own design and spec.
 
@@ -3426,3 +3428,208 @@ Wave 2, in order on `task/s28-polish` after every lane is merged:
 
 Review (one Opus pass on the integrated build, the 4x shots open beside the diff) then fixes with their tests; exit test:
 shots at 4x, three themes.
+
+## Sprint 29: Release 0.27.0, hand align
+
+Branch `task/s29-hand-align`. Lanes branch off it as `task/s29-<lane>`, each in its own worktree with its own `PW_PORT`,
+and merge back into `task/s29-hand-align`. Diego, 2026-10-11: a way to hand align a floor over the floor below; the
+stairs of his three floors (basement up, ground both, first down) do not line up in 3D; Align scores 20 to 24 % on his
+house because his floors differ. Later the same day: the misalignment is a rotation plus an offset, so hand align must
+turn a floor too, and the schema decision is made now. Spec: `docs/specs/hand-align.md` (pose, frame, gestures,
+acceptance criteria 1 to 12). Exit test: Align stairs on `hand-align-house.json` lines the 3D stairs of all three floors
+up within 2 cm and 0.2 degrees.
+
+Rules. As Sprint 27: each task one outcome, its failing test written first and watched failing (finding 5); real
+`page.mouse` and `page.keyboard` at real coordinates on the real top element (finding 3); one undo step per gesture,
+none when nothing changed, keys on the editor host (finding 6); a writer that builds schema objects gets a test over
+every combination of its inputs and every result passes `validate` (finding 12); layout input is untrusted, the new
+core functions never throw (finding 1); one draw path, the ghost and floors below come from `renderFloor` and
+`buildScene`, the overlay draws handles and marks only (finding 8); every CSS rule that matters gets its
+`getComputedStyle` pair, and a presentation attribute is never the behaviour (findings 10, 18); a new Playwright test
+runs `--repeat-each=10` (finding 13); a change to `render.ts` runs `npm run shots` and is looked at (finding 16); a
+stubbed shape is copied from the code that sends it (finding 21); no spec opens a menu it does not use, and the Align
+panel works with the toolbar wrapped (1024 and 380 px; the CI finding of 2026-10-10). Pose maths in tests uses
+asymmetric values (a 4.00 degree turn, a `[83, -41]` shift), never 90 degrees or a square, so a sign or axis swap fails.
+
+Out of scope: scale; turning a floor's own view; aligning to any floor but the one below; turning the lowest floor from
+the UI; the automatic angle search (Sprint 30); editing geometry while Align is open; any card YAML key.
+
+Models. Every coder is Sonnet (`docs/WORKFLOW.md`). Marked **judgement** below: the task has a design call inside it;
+the brief carries the spec's formulas and the coordinator reads the coder's design note (a short comment block at the
+top of the change) before the code is accepted. Opus is spent on the one review of the integrated build, as always.
+
+Assumptions (defaults taken; Diego can overrule any; the reasons are in the spec):
+- **The pose.** `floor.rotation?: number`, degrees, clockwise on screen, about the floor's stored origin, applied before
+  `offset`: house point = `R(rotation) · p + offset`. Validate finite and within -180..180; migrate drops junk; writers
+  normalise to (-180, 180], round to 0.01 degree, delete at 0; schema stays v2. Rotation 0 is S27 exactly.
+- **Own frame.** A floor shown alone is drawn in its own frame in every view; only the ghost and the 3D floors below are
+  turned. No hit test changes anywhere.
+- **One helper.** `floorPlace(layout, from, to)` returns `{ turn, shift }`; `floorShift` goes once every call site has
+  moved.
+- **The Align frame.** While Align is open the ghost holds still on screen and the floor moves: each pose change is
+  answered by the opposite turn and pan of the view, through the existing view-turn path.
+- **Gestures.** Drag moves, the turn handle turns about the structure's centre, a click picks a point; arrows 1 cm
+  (Shift 10), `[` `]` 0.1 degree (Shift 1); Alt no snap; Escape cancels the gesture, then the picked points, then
+  closes. One undo step per gesture; a held key from press to release is one gesture.
+- **Point pairs.** Pair 1 moves (points meet), pair 2 turns about pair 1's point; each one undo step.
+- **Align stairs** uses the first stair of each floor: a straight flight's low-edge and top-edge middles as two pairs (the
+  order with the smaller turn wins), a round stair's centre as one pair.
+- **Apply keeps the turn.** Until Sprint 30 the auto search places the upper floor by its current relative turn and
+  finds the translation only.
+
+Wave 0, in order on `task/s29-hand-align`, one coder (every lane reads what it lays down):
+- [ ] S29.1 Floors have a rotation (Sonnet). `rotation?: number` on `Floor`; `validate` reports a non-finite value or one
+      outside -180..180 and never throws; `migrate` drops such a value and keeps a good one. `npm run docs:schema`; the
+      SPEC schema line. Test, failing first: absent, `0`, `-180`, `180`, `3.25` kept; `NaN`, `Infinity`, `"3"`, `null`,
+      `181`, `-180.5`, `[4]` reported and dropped, also on a floor whose key is `__proto__`; a migrated junk rotation
+      opens and validates; the render snapshot and the 3D scene snapshot unchanged.
+      Files: `src/core/schema.ts`, `src/core/migrate.ts`, `docs/schema.md`, `docs/SPEC.md`, a new
+      `tests/core/floor-rotation.test.ts`.
+- [ ] S29.2 Pose helpers and the fixture, chained after S29.1 (Sonnet, judgement: the sign conventions). In
+      `floor-stack.ts`: `floorPose`, `floorPlace`, `placePoint`, `invertPlace`, `composePlace`, `poseFromPlace`, as the
+      spec says, exported from core; `floorShift` stays for now. A new fixture `tests/fixtures/hand-align-house.json`
+      (demo-style, no real house): basement, ground and first, no `offset` or `rotation` on any floor; the ground's
+      outline has a wing the basement lacks (so the auto score is weak); the ground is drawn turned -2.50 degrees and
+      shifted `[-57, 112]` from the basement, the first turned 4.00 degrees and shifted `[83, -41]` from the ground; a
+      straight stair on each at the matching spot (basement `up`, ground `both`, first `down`). The true places live in
+      `tests/fixtures/hand-align-truth.ts`. Test: round trips within 1e-9 for three asymmetric poses; A to C equals A to B
+      then B to C; both rotations 0 gives `floorShift` exactly (the S27.3 cases); junk on either floor reads as identity;
+      `poseFromPlace` then `floorPlace` gives the place back within the rounding bound; a `__proto__` key; the fixture
+      validates and its truth puts each stair's corners on the floor below's within 0.5 cm.
+      Files: `src/core/floor-stack.ts`, `src/core/index.ts`, `tests/core/floor-stack.test.ts`,
+      `tests/fixtures/hand-align-house.json`, `tests/fixtures/hand-align-truth.ts`.
+
+Wave 1, three lanes in parallel after wave 0, each in its own worktree; tasks inside a lane run in order:
+
+Lane draw (`src/core/render.ts`, `src/core/scene-build.ts`, `src/card/three/`, `src/card/floorplan-studio-card.ts`):
+- [ ] S29.3 The ghost turns (Sonnet). `RenderOpts.ghost.turn?: number`: each ghost point is `placePoint({ turn, shift })`
+      before it is drawn, so 2.5D gets it flat at floor level as today; absent or 0, byte for byte as before; junk turn
+      draws nothing. Test: unit, a turned ghost's first outline point is the computed one; a payload name never appears;
+      the snapshot without a turn unchanged; Playwright in the card on the fixture's first floor with the ghost on: the
+      pixel at the computed screen point of a ghost corner is ghost-coloured and the one 6 px off along the corner's
+      bisector is not, at view turn 0 and 90 (fails with the turn ignored). `npm run shots` looked at with a turned ghost.
+      Files: `src/core/render.ts`, `tests/core/render-ghost.test.ts`, a new `tests/card/card-ghost-turn.spec.ts`.
+- [ ] S29.4 3D floors below turn (Sonnet, judgement: which builders read `ref` instead of points). `SceneOpts.turn?`
+      turns every solid's base, holes and point about the origin before `shift`; `setBelow` entries carry `turn`; the
+      crown matrices and the contact shadows of a floor below follow the turn (a tree's crown ellipse turns with it);
+      the below cache keys on the turn. Test: unit, a turned scene's slab corner, a wall end, a stair step corner and a
+      crown centre are `placePoint` of the stored ones within 1e-6, and a crown's ellipse axis is turned; Playwright
+      through the hook on the fixture, `floors_below: solid`: the ground's stair footprint corners under the first floor
+      lie where the truth says within 1 cm; a tap on the turned floor below picks nothing; 20 floor switches leave no
+      mesh behind; the chunk under its limit.
+      Files: `src/core/scene-build.ts`, `src/card/three/view3d.ts`, `src/card/three/crowns.ts`,
+      `src/card/three/shade.ts`, `tests/core/scene-shift.test.ts`, `tests/card/card-3d-below.spec.ts`.
+- [ ] S29.5 The card reads the pose (Sonnet). The card's ghost and `_sync3dBelow` call `floorPlace`; `_sync3dBelow`'s
+      compare includes the turn. Test: changing only a floor's `rotation` in the card's layout redraws the ghost and
+      calls `setBelow` again (fails with the old compare); the ghost-only tap opens nothing on a turned ghost; the card's
+      and the editor's ghost path `d` are equal for the same layout and floor (parity, through `renderFloor` in both).
+      Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-ghost.spec.ts`, `tests/card/card-3d-below.spec.ts`,
+      `tests/card/view-parity.spec.ts`.
+
+Lane align (`src/core/align.ts`, a new `src/core/hand-align.ts`):
+- [ ] S29.6 Align keeps the turn (Sonnet). `alignFloor(upper, lower, turn = 0)` turns the upper floor's lines by `turn`
+      before it searches; the result's `t` is in the lower floor's frame, so the new place is `{ turn, shift: t }`;
+      `alignKey` adds the turn. `structure` and `corners` are exported for S29.7. Test: the S27 fixture unchanged at
+      turn 0; the hand-align fixture's first floor with its true turn given finds its true shift within 2 cm; a
+      different turn gives a different key; junk turn reads as 0, never a throw.
+      Files: `src/core/align.ts`, `tests/core/align.test.ts`.
+- [ ] S29.7 Snap for a moved or turned floor (Sonnet). In `hand-align.ts`: `alignTargets(floor)` (structure corners,
+      structure lines, stair corners and stair ends, capped at the 400 longest-edge corners); `snapMove(moving, targets,
+      d, th)` (corner to corner, else corner to line along its normal, else whole cm; returns the snapped `d` and the
+      target to mark); `snapTurn(movingLines, targetLines, turn, pivot, th, shift15)` (Shift 15 degree steps of the
+      relative turn; else parallel within 1 degree among the 8 longest each; else 0.01). Test: asymmetric cases for
+      each branch and its fallback, the nearest pair wins, a threshold exactly at the bound, empty targets, NaN points;
+      `snapMove` on the stress layout's largest floor under 4 ms per call.
+      Files: `src/core/hand-align.ts`, `src/core/index.ts`, a new `tests/core/hand-align-snap.test.ts`.
+- [ ] S29.8 Pairs and stairs (Sonnet, judgement: the reversed flight). `pairPlace(place, a1, b1, a2?, b2?)` (pin and
+      swing, as the spec says; refuses a zero pair and a second pair under 50 cm; returns the length mismatch);
+      `stairAxis(t)` (low-edge and top-edge middles of a straight flight, the centre of a round one, from `stairBlocks`);
+      `stairReport(upper, lower, place)` (per upper stair the nearest lower stair, centre distance, axis angle modulo
+      180, none for round); `stairPlace(upper, lower, place)` (the Align stairs answer and its words). Test: on the
+      fixture's truth, `stairPlace` from identity gives the true place within 2 cm and 0.2 degrees; a flight drawn
+      reversed on one floor gives the same; round stairs move only; no stairs, one floor without, junk stairs give null
+      and never throw; the report's numbers on a hand-computed case.
+      Files: `src/core/hand-align.ts`, a new `tests/core/hand-align-pairs.test.ts`.
+
+Lane writer (`src/editor/state.ts`):
+- [ ] S29.9 One pose writer (Sonnet). `EditorState.setPose(key, { rot, off })`: rounds and normalises as the spec says,
+      one undo step, none when unchanged, deletes each key at 0, refused under Lock plan with `planBlocked`, false
+      beyond `COORD_LIMIT`; `setOffset` becomes a wrapper; `addFloor` copies the lowest floor's rotation. Test: every
+      combination of (rotation absent, 0, set) x (offset absent, zero, set) x (lock on, off) x (lowest, middle, unknown
+      floor) x (rotation in range, 180, -180, 359.99, NaN); every result passes `validate`; each no-op leaves no step.
+      Files: `src/editor/state.ts`, `tests/editor/floor-offset-state.test.ts`.
+
+Wave 2, one lane after wave 1 is merged; tasks run in order (they share `editor-app.ts`):
+
+Lane studio (`src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/guide.ts`):
+- [ ] S29.10 The Studio's ghost and the Align frame (Sonnet, judgement: composing the frame into the view turn).
+      `ghostOpts` uses `floorPlace`; while Align is open the view answers every pose change so the ghost holds still, as
+      the spec says, and on close drops it keeping zoom and centre; Apply keeps the turn (S29.6) and writes through
+      `setPose`; the overlay draws no edit handles in Align mode. Test: Align open on the fixture's first floor, change
+      the pose by the rotation box, the offset boxes, Apply, Undo and Redo: a ghost corner's screen point moves by under
+      1 px each time, at view turn 0 and 90 (fails without the frame); after close the same plan point is at the centre;
+      no `circle.h` in the overlay while open.
+      Files: `src/editor/editor-app.ts`, `tests/editor/align-mode.spec.ts`, a new `tests/editor/align-frame.spec.ts`.
+- [ ] S29.11 Drag the floor (Sonnet). A press and drag on the plan in Align mode moves the floor from a draft pose, with
+      `snapMove`, a ring on the snap target and the readout; one `setPose` at release; Escape and a second pointer
+      cancel; Lock plan refuses at the press with the Unlock offer; pan, wheel and pinch as today; the Align memo holds
+      during the drag. Test, real `page.mouse`: a 200 px drag moves the offset by 200 px in cm (Alt held, no snap), one
+      undo step, the ghost still within 1 px; a drag ending near a ghost corner lands this floor's corner on it exactly;
+      Escape mid-drag writes nothing and no step; a drag back to the start writes nothing; `alignSearches` rises by at
+      most one per drag; a pen pointer (`pointerType: "pen"` through CDP `Input.dispatchMouseEvent`) behaves as the mouse.
+      Files: `src/editor/editor-app.ts`, a new `tests/editor/align-drag.spec.ts`.
+- [ ] S29.12 Turn the floor (Sonnet). The pivot mark and the turn handle in the overlay (`data-ah="turn"`, a 44 px hit
+      target), `snapTurn` with Shift and Alt, the readout in degrees; the Rotation box in the panel, one step per
+      change; Reset resets both. Test, real mouse: a quarter circle on the handle with Shift gives 90.00 relative degrees,
+      one step; 3 degrees off a parallel lands parallel; Alt gives the raw angle to 0.01; the box takes `3,5` and `-2.25`,
+      ignores `abc`; the handle's computed `pointer-events` and `cursor` pair; no handle on a floor with no geometry.
+      Files: `src/editor/editor-app.ts`, `src/editor/inspector.ts`, a new `tests/editor/align-turn.spec.ts`.
+- [ ] S29.13 Keys (Sonnet). In Align mode, arrows move 1 cm (Shift 10) and `[` `]` turn 0.1 degree (Shift 1), on the
+      editor host only; arrows still pan outside Align mode; a held key is one gesture (draft, written on keyup, blur,
+      another key or a pointer press); nothing while a text field has focus; Help lists the keys. Test, real
+      `page.keyboard`: one press, one step of the right size and sign for each of the eight keys; `keyboard.down` with
+      five auto-repeat events then `up` gives one step of 6 cm; a press in the offset box leaves the floor alone;
+      outside Align, ArrowRight pans and leaves the layout alone; `guide-controls.spec.ts` follows.
+      Files: `src/editor/editor-app.ts`, `src/editor/guide.ts`, a new `tests/editor/align-keys.spec.ts`.
+- [ ] S29.14 Point pairs (Sonnet). A click in Align mode picks points as the spec says, snapping with `alignTargets`; the
+      pending point is drawn and the panel says what to click next; pair 1 moves, pair 2 turns, each one step through
+      `pairPlace`; Escape drops the pending point. Test, real clicks on screen points computed from the fixture: two pairs
+      give the true place within 2 cm and 0.2 degrees; Escape after one click leaves no point and no step; a zero pair
+      says why; the mismatch line appears over 10 cm.
+      Files: `src/editor/editor-app.ts`, `src/editor/inspector.ts`, a new `tests/editor/align-pairs.spec.ts`.
+- [ ] S29.15 Stair report and Align stairs, and the panel at any width (Sonnet). The report rows and Align stairs as the
+      spec says, through `stairReport` and `stairPlace`, live during a drag; the panel order of the spec. Test: on the
+      fixture the report's numbers match `stairReport` within 1 cm and 0.1 degree and change during a drag; Align
+      stairs gives the truth within 2 cm and 0.2 degrees in one step and its status text; disabled with no stairs below;
+      at 1024 x 768 and 380 x 800 with the toolbar wrapped, each panel control's centre is its own top element
+      (`elementFromPoint`) after scrolling it into view; reduced motion leaves no running animation on the overlay.
+      Files: `src/editor/inspector.ts`, `src/editor/editor-app.ts`, a new `tests/editor/align-stairs.spec.ts`.
+
+Wave 3, in order on `task/s29-hand-align`:
+- [ ] S29.16 Exit test and docs (Sonnet; the docs part may go to Haiku). `hand-align-exit.spec.ts`: load the fixture in
+      the Studio, Align stairs on the ground and then on the first floor with real clicks, Save; the card with
+      `floors_below: solid` on the first floor: each floor's stair footprint corners within 2 cm of the one below's in
+      the hook's bounds; the card's ghost corner pixel test as S29.3. `floorShift` removed from core, and a unit test
+      greps `src/` for it. Docs: `docs/SPEC.md` (pose, `floorPlace`, the Align mode), `docs/editor.md` (Align: drag,
+      turn, keys, pairs, stairs), `docs/card.md` (the ghost and floors below follow the turn), the guide, CHANGELOG
+      under Unreleased, DECISIONS (one entry per assumption that held and each change from it).
+      Files: a new `tests/editor/hand-align-exit.spec.ts`, `src/core/floor-stack.ts`, `src/core/index.ts`, the docs.
+- [ ] S29.17 Shots (Sonnet; the coordinator looks). `npm run shots` gains a turned ghost on the demo's first floor (the
+      page sets a rotation, as the ghost shots set an offset; `demo/layout.json` is not touched) and the 3D fixture with
+      floors below solid; the coordinator opens them in blueprint, light and ha-dark and the Align mode at 1280 and 380,
+      dark and light, and lists what each shows.
+      Files: `scripts/shots.mjs`.
+- [ ] S29.18 Verify (Sonnet): `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new
+      tests `--repeat-each=10`; the size test and `card-3d-perf.spec.ts` read on their own; the exit test walked by hand
+      once in the Studio.
+
+Review (one Opus pass on the integrated build) then fixes with their tests; exit test: Align stairs lines the 3D stairs
+up within 2 cm and 0.2 degrees.
+
+## Sprint 30: Release 0.28.0, align searches angles (outline)
+
+To plan in full after 0.27.0 ships. `alignFloor` searches the turn as the spec's Sprint 30 section says: candidate angles
+from the direction histograms, small first, the translation search per angle, a joint robust refinement; it reports the
+turn; the Align tab says the angle; budget under 600 ms on the stress layout. Judgement: the search design (an Opus
+design note, Sonnet code). Exit: the hand-align fixture's first floor, from identity, aligns automatically within 2 cm
+and 0.2 degrees.

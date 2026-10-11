@@ -112,6 +112,11 @@ the lowest floor has none. `floorShift(layout, from, to)` is what to add to a po
   sampled every 10 cm, within 5 cm of the lower floor's after the move. Under 50 % is "weak". The Studio's Align tab
   (Floors, Align to floor below) shows it and Apply writes `lower.offset + t`, rounded to whole cm, as one undo step;
   Lock plan refuses it.
+- **Hand align (planned, 0.27.0).** A floor gets `rotation` beside `offset` (degrees, clockwise, about its stored
+  origin, before the offset); one helper, `floorPlace`, turns and shifts a floor into another's frame for the ghost and
+  the 3D floors below, and a floor shown alone stays in its own frame. In the Studio's Align mode you drag the floor,
+  turn it by a handle, nudge it with keys, click point pairs, or press Align stairs; the ghost holds still while the
+  floor moves. Design and acceptance criteria: `docs/specs/hand-align.md`. Not built yet.
 - **Ghost floor.** The floor below drawn as faint lines (`--fp-ghost`) under the shown one, at its relative offset: no
   fills, devices, text or hit targets, drawn by `renderFloor` so the editor and the card cannot differ. It lies under the night veil (S28), so
   an unlit room darkens it with the floor and a lit room keeps it as by day. Studio: View,

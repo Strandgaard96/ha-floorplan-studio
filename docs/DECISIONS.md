@@ -2,6 +2,37 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: Hand align, with a floor rotation (plan for Sprint 29, 0.27.0; assumptions)
+
+Diego: hand align a floor over the floor below; his stairs do not line up in 3D; Align scores 20 to 24 % on his
+house. Then: the misalignment is a rotation plus an offset. Spec `docs/specs/hand-align.md`, plan Sprint 29. Defaults
+taken, each open to Diego:
+- **Schema.** `floor.rotation?: number`, degrees, clockwise on screen like `rot`, about the floor's stored origin, before
+  `offset`: house point = `R(rotation) · p + offset`. Validate finite within -180..180; migrate drops junk; writers
+  normalise to (-180, 180], round to 0.01 degree (0.1 is 3.5 cm at 20 m), delete at 0. Schema stays v2, as the offset
+  did in S27. Why the origin: a geometry-based pivot (the bounds centre) would move the floor in the house whenever a
+  room is added. The tools pivot on the structure's centre and write rotation and offset together, so drag and turn
+  stay independent.
+- **Own frame.** A floor shown alone is drawn in its own frame everywhere; only the ghost and the 3D floors below are
+  turned, through one helper, `floorPlace(layout, from, to)` -> `{ turn, shift }`, which replaces `floorShift`. Nothing
+  clickable is transformed, so no hit test changes in the card or the Studio. Rejected: drawing every floor in the house
+  frame, which would put a transform in every hit test, the editor's tools, the card's picking and the view memory.
+- **The Align frame.** While Align is open the view answers each pose change the other way, through the existing view
+  turn and pan, so the ghost holds still and the floor moves under the hand.
+- **Gestures.** Drag moves; a turn handle turns (Shift 15 degrees, else parallel snap within 1 degree); a click picks a
+  point; arrows 1 cm (Shift 10) and `[` `]` 0.1 degree (Shift 1) in Align mode only; Alt no snap; Escape cancels the
+  gesture, then picked points, then closes. Snap reuses `align.ts`'s structure lines and corners, not `snapCorner`
+  (which snaps one point inside one floor).
+- **Undo.** One step per gesture. A held key, press to release, is one gesture: auto repeat would fill the 100-step
+  history in three seconds.
+- **Pairs.** Pair 1 moves the points together; pair 2 turns about pair 1's point (pin and swing). Each one step.
+- **Stairs.** The report gives each stair's centre distance and axis angle to the nearest stair below. Align stairs
+  uses the first stair of each floor: both ends of a straight flight (the order with the smaller turn), the centre of a
+  round one.
+- **Split.** 0.27.0 ships the schema, every view and the hand tools; Apply keeps the current turn and searches
+  translation only. The angle search is Sprint 30 (0.28.0). Card layout and touch move to Sprint 31 (0.29.0), extras to
+  32 (0.30.0).
+
 ## 2026-10-11: the 3D ground lies under every solid, not only the slabs (0.26.1)
 
 Diego: on the first floor, stairs going down were gone in 3D since 0.26.0. S28.8 put the ground at the lowest slab bottom (-25 cm, `floor` solids only). A down flight (`stair-down`, `WELL_DEPTH` 60, steps to -75) lies below that plane, so the plane hid it. `buildGround` and the below-floors pass now take `lowestOf(solids)`: the slab bottom, or 1 cm under the deepest other prism, whichever is lower; a house with nothing below its slab keeps -25 exactly. Contact shadows (`shade.ts`) ignore stairs and sit on room tops, so they need no change. Test, failing first (4 of 4): a first floor with a stair set to down, outside the slab, in light and blueprint; the ground box must be under -60 and the pixel over the flight's top must be the stair's colour. Second part, after Diego said down stairs inside the house worked before 0.26.0: I built tag v0.25.0 in a scratch worktree and rendered the same fixture (down stair inside the Office room of `first`, 3D, light): no flight at all, only the blue room fill. So it was hidden in 0.25.0 as well, by the slab (-25..0) and the room fill (0..ROOM_THICKNESS) lying over a flight whose top is -15; the scene never cut a well. Diego's memory is probably of a flight outside the slab, or of 2.5D. Fix: a prism shape may carry `holes`; `buildScene` gives the slab and every room fill that holds a down flight's footprint (`stairBlocks().foot(0)`) a hole, and `prismTriangles` triangulates with holes and walls them on the inside. A flight that crosses a room's edge opens the slab and leaves that room's fill whole (a hole across an edge cannot be cut with earcut; the fill would need clipping). Picking, shadows and the ring still use the base without the hole. Tests, failing first: a pixel test inside the Office room (2 of 2 failed with holes off), unit tests for `prismTriangles` with holes and for which solids get a hole.
