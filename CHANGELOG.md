@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.26.2 - 2026-10-11
 
 - 3D: a stair going down shows when it lies on the edge of its room, across two rooms, or under a fill lying over the room. 0.26.1 cut the stairwell only where the flight lay strictly inside a room, so a flight that touched its room's edge (the usual case in a real house) stayed under the room fill. The slab and every room fill are now clipped to the flight's outline.
 
