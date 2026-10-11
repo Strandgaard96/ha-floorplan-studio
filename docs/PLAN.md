@@ -3462,7 +3462,7 @@ top of the change) before the code is accepted. Opus is spent on the one review 
 Assumptions: see the two 2026-10-11 entries in `docs/DECISIONS.md`; the newer one (panel buttons) wins where they differ.
 
 Wave 0, in order on `task/s29-hand-align`, one coder (every lane reads what it lays down):
-- [ ] S29.1 Floors have a rotation (Sonnet). `rotation?: number` on `Floor`; `validate` reports a non-finite value or one
+- [x] S29.1 Floors have a rotation (Sonnet). `rotation?: number` on `Floor`; `validate` reports a non-finite value or one
       outside -180..180 and never throws; `migrate` drops such a value and keeps a good one. `npm run docs:schema`; the
       SPEC schema line. Test, failing first: absent, `0`, `-180`, `180`, `3.25` kept; `NaN`, `Infinity`, `"3"`, `null`,
       `181`, `-180.5`, `[4]` reported and dropped, also on a floor whose key is `__proto__`; a migrated junk rotation

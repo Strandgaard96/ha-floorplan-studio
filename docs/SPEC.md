@@ -56,7 +56,7 @@ in `prompts/`, then fixed in the editor.
   "version": 2, "unit": "cm", "north": 0, "rotate": 0,
   "floors": {
     "ground": {
-      "title": "Ground", "ha": "downstairs", "offset"?: [x, y],
+      "title": "Ground", "ha": "downstairs", "offset"?: [x, y], "rotation"?: deg,
       "outline": [[x, y], ...], "owk": ["external", ...],
       "rooms":   [{"id", "name", "area", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?, "temps"?, "humidity"?, "motion"?, "scenes"?, "haScenes"?}],
       "walls":   [{"id", "a", "b", "kind"}],
@@ -102,6 +102,11 @@ in `prompts/`, then fixed in the editor.
   The schema stays v2 (an old card ignores the field). Only the views that show
   more than one floor read it (ghost floor, floors below in 3D, Align); one
   floor's own plan is drawn exactly as without it.
+- `floor.rotation` (optional, S29.1) is degrees, clockwise on screen (y points
+  down), from -180 to 180 inclusive. A stored point `p` sits in the house at
+  `R(rotation) · p + offset`: the turn about the floor's stored origin, then the
+  offset. Absent means 0, and writers delete the key at 0. `validate` reports a
+  value that is not a finite number in range, `migrate` drops it. Schema stays v2.
 
 **Floors (S27).** The floor below is the key before this one in `floors` order, the order `floorElevation` stacks;
 the lowest floor has none. `floorShift(layout, from, to)` is what to add to a point of `from` to draw it on `to`
