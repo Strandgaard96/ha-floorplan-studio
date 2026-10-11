@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOverview } from "./shell-helpers";
 
 // S14.2 (docs/specs/card-polish-and-light.md, items 3, 4, 5, 17, 18) in the 2D plan: a tap opens a popup and operates
 // nothing, its button makes the one call, OFF asks first except for a light, a slider's release is one light.turn_on,
@@ -70,7 +71,8 @@ async function boot(page: Page, width = 1100, extra: Record<string, unknown> = {
   if (foldOverview)
     await card(page).evaluate((el) =>
       el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse[aria-expanded=true]")?.click(),
-    ); // a narrow card starts folded
+    ); // UI refactor 1: the Overview now starts folded at every width, so this is a no-op kept for a card whose pick was open
+  else await openOverview(page); // the one test that uses the overview list asks for it open
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);

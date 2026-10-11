@@ -51,6 +51,8 @@ import {
   deviceInfo,
   filterToRoom,
   formatChanged,
+  formatSince,
+  readingText,
   roomSummary,
   attention,
   deviceCentre,
@@ -96,7 +98,7 @@ import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
 import { lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
-import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
+import { POPUP_CSS, placeNear, popupTemplate, type Anchor, type PopupSubject, type SliderKind } from "./popup-ui";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
 // second built file (PLAN block interface).
@@ -228,7 +230,7 @@ export interface FloorplanStudioCardConfig {
   walls?: WallsMode;
   /** Degrees the plan starts turned, on top of the layout's own `rotate`. Rounded to a multiple of 45 and wrapped to 0..359; junk is 0. The two buttons next to the zoom buttons turn it in steps of 45 for as long as the card is on screen, and the card remembers where it was left. */
   rotation?: number;
-  /** How much of the plan is drawn at a zoom (docs/card.md, Detail): `"auto"` follows the zoom, `"full"` always draws everything, `"minimal"` always draws rooms and what needs attention. Unset (or anything else) is `"auto"`, except where the viewer can neither zoom nor reach the Detail button (kiosk, or `active_list: false` with `zoom: false`): there it is `"full"`, so no idle device is unreachable. The Detail button in the Overview changes it for one viewer, and the card remembers the pick. */
+  /** How much of the plan is drawn at a zoom (docs/card.md, Detail): `"auto"` follows the zoom, `"full"` always draws everything, `"minimal"` always draws rooms and what needs attention. Unset (or anything else) is `"full"`: an idle device is a control, so none is left out until `detail: auto` is asked for. The Detail button in the Overview changes it for one viewer, and the card remembers the pick. */
   detail?: DetailMode;
   /** `true` draws the floor below as faint lines under the shown floor, at its place in the house (the floors' `offset`s); anything but `true` is off (default). The Floor below button in the view controls changes it for one viewer, and the card remembers the pick. The lowest floor has none. */
   ghost_floor?: boolean;
@@ -280,6 +282,8 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /** Below this card width the Active list starts folded: it would cover the plan. */
 const ACTIVE_FOLD_BELOW_PX = 480;
+/** UI refactor 2: in 3D a popup keeps clear of a square this many px on a side, centred on the tap that opened it (the device's screen point). */
+const POPUP_3D_ANCHOR_PX = 48;
 /** How many summary chips the Overview header spells out before the rest become "+N more". */
 const CHIPS_SHOWN = 4;
 /** Two taps closer than this in time and space are a double-tap. */
@@ -468,6 +472,24 @@ export class FloorplanStudioCard extends LitElement {
     .fp-stack.fp-stack-row { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; left: 8px; }
     .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled, .fp-viewonly button:disabled, .fp-stack button:disabled { opacity: 0.45; cursor: default; }
+    /* UI refactor 4: Reset view carries [hidden] until the view differs; the class rule above sets display:flex and would beat the browser's own hidden rule, so say it here. */
+    .fp-stack button[hidden] { display: none; }
+    /* UI refactor 3: the View segmented control, one pill of three joined buttons; the one on show is filled. */
+    .fp-seg { display: flex; }
+    .fp-zoom .fp-seg button, .fp-viewonly .fp-seg button { width: auto; min-width: 36px; padding: 0 8px; font: 600 12px/1 var(--fp-font, system-ui, sans-serif); border-radius: 0; }
+    .fp-seg button + button { margin-left: -1px; }
+    .fp-seg button:first-child { border-radius: 6px 0 0 6px; }
+    .fp-seg button:last-child { border-radius: 0 6px 6px 0; }
+    .fp-zoom .fp-seg button[aria-pressed="true"], .fp-viewonly .fp-seg button[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); box-shadow: none; z-index: 1; }
+    /* The View options menu: a popover under the toolbar, a labelled row for each look control. It stands left of the control stack (28 px and a gap), so the zoom and rotate buttons stay reachable while it is open. */
+    .fp-zoom:has(.fp-view-menu), .fp-viewonly:has(.fp-view-menu) { z-index: 2; }
+    .fp-view-menu { position: absolute; top: calc(100% + 4px); right: 36px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; width: max-content; min-width: 200px; max-width: calc(100vw - 32px); max-height: 60vh; overflow-y: auto; padding: 8px; background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 4px 16px color-mix(in srgb, var(--fp-ink) 30%, transparent); }
+    .fp-vm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
+    .fp-vm-row > span { flex: 0 0 auto; }
+    .fp-zoom .fp-view-menu select, .fp-viewonly .fp-view-menu select { flex: 1 1 auto; min-width: 0; max-width: 150px; }
+    .fp-zoom .fp-view-menu input[type="range"], .fp-viewonly .fp-view-menu input[type="range"] { flex: 1 1 auto; min-width: 0; max-width: 120px; }
+    .fp-zoom .fp-view-menu button, .fp-viewonly .fp-view-menu button { width: 100%; justify-content: flex-start; gap: 8px; padding: 0 8px; font: 12px/1 var(--fp-font, system-ui, sans-serif); }
+    .fp-view-menu button b { width: 14px; text-align: center; font-weight: 700; }
     /* A toggle that is on wears the primary ring; one that is off is a plain button. Dimming it read as disabled. */
     .fp-zoom button[aria-pressed="true"], .fp-viewonly button[aria-pressed="true"] { border-color: var(--fp-primary); box-shadow: inset 0 0 0 1px var(--fp-primary); }
     .fp-zoom svg, .fp-viewonly svg, .fp-stack svg { width: 14px; height: 14px; }
@@ -507,7 +529,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active-title { flex: 1; }
     .fp-active-count { font-weight: 400; color: var(--fp-text); }
     .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 4px; }
-    .fp-active-body { overflow-y: auto; padding: 4px 8px 8px; }
+    .fp-active-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 4px 8px 8px; background: linear-gradient(var(--fp-room) 30%, transparent) 0 0 / 100% 24px no-repeat local, linear-gradient(transparent, var(--fp-room) 70%) 0 100% / 100% 24px no-repeat local, radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--fp-ink) 30%, transparent), transparent) 0 0 / 100% 8px no-repeat scroll, radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--fp-ink) 30%, transparent), transparent) 0 100% / 100% 8px no-repeat scroll; }
     .fp-active-group-label { font: 600 10px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
     .fp-active-group-label:first-child { margin-top: 0; }
     /* S14.6: a category header is a button (keyboard, aria-expanded); it keeps the label's look. */
@@ -537,12 +559,14 @@ export class FloorplanStudioCard extends LitElement {
     .fp-crumb { font-weight: 400; color: var(--fp-text); }
     .fp-ov-chips { flex: 0 0 100%; font: 400 11px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     .fp-chip-warn { color: var(--fp-warn); font-weight: 600; }
-    /* Folded, the header is one line so it covers as little plan as before S24.7; the crumb goes, the chips end in an ellipsis. */
-    .fp-active-folded .fp-active-head { flex-wrap: nowrap; }
-    .fp-active-folded .fp-active-title { flex: 0 0 auto; }
-    .fp-active-folded .fp-crumb { display: none; }
+    /* UI refactor 1: folded (where the Overview starts, at every width) the header is one line, the breadcrumb then the chips, and a tap anywhere on it opens the panel. The panel is as wide as that line needs, up to a cap that keeps clear of the control stack on the right; what still does not fit ends in an ellipsis, never cut mid-glyph. */
+    .fp-active-folded { width: max-content; max-width: min(360px, calc(100% - 58px)); }
+    .fp-active-folded .fp-active-head { flex-wrap: nowrap; border-bottom: none; cursor: pointer; }
+    .fp-active-folded .fp-active-title { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fp-active-folded .fp-ov-chips { flex: 1 1 auto; order: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fp-active-folded .fp-active-collapse { order: 2; }
+    /* An open room or floor section keeps one chips line too (a wrapping one made the sheet's head three lines tall and left the body one and a half rows). */
+    .fp-room-open .fp-ov-chips { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fp-ov-search:empty { display: none; }
     /* S24.8: the search at the top of the sheet; its list drops over the rows below. */
     .fp-ov-search { margin: 2px 0 6px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); }
@@ -673,6 +697,8 @@ export class FloorplanStudioCard extends LitElement {
     x: number;
     y: number;
     opener: Element | null;
+    /** UI refactor 2: the plan element the popup was opened from (`g[data-x="3"]`), or null (3D, a list row): where it stands beside. */
+    thing: string | null;
     confirming: boolean;
     draft: { kind: SliderKind; value: number; from: number | null } | null;
   } | null = null;
@@ -759,7 +785,7 @@ export class FloorplanStudioCard extends LitElement {
    * a host resize, so the panel is inside the card by construction. Both fields are read from, and written to,
    * `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the panel forgets
    * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
-  private _activeCollapsed = false;
+  private _activeCollapsed = true;
   /** A card narrower than ACTIVE_FOLD_BELOW_PX folds the look controls (view, walls, theme, labels, names) behind
    * one View button, so they do not cover the plan; `_viewOpen` is whether that menu is open. */
   private _narrow = false;
@@ -767,9 +793,8 @@ export class FloorplanStudioCard extends LitElement {
   /** S14.6: the category groups the viewer folded, as `list:category` ids (`a:` Active list, `r:` Room panel). Per card, in browser storage. */
   private _foldedCats = new Set<string>();
   private _activePos: { x: number; y: number } | null = null;
-  /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
-   * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
-   * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
+  /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then it is folded
+   * at every width (UI refactor 1; it used to be open from `ACTIVE_FOLD_BELOW_PX` up). After, the choice is theirs. */
   private _activeUserChose = false;
   private _activeResizeObserver: ResizeObserver | null = null;
   /** S11.3: the room the person tapped, by floor key and room id (not index, so a reloaded layout keeps it), or null.
@@ -1121,7 +1146,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   private _loadActiveState(): void {
-    this._activeCollapsed = false;
+    this._activeCollapsed = true; // UI refactor 1: folded until the viewer opens it, at every width
     this._activePos = null;
     this._activeUserChose = false;
     this._overviewAll = false;
@@ -2452,18 +2477,25 @@ export class FloorplanStudioCard extends LitElement {
 
   private _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
     const s = this._subjectOf(t);
-    if (s) this._openSubject(s, at, from);
+    const thing =
+      "device" in t ? `g[data-x="${t.index}"]` : "door" in t ? `line[data-d="${t.index}"]` : `g[data-u="${t.index}"]`;
+    if (s) this._openSubject(s, at, from, thing);
   }
 
   /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
-  private _openSubject(s: PopupSubject, at: { x: number; y: number }, from: Element | null): void {
+  private _openSubject(
+    s: PopupSubject,
+    at: { x: number; y: number },
+    from: Element | null,
+    thing: string | null = null,
+  ): void {
     if (this._dialogOpen()) return;
     this._hideTip();
     if (this._popup?.s.key === s.key) {
       this._closePopup();
       return;
     }
-    this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
+    this._popup = { s, x: at.x, y: at.y, opener: from, thing, confirming: false, draft: null };
     this.requestUpdate();
   }
 
@@ -2701,6 +2733,8 @@ export class FloorplanStudioCard extends LitElement {
         this._popup.y,
         14,
         o?.isConnected && o.matches(".fp-active-row, fp-search") ? this._besideRect(o) : null,
+        this._popupAnchor(this._popup),
+        this._narrow,
       );
     }
     if (key === this._popupFocusKey) return;
@@ -2718,6 +2752,18 @@ export class FloorplanStudioCard extends LitElement {
       this._popupReturn = null;
       (back?.isConnected ? back : this).focus({ preventScroll: true });
     }
+  }
+
+  /** UI refactor 2: the box the popup keeps clear of. On the flat plan the opening element's own box (it follows a zoom or a turn,
+   * since this runs after every render); in 3D, where a device is a mesh and not an element, a box round the screen point of the tap,
+   * which is on the device. A popup opened from a sheet row has none (it stands beside the row). */
+  private _popupAnchor(p: NonNullable<FloorplanStudioCard["_popup"]>): Anchor | null {
+    const el = p.thing ? this.shadowRoot?.querySelector(`svg.fp-zoomable ${p.thing}`) : null;
+    const r = el?.getBoundingClientRect();
+    if (r && (r.width > 0 || r.height > 0)) return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    if (!p.thing || !this._shows3d()) return null;
+    const half = POPUP_3D_ANCHOR_PX / 2;
+    return { left: p.x - half, top: p.y - half, right: p.x + half, bottom: p.y + half };
   }
 
   /** Where a popup opened from the sheet stands beside: the opener's height, the sheet's sides, so it clears the sheet's
@@ -2860,7 +2906,7 @@ export class FloorplanStudioCard extends LitElement {
     const st = this._hass?.states[entityId];
     if (!st || typeof st.state !== "string") return "";
     const unit = st.attributes?.unit_of_measurement;
-    return typeof unit === "string" && unit ? `${st.state} ${unit}` : st.state;
+    return readingText(st.state, unit); // UI refactor 1c: a unit only after a number
   }
 
   private _pickChooserEntity(entityId: string): void {
@@ -2963,13 +3009,15 @@ export class FloorplanStudioCard extends LitElement {
     </div>`;
   }
 
-  /** S20.2: a pill shows its floor, as before, and selects it so the side panel opens on the floor. The selected floor's
-   *  pill again lets go. With the panel off (`active_list: false`) there is nowhere to show a floor, so it only switches, as a
-   *  room tap does nothing there. Kiosk has no pills, so it never gets here. */
+  /** S20.2, UI refactor 1b: a pill of another floor only switches to it; the Overview keeps its folded or open state and no
+   *  floor panel opens. The floor panel is an explicit pick: a tap on the pill of the floor already shown selects it, and the
+   *  selected floor's pill again lets go. With the panel off (`active_list: false`) there is nowhere to show a floor, so a pill
+   *  only switches, as a room tap does nothing there. Kiosk has no pills, so it never gets here. */
   private _tapFloorChip(key: string): void {
+    const shown = this._floorKey() === key;
     const letGo = this._pickedFloorKey() === key;
     this._selectFloor(key);
-    this._pickFloor(letGo || !this._activeListVisible() ? null : key);
+    this._pickFloor(!shown || letGo || !this._activeListVisible() ? null : key);
   }
 
   /** The key of the selected floor while it is the one shown, else null (a floor the config no longer lists means nothing). */
@@ -2989,6 +3037,18 @@ export class FloorplanStudioCard extends LitElement {
    *  config: anything other than the literal `false` counts as the default, shown. */
   private _activeListVisible(): boolean {
     return this._config.active_list !== false && !this._kiosk();
+  }
+
+  /** Set when a press on the head moved the panel, so the click that ends the drag does not also unfold it. */
+  private _headDragged = false;
+
+  /** UI refactor 1: the folded line is one big target, a tap anywhere on it opens the panel (the arrow button does the
+   * same on its own; a drag of the head moves the panel and does not open it). An open head only folds by its button. */
+  private _onActiveHeadClick(e: MouseEvent, folded: boolean): void {
+    const dragged = this._headDragged;
+    this._headDragged = false;
+    if (!folded || dragged || (e.target as Element | null)?.closest?.("button")) return;
+    this._toggleActiveCollapsed();
   }
 
   private _toggleActiveCollapsed(): void {
@@ -3133,9 +3193,10 @@ export class FloorplanStudioCard extends LitElement {
     panel.style.top = `${this._activePos.y * maxY}px`;
   }
 
-  /** The list floats over the plan, so on a phone-width card it hides the plan: until the user has chosen, it is
-   * folded under 480px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
-   * `display:none`, not laid out yet) decides nothing. */
+  /** Tracks whether the card is narrower than `ACTIVE_FOLD_BELOW_PX` (the room panel becomes a sheet, the popup spans the
+   * card). The Overview itself no longer follows the width: it starts folded at every width (UI refactor 1) and stays
+   * as the viewer left it. Runs from `updated()` and the ResizeObserver; width 0 (detached, `display:none`, not laid
+   * out yet) decides nothing. */
   private _applyWidthDefault(): void {
     const width = this.getBoundingClientRect().width;
     if (width === 0) return;
@@ -3145,10 +3206,6 @@ export class FloorplanStudioCard extends LitElement {
       this._viewOpen = false;
       this.requestUpdate();
     }
-    if (this._activeUserChose) return;
-    if (narrow === this._activeCollapsed) return;
-    this._activeCollapsed = narrow;
-    this.requestUpdate();
   }
 
   /**
@@ -3173,6 +3230,7 @@ export class FloorplanStudioCard extends LitElement {
       startY = e.clientY;
     const pointerId = e.pointerId;
     let moved = false;
+    this._headDragged = false;
     try {
       head.setPointerCapture(pointerId);
     } catch {
@@ -3196,6 +3254,7 @@ export class FloorplanStudioCard extends LitElement {
         dy = me.clientY - startY;
       if (!moved && Math.hypot(dx, dy) <= TAP_SLOP_PX) return;
       moved = true;
+      this._headDragged = true;
       this._activePos = clampFraction(originLeft + dx, originTop + dy);
       this._positionActivePanel();
     };
@@ -3379,11 +3438,16 @@ export class FloorplanStudioCard extends LitElement {
   /** S11.3: the room section: name, the facts the plan only hints at, and the room's devices as rows that act. A fact with
    *  nothing behind it (no sensor, no state) is left out, never printed empty; doors and lights always say "none". */
   private _roomSection(s: RoomSummary, active: unknown, scope: Scope) {
-    const facts: [string, string][] = [
+    const facts: [string, string, string?][] = [
       ["Area", s.areaM2 === null ? "" : `${s.areaM2} m²`],
       ["Temperature", s.temperature],
       ["Humidity", s.humidity],
-      ["Motion", s.motion ? `${s.motion.on ? "on" : "off"} since ${formatChanged(s.motion.since)}` : ""],
+      // UI refactor 1d: "off since 19:55" (today) or "off since 10 Oct 19:55"; the full timestamp is the title.
+      [
+        "Motion",
+        s.motion ? `${s.motion.on ? "on" : "off"} since ${formatSince(s.motion.since)}` : "",
+        s.motion ? formatChanged(s.motion.since) : undefined,
+      ],
       // S24.3 (G3): an unlocked door is not an open one. "Unlocked" shows only where a door carries a lock.
       ["Open", s.openings.join(", ") || "none"],
       ["Unlocked", s.hasLocks ? s.unlocked.join(", ") || "none" : ""],
@@ -3394,7 +3458,7 @@ export class FloorplanStudioCard extends LitElement {
         <span class="fp-room-name">${s.name || scope.unnamed}</span>
         <button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>
       </div>
-      <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
+      <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v, title]) => html`<div><dt>${k}</dt><dd title=${title ?? nothing}>${v}</dd></div>`)}</dl>
       ${s.offEntities.length || scope === FLOOR_SCOPE ? html`<div class="fp-alloff-row">${s.offEntities.length ? html`<button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title=${this._layout ? allOffTitle(this._layout.floors, this._floorKey() ?? "", s) : ALL_OFF_TITLE} @click=${() => this._allOff(s.offEntities)}>Lights off</button>` : nothing}${scope === FLOOR_SCOPE ? this._floorOffButton() : nothing}</div>` : nothing}
       ${this._scenesBlock()}
       ${active}
@@ -3611,7 +3675,7 @@ export class FloorplanStudioCard extends LitElement {
     // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
     // that function is the only thing that ever touches this element's inline position.
     return html`<div class=${summary ? "fp-active fp-room-open" : folded ? "fp-active fp-active-folded" : "fp-active"} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
-      <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
+      <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)} @click=${(e: MouseEvent) => this._onActiveHeadClick(e, folded)}>
         <span class="fp-active-title">Home${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}</span>
         ${
           summary
@@ -3733,8 +3797,7 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedDetail !== null) return this._pickedDetail;
     const set = this._config.detail;
     if (typeof set === "string" && (DETAIL_MODES as readonly string[]).includes(set)) return set as DetailMode;
-    const canChange = this._activeListVisible() || (this._zoomMode() !== false && !this._kiosk());
-    return canChange ? "auto" : "full";
+    return "full"; // UI refactor 1a: an idle device is a control; `auto` thins the plan at far zoom, so it is opt-in
   }
 
   /** The Detail button beside Layers; it unfolds the three choices. Its text never changes (the title names the mode): a
@@ -3995,7 +4058,7 @@ export class FloorplanStudioCard extends LitElement {
       this._pickedGhost = !on;
       this._saveViewNow();
       this.requestUpdate();
-    }}>${this._icon(GHOST_ICON)}</button>`;
+    }}>${this._icon(GHOST_ICON)}<span>Floor below</span></button>`;
   }
 
   /** The tilt on show: the slider's, else `config.tilt`, else the default. Clamped, since config is untrusted. */
@@ -4049,34 +4112,49 @@ export class FloorplanStudioCard extends LitElement {
     return html`<input type="range" aria-label="Tilt" title="Tilt" min="0" max="1" step="0.01" .value=${String(this._tilt())} @input=${onInput} />`;
   }
 
-  /** Everything that changes how the plan looks, but not where it is zoomed: the View select, the Tilt slider while
-   * the view is 2.5D, the Theme select and the Labels toggle. All hidden together (`view_switch: false`, kiosk). */
+  /** UI refactor 3: the toolbar is one row, the View segmented control and the View options button, at every width.
+   * Every other look control (Walls or cutaway, Floors below, Tilt, Theme, Labels, Device names, Floor below) is in the
+   * menu that button opens. All hidden together (`view_switch: false`, kiosk). */
   private _viewControls(current: CardView) {
-    if (!this._narrow) return this._lookControls(current);
-    const toggle = html`<button type="button" class="fp-view-toggle" aria-label="View options" title="View options" aria-expanded=${this._viewOpen ? "true" : "false"} @click=${() => {
+    const toggle = html`<button type="button" class="fp-view-toggle" aria-label="View options" title="View options" aria-expanded=${this._viewOpen ? "true" : "false"} aria-controls="fp-view-menu" @click=${() => {
       this._viewOpen = !this._viewOpen;
       this.requestUpdate();
     }}>${this._icon(UI_ICONS.view)}</button>`;
     // One template either way, so the toggle that has focus survives the click (two templates rebuilt it and focus fell to <body>).
-    return html`${this._viewOpen ? this._lookControls(current) : nothing}${toggle}`;
+    return html`${this._viewSegments(current)}${toggle}${this._viewOpen ? this._lookControls(current) : nothing}`;
   }
 
-  /** The look controls themselves: in the toolbar on a wide card, behind the View button on a narrow one. */
+  /** The views this card offers. The config has no key that withholds one (`view` only picks the start), so today it is
+   * all three; the control draws what this returns, so a view a card cannot show is not a button. */
+  private _viewsOffered(current: CardView): readonly { value: CardView; label: string }[] {
+    return VIEW_OPTIONS.filter((o) => o.value === current || this._offers(o.value));
+  }
+
+  private _offers(_v: CardView): boolean {
+    return true;
+  }
+
+  /** The look controls themselves, in the View options menu: a labelled row each, so none is a bare icon. */
   private _lookControls(current: CardView) {
     const labels = this._labels();
     const names = this._names();
     const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider
-    return html`${this._viewSelect(current)}${in3d ? html`${this._wallsSelect()}${this._belowSelect()}` : current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
+    const row = (name: string, control: unknown) =>
+      html`<label class="fp-vm-row"><span>${name}</span>${control}</label>`;
+    return html`<div class="fp-view-menu" id="fp-view-menu" role="group" aria-label="View options">
+      ${in3d ? html`${row("Walls", this._wallsSelect())}${row("Floors below", this._belowSelect())}` : current === "2.5d" ? html`${row("Tilt", this._tiltSlider())}${row("Walls", this._wallsSelect())}` : null}
+      ${row("Theme", this._themeSelect())}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => {
         this._pickedLabels = !labels;
         this._saveViewNow();
         this.requestUpdate();
-      }}>${this._icon(UI_ICONS.labels)}</button>
+      }}>${this._icon(UI_ICONS.labels)}<span>Labels</span></button>
       <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => {
         this._pickedNames = !names;
         this._saveViewNow();
         this.requestUpdate();
-      }}>Aa</button>${in3d ? null : this._ghostButton()}`;
+      }}><b aria-hidden="true">Aa</b><span>Device names</span></button>${in3d ? null : this._ghostButton()}
+    </div>`;
   }
 
   /** The two rotate buttons, next to the zoom buttons: a control of their own (`rotate_switch`), so a card with
@@ -4129,6 +4207,7 @@ export class FloorplanStudioCard extends LitElement {
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
+    const hadFocus = !!this.shadowRoot?.activeElement?.matches('button[aria-label="Reset view"]');
     this._fallback3d = null;
     this._pickedView =
       this._pickedTilt =
@@ -4150,6 +4229,15 @@ export class FloorplanStudioCard extends LitElement {
       this._saveViewNow();
     }
     this.requestUpdate();
+    // The button hides itself once the view is back at its start: focus must not stay on (or fall off to <body> from) a
+    // hidden button, so it goes to the last button of the stack that is still there (the card itself when none is).
+    if (hadFocus)
+      void this.updateComplete.then(() => {
+        const keep = [...(this.shadowRoot?.querySelectorAll<HTMLButtonElement>(".fp-stack button") ?? [])].filter(
+          (b) => !b.hidden && !b.disabled,
+        );
+        (keep.at(-1) ?? this).focus({ preventScroll: true });
+      });
   }
 
   /** The 3D camera goes back to its first view and the shown floor forgets it (Reset view, Reset camera). The floor's
@@ -4166,21 +4254,21 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   private _resetButton() {
-    return html`<button type="button" aria-label="Reset view" title="Reset view" ?disabled=${!this._modified()} @click=${() => this._resetView()}>${this._icon(UI_ICONS.reset)}</button>`;
+    // UI refactor 4: hidden, not disabled, until the view differs from its start; its slot in the stack collapses.
+    return html`<button type="button" aria-label="Reset view" title="Reset view" ?hidden=${!this._modified()} @click=${() => this._resetView()}>${this._icon(UI_ICONS.reset)}</button>`;
   }
 
-  /** Compact `<select>` in the card chrome, outside the plan's `<svg>` like the zoom buttons. A pick redraws the
-   * plan only: `_view` (zoom and pan) is left alone, `render` clamps it against the new fit. */
-  private _viewSelect(current: CardView) {
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!isView(v)) return;
+  /** UI refactor 3: the View segmented control, in the card chrome outside the plan's `<svg>` like the zoom buttons: a named
+   * group of buttons, the one on show `aria-pressed`. A pick redraws the plan only: `_view` (zoom and pan) is left alone,
+   * `render` clamps it against the new fit. */
+  private _viewSegments(current: CardView) {
+    const pick = (v: CardView) => {
       this._pickedView = v;
       this._fallback3d = null; // a new pick tries 3D again
       this._saveViewNow();
       this.requestUpdate();
     };
-    return html`<select aria-label="View" title="View" @change=${onChange}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</select>`;
+    return html`<div class="fp-seg" role="group" aria-label="View">${this._viewsOffered(current).map((o) => html`<button type="button" aria-pressed=${o.value === current ? "true" : "false"} @click=${() => pick(o.value)}>${o.label}</button>`)}</div>`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */

@@ -11,6 +11,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 import { renderFloor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
+import { openViewMenu } from "./view-menu";
 
 const L = demo as unknown as Layout;
 const last = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts;
@@ -20,6 +21,7 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   document.body.appendChild(el);
   el.setConfig({ layout: structuredClone(L), floor: "ground", ...config } as FloorplanStudioCardConfig);
   await el.updateComplete;
+  await openViewMenu(el); // UI refactor 3: the look controls live in the View options menu
   return el;
 }
 const slider = (el: FloorplanStudioCard) =>
@@ -107,13 +109,15 @@ describe("card tilt option and slider", () => {
   it("switching to 2D hides the slider and the tilt stays put for when 2.5D comes back", async () => {
     const el = await mount({ view: "2.5d" });
     await drag(el, "0.2");
-    const s = el.shadowRoot!.querySelector<HTMLSelectElement>('select[aria-label="View"]')!;
-    s.value = "2d";
-    s.dispatchEvent(new Event("change", { bubbles: true }));
+    // UI refactor 3: View is a segmented control
+    const seg = (name: string) =>
+      [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>('[role="group"][aria-label="View"] button')].find(
+        (b) => b.textContent!.trim() === name,
+      )!;
+    seg("2D").click();
     await el.updateComplete;
     expect(slider(el)).toBeNull();
-    s.value = "2.5d";
-    s.dispatchEvent(new Event("change", { bubbles: true }));
+    seg("2.5D").click();
     await el.updateComplete;
     expect(Number(slider(el)!.value)).toBe(0.2);
   });
@@ -123,10 +127,10 @@ describe("card tilt option and slider", () => {
     expect(slider(await mount({ view: "2.5d", kiosk: true }))).toBeNull();
   });
 
-  it("the slider sits in the same group as the select, also when zoom is off", async () => {
+  it("the slider sits in the same toolbar as the View control, also when zoom is off", async () => {
     const el = await mount({ view: "2.5d", zoom: false });
     expect(slider(el)!.closest(".fp-viewonly")).toBe(
-      el.shadowRoot!.querySelector('select[aria-label="View"]')!.closest(".fp-viewonly"),
+      el.shadowRoot!.querySelector('[role="group"][aria-label="View"]')!.closest(".fp-viewonly"),
     );
   });
 });

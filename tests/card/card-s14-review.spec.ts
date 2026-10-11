@@ -384,11 +384,13 @@ test.describe("S14 review 6: a tall popup in a short card", () => {
       pb = await boxOf(pop(page));
     expect(pb.y).toBeGreaterThanOrEqual(c.y - 0.5);
     expect(pb.y + pb.h, `popup ${pb.h} high in a card ${c.h} high`).toBeLessThanOrEqual(c.y + c.h + 0.5);
+    // UI refactor 2: in a card this short the sheet keeps clear of the device, so it is cut to the room there and scrolls. The
+    // buttons are reachable by scrolling it; once scrolled to, each is the real top element at its centre.
     for (const sel of [".fp-pop-do", ".fp-pop-more"]) {
+      await pop(page).locator(`css=${sel}`).scrollIntoViewIfNeeded();
       const b = await boxOf(pop(page).locator(`css=${sel}`));
       expect(b.y).toBeGreaterThanOrEqual(c.y);
       expect(b.y + b.h).toBeLessThanOrEqual(c.y + c.h + 0.5);
-      // and it is the real top element at its centre: nothing clips or covers it
       const top = await card(page).evaluate(
         (el, [x, y]) => {
           const t = el.shadowRoot!.elementFromPoint(x!, y!);

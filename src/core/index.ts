@@ -109,6 +109,7 @@ export {
   filterToRoom,
   formatAge,
   formatChanged,
+  formatSince,
   relayText,
   floorSummary,
   lampOffEntities,

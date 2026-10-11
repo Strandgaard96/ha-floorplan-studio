@@ -52,6 +52,16 @@ async function mount(): Promise<FloorplanStudioCard> {
   return el;
 }
 
+/** UI refactor 1: the Overview starts folded at every width. A test that needs its rows opens it first, as a viewer does
+ * (the arrow is a real button; its pick is stored). */
+async function openPanel(el: FloorplanStudioCard): Promise<void> {
+  const b = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse");
+  if (b?.getAttribute("aria-expanded") === "false") {
+    b.click();
+    await el.updateComplete;
+  }
+}
+
 describe("FloorplanStudioCard", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -1560,6 +1570,7 @@ describe("FloorplanStudioCard", () => {
         "person.demo_alex": st("home"),
       }) as never;
       await el.updateComplete;
+      await openPanel(el);
 
       const panel = el.shadowRoot!.querySelector(".fp-active");
       expect(panel).toBeTruthy();
@@ -1581,6 +1592,7 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
       await el.updateComplete;
+      await openPanel(el);
       await allFloors(el); // S24.7: the speaker is on the first floor
       const head = (cat: string) =>
         el.shadowRoot!.querySelector<HTMLButtonElement>(`.fp-active-group[data-cat="${cat}"] button.fp-cat`)!;
@@ -1599,6 +1611,7 @@ describe("FloorplanStudioCard", () => {
       el2.setConfig({ layout: structuredClone(L) });
       el2.hass = stubHass({ "light.demo_living": st("on"), "media_player.demo_office": st("playing") }) as never;
       await el2.updateComplete;
+      await openPanel(el2); // the Overview's own open pick is stored too, so this is a no-op; it stays explicit
       expect(el2.shadowRoot!.querySelector(".fp-ov-scope")!.getAttribute("aria-pressed")).toBe("true"); // the scope is remembered too
       expect(
         el2
@@ -1618,6 +1631,7 @@ describe("FloorplanStudioCard", () => {
       const keys = () => Object.keys(localStorage).filter((k) => k.startsWith("fp-active-cats:"));
       el.hass = stubHass({ "light.demo_living": st("on") }) as never;
       await el.updateComplete;
+      await openPanel(el);
       el.shadowRoot!.querySelector<HTMLButtonElement>("button.fp-cat")!.click();
       const k = keys()[0];
       expect(k).toBeTruthy();
@@ -1626,6 +1640,7 @@ describe("FloorplanStudioCard", () => {
       el2.setConfig({ layout: structuredClone(L) });
       el2.hass = stubHass({ "light.demo_living": st("on") }) as never;
       await el2.updateComplete;
+      await openPanel(el2);
       expect(el2.shadowRoot!.querySelector("button.fp-cat")!.getAttribute("aria-expanded")).toBe("true");
     });
 
@@ -1634,6 +1649,7 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_living": st("off"), "switch.demo_living_relay": st("on") }) as never;
       await el.updateComplete;
+      await openPanel(el);
       const names = [...el.shadowRoot!.querySelectorAll(".fp-active-row .fp-ov-name")].map((s) => s.textContent);
       expect(names).toContain("Living light");
     });
@@ -1645,6 +1661,7 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: noCam });
       el.hass = stubHass() as never; // every device off in the stub
       await el.updateComplete;
+      await openPanel(el);
       expect(el.shadowRoot!.querySelector(".fp-active-empty")?.textContent).toBe("Nothing on");
       expect(chips(el)).toBe("Nothing on"); // S24.7: no chips; the header said "0" until then
     });
@@ -1657,6 +1674,7 @@ describe("FloorplanStudioCard", () => {
       await el.updateComplete;
       const events: CustomEvent[] = [];
       el.addEventListener("hass-more-info", (e) => events.push(e as CustomEvent));
+      await openPanel(el);
       await allFloors(el); // S24.7: the speaker is on the first floor
       const rows = [...el.shadowRoot!.querySelectorAll<HTMLButtonElement>(".fp-active-row")];
       const mediaRow = rows.find((r) => r.querySelector(".fp-ov-name")?.textContent === "Office speaker")!;
@@ -1674,6 +1692,9 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_living": st("on") }) as never;
       await el.updateComplete;
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull(); // starts folded, with the chips on its one line
+      expect(chips(el)).toBe("1 light");
+      await openPanel(el);
       expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
       const collapseBtn = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!;
       expect(collapseBtn.tagName).toBe("BUTTON"); // Enter/Space activate a real button natively, no key handler needed
@@ -1704,23 +1725,22 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass() as never;
       await el.updateComplete;
-      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
-      await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      await openPanel(el); // UI refactor 1: opening is the pick that is stored (folded is the default)
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
 
-      // A second card, same config (same storage key): reopens already collapsed.
+      // A second card, same config (same storage key): reopens already open.
       const el2 = await mount();
       el2.setConfig({ layout: structuredClone(L) });
       el2.hass = stubHass() as never;
       await el2.updateComplete;
-      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
 
-      // A third card pinned to a different floor (different storage key per Opus review finding 7): opens fresh.
+      // A third card pinned to a different floor (different storage key per Opus review finding 7): starts folded.
       const el3 = await mount();
       el3.setConfig({ layout: structuredClone(L), floor: "first" });
       el3.hass = stubHass() as never;
       await el3.updateComplete;
-      expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+      expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
     });
 
     it("Opus review finding 7: two cards in websocket mode (no layout/layout_url, the default install) pinned to different floors keep separate storage, not one shared key", async () => {
@@ -1730,16 +1750,15 @@ describe("FloorplanStudioCard", () => {
       el.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
       await el.updateComplete;
       await vi.waitFor(() => expect(el.shadowRoot!.querySelector(".fp-active")).toBeTruthy());
-      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
-      await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      await openPanel(el);
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
 
       const el2 = await mount();
       el2.setConfig({ floor: "first" });
       el2.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
       await el2.updateComplete;
       await vi.waitFor(() => expect(el2.shadowRoot!.querySelector(".fp-active")).toBeTruthy());
-      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy(); // its own key: opens fresh, uncollapsed
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull(); // its own key: the first card's open pick is not shared
     });
 
     it("Opus review finding 7: an edited inline layout keeps its storage key (the seed is the layout's source, not its content)", async () => {
@@ -1747,17 +1766,16 @@ describe("FloorplanStudioCard", () => {
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass() as never;
       await el.updateComplete;
-      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
-      await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      await openPanel(el);
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
 
-      // Same card, edited layout (autosave-style setConfig with different device content): still collapsed.
+      // Same card, edited layout (autosave-style setConfig with different device content): still open.
       const edited = structuredClone(L);
       edited.floors.ground.devices = edited.floors.ground.devices.slice(1);
       el.setConfig({ layout: edited });
       el.hass = stubHass() as never;
       await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
     });
   });
 
@@ -1937,31 +1955,29 @@ describe("FloorplanStudioCard", () => {
 
     it("two cards pinned to different rooms on the same floor keep separate panel storage", async () => {
       const el1 = await mountPinned({ center: [300, 700], zoom_level: 2 });
-      el1.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
-      await el1.updateComplete;
-      expect(el1.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      await openPanel(el1); // UI refactor 1: folded is the default, so the stored pick is the open one
+      expect(el1.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
 
-      // A second card, same floor, pinned to a different room: its own key, opens fresh (not collapsed).
+      // A second card, same floor, pinned to a different room: its own key, starts folded.
       const el2 = await mountPinned({ center: [123, 456], zoom_level: 3 });
-      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
 
       // A third card with the same center/zoom_level as the first really does share its key (by design: two
       // identically-pinned cards are the same "view" as far as the panel is concerned).
       const el3 = await mountPinned({ center: [300, 700], zoom_level: 2 });
-      expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      expect(el3.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
     });
 
     it("an unpinned card's storage key is unchanged by this fix, so its stored position still applies", async () => {
       const el = await mountPinned({});
-      el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse")!.click();
-      await el.updateComplete;
-      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      await openPanel(el);
+      expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
 
-      // Same config, fresh instance: reopens already collapsed, from the very same key an unpinned card has
-      // always used (this only fails if appending center/zoom_level to the seed changed the key when neither is
-      // set — the regression this test guards against).
+      // Same config, fresh instance: reopens already open (the pick is the opposite of the folded default), from the
+      // very same key an unpinned card has always used (this only fails if appending center/zoom_level to the seed
+      // changed the key when neither is set — the regression this test guards against).
       const el2 = await mountPinned({});
-      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeTruthy();
     });
   });
 

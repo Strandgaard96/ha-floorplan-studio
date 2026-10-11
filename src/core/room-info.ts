@@ -6,6 +6,7 @@ import { doorStateOf } from "./door-state";
 import { entitiesOfDevice, entitiesOfDoor } from "./attachments";
 import { colorVarFor, nameFor, type ActiveOpts } from "./active";
 import { meanReading, stateOf } from "./readings";
+import { readingText } from "./state-text";
 import { entityLabel } from "./fmt";
 
 export { meanReading };
@@ -120,13 +121,25 @@ function stateText(state: StateOverlay | undefined, entity: string): string {
   const s = stateOf(state, entity);
   if (!s) return NO_STATE;
   const unit = typeof s.attributes?.unit_of_measurement === "string" ? s.attributes.unit_of_measurement : "";
-  return unit ? `${s.state} ${unit}` : s.state;
+  return unit ? readingText(s.state, unit) : s.state; // UI refactor 1c: a unit only after a number
 }
 
 /** ISO date and 24-hour time in the viewer's zone ("2026-10-04 19:40:08"); "unknown" for anything that is not a date. */
 export function formatChanged(iso: unknown): string {
   const t = typeof iso === "string" ? Date.parse(iso) : NaN;
   return Number.isFinite(t) ? new Date(t).toLocaleString("sv-SE") : "unknown";
+}
+
+/** UI refactor 1d: a time for a panel line, short. Today it is the clock alone ("19:55"); another day adds the date ("11 Oct 19:55").
+ *  The viewer's zone, 24-hour. "unknown" for anything that is not a date; the full `formatChanged` text belongs in a title. */
+export function formatSince(iso: unknown, now: number = Date.now()): string {
+  const t = typeof iso === "string" ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return "unknown";
+  const d = new Date(t),
+    n = new Date(now);
+  const clock = d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === n.toDateString()) return clock;
+  return `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${clock}`;
 }
 
 /** S24.7: how long ago, short, for an Attention row: "now" under a minute, then "12 min", "3 h", "2 d", rounded down.

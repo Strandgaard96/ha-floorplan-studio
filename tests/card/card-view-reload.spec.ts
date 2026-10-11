@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openViewMenu, viewControl } from "./shell-helpers";
 
 // Field report 0.12.21: "the template and view resets between reloads of the dashboard". These drive the card
 // the way Home Assistant does: a config that sets theme, view and tilt, a layout that arrives over the websocket
@@ -51,6 +52,7 @@ async function boot(page: Page, config: Record<string, unknown> = HA_CONFIG) {
     },
     { config, layout: structuredClone(demo) },
   );
+  await openViewMenu(page); // UI refactor 3: Theme is in the View options menu
 }
 
 async function fresh(page: Page) {
@@ -70,14 +72,14 @@ test.describe("a dashboard reload keeps the view (card, HA lifecycle)", () => {
     await fresh(page);
     expect(await select(page, "Theme").inputValue()).toBe("terminal");
     await select(page, "Theme").selectOption("light");
-    await select(page, "View").selectOption("2d");
+    await viewControl(page).selectOption("2d");
     await button(page, "Zoom in").click();
     await button(page, "Rotate right").click();
     await settled(page);
     const before = await viewBox(page);
     await reload(page);
     expect(await select(page, "Theme").inputValue()).toBe("light");
-    expect(await select(page, "View").inputValue()).toBe("2d");
+    expect(await viewControl(page).inputValue()).toBe("2d");
     expect(await planDeg(page)).toBe(45);
     const after = await viewBox(page);
     for (let i = 0; i < 4; i++) expect(after[i]!).toBeCloseTo(before[i]!, 2);

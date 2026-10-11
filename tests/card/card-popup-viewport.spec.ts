@@ -87,7 +87,8 @@ const popBox = (page: Page) =>
   });
 
 test.describe("S22.2 the popup stays in the visible window", () => {
-  test("a tap near the bottom of the window on a card taller than it opens the popup above the point, fully visible", async ({
+  // UI refactor 2: the popup is beside the device, so "above or below the point" became "off the point and inside the window".
+  test("a tap near the bottom of the window on a card taller than it opens the popup clear of the point, fully visible", async ({
     page,
   }) => {
     await boot(page, 1280, 700, 1600);
@@ -97,17 +98,24 @@ test.describe("S22.2 the popup stays in the visible window", () => {
     expect(b.h, "a full light popup, not a sliver").toBeGreaterThan(250);
     expect(b.top).toBeGreaterThanOrEqual(0);
     expect(b.bottom).toBeLessThanOrEqual(b.ih);
-    expect(b.bottom, "above the tapped point").toBeLessThanOrEqual(p.y);
+    expect(
+      b.left <= p.x && p.x <= b.right && b.top <= p.y && p.y <= b.bottom,
+      "the popup is not on the tapped point",
+    ).toBe(false);
   });
 
-  test("a tap near the top of the window, with the card's top scrolled away, opens below the point, fully visible", async ({
+  test("a tap near the top of the window, with the card's top scrolled away, opens clear of the point, fully visible", async ({
     page,
   }) => {
     await boot(page, 1280, 700, 1600);
     const p = await tapAt(page, 1, () => 40);
     expect(p.cardTop, "the card starts above the window").toBeLessThan(0);
     const b = await popBox(page);
-    expect(b.top).toBeGreaterThanOrEqual(p.y);
+    expect(
+      b.left <= p.x && p.x <= b.right && b.top <= p.y && p.y <= b.bottom,
+      "the popup is not on the tapped point",
+    ).toBe(false);
+    expect(b.top).toBeGreaterThanOrEqual(0);
     expect(b.bottom).toBeLessThanOrEqual(b.ih);
   });
 

@@ -13,6 +13,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 import { renderFloor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
+import { openViewMenu } from "./view-menu";
 
 const L = demo as unknown as Layout;
 const showNames = () => ((renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts).showNames;
@@ -22,6 +23,7 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   document.body.appendChild(el);
   el.setConfig({ layout: structuredClone(L), floor: "ground", ...config } as FloorplanStudioCardConfig);
   await el.updateComplete;
+  await openViewMenu(el); // UI refactor 3: the look controls live in the View options menu
   return el;
 }
 const btn = (el: FloorplanStudioCard, label: string) =>

@@ -42,13 +42,13 @@ floors — ready to paste. See "A premade dashboard" below.
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth (see 2.5D view, below), `3d` draws it as a real 3D model you can turn (see 3D view, below). Anything else is `2d` |
-| `view_switch` | `true` | `false` hides the View dropdown, Theme, Labels and Device names in the toolbar. `kiosk` hides them too |
+| `view_switch` | `true` | `false` hides the View control and the View options menu (Theme, Labels, Device names …). `kiosk` hides them too |
 | `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
 | `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See the Tilt slider, below |
 | `ghost_floor` | `false` | `true` draws the floor under the shown one as faint lines, at its place in the house (the floors' `offset`s). Only `true` counts; junk is off. The Floor below button in the view controls (2D and 2.5D) changes it for one viewer and the card remembers the pick; the lowest floor has none |
 | `floors_below` | `off` | 3D only: `ghost` draws every floor under the shown one translucent, `solid` in its own colours, `off` none. Junk is `off`. The Floors below select beside Walls changes it for one viewer; the pick is remembered |
-| `detail` | `auto` | how much of the plan is drawn at each zoom (Detail, below): `auto` follows the zoom, `full` always draws everything, `minimal` always draws only rooms and what needs attention. Unset or anything else is `auto`, but `full` where the viewer can neither zoom nor reach the Detail button (kiosk, or `active_list: false` with `zoom: false`). The Detail button in the Overview changes it for one viewer, and a viewer's own pick wins over this key |
+| `detail` | `auto` | how much of the plan is drawn at each zoom (Detail, below): `auto` follows the zoom, `full` always draws everything, `minimal` always draws only rooms and what needs attention. Unset or anything else is `full`: an idle device is a control, so none is left out unless `detail: auto` is asked for. The Detail button in the Overview changes it for one viewer, and a viewer's own pick wins over this key |
 | `walls` | `cut` | how 2.5D and 3D draw wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Read in 2.5D and 3D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
@@ -246,9 +246,12 @@ across the room.
 ## Studio and card
 
 The card lays its controls out like the studio: one vertical stack on the plan (+, −, Fit,
-rotate left, rotate right, Reset view) under a horizontal toolbar that keeps the look
-controls (View, Tilt, Walls, Theme, Labels, Names). On a card too short for the column
-the stack lays out as a row under the floor chips.
+rotate left, rotate right, Reset view) under a one-row toolbar: the **View** segmented
+control (2D, 2.5D, 3D) and a **View options** button. Every other look control (Walls,
+Floors below, Tilt, Theme, Labels, Device names, Floor below) is in the menu that button
+opens, at every width, each with its label. Escape closes the menu. On a card too short for
+the column the stack lays out as a row under the floor chips. **Reset view** is hidden until
+the view differs from its start, and its slot collapses.
 
 "Everything you do in the studio you can do in the card", for **viewing**. Each
 control of the editor's View menu, its zoom group and its Layers tab, and what
@@ -274,7 +277,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
 | `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail button beside Layers in the Overview, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |
 | `#tabLayers` Layers (hide a family) | yes | the Layers button in the Overview unfolds a text chip per family: a click hides it, Alt-click shows it alone; kept per viewer. Not in 3D |
-| Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
+| Plan view, Tilt, Walls | card only | the View segmented control, and the Tilt slider and Walls select in View options. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
 Also the same in both: the floor switcher (chips and tabs), pan and zoom by
@@ -362,7 +365,9 @@ place the battery sensor as its own icon. Home batteries, inverters, UPSes
 and cars never raise it: their charge is a reading, not an alert.
 
 **Position and folding.** Drag the header to move the panel; it stays on
-screen when the card resizes. On a card narrower than 480px it starts folded.
+screen when the card resizes. It starts folded at every width, one line (the breadcrumb and the
+summary chips); a tap on the line opens it, and your pick is remembered. Switching floor with a
+floor pill keeps its state; the floor's own panel opens when you tap the pill of the floor already shown.
 Position, fold, scope and the folded groups are kept per card in this browser
 (`localStorage`), keyed to the layout's source and the card's own
 `floor`/`floors`, so two cards on one dashboard do not share them.
@@ -421,7 +426,7 @@ Zoom 1 is the whole floor at fit.
 
 The thresholds are fixed. **Detail** (a button beside Layers in the Overview) picks the mode: **Auto** follows the zoom,
 **Full** is always near, **Minimal** is always far. The config key `detail: auto | full | minimal` sets the card's
-default (anything else counts as no key; the Edit-card form has a Detail select). With no key the default is `auto`, unless the viewer could not change the level: with `kiosk`, or with `active_list: false` and `zoom: false` (no Detail button, no zoom buttons), it is `full`, so no idle device is out of reach. A key you write always wins, `detail: auto` in a kiosk included. A viewer's own pick is remembered in that
+default (anything else counts as no key; the Edit-card form has a Detail select). With no key the default is `full`, so no idle device is out of reach (it was `auto` before the UI refactor; a house at its default zoom drew a third of its devices). A key you write always wins, `detail: auto` included. A viewer's own pick is remembered in that
 browser and wins over the YAML; Reset view clears it. With storage blocked the pick lasts until the page closes. Live 3D
 draws every level.
 
@@ -455,7 +460,7 @@ zoom and turn for the whole card) move to the floor they were saved on.
   same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `detail`, `kiosk`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
-- **Reset view** (the last button of the stack, greyed while nothing differs) puts
+- **Reset view** (the last button of the stack, hidden while nothing differs) puts
   every one of these back to the card's config and forgets the memory (zoom,
   turn and camera: of the floor on show only). The
   turn goes back the short way round. The floor stays. It is not the Fit

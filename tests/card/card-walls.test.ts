@@ -12,6 +12,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 import { renderFloor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
+import { openViewMenu } from "./view-menu";
 
 const L = demo as unknown as Layout;
 const last = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts;
@@ -21,6 +22,7 @@ async function mount(config: Record<string, unknown> = {}): Promise<FloorplanStu
   document.body.appendChild(el);
   el.setConfig({ layout: structuredClone(L), floor: "ground", view: "2.5d", ...config } as FloorplanStudioCardConfig);
   await el.updateComplete;
+  await openViewMenu(el); // UI refactor 3: the look controls live in the View options menu
   return el;
 }
 const select = (el: FloorplanStudioCard) =>
@@ -71,10 +73,12 @@ describe("card walls option", () => {
     expect(s.value).toBe("low");
   });
 
-  it("is in the toolbar next to the Tilt slider, in 2.5D only", async () => {
+  // UI refactor 3: both are rows of the View options menu (a labelled row each), the Walls row right after the Tilt row.
+  it("is in the View options menu next to the Tilt slider, in 2.5D only", async () => {
     const on = await mount();
     const tilt = on.shadowRoot!.querySelector('input[aria-label="Tilt"]')!;
-    expect(select(on)!.previousElementSibling).toBe(tilt);
+    expect(select(on)!.closest(".fp-view-menu")).not.toBeNull();
+    expect(select(on)!.closest("label")!.previousElementSibling).toBe(tilt.closest("label"));
     const flat = await mount({ view: "2d" });
     expect(select(flat)).toBeNull();
   });

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOverview } from "./shell-helpers";
 
 // S24.7: the card's Overview sheet on the stress house (three floors, 437 devices). Every click is a real page.mouse click at
 // a point checked to be the real top element (CLAUDE.md finding 3). The hass stub has the shape Home Assistant's frontend
@@ -68,6 +69,7 @@ async function boot(page: Page, config: Record<string, unknown>, size = { width:
     },
     [{ layout, theme: "light", ...config }, STATES()] as const,
   );
+  if (size.width >= 480) await openOverview(page); // UI refactor 1: folded at every width; these specs drive its rows, as when it was open from 480 px
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const pop = (page: Page) => card(page).locator("css=.fp-pop");
@@ -244,7 +246,7 @@ test.describe("S24.7 the Overview sheet", () => {
     page,
   }) => {
     await boot(page, { floor: "ground" }, { width: 390, height: 844 });
-    await expect(card(page).locator("css=.fp-active-collapse")).toHaveAttribute("aria-expanded", "false"); // below 480 px it starts folded
+    await expect(card(page).locator("css=.fp-active-collapse")).toHaveAttribute("aria-expanded", "false"); // UI refactor 1: and so does every width, this is the one the spec pins at 390 px
     const head = await card(page)
       .locator("css=.fp-active-head")
       .evaluate((h) => {
