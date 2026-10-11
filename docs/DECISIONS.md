@@ -2,6 +2,34 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: Hand align by panel buttons, not dragging (supersedes parts of the entry below)
+
+Diego changed the interaction the same day. This entry replaces the Align frame, Gestures, Undo and Pairs bullets of
+the entry below; its Schema, Own frame, Stairs and Split bullets hold, with offsets now stored to 0.1 cm.
+- **Buttons.** The Align panel moves the floor up, down, left, right as drawn on screen and turns it anticlockwise and
+  clockwise. No dragging, no turn handle, no snapping, no point pairs: steps you choose are easier to control and to
+  test than a gesture on the plan.
+- **Steps.** Move 1, 5, 50 cm (default 5); turn 0.1, 0.5, 1, 3 degrees (default 0.5). Remembered per viewer in
+  `localStorage`, in try/catch, never in the layout.
+- **Pivot.** The centre of the bounding box of the floor's structure lines, else its stairs, else the origin, in the
+  floor's own frame. It does not move when the pose changes, and Align mode edits no geometry, so it holds still for
+  the whole session. A turn writes rotation and offset together so the pivot's house point stays put. Rejected: the
+  bounds in the house frame (they move with every turn), and a pivot fixed at the first press (the same point, more
+  state).
+- **No drift.** `EditorState` keeps an exact pose for the floor being aligned and stores it rounded (0.01 degree,
+  0.1 cm); the exact pose is dropped as soon as anything else writes the pose. 3600 presses of 0.1 degree return to the
+  start within 0.01. Offsets go from whole cm to 0.1 cm because a 0.1 degree turn about a centre several metres out
+  moves the origin by fractions of a centimetre.
+- **Undo and repeat.** One press, one undo step. No hold-to-repeat, and key auto-repeat is ignored: with steps up to
+  50 cm and 3 degrees a hold buys little, and repeat would need a draft, a timer and release bookkeeping for one undo
+  step per hold (finding 6), or fill the 100-step history in seconds.
+- **Keys.** Arrows move and `,` `.` turn by the selected steps, on the editor host, only while Align is open and no text
+  field has focus. Not `[` `]`: they need AltGr or Option on an Italian keyboard. Outside Align the arrows pan, as now.
+- **View.** The current floor stays in its own frame; the ghost of the floor below moves the other way on screen. The
+  panel says "This floor moves" and every button names this floor. Holding the ghost still is a later option.
+- **Accepted by Diego.** The angle search is Sprint 30; a floor shown alone stays in its own frame; Align stairs uses the
+  first stair of each floor.
+
 ## 2026-10-11: Hand align, with a floor rotation (plan for Sprint 29, 0.27.0; assumptions)
 
 Diego: hand align a floor over the floor below; his stairs do not line up in 3D; Align scores 20 to 24 % on his
