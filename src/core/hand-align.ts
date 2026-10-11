@@ -68,6 +68,13 @@ const dist = (a: Pt, b: Pt) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 /** The angle between two lines, modulo 180, the smaller way round: 0 to 90. */
 const lineGap = (a: number, b: number) => { const d = (((a - b) % 180) + 180) % 180; return Math.min(d, 180 - d); };
 
+/** The one rule for "which stair below": the nearest by centre distance to `c` (the upper stair's centre as the place draws it); the first wins a tie. The report and Align stairs both ask here. */
+function nearestBelow(c: Pt, below: { t: Stairs; axis: StairAxis }[]): { b: { t: Stairs; axis: StairAxis }; d: number } | null {
+  let best: { t: Stairs; axis: StairAxis } | null = null, bestD = Infinity;
+  for (const b of below) { const d = dist(c, b.axis.centre); if (d < bestD) { best = b; bestD = d; } }
+  return best ? { b: best, d: bestD } : null;
+}
+
 export interface StairRow {
   id: string;
   name: string;
@@ -85,11 +92,11 @@ export function stairReport(upper: Floor, lower: Floor, place: Place): StairRow[
   return stairsOf(upper).map(({ t, axis }) => {
     const row: StairRow = { id: idOf(t.id), name: nameOf(t.name, "Stairs"), nearest: null, distance: null, angle: null };
     const c = placePoint(pl, axis.centre);
-    let best: { t: Stairs; axis: StairAxis } | null = null, bestD = Infinity;
-    for (const b of below) { const d = dist(c, b.axis.centre); if (d < bestD) { best = b; bestD = d; } }
-    if (!best) return row;
+    const n = nearestBelow(c, below);
+    if (!n) return row;
+    const best = n.b;
     row.nearest = { id: idOf(best.t.id), name: nameOf(best.t.name, "Stairs") };
-    row.distance = bestD;
+    row.distance = n.d;
     if (axis.low && axis.top && best.axis.low && best.axis.top)
       row.angle = lineGap(angleOf(placePoint(pl, axis.low), placePoint(pl, axis.top)), angleOf(best.axis.low, best.axis.top));
     return row;
@@ -97,7 +104,7 @@ export function stairReport(upper: Floor, lower: Floor, place: Place): StairRow[
 }
 
 export interface StairPlaceResult {
-  /** The place that lays the upper floor's first stair on the lower floor's first stair. */
+  /** The place that lays the upper floor's first stair on the nearest stair below. */
   place: Place;
   /** cm the anchor point moved. */
   moved: number;
@@ -109,11 +116,14 @@ export interface StairPlaceResult {
   text: string;
 }
 
-/** Lay the first stair with a footprint of `upper` (drawn as `place` draws it) on the first of `lower`. Null when either floor has none. */
+/** Lay the first stair with a footprint of `upper` (drawn as `place` draws it) on the stair of `lower` nearest to it (the report's rule). Null when either floor has none. */
 export function stairPlace(upper: Floor, lower: Floor, place: Place): StairPlaceResult | null {
-  const u = stairsOf(upper)[0], l = stairsOf(lower)[0];
-  if (!u || !l) return null;
+  const u = stairsOf(upper)[0];
+  if (!u) return null;
   const pl = safePlace(place);
+  const near = nearestBelow(placePoint(pl, u.axis.centre), stairsOf(lower));
+  if (!near) return null;
+  const l = near.b;
   let anchor: Pt, target: Pt, d = 0, round = true;
   if (u.axis.low && u.axis.top && l.axis.low && l.axis.top) {
     const pLow = placePoint(pl, u.axis.low), pTop = placePoint(pl, u.axis.top), au = angleOf(pLow, pTop), al = angleOf(l.axis.low, l.axis.top);

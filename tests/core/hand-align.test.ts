@@ -180,3 +180,24 @@ describe("stairPlace (S29.8)", () => {
     near(r.place.shift[0], 40, 1e-9); near(r.place.shift[1], 30, 1e-9);
   });
 });
+
+describe("one rule for the report and Align stairs (review 29, finding 4)", () => {
+  // Two stairs on the floor below: the first in the list is far from the upper stair, the second is near.
+  const upper = fl(stair(1000, 1000, 1200, 1080, 0, { id: "u", name: "Up" }));
+  const lower = fl(stair(0, 0, 200, 80, 0, { id: "far", name: "Far" }), stair(1010, 1005, 1210, 1085, 0, { id: "near", name: "Near" }));
+  it("Align stairs lays the upper floor's first stair on the nearest stair below, not the first in the list", () => {
+    const r = stairPlace(upper, lower, ID)!;
+    expect(r.text).toContain("to Near");
+    near(r.place.shift[0], 10, 1e-9); near(r.place.shift[1], 5, 1e-9);
+  });
+  it("the report's nearest stair for that row is the one the button uses", () => {
+    const row = stairReport(upper, lower, ID)[0], r = stairPlace(upper, lower, ID)!;
+    expect(row.nearest!.name).toBe("Near");
+    expect(r.text).toContain(`to ${row.nearest!.name}`);
+  });
+  it("the distance is measured with the upper stair drawn by the place", () => {
+    const moved = { turn: 0, shift: [-1000, -1000] as Pt };
+    expect(stairPlace(upper, lower, moved)!.text).toContain("to Far");
+    expect(stairReport(upper, lower, moved)[0].nearest!.name).toBe("Far");
+  });
+});
