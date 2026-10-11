@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.27.0 - 2026-10-11
 
 - Studio, Align to floor below (review fixes): a typed offset or rotation that would pass the coordinate limit now says so in the status line instead of reverting silently.
 - Studio, Align to floor below (review fixes): the plan is read-only while Align is open. A press only pans, nothing is selected, dragged or deleted, Delete, Backspace, Ctrl+A, double click and the right-click menu do nothing (nor does the Outline's menu or Menu key, and an Outline click only centres, it selects nothing), starting a draw closes Align, and the Align keys never run in a draw or a text box. A device can no longer be dragged while Align is open.
