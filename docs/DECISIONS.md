@@ -5,6 +5,64 @@ Newest first. A change supersedes; nothing is edited.
 ## 2026-10-11: the stairwell is clipped out of every solid, not cut where it lies strictly inside (0.26.2)
 
 Diego's first floor still showed no stairs after 0.26.1. I loaded his layout into the 3D scene (private file, nothing of it is in the repo). On `first` the solids over the flight were two: the slab, which got its hole, and one room fill (a corridor, z 0..1), which did not. Two corners of the flight lie exactly on that room's edge (the flight's north side runs along the corridor's boundary). My 0.26.1 rule cut a hole only when the whole footprint lay strictly inside the room's outline, because earcut takes holes that do not touch the contour. So the fill lay over the flight. The direction was right (`down`, floor below, none above), and no other solid, furniture or lifted fill covers it. Fix: a prism's `holes` are now convex polygons that may lie inside, touch or cross the base. `prismTriangles` triangulates the base as before and subtracts each hole from every cap triangle by splitting along the hole's edges (convex pieces, fan-triangulated); the base's own walls are left out where a hole opens them, and the hole's walls are drawn only where the hole lies inside the base. A hole that is not convex is ignored (stairwells are rectangles or a 24-gon). `buildScene` gives the hole to every solid whose box the well meets (slab and each room fill). Picking, shadows and the ring still use the outline. Tests, failing first (6 of 6): a flight on the edge of its room, across two rooms, and inside a room with a fill over it, light and blueprint, by the pixel over the deepest step; unit tests for the clipping and for which solids get a hole. I rendered his layout: `first` now shows the well in the corridor; `ground` (both) and `basement` (up) draw their flights.
+## 2026-10-11: Hand align by panel buttons, not dragging (supersedes parts of the entry below)
+
+Diego changed the interaction the same day. This entry replaces the Align frame, Gestures, Undo and Pairs bullets of
+the entry below; its Schema, Own frame, Stairs and Split bullets hold, with offsets now stored to 0.1 cm.
+- **Buttons.** The Align panel moves the floor up, down, left, right as drawn on screen and turns it anticlockwise and
+  clockwise. No dragging, no turn handle, no snapping, no point pairs: steps you choose are easier to control and to
+  test than a gesture on the plan.
+- **Steps.** Move 1, 5, 50 cm (default 5); turn 0.1, 0.5, 1, 3 degrees (default 0.5). Remembered per viewer in
+  `localStorage`, in try/catch, never in the layout.
+- **Pivot.** The centre of the bounding box of the floor's structure lines, else its stairs, else the origin, in the
+  floor's own frame. It does not move when the pose changes, and Align mode edits no geometry, so it holds still for
+  the whole session. A turn writes rotation and offset together so the pivot's house point stays put. Rejected: the
+  bounds in the house frame (they move with every turn), and a pivot fixed at the first press (the same point, more
+  state).
+- **No drift.** `EditorState` keeps an exact pose for the floor being aligned and stores it rounded (0.01 degree,
+  0.1 cm); the exact pose is dropped as soon as anything else writes the pose. 3600 presses of 0.1 degree return to the
+  start within 0.01. Offsets go from whole cm to 0.1 cm because a 0.1 degree turn about a centre several metres out
+  moves the origin by fractions of a centimetre.
+- **Undo and repeat.** One press, one undo step. No hold-to-repeat, and key auto-repeat is ignored: with steps up to
+  50 cm and 3 degrees a hold buys little, and repeat would need a draft, a timer and release bookkeeping for one undo
+  step per hold (finding 6), or fill the 100-step history in seconds.
+- **Keys.** Arrows move and `,` `.` turn by the selected steps, on the editor host, only while Align is open and no text
+  field has focus. Not `[` `]`: they need AltGr or Option on an Italian keyboard. Outside Align the arrows pan, as now.
+- **View.** The current floor stays in its own frame; the ghost of the floor below moves the other way on screen. The
+  panel says "This floor moves" and every button names this floor. Holding the ghost still is a later option.
+- **Accepted by Diego.** The angle search is Sprint 30; a floor shown alone stays in its own frame; Align stairs uses the
+  first stair of each floor.
+
+## 2026-10-11: Hand align, with a floor rotation (plan for Sprint 29, 0.27.0; assumptions)
+
+Diego: hand align a floor over the floor below; his stairs do not line up in 3D; Align scores 20 to 24 % on his
+house. Then: the misalignment is a rotation plus an offset. Spec `docs/specs/hand-align.md`, plan Sprint 29. Defaults
+taken, each open to Diego:
+- **Schema.** `floor.rotation?: number`, degrees, clockwise on screen like `rot`, about the floor's stored origin, before
+  `offset`: house point = `R(rotation) · p + offset`. Validate finite within -180..180; migrate drops junk; writers
+  normalise to (-180, 180], round to 0.01 degree (0.1 is 3.5 cm at 20 m), delete at 0. Schema stays v2, as the offset
+  did in S27. Why the origin: a geometry-based pivot (the bounds centre) would move the floor in the house whenever a
+  room is added. The tools pivot on the structure's centre and write rotation and offset together, so drag and turn
+  stay independent.
+- **Own frame.** A floor shown alone is drawn in its own frame everywhere; only the ghost and the 3D floors below are
+  turned, through one helper, `floorPlace(layout, from, to)` -> `{ turn, shift }`, which replaces `floorShift`. Nothing
+  clickable is transformed, so no hit test changes in the card or the Studio. Rejected: drawing every floor in the house
+  frame, which would put a transform in every hit test, the editor's tools, the card's picking and the view memory.
+- **The Align frame.** While Align is open the view answers each pose change the other way, through the existing view
+  turn and pan, so the ghost holds still and the floor moves under the hand.
+- **Gestures.** Drag moves; a turn handle turns (Shift 15 degrees, else parallel snap within 1 degree); a click picks a
+  point; arrows 1 cm (Shift 10) and `[` `]` 0.1 degree (Shift 1) in Align mode only; Alt no snap; Escape cancels the
+  gesture, then picked points, then closes. Snap reuses `align.ts`'s structure lines and corners, not `snapCorner`
+  (which snaps one point inside one floor).
+- **Undo.** One step per gesture. A held key, press to release, is one gesture: auto repeat would fill the 100-step
+  history in three seconds.
+- **Pairs.** Pair 1 moves the points together; pair 2 turns about pair 1's point (pin and swing). Each one step.
+- **Stairs.** The report gives each stair's centre distance and axis angle to the nearest stair below. Align stairs
+  uses the first stair of each floor: both ends of a straight flight (the order with the smaller turn), the centre of a
+  round one.
+- **Split.** 0.27.0 ships the schema, every view and the hand tools; Apply keeps the current turn and searches
+  translation only. The angle search is Sprint 30 (0.28.0). Card layout and touch move to Sprint 31 (0.29.0), extras to
+  32 (0.30.0).
 
 ## 2026-10-11: the 3D ground lies under every solid, not only the slabs (0.26.1)
 
