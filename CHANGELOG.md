@@ -5,6 +5,7 @@
 - A floor can carry a `rotation` (degrees, clockwise, about its stored origin, before the offset). The schema and `migrate` accept and check it; no view reads it yet.
 - Core: pose helpers (`floorPlace`, `placePoint`, `composePlace`, `poseFromPlace`, `floorPivot` and friends) turn and shift a floor into another's frame, ready for the ghost, 3D and the Align panel. Test fixture `hand-align-house.json`.
 - Editor state: `setPose`, `nudgeFloor` and `turnFloor` write a floor's rotation (0.01 degree) and offset (0.1 cm, was whole cm) as one undo step each, from an exact session pose so many small presses do not drift. A new floor copies the lowest floor's rotation. No panel uses them yet.
+- Align to floor below keeps the floor's turn: `alignFloor` takes a turn and searches with the floor's lines turned by it. Still translation only.
 
 ## 0.26.2 - 2026-10-11
 

@@ -210,3 +210,28 @@ describe("the session pose and its drift (S29.6)", () => {
     expect("rotation" in s.layout.floors.first).toBe(false);
   });
 });
+
+describe("Apply keeps the turn (S29.7)", () => {
+  it("alignToBelow on the first floor, turned 4 degrees: the turn stays and the offset is the true shift", () => {
+    const s = st(); s.layout.floors.first.rotation = 4;
+    expect(s.alignToBelow("first")).toBe(true);
+    const p = floorPose(s.layout, "first");
+    expect(p.rot).toBe(4);
+    expect(Math.abs(p.off[0] - 83)).toBeLessThan(2); expect(Math.abs(p.off[1] + 41)).toBeLessThan(2);
+    expect(s.canUndo).toBe(true); ok(s);
+    s.undo(); expect(s.layout.floors.first.rotation).toBe(4); expect("offset" in s.layout.floors.first).toBe(false);
+  });
+  it("with the floor below turned too, the place is in the lower floor's frame", () => {
+    const s = st(); s.layout.floors.ground.rotation = -2.5; s.layout.floors.ground.offset = [-57, 112]; s.layout.floors.first.rotation = 1.5; // first minus ground: turn 4
+    expect(s.alignToBelow("first")).toBe(true);
+    const pl = floorPlace(s.layout, "first", "ground");
+    expect(pl.turn).toBeCloseTo(4, 9);
+    expect(Math.abs(pl.shift[0] - 83)).toBeLessThan(2); expect(Math.abs(pl.shift[1] + 41)).toBeLessThan(2);
+    ok(s);
+  });
+  it("a floor with no turn behaves as before", () => {
+    const s = st(); // ground vs basement with no rotation: translation only
+    s.alignToBelow("ground");
+    expect("rotation" in s.layout.floors.ground).toBe(false);
+  });
+});

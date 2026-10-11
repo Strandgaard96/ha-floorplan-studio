@@ -3526,7 +3526,7 @@ Lane writer (`src/editor/state.ts`, `src/core/align.ts`):
       0.1 cm, the pivot's house point within 0.1 cm at every press; a nudge at view turn 90 moves along the screen
       direction; after an undo the next press starts from the stored pose.
       Files: `src/editor/state.ts`, `tests/editor/floor-offset-state.test.ts`, a new `tests/editor/floor-pose.test.ts`.
-- [ ] S29.7 Align keeps the turn (Sonnet). `alignFloor(upper, lower, turn = 0)` turns the upper floor's lines by `turn`
+- [x] S29.7 Align keeps the turn (Sonnet). `alignFloor(upper, lower, turn = 0)` turns the upper floor's lines by `turn`
       before it searches; the result's `t` is in the lower floor's frame, so the new place is `{ turn, shift: t }`;
       `alignKey` adds the turn. Test: the S27 fixture unchanged at turn 0; the hand-align fixture's first floor with its
       true turn given finds its true shift within 2 cm; a move only keeps the key, a turn changes it; junk turn reads

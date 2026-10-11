@@ -1,4 +1,4 @@
-import { alignFloor, floorBelow, floorPose, normaliseTurn, placePoint, DETAIL_MODES, parseDetailMode, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import { COORD_LIMIT } from "../core/schema";
 import type { DetailMode, CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
@@ -412,15 +412,16 @@ export class EditorState {
     return this.press(key, rot, [e.off[0] + a[0] - b[0], e.off[1] + a[1] - b[1]]);
   }
 
-  /** Lays a floor on the floor below it: the offset of the one below plus the best translation (S27.4). False when there is no floor below, nothing to match, or nothing changes. */
+  /** Lays a floor on the floor below it (S27.4): keeps the floor's turn, and sets the offset so the best translation (found with the floor turned) is the place. False when there is no floor below, nothing to match, or nothing changes. */
   alignToBelow(key: string): boolean {
     if (!this.fresh()) return false;
     const below = floorBelow(this.layout, key);
     if (below === null) return false;
-    const r = alignFloor(this.layout.floors[key], this.layout.floors[below]);
+    const turn = floorPlace(this.layout, key, below).turn;
+    const r = alignFloor(this.layout.floors[key], this.layout.floors[below], turn);
     if (!r) return false;
-    const lo = this.layout.floors[below].offset;
-    return this.setOffset(key, [(lo?.[0] ?? 0) + r.t[0], (lo?.[1] ?? 0) + r.t[1]]);
+    const p = poseFromPlace(this.layout, key, below, { turn, shift: r.t });
+    return this.setPose(key, p);
   }
 
   /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. False when the plan is fixed. */

@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.7, Align keeps the turn
+
+`alignFloor(upper, lower, turn = 0)` turns the upper floor's structure lines by `turn` (about the origin, clockwise) before it searches; junk reads as 0. The translation `t` is then in the lower floor's frame, so the upper floor's place is `{ turn, shift: t }`. `alignToBelow` takes the turn from `floorPlace(layout, key, below)`, searches with it, and writes `poseFromPlace(..., { turn, shift: t })` through `setPose`: the floor keeps its rotation and only the offset changes (with both rotations 0 this is the S27 answer). Search is still translation only; the angle search is Sprint 30. `alignKey(f, turn)` and `alignKeyOf(f, turn)` add the turn to the key only when it is not 0, so a move keeps the key, a turn changes it, and the old keys are unchanged. The Align panel still calls `alignKeyOf` and `setOffset` with one argument (S29.9 moves it over).
+
 ## 2026-10-11: S29.6, one pose writer and when the exact pose is trusted
 
 Design note for `EditorState` in `src/editor/state.ts`.
