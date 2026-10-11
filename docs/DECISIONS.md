@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.8, Align stairs: the reversed flight
+
+`src/core/hand-align.ts`. A straight flight has a low end and a top end (the middles of its low and top edges, from
+`stairBlocks`). Two ways to match a pair of flights: same order (low on low) or reversed (upper low on lower top, a
+flight drawn the other way round). Both are tried; the smaller turn wins; a tie keeps the same order.
+- **Reversed meets low with top, not low with low.** Low on low after a half turn leaves the footprints one flight
+  length apart. Low on top puts them on each other when the flights are the same length. This reads the spec's "turns
+  about them so the flights lie on one line" as: footprints coincide. Supersedes nothing; it fills a gap in the spec.
+- **The place is absolute.** `stairPlace(upper, lower, place)` reads the upper stairs as `place` draws them and returns the
+  whole new place (the kept turn plus the extra turn, wrapped to (-180, 180]), so the caller writes it with `poseFromPlace`.
+- **Round stairs, or one round and one straight:** centres meet, no turn; the text says "round stairs: moved, not turned".
+- **Names are raw.** The text carries the stair names as written; the panel escapes them.
+- **The report** (`stairReport`) has a row per upper stair that can be drawn; the nearest lower stair by centre distance; the
+  angle is between the axes modulo 180, 0 to 90 (a flight and its reverse have the same angle).
+
 ## 2026-10-11: S29.2, the pose maths: sign, composition, pivot
 
 Design note for `src/core/floor-stack.ts`, written before the code.

@@ -32,6 +32,8 @@ export type { PowerCandidate } from "./power";
 export * from "./stairs";
 export { composePlace, floorBelow, floorPivot, floorPlace, floorPose, floorShift, floorsBelow, invertPlace, normaliseTurn, placePoint, poseFromPlace } from "./floor-stack";
 export type { Place, Pose } from "./floor-stack";
+export { stairAxis, stairPlace, stairReport } from "./hand-align";
+export type { StairAxis, StairPlaceResult, StairRow } from "./hand-align";
 export { UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, pieceDevice, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
 export { customCalls, customScene, haScenesFor, lampOffCalls, presetCalls, roomScenes, sceneNeedsConfirm } from "./room-scenes";

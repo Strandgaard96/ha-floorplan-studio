@@ -3534,7 +3534,7 @@ Lane writer (`src/editor/state.ts`, `src/core/align.ts`):
       Files: `src/core/align.ts`, `tests/core/align.test.ts`.
 
 Lane report (a new `src/core/hand-align.ts`):
-- [ ] S29.8 Stair report and Align stairs (Sonnet, **judgement**: the reversed flight). `stairAxis(t)` (low-edge and
+- [x] S29.8 Stair report and Align stairs (Sonnet, **judgement**: the reversed flight). `stairAxis(t)` (low-edge and
       top-edge middles of a straight flight, the centre of a round one, from `stairBlocks`); `stairReport(upper, lower,
       place)` (per upper stair the nearest lower stair, centre distance, axis angle modulo 180, none for round);
       `stairPlace(upper, lower, place)` (the Align stairs answer and its words). Test: on the fixture's truth,
