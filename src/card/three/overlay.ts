@@ -56,6 +56,10 @@ export const roomPriority = (kind: string): number =>
 // --fp-disc disc with a thin --fp-idle edge (so it reads on a white floor, a dark one and the ground) and its glyph at full opacity.
 // `inkFor` makes --fp-idle at least INK_RATIO against the disc on this layer, in any theme. The plan's own idle look (core/render.ts:
 // no disc, a .7 glyph) is for 2D, where the floor is one flat colour; these rules win by specificity, and only in this layer.
+/** Item 10: a label is a chip on the 2D plan's tag colour (`.lbl-tag`, --fp-outline). A device's value and its name stack one chip apart:
+ *  11 px text at line-height 1.2 is 13.2 px, plus 1 px padding above and below, plus a 2 px gap. */
+const CHIP_GAP = 2,
+  CHIP_STEP = 17;
 const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
 .fp3-ov *{pointer-events:none}
 .fp3-dev,.fp3-rm{position:absolute;left:0;top:0;will-change:transform}
@@ -65,9 +69,9 @@ const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:no
 .fp3-ic g.dev:not(.on):not(.danger) path{fill-opacity:1}
 .fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:11px/1.2 var(--fp-font,system-ui,sans-serif)}
 .fp3-dv{top:${ICON_PX / 2 + 1}px}
-.fp3-dn{top:${ICON_PX / 2 + 13}px;opacity:.85}
-.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{color:var(--fp-text);text-shadow:0 0 2px var(--fp-outline),0 0 2px var(--fp-outline),0 0 3px var(--fp-outline),0 0 5px var(--fp-outline)}
-.fp3-rm{text-align:center;white-space:nowrap;font:500 12px/1.25 var(--fp-font,system-ui,sans-serif)}
+.fp3-dn{top:${ICON_PX / 2 + 1 + CHIP_STEP}px}
+.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{color:var(--fp-text);background:var(--fp-outline);border-radius:3px;padding:1px 5px}
+.fp3-rm{display:flex;flex-direction:column;align-items:center;gap:${CHIP_GAP}px;text-align:center;white-space:nowrap;font:500 12px/1.25 var(--fp-font,system-ui,sans-serif)}
 .fp3-name,.fp3-val{display:block}
 .fp3-val{font-weight:400;font-size:11px}
 .fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:opacity .12s linear}
@@ -287,7 +291,7 @@ export function createOverlay(container: HTMLElement) {
         it.dn = null;
         dirty = true;
       }
-      if (it.dn) it.dn.style.top = `${ICON_PX / 2 + (val ? 13 : 1)}px`;
+      if (it.dn) it.dn.style.top = `${ICON_PX / 2 + (val ? 1 + CHIP_STEP : 1)}px`;
     });
     for (const [i, it] of icons)
       if (!seenD.has(i)) {
@@ -416,18 +420,32 @@ export function createOverlay(container: HTMLElement) {
       }
       if (it.dn) {
         const [w, h] = sizeOf(it.dn);
-        add(it.dn, it.x - w / 2, it.y + ICON_PX / 2 + (it.dv ? 13 : 1), w, h, P_DNAME, 0, i);
+        add(it.dn, it.x - w / 2, it.y + ICON_PX / 2 + (it.dv ? 1 + CHIP_STEP : 1), w, h, P_DNAME, 0, i);
       }
     }
+    // A room's name and readout are two chips, each its own width, centred on the label's point.
+    const roomEls = new Map<number, { name: number; val: number }>();
     for (const [r, it] of rooms) {
       if (!it.shown) continue;
-      const [w, h] = sizeOf(it.el),
-        nameH = it.name.hidden ? 0 : sizeOf(it.name)[1],
-        valH = it.val.hidden ? 0 : sizeOf(it.val)[1];
-      if (!it.name.hidden) add(it.name, it.x - w / 2, it.y - h / 2, w, nameH, roomPriority(it.kind), it.area, r);
-      if (!it.val.hidden) add(it.val, it.x - w / 2, it.y - h / 2 + nameH, w, valH, P_READOUT, it.area, r);
+      const [, h] = sizeOf(it.el),
+        [nw, nh] = it.name.hidden ? [0, 0] : sizeOf(it.name),
+        [vw, vh] = it.val.hidden ? [0, 0] : sizeOf(it.val),
+        top = it.y - h / 2,
+        pair = { name: -1, val: -1 };
+      if (!it.name.hidden) {
+        pair.name = els.length;
+        add(it.name, it.x - nw / 2, top, nw, nh, roomPriority(it.kind), it.area, r);
+      }
+      if (!it.val.hidden) {
+        pair.val = els.length;
+        add(it.val, it.x - vw / 2, top + (nh ? nh + CHIP_GAP : 0), vw, vh, P_READOUT, it.area, r);
+      }
+      roomEls.set(r, pair);
     }
     const keep = declutter(boxes);
+    // 11b: a room's readout never outlives its name. The name outranks it, so a marker over the name leaves the readout the only chip
+    // of the room standing; it goes too (the readout is dropped first, never the name).
+    for (const { name, val } of roomEls.values()) if (name >= 0 && val >= 0 && !keep[name]) keep[val] = false;
     els.forEach((e, k) => e.classList.toggle(LOSE, !keep[k]));
   }
 

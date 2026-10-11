@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: 3D labels are chips; a room's readout never outlives its name (card UI refactor items 10, 11b)
+
+3D labels were bare text with a halo, hard to read on a wall or the ground. Room names, readouts and a device's value and
+name are now chips on the colour the 2D plan gives its labels (`--fp-outline`, `.lbl-tag`), 3 px radius, 1 x 5 px padding.
+The declutter measures each chip's own box (a room's name and readout are two chips of their own width, 2 px apart; a
+device's value and name step 17 px). Live on Magnus's house the living room showed its readout with no name: a marker
+over the name dropped it, the readout beside it did not meet the marker. After the greedy pass a readout is now dropped
+whenever its room's name was.
+
 ## 2026-10-11: idle devices are full markers in 3D (card UI refactor item 9)
 
 Magnus: devices that are off are not noise; the 3D view is for controlling them. An idle icon was a glyph at .7 opacity on
