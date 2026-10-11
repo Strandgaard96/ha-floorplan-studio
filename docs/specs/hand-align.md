@@ -104,9 +104,17 @@ moving the other way." Every button names this floor ("Move this floor right", "
    change (below).
 6. **Angle step**: a segmented control, 0.1, 0.5, 1, 3 degrees. Default 0.5.
 7. **Readout and boxes**: Offset x and y (cm, 0.1) and Rotation (degrees, 0.01), each a box that also takes a typed
-   value (one undo step per change; junk changes nothing and shows the value again). Reset sets rotation and offset to
-   0 in one step.
+   value (one undo step per change; junk changes nothing and shows the value again). The Rotation box turns the floor
+   about the same pivot as the Turn buttons, so the pivot's place in the house does not change and the offset follows. A
+   typed value that would pass the coordinate limit says so in the status line and writes nothing. Reset sets rotation
+   and offset to 0 in one step.
 8. **Stairs**: the stair report and Align stairs.
+
+The plan is read-only while Align is open on its floor (review 29). A press only pans and the wheel zooms; nothing is
+selected, dragged or deleted; Delete, Backspace, Ctrl+A, double click and the right-click menu do nothing; starting a
+draw closes Align. The Outline is no way round it: its row menu and the Menu key open nothing, and a click on a row of
+this floor centres on the thing but selects nothing (opening Align already cleared the selection). A row of another
+floor switches floor, which closes Align as any floor change does.
 
 The two step choices are remembered per viewer in `localStorage` (`fp-align-steps`), every access in try/catch; junk or
 blocked storage gives the defaults. Not in the layout, not an undo step.

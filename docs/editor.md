@@ -44,7 +44,9 @@ Left to right:
     (a round stair only moves), and says what it did; one undo step.
   The two step choices are kept in this browser (not in the plan, not an undo step).
   While Align is open the plan is read-only: a press only pans (the wheel still zooms), nothing is selected, dragged or
-  deleted, and the right-click menu is off. Starting a draw closes Align.
+  deleted, and the right-click menu is off, on the plan and in the Outline (a click on an Outline row of this floor centres
+  it and selects nothing; the Menu key on a row does nothing). Starting a draw closes Align. A typed offset or rotation past the
+  coordinate limit says so in the status line.
 - **View** — how the plan looks while you work: snap grid, measure grid, lengths, a Labels submenu (Device names, Names and values),
   Floor below (the floor under this one as faint lines, kept in this browser, no undo step),
   Preview night, theme, Detail (Auto, Full or Minimal), Re-center and Fit to window. The editor draws the plan

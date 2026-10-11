@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: Sprint 29 review fixes, round 2: the Outline is shut, typed limits speak
+
+`src/editor/editor-app.ts`, `tests/editor/align-review.spec.ts`.
+- **The Outline was a way round read-only Align.** `openCtxForRow` and the Menu key set `ctxMenu` without the guard in `openCtxMenuAt`, and `goTo` selected the row's object. Now `openCtxForRow` returns false while Align is open, the Outline's contextmenu and Menu key are swallowed (no browser menu either), and `goTo` clears the selection it just made. Chosen over closing Align on a click: it keeps the user's work open and matches "nothing is selected" while Align is open; the pick is still centred. Supersedes the review 29 line "the right-click menu does nothing" where it meant the plan only.
+- **S28.12's drag-in-Align case is gone.** `alignPreview` no longer has a `dragging` branch: a drag cannot start in Align any more, so the memo is keyed on structure alone. The read-only test (a press on a device pans, the light does not move) replaces it.
+- **Typed values past COORD_LIMIT speak.** `setAlignOffset` and `setAlignRotation` go through `typedRefused`: lock, then the lock message; a pose that was "refused" (the limit), `poseNone`; the same value stays silent.
+- Stale words fixed: CHANGELOG, two code comments (the nearest stair below, the pivot rule), spec and editor.md.
+
 ## 2026-10-11: Sprint 29 review fixes (Opus): Align is read-only, one pivot, same is not refused, one stair rule, decimals only
 
 `src/editor/editor-app.ts`, `src/editor/state.ts`, `src/editor/inspector.ts`, `src/core/hand-align.ts`, `tests/editor/align-review.spec.ts`, `tests/editor/align-review.test.ts`, `tests/card/card-ghost.spec.ts`.
