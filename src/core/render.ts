@@ -361,8 +361,16 @@ const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--f
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
    nothing. Not mapped, on purpose: primary, danger, warn. HA's error and warning colours fail 4.5:1 against the fixed white or dark text on our
    buttons in some themes, and the device colours carry meaning that must not move with a theme. */
-const haTokens = (base: string, fb: Record<string, string>) => `${base};
---fp-ink:var(--primary-text-color,${fb.ink});--fp-text:var(--primary-text-color,${fb.text});--fp-bg:var(--card-background-color,${fb.bg});--fp-room:var(--secondary-background-color,${fb.room});--fp-wall:var(--primary-text-color,${fb.wall});--fp-wall-external:var(--primary-text-color,${fb.wallExternal});--fp-outline:var(--card-background-color,${fb.outline});--fp-disc:var(--card-background-color,${fb.disc});--fp-measure:var(--secondary-text-color,${fb.measure})`;
+const haTokens = (base: string, fb: Record<string, string>, wallMix?: { wall: number; external: number }) => {
+  // HA dark: walls in HA's text colour were near white and the loudest thing on the plan (13:1 on the board). A share of the
+  // text colour over the card's own background keeps them tied to the user's theme and mid grey.
+  const mix = (share: number) =>
+    `color-mix(in srgb,var(--primary-text-color,${fb.text}) ${share}%,var(--card-background-color,${fb.bg}))`;
+  const wall = wallMix ? mix(wallMix.wall) : `var(--primary-text-color,${fb.wall})`,
+    wallExternal = wallMix ? mix(wallMix.external) : `var(--primary-text-color,${fb.wallExternal})`;
+  return `${base};
+--fp-ink:var(--primary-text-color,${fb.ink});--fp-text:var(--primary-text-color,${fb.text});--fp-bg:var(--card-background-color,${fb.bg});--fp-room:var(--secondary-background-color,${fb.room});--fp-wall:${wall};--fp-wall-external:${wallExternal};--fp-outline:var(--card-background-color,${fb.outline});--fp-disc:var(--card-background-color,${fb.disc});--fp-measure:var(--secondary-text-color,${fb.measure})`;
+};
 const HA_LIGHT = haTokens(LIGHT_TOKENS, {
   ink: "#2b2a27",
   text: "#3a3a3a",
@@ -374,17 +382,21 @@ const HA_LIGHT = haTokens(LIGHT_TOKENS, {
   disc: "#fff",
   measure: "#3a3a3a",
 });
-const HA_DARK = haTokens(MIDNIGHT_TOKENS, {
-  ink: "#d8e2f2",
-  text: "#d8e2f2",
-  bg: "#0d1522",
-  room: "#14213a",
-  wall: "#8fb4f0",
-  wallExternal: "#b4cdf7",
-  outline: "#0d1522",
-  disc: "#14213a",
-  measure: "#8fb4f0",
-});
+const HA_DARK = haTokens(
+  MIDNIGHT_TOKENS,
+  {
+    ink: "#d8e2f2",
+    text: "#d8e2f2",
+    bg: "#0d1522",
+    room: "#14213a",
+    wall: "#8fb4f0",
+    wallExternal: "#b4cdf7",
+    outline: "#0d1522",
+    disc: "#14213a",
+    measure: "#8fb4f0",
+  },
+  { wall: 55, external: 68 },
+);
 
 /* S23.4 and S23.8: what each theme adds on top of its tokens (ink.ts `themeExtras`): a glyph ink per disc colour, picked for
    4.5:1 on that solid disc, and the glow's blend (screen on a dark theme, multiply on a light one). Written once here, after
