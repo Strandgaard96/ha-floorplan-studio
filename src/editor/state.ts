@@ -335,13 +335,20 @@ export class EditorState {
    * written. Rounds rotation to 0.01 and offset to 0.1 cm; this is the only place the stored pose is written.
    */
   private writePose(key: string, pose: { rot: number; off: Pt }): "wrote" | "same" | "refused" {
+    return (this.lastPose = this.writePoseNow(key, pose));
+  }
+
+  /** What the last pose write came to (review 29): "same" means the rounded pose was the stored one, "refused" that nothing could be written (lock, limit, junk), so a caller can say which. */
+  lastPose: "wrote" | "same" | "refused" = "refused";
+
+  private writePoseNow(key: string, pose: { rot: number; off: Pt }): "wrote" | "same" | "refused" {
     if (!this.fresh() || !hasOwn(this.layout.floors, key)) return "refused";
     const rot = pose?.rot, off = pose?.off;
     if (typeof rot !== "number" || !Number.isFinite(rot)) return "refused";
     if (!Array.isArray(off) || off.length !== 2 || !off.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)) return "refused";
     const r = roundPose(rot, off);
     const fl = this.layout.floors[key];
-    const cur = fl.offset, cx = cur?.[0] ?? 0, cy = cur?.[1] ?? 0, cr = fl.rotation === undefined ? 0 : typeof fl.rotation === "number" ? fl.rotation : NaN; // junk is never the same: it is healed
+    const cur = fl.offset, cx = cur?.[0] ?? 0, cy = cur?.[1] ?? 0, cr = fl.rotation === undefined ? 0 : typeof fl.rotation === "number" ? (fl.rotation === -180 ? 180 : fl.rotation) : NaN; // junk is never the same: it is healed. A stored -180 is 180, so a no-op edit does not rewrite it
     if (r.rot === cr && r.off[0] === cx && r.off[1] === cy) return "same";
     if (!this.planOpen()) return "refused";
     this.snapshot();
@@ -410,6 +417,20 @@ export class EditorState {
     const e = this.exactPose(key), rot = normaliseTurn(e.rot + deg);
     const a = turnVec(pivot, e.rot), b = turnVec(pivot, rot);
     return this.press(key, rot, [e.off[0] + a[0] - b[0], e.off[1] + a[1] - b[1]]);
+  }
+
+  /**
+   * Review 29: sets the rotation (degrees, clockwise) of floor `key` to `rot` about `pivot` (see `floorPivot`), as the Turn
+   * buttons turn it: the pivot's place in the house does not change, the offset follows, one undo step, the same pose
+   * rounding. It is `turnFloor` by the difference, so the two cannot disagree. False when the angle is, to 0.01 degree, the
+   * stored one (a stored -180 stays -180), for junk, and as `nudgeFloor` for the rest.
+   */
+  setRotation(key: string, rot: number, pivot: Pt): boolean {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
+    if (typeof rot !== "number" || !Number.isFinite(rot)) return false;
+    const e = this.exactPose(key), want = roundPose(rot, [0, 0]).rot;
+    if (roundPose(e.rot, [0, 0]).rot === want) { this.lastPose = "same"; return false; }
+    return this.turnFloor(key, normaliseTurn(rot) - e.rot, pivot);
   }
 
   /** Lays a floor on the floor below it (S27.4): keeps the floor's turn, and sets the offset so the best translation (found with the floor turned) is the place. False when there is no floor below, nothing to match, or nothing changes. */

@@ -219,6 +219,16 @@ export interface AlignSteps { move: number; turn: number }
 export const ALIGN_STEPS_KEY = "fp-align-steps";
 export const DEFAULT_ALIGN_STEPS: AlignSteps = { move: 5, turn: 0.5 };
 
+/**
+ * Review 29: the text of an offset or rotation box as a number, or NaN. Plain decimals only: an optional sign, digits, and one
+ * point or comma. `Number()` would take "0x10" (16), "1e3" (1000), "Infinity" and "0b11", none of which anyone types on purpose.
+ */
+export function parseAlignNumber(text: string): number {
+  const t = String(text).trim();
+  if (!/^[+-]?(\d+[.,]?\d*|[.,]\d+)$/.test(t)) return NaN;
+  return Number(t.replace(",", "."));
+}
+
 /** The remembered steps (per viewer, never in the layout). Storage is untrusted: blocked, missing or junk gives the defaults. */
 export function readAlignSteps(): AlignSteps {
   try {
