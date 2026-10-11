@@ -35,8 +35,11 @@ import {
   DEVICE_SOLID,
   FURNITURE_SOLID,
   KERB_HIGH,
+  FRAME_PROUD,
+  FRAME_WIDTH,
   KERB_OUT,
   OPENING_FILL,
+  OPENING_FRAMED,
   RADIATOR_DEEP,
   SPEAKER_HEIGHT,
   SPEAKER_SIDE,
@@ -54,6 +57,7 @@ import {
 import { DEVICE_TYPES, fxScale, ROOM_KINDS, WALL_KINDS } from "./schema";
 import { doorStateOf } from "./door-state";
 import { textureTile } from "./textures";
+import { treeShape } from "./tree";
 import type { LiveDeps } from "./live-build";
 import type { SceneDeps } from "./scene-build";
 
@@ -75,8 +79,11 @@ export const sceneDeps: SceneDeps = {
   DEVICE_SOLID,
   FURNITURE_SOLID,
   KERB_HIGH,
+  FRAME_PROUD,
+  FRAME_WIDTH,
   KERB_OUT,
   OPENING_FILL,
+  OPENING_FRAMED,
   RADIATOR_DEEP,
   SPEAKER_HEIGHT,
   SPEAKER_SIDE,
@@ -93,6 +100,7 @@ export const sceneDeps: SceneDeps = {
   DEVICE_TYPES,
   ROOM_KINDS,
   WALL_KINDS,
+  treeShape,
 };
 export const liveDeps: LiveDeps = {
   acMode,

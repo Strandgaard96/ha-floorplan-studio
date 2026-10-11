@@ -11,7 +11,7 @@ const SENSOR = "binary_sensor.hall_arch",
 const iso = (agoS = 0) => new Date(Date.now() - agoS * 1000).toISOString();
 const st = (state: string) => ({ state, attributes: {}, last_changed: iso(5) });
 const QUIET = () => ({ [SENSOR]: st("off"), [VIBE]: st("off"), [FRONT]: st("off") });
-const ARCH = 3; // the doorway's index in the ground floor's doors (the demo has three)
+const ARCH = 4; // the doorway's index in the ground floor's doors (the demo has four, the last a full-height window)
 interface Live {
   builds: number;
   doors: { index: number; tag: string; visible: boolean; rot: number; colour: string }[];
@@ -198,5 +198,43 @@ test.describe("3D view: the open doorway's alert band", () => {
     expect(full[1]).toBeGreaterThan(40);
     expect(low[0]).toBeGreaterThan(40);
     expect(low[1]).toBeLessThan(low[0] - 30);
+  });
+});
+
+// S28.10: a door and a window stand in a frame. The frame is trim, 5 cm wide and 2 cm proud of the wall, and a tap on it is a tap on the door.
+// The demo's Front door is door 0: x 300..390 in the south wall (20 thick), so its left jamb stands at x 295..300 and reaches y 612.
+test.describe("3D view: framed openings", () => {
+  test("a tap on the door's frame finds that door and opens its popup", async ({ page }) => {
+    await boot(page);
+    const p = await at(page, 297.5, 612, 100);
+    expect(await picks(page, p)).toEqual({ type: "door", index: 0 });
+    await page.mouse.click(p.x, p.y);
+    await expect(page.locator("css=floorplan-studio-card").locator("css=.fp-pop")).toHaveAttribute(
+      "aria-label",
+      "Front door",
+    );
+  });
+
+  test("a closed door's leaf is quiet, an open one is the alert colour; the frame keeps its own colour either way", async ({
+    page,
+  }) => {
+    await boot(page);
+    const closed = (await live(page)).doors.find((d) => d.index === 0 && d.tag === "door-leaf")!;
+    await setStates(page, { ...QUIET(), [FRONT]: st("on") });
+    const open = (await live(page)).doors.find((d) => d.index === 0 && d.tag === "door-leaf")!;
+    expect(closed.colour).not.toBe(open.colour);
+    const rgb = (c: string) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16));
+    const dist = rgb(open.colour).reduce((a, v, k) => a + Math.abs(v - rgb(closed.colour)[k]), 0);
+    expect(dist, "the open leaf is far from the quiet one").toBeGreaterThan(60);
+  });
+
+  test("the pixels: beside the gap the jamb is the frame colour, not the wall's", async ({ page }) => {
+    await boot(page);
+    const jamb = await mean(page, await at(page, 297.5, 612, 100), 2),
+      wall = await mean(page, await at(page, 250, 612, 100), 2);
+    expect(
+      Math.abs(jamb[0] - wall[0]) + Math.abs(jamb[1] - wall[1]) + Math.abs(jamb[2] - wall[2]),
+      "the jamb differs from the wall beside it",
+    ).toBeGreaterThan(18);
   });
 });

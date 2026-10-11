@@ -51,6 +51,7 @@ async function expectFound(page: Page) {
   expect(s.sel).toEqual({ t: "dev", i: stress.floors.second.devices.findIndex((d) => d.name === TARGET) });
   await expect(page.locator(`${EDITOR} .chip[data-f="second"]`)).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(`${EDITOR} .canvas > svg g.dev.sel title`)).toContainText(TARGET);
+  await expect(page.locator(`${EDITOR} .canvas > svg[data-switch]`)).toHaveCount(0); // the 220 ms floor-switch slide has ended
   const { icon, canvas } = await centres(page);
   expect(Math.abs(icon[0] - canvas[0])).toBeLessThan(3);
   expect(Math.abs(icon[1] - canvas[1])).toBeLessThan(3);
@@ -230,8 +231,8 @@ test("a command from the search runs what the menu runs: Fix plan off", async ({
   await expect(page.locator("#fixPlan")).toBeChecked();
   await page.locator(`${EDITOR} .canvas > svg`).click({ position: { x: 5, y: 5 } });
   await page.keyboard.press("/");
-  await page.keyboard.type("unfix plan");
-  await expect(page.locator(`${EDITOR} fp-search [role="option"]`).first()).toContainText("Unfix plan");
+  await page.keyboard.type("unlock plan");
+  await expect(page.locator(`${EDITOR} fp-search [role="option"]`).first()).toContainText("Unlock plan");
   await page.keyboard.press("Enter");
   await expect(page.locator("#fixPlan")).not.toBeChecked();
 });

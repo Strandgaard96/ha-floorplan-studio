@@ -82,7 +82,7 @@ test("the slit is a band 0.4 as thick as a window on the same wall, and a real c
   const thick = (sel: string) =>
     page
       .locator(sel)
-      .first()
+      .last()
       .evaluate((el) => parseFloat(getComputedStyle(el).strokeWidth));
   const slitT = await thick(`${EDITOR} svg line.door-slit`);
   // The same door as a window, on the same wall: only the kind differs.

@@ -65,6 +65,7 @@ describe("theme-roles (S4.21)", () => {
       "--fp-furniture",
       "--fp-night",
       "--fp-paint-dim",
+      "--fp-crown-lift",
       // the device types render.ts's CSS actually reads a dedicated colour for; the rest (switch, temp, humidity,
       // battery, inverter, server, access_point, other) fall back to --fp-idle in the stylesheet, no token of their own.
       "--fp-dev-light",

@@ -9,7 +9,9 @@ import { FURNITURE_SYMBOLS } from "../../src/core/schema";
 const MODES = ["light", "dark"] as const;
 const page_ = (body: string) =>
   `<!DOCTYPE html><html><body><style>${FLOORPLAN_CSS}</style><svg>${THEMES.flatMap((t) => MODES.map((m) => `<g data-theme="${t}" data-mode="${m}" id="t-${t}-${m}">${body}</g>`)).join("")}</svg></body></html>`;
-const symbols = FURNITURE_SYMBOLS.map(
+// A tree is drawn in its own colours (`.tree-crown`, `.tree-trunk`), not `.ff`, and does not light: its pair is in editor.spec.ts (S28.3).
+const SYMBOLS = FURNITURE_SYMBOLS.filter((s) => s !== "tree");
+const symbols = SYMBOLS.map(
   (s) =>
     `<g class="furn" data-s="${s}" color="var(--fp-furniture)">${FURNITURE[s].svg}</g><g class="furn on" data-s="${s}" data-on="1" color="var(--fp-furniture)">${FURNITURE[s].svg}</g>`,
 ).join("");
@@ -36,7 +38,7 @@ test("furniture CSS pair: every symbol is filled from the theme, and an on piece
         };
       });
       const tag = `${t}/${m}`;
-      expect(r.off.length, tag).toBe(FURNITURE_SYMBOLS.length);
+      expect(r.off.length, tag).toBe(SYMBOLS.length);
       r.off.forEach((o, i) => {
         expect(o.ff.length, `${tag} ${o.s}: a filled shape`).toBeGreaterThan(0);
         for (const v of o.ff) {

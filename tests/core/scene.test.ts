@@ -16,8 +16,11 @@ import {
   openingSpan,
 } from "../../src/core/heights";
 import { stairSteps } from "../../src/core/geometry";
+import { treeShape } from "../../src/core/tree";
+import { FRAME_PROUD, FRAME_WIDTH, OPENING_FRAMED } from "../../src/core/solids";
 import {
   DEVICE_TYPES,
+  DOOR_KINDS,
   FURNITURE_SYMBOLS,
   ROOM_KINDS,
   type DeviceType,
@@ -241,7 +244,7 @@ describe("scene: which way a wall faces, for a viewer that lowers the near walls
         ] as never,
       }),
     );
-    const infill = sc.solids.filter((s) => s.kind === "opening");
+    const infill = sc.solids.filter((s) => s.kind === "opening" && s.tag !== "frame");
     expect(infill.length).toBe(2);
     for (const o of infill)
       expect(sc.solids.some((w) => w.kind === "wall" && `${w.ref.poly}:${w.ref.index}` === o.ref.wall)).toBe(true);
@@ -430,7 +433,7 @@ describe("scene: openings are gaps", () => {
         .map((s) => s.ref.index)
         .sort(),
     ).toEqual([0, 2]); // doors 0 and 2 are plain doors; 1 is glass
-    expect(g.solids.filter((s) => s.tag === "glass")).toHaveLength(1);
+    expect(g.solids.filter((s) => s.tag === "glass")).toHaveLength(2); // the patio door and, since S27.C, the kitchen's full-height window
     expect(fs.solids.filter((s) => s.tag === "glass")).toHaveLength(1);
     const win = fs.solids.find((s) => s.tag === "glass")!,
       { sill, head } = doorSpan(first.doors[0]);
@@ -720,14 +723,43 @@ describe("scene: furniture, unlinked, stairs", () => {
       }
       expect(Math.min(...sol.map((x) => prism(x).z0))).toBe(furnitureBottom(m as never));
       expect(Math.max(...sol.map((x) => prism(x).z1))).toBeCloseTo(
-        furnitureBottom(m as never) + furnitureHeight(m as never),
+        furnitureBottom(m as never) +
+          (SYMBOL_DECISION[s] === "pole" ? treeShape(m as never)!.trunkTop : furnitureHeight(m as never)),
         9,
-      );
+      ); // a tree's trunk stops under its crown (S28.7)
       if (SYMBOL_DECISION[s] === "pole") {
         expect(area(sol[0])).toBeLessThan((m.w * m.h) / 10);
         expect(sol[0].ref.size).toEqual([120, 70]);
       } else if (!parts) expect(round(area(sol[0]))).toBe(120 * 70);
     }
+  });
+
+  // S28.7: the trunk is cut where treeShape says, and the solid carries the crown's z range for the viewer.
+  it("a tree's trunk ends at treeShape's trunk top, and the solid names the crown's z range and turn", () => {
+    for (const o of [{}, { w: 90, h: 240 }, { height: 700 }, { height: 700, elevation: 0, rot: 30, w: 50, h: 300 }]) {
+      const m = piece("tree", o),
+        sc = buildScene(floor({ furniture: [m] }), { elevation: 15 }),
+        sol = sc.solids.find((x) => x.kind === "furniture")!,
+        t = treeShape(m as never)!;
+      const z0 = furnitureBottom(m as never) + 15;
+      expect(prism(sol).z0).toBe(z0);
+      expect(prism(sol).z1).toBeCloseTo(z0 + t.trunkTop, 6);
+      expect(sol.ref.crown).toEqual({ z0: z0 + t.crownBottom, z1: z0 + t.crownTop, rot: m.rot });
+    }
+  });
+  it("only a tree has a crown; junk sizes give none and no throw", () => {
+    const sc = buildScene(
+      floor({
+        furniture: [
+          piece("table"),
+          piece("patio-wood"),
+          piece("tree", { w: 0 }),
+          piece("tree", { h: -4 }),
+          piece("tree", { w: NaN }),
+        ],
+      }),
+    );
+    expect(sc.solids.filter((x) => x.kind === "furniture" && x.ref.crown)).toHaveLength(0);
   });
 
   it("turns a piece about its centre and takes an explicit height", () => {
@@ -923,7 +955,7 @@ describe("scene: whole-scene properties", () => {
         k,
       ).toBe(true);
     expect(new Set(g.solids.filter((s) => s.kind === "furniture").map((s) => s.ref.index)).size).toBe(2);
-    expect(g.solids.filter((s) => s.kind === "device")).toHaveLength(8);
+    expect(g.solids.filter((s) => s.kind === "device")).toHaveLength(12); // 8, and the four icons stacked in the Hall (S27.C, for spiderfy)
     expect(g.solids.filter((s) => s.kind === "device" && s.shape.type === "prism").map((s) => s.tag)).toEqual([
       "heater",
     ]);
@@ -1179,5 +1211,175 @@ describe("scene: a device's point stays under the wall top (3D fixes)", () => {
       (x) => x.kind === "device",
     )!;
     expect(s.shape).toMatchObject({ type: "point", z: 275 + 225 }); // capped at 250 - 25, then lifted
+  });
+});
+
+// S28.10: a door, glass door, window, slit and full window stand in a frame; an open doorway, a sealed panel and a plain opening
+// are bare gaps. Frame solids are `opening` solids tagged "frame", with the opening's own ref, so a tap on one is a tap on that door.
+describe("scene: framed openings (S28.10)", () => {
+  const FRAMED: Record<string, boolean> = OPENING_FRAMED; // the real table (solids.ts); S28 review: a sealed panel has no frame in any view
+  const a = 100,
+    b = 190,
+    wall = 20; // an external north wall, 20 thick
+  const build = (kind: string, sill?: number) => {
+    const o = { id: "d", a: [a, 0], b: [b, 0], sensors: [], ...(sill !== undefined ? { sill } : {}) };
+    const f =
+      kind === "opening"
+        ? floor({ height: 400, openings: [{ ...o, height: 200 }] as never })
+        : floor({ height: 400, doors: [{ ...o, kind }] as never });
+    return buildScene(f).solids.filter((s) => s.kind === "opening" && s.tag === "frame");
+  };
+  it("the table names a decision for every kind", () => {
+    expect(Object.keys(FRAMED).sort()).toEqual([...DOOR_KINDS, "opening"].sort());
+  });
+  it.each([...DOOR_KINDS, "opening"])("%s: framed or bare as decided; a frame is 2 jambs and a head", (kind) => {
+    const frames = build(kind, 0);
+    if (!FRAMED[kind]) {
+      expect(frames).toHaveLength(0);
+      return;
+    }
+    expect(frames).toHaveLength(3);
+    expect(frames.map((s) => s.id).sort()).toEqual([...new Set(frames.map((s) => s.id))].sort());
+    expect(frames.filter((s) => prism(s).z1 - prism(s).z0 > FRAME_WIDTH + 1)).toHaveLength(2); // the jambs stand tall, the head is a bar
+  });
+  it.each([...DOOR_KINDS, "opening"].filter((k) => FRAMED[k]))(
+    "%s: a sill bar exactly when heights.ts gives it a sill",
+    (kind) => {
+      const raised = build(kind, 70),
+        own = (
+          kind === "opening"
+            ? openingSpan({ sill: 70, height: 200 } as never)
+            : doorSpan({ kind, sill: 70 } as never, 400)
+        ).sill;
+      expect(raised).toHaveLength(own > 0 ? 4 : 3);
+      expect(raised.some((s) => prism(s).z1 === own)).toBe(own > 0); // the sill bar's top is the opening's sill height
+      expect([...DOOR_KINDS, "opening"].some((k) => k !== "door" && k !== "glass")).toBe(true);
+    },
+  );
+  it.each([...DOOR_KINDS, "opening"].filter((k) => FRAMED[k]))(
+    "%s: every frame lies in the span widened by FRAME_WIDTH, as deep as the wall plus both proud faces",
+    (kind) => {
+      expect(build(kind, 70).length).toBeGreaterThan(0);
+      for (const s of build(kind, 70)) {
+        const [x0, x1] = span(xs(s)),
+          [y0, y1] = span(ys(s));
+        expect(x0).toBeGreaterThanOrEqual(a - FRAME_WIDTH - 1e-6);
+        expect(x1).toBeLessThanOrEqual(b + FRAME_WIDTH + 1e-6);
+        expect(round(y1 - y0)).toBe(wall + 2 * FRAME_PROUD);
+        expect(s.ref.wall).toBe("o:0");
+        expect(s.ref.index).toBe(0);
+        expect(s.ref.id).toBe("d");
+      }
+    },
+  );
+  it("the frame of a door is the span of the door and nothing in the gap", () => {
+    for (const s of build("door", 0)) {
+      const [x0, x1] = span(xs(s));
+      expect(x1 <= a || x0 >= b || (x0 >= a - FRAME_WIDTH && x1 <= b + FRAME_WIDTH)).toBe(true);
+    }
+    const jambs = build("door", 0).filter((s) => prism(s).z1 - prism(s).z0 > FRAME_WIDTH + 1);
+    for (const j of jambs) {
+      const [x0, x1] = span(xs(j));
+      expect(x1 <= a || x0 >= b).toBe(true);
+    } // a jamb stands beside the gap, never in it
+  });
+  it("a frame never rises above the wall it stands in", () => {
+    const sc = buildScene(
+      floor({
+        height: 240,
+        doors: [{ id: "d", a: [a, 0], b: [b, 0], kind: "door", height: 235, sensors: [] }] as never,
+      }),
+    );
+    for (const s of sc.solids.filter((x) => x.tag === "frame")) expect(prism(s).z1).toBeLessThanOrEqual(240 + 1e-6);
+  });
+  it("junk spans make no frame and no throw", () => {
+    expect(() =>
+      buildScene(
+        floor({
+          doors: [
+            { id: "d", a: [NaN, 0], b: [Infinity, 0], kind: "door", sensors: [] },
+            { id: "e", a: [100, 0], b: [100, 0], kind: "window", sensors: [] },
+          ] as never,
+        }),
+      ),
+    ).not.toThrow();
+  });
+});
+
+describe("scene: a stairwell opens the slab and the room fill (0.26.1)", () => {
+  const flr = () =>
+    floor({
+      outline: [
+        [0, 0],
+        [800, 0],
+        [800, 600],
+        [0, 600],
+      ],
+      rooms: [
+        {
+          name: "Hall",
+          kind: "room",
+          pts: [
+            [0, 0],
+            [400, 0],
+            [400, 600],
+            [0, 600],
+          ],
+        },
+        {
+          name: "Den",
+          kind: "room",
+          pts: [
+            [400, 0],
+            [800, 0],
+            [800, 600],
+            [400, 600],
+          ],
+        },
+      ] as never,
+      stairs: [
+        {
+          id: "s",
+          name: "S",
+          pts: [
+            [100, 100],
+            [180, 100],
+            [180, 260],
+            [100, 260],
+          ],
+          shape: "straight",
+          steps: 4,
+          rot: 0,
+          direction: "down",
+        },
+      ] as never,
+    });
+  it("cuts the footprint out of the slab and of the room that holds it, and of no other", () => {
+    const sc = buildScene(flr());
+    const slab = sc.solids.find((s) => s.kind === "floor")!,
+      hall = sc.solids.find((s) => s.id === "room:0")!,
+      den = sc.solids.find((s) => s.id === "room:1")!;
+    for (const s of [slab, hall]) {
+      expect(s.shape.type === "prism" && s.shape.holes).toHaveLength(1);
+    }
+    expect(den.shape.type === "prism" && den.shape.holes).toBeUndefined();
+  });
+  it("cuts nothing for a flight going up; a flight that crosses or touches a room's edge opens every solid it meets", () => {
+    const up = flr();
+    (up.stairs![0] as { direction: string }).direction = "up";
+    expect(buildScene(up).solids.some((s) => s.shape.type === "prism" && s.shape.holes)).toBe(false);
+    const across = flr();
+    (across.stairs![0] as { pts: number[][] }).pts = [
+      [360, 100],
+      [440, 100],
+      [440, 260],
+      [360, 260],
+    ];
+    const sc = buildScene(across);
+    expect(sc.solids.filter((s) => s.shape.type === "prism" && s.shape.holes).map((s) => s.id)).toEqual([
+      "floor",
+      "room:0",
+      "room:1",
+    ]); // the slab and both rooms it lies across; the mesh clips each to its own edge
   });
 });

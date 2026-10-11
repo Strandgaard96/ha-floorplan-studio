@@ -3,17 +3,30 @@ import { dist, edgeKindsNear, stairSteps } from "./geometry";
 import { stairMarks } from "./stair-marks";
 import { playerOf } from "./attachments";
 import { resolveStairDirection, type FloorsAround } from "./stairs";
-import { DEVICE_TYPES, drawsEffect, fxScale, isSiren, MAX_TRACE_BYTES, MOTION_TYPES, TRACE_SRC } from "./schema";
+import {
+  COORD_LIMIT,
+  DEVICE_TYPES,
+  drawsEffect,
+  fxScale,
+  isSiren,
+  MAX_TRACE_BYTES,
+  MOTION_TYPES,
+  TRACE_SRC,
+} from "./schema";
 import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTextureScale } from "./textures";
 import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
+import { treeShadeSvg } from "./tree";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 import { meanReading } from "./readings";
+import { badges } from "./rollup";
+import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
-import { layerHides, type LayerId } from "./layers";
+import { devsHave, layerHides, type LayerId, type PlanSel } from "./layers";
+import type { DetailLevel } from "./detail";
 import {
   DEVICE_SOLID,
   STEM_MIN_Z,
@@ -27,6 +40,8 @@ import {
   unlinkedSolid,
   wallSolids,
   wallsModeOf,
+  collectWalls,
+  shadeMarkup,
   type Proj,
   type Solid,
   type WallsMode,
@@ -41,17 +56,26 @@ export interface RenderOpts {
   /** S11.3: the room the card has picked (its left panel shows it); drawn with an outline, class `picked`. The editor draws its own selection in an overlay and never passes this. */
   selectedRoom?: number;
   scale: number;
-  selection?: { t: string; i: number } | null;
+  selection?: PlanSel | null;
   showNames?: boolean;
   /** S24.6: the families not drawn (`layers.ts`): their devices, unlinked appliances and, for "furniture", every piece.
    *  What `selection` or `keep` names is drawn anyway. Omitted or empty, everything is drawn, byte for byte as before. */
   hiddenLayers?: readonly LayerId[];
+  /** S25.2: how much of the plan the viewer's zoom shows (`detailLevel`). Written as `data-detail` on the plan root; the stylesheet does the hiding. Omitted, nothing is written and the plan is whole, as before; anything but the three names is omitted. */
+  detail?: DetailLevel;
+  /** The card's `attention()` result (run with HA's entity registry) and the key of this floor. The needs-attention dots and the room badges read it, so they match the Overview; omitted (the editor), they run the rule on this floor without a registry. */
+  attention?: AttentionSource;
   /** S24.6: one more thing drawn even when its layer is hidden: the editor's selection, which it does not pass as `selection` for furniture and unlinked items. */
   keep?: { t: string; i: number } | null;
   /** S23.2: screen pixels per plan unit, when the host knows it (the card measures its own plan). Then no name draws
    *  under `NAME_MIN_PX` and, with it, no device disc under 28 px. Omitted (the editor, whose `scale` is already its
    *  zoom), nothing changes. */
   px?: number;
+  /** S25.4: the view's zoom over the whole floor at fit (1 = fit; the card's fit width over the width on show). A label
+   *  keeps the on-screen size and offset it has at fit, so its plan size is divided by this; icons and discs keep
+   *  growing with the view. Omitted, 1, or not a finite number above 0: nothing changes, byte for byte. The editor
+   *  never passes it: its `scale` is already the live view scale. */
+  zoom?: number;
   /** S23 review S3: the part of the drawing, in its on-screen frame (the view box's own units), a room name, its tag and
    *  its leader may use: the card passes its fit box less the strip its controls cover. A candidate that leaves it is
    *  rejected. Omitted (the editor), nothing changes. */
@@ -61,6 +85,8 @@ export interface RenderOpts {
   fade?: number;
   roomGlow?: boolean;
   editor?: boolean;
+  /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point moved by `shift` (`floorShift`, cm). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
+  ghost?: { floor: Floor; shift: Pt };
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
@@ -89,6 +115,11 @@ export interface RenderOpts {
   powerLinks?: Record<string, string>;
   /** S14.8: draw range [from, to] in watts. A plug that is on and has a readable power sensor then carries `--fp-heat` (0 idle .. 1 hot) and the stylesheet tints it. Absent, nothing is written and the markup is as before. Junk is the default range; see `heatRange`. */
   plugHeat?: [number, number];
+  /** S25.5: a stack of devices fanned out. Each entry moves device `i`'s icon to `at` (plan units), with a leader line to its true
+   *  spot, a pin there and its name beside it. The card computes the spots (`spiderLayout`) and passes them while a ring is open.
+   *  Junk entries (an unknown index, a point that is not finite), a hidden device and a device with no spot are skipped.
+   *  Omitted, nothing changes, byte for byte. */
+  spider?: ReadonlyArray<{ i: number; at: Pt }>;
   /** S24.5: the thing a search or the Outline just went to. It carries a ring (class `locate`) that pulses out from it a
    *  few times, or stands still under reduced motion; the host drops the option after a moment. Omitted, nothing is drawn. */
   locate?: { t: "dev" | "furn"; i: number } | null;
@@ -213,7 +244,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -228,7 +259,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    line on the plan needs. The TV keeps #2c7fb8 (S9.3). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#d64545;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#d64545;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -324,7 +355,7 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({
    Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#11424f;--fp-terrace:#124c5b;--fp-pavement:#135161;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#dc322f;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#dc322f;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
@@ -441,7 +472,7 @@ ${THEME_EXTRAS}
    that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own.
    The side is 55% wall unless the theme sets --fp-wall-side-share (HA dark, whose wall is its light text colour). The share
    is its own variable, never a second --fp-wall-side, so this rule, later and as specific as THEME_EXTRAS, cannot beat it. */
-:host,.fp,[data-theme]{--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg))}
+:host,.fp,[data-theme]{--fp-ghost:color-mix(in srgb,var(--fp-wall) 35%,var(--fp-bg));--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg));--fp-tree:color-mix(in srgb,var(--fp-dev-garden) 70%,var(--fp-garden));--fp-tree-edge:color-mix(in srgb,var(--fp-dev-garden) 55%,var(--fp-ink));--fp-trunk:color-mix(in srgb,color-mix(in srgb,var(--fp-tree) 35%,var(--fp-garden)) calc(var(--fp-crown-lift,0%) * 2.2),var(--fp-tree-edge));--fp-frame:color-mix(in srgb,var(--fp-door) 40%,var(--fp-ink));--fp-shade:color-mix(in srgb,var(--fp-on-light) 35%,black)}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -486,6 +517,13 @@ ${THEME_EXTRAS}
    --fp-fade once it is off. Never an endless blink. A redraw restarts a CSS animation, so renderFloor puts the trip's age in
    --fp-pulse-age (and the class only while the pulses last) and the negative delay starts it that far in: a redraw in the
    middle of the pulses carries on, it does not replay them. Reduced motion: no pulse, the steady edge only. */
+/* S27.5: the floor below, as faint lines. A class rule, never a presentation attribute (finding 18): the editor's own .room{pointer-events:all} would outrank an attribute. */
+.ghost,.ghost *{pointer-events:none} .ghost .gl{fill:none;stroke:var(--fp-ghost);stroke-width:1.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+/* S27.6: the plan of a floor just switched to comes in from 16 px away, the way the floor travels (up: from above), over 220 ms. The host sets data-switch on the plan root from floorSwitch(); nothing of the old floor is kept. Reduced motion: no animation, the floor is simply there. */
+@keyframes fp-floor-in-up{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:none}}
+@keyframes fp-floor-in-down{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+[data-switch="up"]{animation:fp-floor-in-up 220ms ease-out} [data-switch="down"]{animation:fp-floor-in-down 220ms ease-out}
+@media (prefers-reduced-motion:reduce){[data-switch]{animation:none}}
 .motion-perimeter.motion-pulse{animation:fp-motion-pulse ${MOTION_PULSE_S}s ease-in-out ${MOTION_PULSES};animation-delay:calc(var(--fp-pulse-age,0s) * -1)}
 @keyframes fp-motion-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @media (prefers-reduced-motion:reduce){.motion-perimeter.motion-pulse{animation:none}}
@@ -508,6 +546,11 @@ ${THEME_EXTRAS}
    when on) thinned into --fp-room-empty (the plain room, what most furniture stands on; --fp-room is dark in the dark themes and made dark blobs), so every theme and dark mode keep their hue and the stroke stays the edge.
    .ff is on bodies only; lines in a symbol (a bed's pillow line) keep fill:none. */
 .furn .ff{fill:color-mix(in srgb,currentColor 45%,var(--fp-room-empty))}
+/* S28.3: a tree is a crown (--fp-tree at .35, a 1 px --fp-tree-edge line), a trunk dot and a soft shade patch under it (--fp-shade at
+   --fp-shade-alpha). Classes carry every colour; the patch takes no click. */
+.tree-crown{fill:var(--fp-tree);fill-opacity:.35;stroke:var(--fp-tree-edge);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.tree-trunk{fill:var(--fp-tree-edge);stroke:none}
+.tree-shade{fill:var(--fp-shade);fill-opacity:var(--fp-shade-alpha);pointer-events:none}
 /* S18.9: the two waves of a playing tv or speaker piece. They sit beside the scaled symbol group (a non-uniform scale would
    squash the circles), take --fp-dev from the on colour, and reuse .wave for shape, motion and reduced motion. */
 .furn-waves{--fp-dev:var(--fp-active)}
@@ -524,10 +567,11 @@ ${THEME_EXTRAS}
 .eh{stroke:var(--fp-outline);stroke-width:${WALL_WIDTH + WALL_HALO_EXTRA};stroke-linecap:round;pointer-events:none} .eh.nw{stroke-dasharray:8 6;stroke-width:3.5} .eh.nw.zn{display:none} .eh.external{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.parapet{stroke-width:${WALL_WIDTH_EXTERNAL + WALL_HALO_EXTRA};stroke-linecap:square} .eh.fence{stroke-dasharray:10 4 2 4;stroke-width:3.5;stroke-linecap:butt} .eh.edge{stroke-width:3.5}
 /* 2.5D solids take no clicks: a tap or a pick goes through to the floor-level shape under them, as in 2D. Furniture is the
    exception: its group is data-f, so a tap on the block reaches it as it reaches the flat symbol. */
-.ws,.glass,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
+.ws,.glass,.frame,.eh.top,.e.top,.obj,.stem,.stem-top,.trunk,.wfoot,.wl,.door-leaf,.opn{pointer-events:none}
 .bs,.bt{stroke:var(--fp-furniture);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .bt{fill:var(--fp-box-top)} .bs{fill:var(--fp-box-side)} .bs.w{fill:var(--fp-box-side-w)}
-.trunk{stroke:var(--fp-furniture);stroke-width:8;stroke-linecap:round}
+.shade{fill:var(--fp-shade);fill-opacity:var(--fp-shade-alpha);pointer-events:none} .shade .s2{fill-opacity:calc(var(--fp-shade-alpha) / 2)}
+.trunk{stroke:var(--fp-trunk);stroke-width:12;stroke-linecap:round}
 .dsolid .bs,.dsolid .bt{stroke:color-mix(in srgb,var(--fp-body) 60%,var(--fp-on-light))}
 .dsolid .bt{fill:color-mix(in srgb,var(--fp-body) 70%,var(--fp-on-dark))} .dsolid .bs{fill:var(--fp-body)} .dsolid .bs.w{fill:color-mix(in srgb,var(--fp-body) 80%,var(--fp-on-light))}
 .dsolid.radiator{--fp-body:color-mix(in srgb,var(--fp-idle) 55%,var(--fp-bg))} .dsolid.radiator.on{--fp-body:color-mix(in srgb,var(--fp-heater) 75%,var(--fp-bg))}
@@ -543,6 +587,7 @@ ${THEME_EXTRAS}
 .ws.lit{fill:color-mix(in srgb,var(--fp-wall-side) 80%,var(--fp-on-dark))} .ws.dim{fill:color-mix(in srgb,var(--fp-wall-side) 78%,var(--fp-on-light))}
 .wfoot{fill:var(--fp-on-light);fill-opacity:.16;stroke:none} .wl{stroke:var(--fp-on-dark);stroke-opacity:.55;stroke-width:1;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .ws.fence{fill:var(--fp-wall-fence);fill-opacity:.4;stroke:var(--fp-wall-fence)} .ws.sealed{fill:var(--fp-sealed);stroke:var(--fp-sealed)}
+.frame{fill:var(--fp-frame);stroke:var(--fp-frame);stroke-width:1;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .glass{fill:var(--fp-window);fill-opacity:.35;stroke:var(--fp-window);stroke-width:1;vector-effect:non-scaling-stroke} .glass.g-glass{fill:var(--fp-glass);stroke:var(--fp-glass)}
 /* An opening that is open (a contact sensor on, a lock left unlocked) is red on the wall face as it is in 2D, an alarm the
    same; an open cover keeps its own orange. Unavailable and unknown are none of these. A closed door is a painted leaf. */
@@ -590,10 +635,11 @@ ${THEME_EXTRAS}
 /* S8.9 finding 3: a door's own stroke is now as thin as the internal wall it sits on, so this invisible twin
    (drawn first, same data-d, at the old fixed 22 cm) keeps the click target exactly as wide as it always was. */
 .door-hit{stroke:transparent;pointer-events:stroke;cursor:move}
-/* S23.7: plan symbols. A door's or window's own line is quiet while it is closed and not selected; the symbol is a 1 px
-   leaf (door, glass; no swing arc since S23.F6) or three hairlines (window, slit), red only while open, alarmed or its cover is open. */
+/* S23.7: plan symbols. A window's own line is quiet while it is not selected; its symbol is three hairlines (window, slit), red only
+   while open, alarmed or its cover is open. S25.D1: a door or glass door has no symbol and no leaf. Open or with no sensor it is a hole
+   (its own line is quiet); closed (a sensor says off, or a lock says locked, and none is open, unlocked or jammed) its own line is the thick line across the gap (CLOSED_DOOR_BAND), in --fp-door / --fp-glass. */
 .door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
-.door-sym.k-glass{stroke:var(--fp-glass)} .door-sym.k-window,.door-sym.k-slit{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
+.door-sym.k-window,.door-sym.k-slit,.door-sym.k-fullwindow{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
    board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
 .win-pane{fill:color-mix(in srgb,var(--fp-window) 22%,var(--fp-room-empty));stroke:none;pointer-events:none} .win-pane.open,.win-pane.alarm{fill:color-mix(in srgb,var(--fp-open-door) 22%,var(--fp-room-empty))}
@@ -673,6 +719,12 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
+/* S25.5: a fanned stack. Leader, pin and name never take a click (finding 18: class rules); a member stays drawn at far. */
+.spider-leader{stroke:var(--fp-text);stroke-opacity:.6;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .spider-pin{fill:var(--fp-text);fill-opacity:.8;pointer-events:none}
+.spider-lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;font-family:var(--fp-font);font-weight:500;pointer-events:none}
+/* S25.3: room badges. Hidden unless the plan root says far or mid (data-detail); never a click target (finding 18: a class rule, not an attribute). */
+.room-badge{display:none;pointer-events:none} [data-detail="far"] .room-badge,[data-detail="mid"] .room-badge{display:inline} .room-badge *{pointer-events:none}
+.rb-plate{fill:var(--fp-outline);fill-opacity:.85;stroke:none} .rb-t{fill:var(--fp-text);font-family:var(--fp-font);font-weight:500;font-variant-numeric:tabular-nums} .rb-light{fill:var(--fp-dev-light)} .rb-motion{fill:var(--fp-dev-motion)} .rb-alert{fill:var(--fp-danger)} .rb-open{fill:var(--fp-open-door)}
 /* S23.1: one label style. A name is never faded: it is the text colour mixed into the surface it sits on (--fp-under,
    set per name by renderFloor), solid, so it reads as part of the room yet clears 4.5:1 on it. 92% is the least text
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
@@ -680,7 +732,16 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 :host,svg{--fp-font:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,system-ui,sans-serif))}
 .lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
-.sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}`;
+.sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}
+/* S25.2: semantic zoom. renderFloor writes data-detail on the plan root (far, mid or near; none is near); every level rule is here, so the editor and
+   the card cannot differ. Far: a device that is off or idle is not drawn; one that is on, alerting (class danger, or needs-attention: what the Overview lists) or unavailable keeps its disc as a half-size dot
+   (the glyph and the badges go). Far and mid: a device's name and reading go; a room's name and reading (data-rl, data-rv) and an extra's name stay.
+   The selected device is always whole. */
+[data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.needs-attention):not(.sel):not(.spider),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
+[data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone),[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
+[data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
+[data-detail="far"] .dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) .halo{fill:var(--fp-warn);fill-opacity:1;stroke:var(--fp-ink);stroke-opacity:1;stroke-width:1.5px;vector-effect:non-scaling-stroke}
+[data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
 const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -714,6 +775,9 @@ export function wallWidthAt(f: Floor, a: Pt, b: Pt): number {
 const DOOR_THRESHOLD_25D = 4;
 /** The thickness of a slit window's line, as a share of the wall it sits in. */
 const SLIT_BAND = 0.4;
+/** A closed door or glass door (2D) is drawn this many times as thick as the wall it sits in, centred on it (Diego, 2026-10-09: "a closed door is a thick line"),
+ *  but never thicker than an external wall: on one, 1.6x stuck 6 cm out each side and covered the room's border. */
+const CLOSED_DOOR_BAND = 1.6;
 /** A selected door or window is always 8 cm wider than its own thickness, whichever wall it sits on. */
 const DOOR_SELECT_EXTRA = 8;
 /** An opening's stroke must fully erase the (possibly thicker) wall under it: the wall's own thickness, plus enough
@@ -922,46 +986,27 @@ export function roomAt(f: Floor, p: Pt): number {
   return best;
 }
 
-/** S23.7: the kinds drawn as a plan symbol, and so cut out of the wall like an opening. Sealed keeps its dashed line; an
- *  open doorway is already cut and draws nothing. */
+/** S23.7: the kinds cut out of the wall like an opening. SWING_KINDS (door, glass door) draw no symbol: S25.D1 a hole, or a thick line when closed.
+ *  Sealed keeps its dashed line; an open doorway is already cut and draws nothing. */
 const SWING_KINDS: readonly string[] = ["door", "glass"],
-  PANE_KINDS: readonly string[] = ["window", "slit"];
+  PANE_KINDS: readonly string[] = ["window", "slit", "fullwindow"];
 const OUTDOOR_KINDS: readonly RoomKind[] = ["garden", "terrace", "pavement", "water"];
-const ringArea = (p: Pt[]) =>
-  Math.abs(p.reduce((n, q, k) => n + q[0] * p[(k + 1) % p.length][1] - p[(k + 1) % p.length][0] * q[1], 0)) / 2;
 
-/** S23.7: the `d` of a door's or window's plan symbol, or "" when it has none (sealed, open, a zero-length or broken door).
- *  A door: a leaf from the hinge `a`, square to the wall and |ab| long, on the room side: the side whose probe point is in
- *  an indoor room, else in any room, else the smaller room, else the left of a to b. No swing arc: S23.F6 dropped it
- *  (Diego, 2026-10-08). A window: three hairlines along the opening, at the wall's two faces and its middle; a slit's span
- *  its narrower band (SLIT_BAND). */
+/** S23.7: the `d` of a window's plan symbol: three hairlines along the opening, at the wall's two faces and its middle; a
+ *  slit's span its narrower band (SLIT_BAND). "" for every other kind and for a zero-length or broken door. A door and a glass
+ *  door have none (S25.D1, Diego 2026-10-09): no swing arc since S23.F6, no leaf either; open they are a hole, closed a thick line. */
 function doorSymbol(f: Floor, kind: unknown, a: Pt, b: Pt): string {
   const len = dist(a, b);
-  if (!(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite)) return "";
+  if (!(len > 0) || ![a[0], a[1], b[0], b[1]].every(Number.isFinite) || !PANE_KINDS.includes(kind as string)) return "";
   const u: Pt = [(b[0] - a[0]) / len, (b[1] - a[1]) / len],
     left: Pt = [u[1], -u[0]];
-  if (PANE_KINDS.includes(kind as string)) {
-    const half = (wallWidthAt(f, a, b) * (kind === "slit" ? SLIT_BAND : 1)) / 2;
-    return [-half, 0, half]
-      .map(
-        (t) =>
-          `M${num(a[0] + left[0] * t)} ${num(a[1] + left[1] * t)}L${num(b[0] + left[0] * t)} ${num(b[1] + left[1] * t)}`,
-      )
-      .join("");
-  }
-  if (!SWING_KINDS.includes(kind as string)) return "";
-  const m = mid(a, b);
-  const sideOf = (n: Pt) => {
-    const i = roomAt(f, [m[0] + (n[0] * len) / 2, m[1] + (n[1] * len) / 2]),
-      r = i < 0 ? null : f.rooms[i];
-    return { indoor: r?.kind === "room", any: !!r, area: r ? ringArea(r.pts) : Infinity };
-  };
-  const right: Pt = [-left[0], -left[1]],
-    L = sideOf(left),
-    R = sideOf(right);
-  const goRight = R.indoor !== L.indoor ? R.indoor : R.any !== L.any ? R.any : R.area < L.area;
-  const n = goRight ? right : left;
-  return `M${num(a[0])} ${num(a[1])}L${num(a[0] + n[0] * len)} ${num(a[1] + n[1] * len)}`;
+  const half = (wallWidthAt(f, a, b) * (kind === "slit" ? SLIT_BAND : 1)) / 2;
+  return [-half, 0, half]
+    .map(
+      (t) =>
+        `M${num(a[0] + left[0] * t)} ${num(a[1] + left[1] * t)}L${num(b[0] + left[0] * t)} ${num(b[1] + left[1] * t)}`,
+    )
+    .join("");
 }
 
 /** S1 (Opus review of S23): a window's pane and jambs, or null for any other kind. The wall is cut wider than the room
@@ -1501,12 +1546,77 @@ export function deviceMarkup(f: Floor, d: Device, o: RenderOpts, now: number, fl
 /** S23.2 (V1): the smallest a room name may render, in CSS px, on a card that knows its size. */
 export const NAME_MIN_PX = 11;
 
+/**
+ * S27.6: which way the plan comes in when the viewer changes floor. `keys` is the floors in stacking order, lowest first
+ * (the order `floorElevation` stacks); a higher new floor is "up". Null: no animation, for the same floor, a key not in
+ * the list, junk, or `reduced` (prefers-reduced-motion), so a caller sets `data-switch` only when this returns a result.
+ */
+export function floorSwitch(
+  keys: readonly string[],
+  from: string,
+  to: string,
+  reduced: boolean,
+): { dir: "up" | "down" } | null {
+  if (reduced === true || !Array.isArray(keys) || typeof from !== "string" || typeof to !== "string") return null;
+  const a = keys.indexOf(from),
+    b = keys.indexOf(to);
+  return a < 0 || b < 0 || a === b ? null : { dir: b > a ? "up" : "down" };
+}
+
+/** S27.5: the markup of the floor below, or "" when there is nothing valid to draw. Untrusted input: a ring or a wall that is not made of finite numbers is skipped, a shift that is not two finite numbers within `COORD_LIMIT` draws nothing, no string of the floor is read and nothing throws. */
+function ghostMarkup(g: RenderOpts["ghost"]): string {
+  const sh = g?.shift as unknown;
+  if (
+    !Array.isArray(sh) ||
+    sh.length !== 2 ||
+    !sh.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)
+  )
+    return "";
+  const f = g?.floor as unknown as Record<string, unknown> | null | undefined;
+  if (typeof f !== "object" || f === null) return "";
+  const at = (p: unknown): string | null =>
+    Array.isArray(p) &&
+    typeof p[0] === "number" &&
+    typeof p[1] === "number" &&
+    Number.isFinite(p[0]) &&
+    Number.isFinite(p[1]) &&
+    Math.abs(p[0] + sh[0]) <= COORD_LIMIT &&
+    Math.abs(p[1] + sh[1]) <= COORD_LIMIT
+      ? `${num(p[0] + sh[0])} ${num(p[1] + sh[1])}`
+      : null;
+  const ringD = (r: unknown): string | null => {
+    if (!Array.isArray(r) || r.length < 3 || r.length > 100_000) return null;
+    const q = r.map(at);
+    return q.every((s) => s !== null) ? `M${q.join("L")}Z` : null;
+  };
+  const list = (k: string): unknown[] => (Array.isArray(f[k]) ? (f[k] as unknown[]) : []);
+  const own = (x: unknown, k: string) =>
+    typeof x === "object" && x !== null ? (x as Record<string, unknown>)[k] : undefined;
+  const d = [
+    ringD(f.outline),
+    ...list("rooms").map((r) => ringD(own(r, "pts"))),
+    ...list("stairs").map((t) => ringD(own(t, "pts"))),
+  ].filter((x): x is string => x !== null);
+  const wall = list("walls")
+    .map((w) => {
+      const a = at(own(w, "a")),
+        b = at(own(w, "b"));
+      return a && b ? `M${a}L${b}` : null;
+    })
+    .filter((x): x is string => x !== null);
+  const all = [...d, ...(wall.length ? [wall.join("")] : [])];
+  return all.length ? `<g class="ghost">${all.map((x) => `<path class="gl" d="${x}"/>`).join("")}</g>` : "";
+}
+
 export function renderFloor(f: Floor, o: RenderOpts): string {
   // S23.2: a floor in screen space. k never lets a 12k name fall under 11 px, so a 32k disc never falls under 29 px.
   // One factor for text and discs keeps the plan's proportions; full CSS-px placement is sprint 25.
   const screenPx = typeof o.px === "number" && Number.isFinite(o.px) && o.px > 0 ? o.px : 0;
-  const k = Math.max(1 / (o.scale || 1), screenPx ? NAME_MIN_PX / (12 * screenPx) : 0),
-    nameMin = screenPx ? NAME_MIN_PX / screenPx : 0;
+  const k = Math.max(1 / (o.scale || 1), screenPx ? NAME_MIN_PX / (12 * screenPx) : 0);
+  // S25.4: `kt` is k for text: sizes and offsets of a label, divided by the view's zoom so they stay put on screen.
+  const zoomV = typeof o.zoom === "number" && Number.isFinite(o.zoom) && o.zoom > 0 ? o.zoom : 1,
+    kt = k / zoomV;
+  const nameMin = screenPx ? NAME_MIN_PX / (screenPx * zoomV) : 0;
   const turn = o.rotate && o.rotate.deg % 360 ? o.rotate : null,
     planDeg = turn ? turn.deg : 0;
   /** Attribute that keeps a text upright in a turned plan: turns it back about its own anchor. */
@@ -1653,6 +1763,18 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
 
   f.stairs.forEach((t, i) => out.push(stairsGroup(t, i, o.around)));
 
+  // S28.5: 2.5D contact shadows, one group after the fills and stairs and before the ghost, the night veil, walls and furniture, so the veil
+  // darkens them with the floor. Its content needs the solids, which are built further down, so the slot is kept and filled there.
+  const shadeSlot = x25 ? out.length : -1;
+  if (x25) out.push("");
+
+  // S27.5 (moved by review 27, again by S28.2): the floor below, over the room fills and stairs, under the night overlay, walls,
+  // names and devices. Drawn first it sat under the opaque fills and vanished where Align needs it; drawn after the night veil it kept
+  // full contrast while the rooms dimmed. Now an unlit room's veil darkens it with the floor; a lit room and the bare board are as by day.
+  // Still one draw path, for the editor and the card.
+  const ghost = ghostMarkup(o.ghost);
+  if (ghost) out.push(ghost);
+
   // S7.6: the night overlay, over every room fill and staircase, under walls, names and devices, so lines and icons stay
   // crisp. Zones and structures sit on a room and share its overlay; a fill with no name is not drawn, so it gets none.
   // No data-r: the overlay is never a pick target (class room-night carries pointer-events:none, CLAUDE.md finding 18).
@@ -1791,7 +1913,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // 2.5D: the solids, back to front, over the floor-level things above (fills, flat edges, rings) and under everything
   // below (names, icons, door lines), so a tap target is never hidden behind a wall. Stable sort: equal depth keeps array order.
   if (x25) {
-    solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state));
+    const segs = collectWalls(f, px, wallsModeOf(o.walls));
+    solids.push(...wallSolids(f, px, wallsModeOf(o.walls), o.state, segs));
     f.furniture.forEach((m, i) => {
       if (layerHides(o.hiddenLayers, "furn", i, undefined, o.selection, o.keep)) return;
       const mode = furnitureMode(m),
@@ -1813,6 +1936,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       if (s) solids.push(s);
     });
     for (const t of f.stairs) solids.push(...stairSolids(t, floorHeight(f), px, resolveStairDirection(t, o.around)));
+    out[shadeSlot] = shadeMarkup(segs, solids, px);
     // What lies below the floor (a stairwell) goes first: nothing standing on the floor is ever drawn under it.
     out.push(
       ...solids
@@ -1869,7 +1993,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     centroid = polyCentre;
   /** Centroid, 32k below, 32k above, 64k below, 64k above: 32k clears a 16k disc and a 12k name either way. An extra's
    *  name; a room's name has its own search (placeName). */
-  const rows = (a: Pt): Pt[] => [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * k));
+  const rows = (a: Pt): Pt[] => [0, 32, -32, 64, -64].map((dy) => screenOff(a, 0, dy * kt));
   const disc = (c: Pt, r: number) => {
     const [x, y] = toScreen(c);
     placed.push([x - r, y - r, 2 * r, 2 * r]);
@@ -2004,7 +2128,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     }
     const clear = (p: Pt) => inPoly(p, r.pts) && !inner.some((q) => inPoly(p, q));
     // A box fits when its corners and edge midpoints, 2k inside it, are all in the room: a room is a polygon, not a box.
-    const ring = ([x, y, w, h]: Box, d = 2 * k): Pt[] => [
+    const ring = ([x, y, w, h]: Box, d = 2 * kt): Pt[] => [
       [x - d, y - d],
       [x + w + d, y - d],
       [x + w + d, y + h + d],
@@ -2023,7 +2147,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const search = (a: Pt): Label | null => {
       for (const size of sizes)
         for (const [dx, dy] of OFFSETS) {
-          const c = screenOff(a, dx * k, dy * k);
+          const c = screenOff(a, dx * kt, dy * kt);
           if (!fits(c, size)) continue;
           const box = textBox(c, size, len);
           if (!placed.some((q) => meets(box, q))) {
@@ -2054,8 +2178,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const bare = (p: Pt) => clear(p) || !owned.some((q) => inPoly(p, q));
       const sx = r.pts.map((p) => toScreen(p)[0]),
         sy = r.pts.map((p) => toScreen(p)[1]),
-        m = GAP * k,
-        st = 8 * k;
+        m = GAP * kt,
+        st = 8 * kt;
       const [x0, y0, x1, y1] = [Math.min(...sx), Math.min(...sy), Math.max(...sx), Math.max(...sy)],
         [ax, ay] = toScreen(anchor);
       for (const size of sizes) {
@@ -2107,8 +2231,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         dy = Math.max(B.y - y, 0) + Math.min(B.y + B.h - (y + h), 0);
       return dx || dy ? screenOff(c, dx, dy) : c;
     };
-    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * k - 0.25 * size - ay)),
-      below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * k + 0.75 * size - ay));
+    const above = intoB(screenOff(from, 0, Math.min(...ys) - GAP * kt - 0.25 * size - ay)),
+      below = intoB(screenOff(from, 0, Math.max(...ys) + GAP * kt + 0.75 * size - ay));
     // The leader is one more thing that must not run across another text: its own thin box counts too.
     const leaderBox = (c: Pt): Box => {
       const [x, y] = toScreen(from),
@@ -2137,10 +2261,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     .map(([, i]) => i);
   for (const i of bySize) {
     const r = f.rooms[i];
-    if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * k, 7 * k);
+    if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * kt, 7 * kt);
   }
   f.rooms.forEach((r, i) => {
-    if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * k, 6 * k);
+    if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * kt, 6 * kt);
   });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
@@ -2160,10 +2284,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         ? `<rect class="extra" data-ex="${i}" x="${num(mx)}" y="${num(my)}" width="${num(w)}" height="${num(h)}"/>`
         : `<line class="extra" data-ex="${i}" x1="${num(x.a[0])}" y1="${num(x.a[1])}" x2="${num(x.b[0])}" y2="${num(x.b[1])}"/>`,
     );
-    const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * k, x.name);
+    const [tx, ty] = place(rows([mx + w / 2, my + h / 2]), 11 * kt, x.name);
     if (showText)
       out.push(
-        `<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * k)}">${esc(x.name)}</text>`,
+        `<text class="lbl" x="${num(tx)}" y="${num(ty)}"${up(tx, ty)} text-anchor="middle" font-size="${num(11 * kt)}">${esc(x.name)}</text>`,
       );
   });
 
@@ -2172,6 +2296,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const sym = FURNITURE[m.symbol];
     if (!sym || (x25 && furnitureMode(m) !== "flat")) return; // 2.5D draws a block above; a flat piece (a patio) stays as in 2D
     const on = pieceOn(o, m, plugs) ? " on" : "";
+    // S28.3: a tree's soft shade patch, offset (+4, +6) cm in the plan whatever its size and turn, so outside the scaled group.
+    const shade = treeShadeSvg(m);
+    if (shade) out.push(shade);
     out.push(
       `<g data-f="${i}" class="furn${on}"${furnitureLinked(m)} transform="translate(${num(m.x)} ${num(m.y)}) rotate(${num(m.rot)}) scale(${num(m.w / 100)} ${num(m.h / 100)}) translate(-50 -50)" color="var(--fp-furniture)">${sym.svg}</g>`,
     );
@@ -2190,7 +2317,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S10.3: a triggered vibration sensor gives the door the same red and the same pulsing alert line as an open
     // contact, but solid, not dashed - dashed keeps meaning "open" alone. Both at once: dashed (open wins the
     // dash, class order below puts .open after .alarm so its dasharray is the one asserted last), red, one line.
-    const { open, alarm: vibrating, cover: coverOpen } = doorStateOf(d, o.state);
+    const { open, alarm: vibrating, cover: coverOpen, closed } = doorStateOf(d, o.state);
     const sel = o.selection?.t === "door" && o.selection.i === i,
       doorway = d.kind === "open";
     // S14.5: a tripped doorway is a solid alert band (`band`: no dash, no pulse), not an open door's look.
@@ -2198,7 +2325,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const cls = [
       "door",
       `door-${esc(String(d.kind))}`,
-      d.kind === "slit" ? "door-window" : "",
+      d.kind === "slit" || d.kind === "fullwindow" ? "door-window" : "",
       vibrating ? "alarm" : "",
       open ? "open" : "",
       coverOpen ? "cover-open" : "",
@@ -2213,7 +2340,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       ? DOOR_THRESHOLD_25D
       : d.kind === "slit"
         ? wallWidthAt(f, d.a, d.b) * SLIT_BAND
-        : wallWidthAt(f, d.a, d.b);
+        : SWING_KINDS.includes(d.kind) && closed
+          ? Math.min(wallWidthAt(f, d.a, d.b) * CLOSED_DOOR_BAND, WALL_WIDTH_EXTERNAL)
+          : wallWidthAt(f, d.a, d.b);
     const seg = `x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}"`;
     // S8.9 part 2 + finding 3: the visible line is now as thin as the internal wall it sits on (10 cm, or 20 on an
     // external wall), so a plain transparent line first, at the old fixed 22 cm, keeps the door as easy to click as
@@ -2229,8 +2358,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     if (doorway && !sel && !open && !vibrating && !coverOpen) return;
     // S23.7: a door or window is its symbol (below); its own line stays for the title, the selection and the alert look, and
     // paints nothing while the door is closed and not selected (`quiet`).
+    // S25.D1: a door or glass door is closed (its line shows) only when a sensor says off or a lock says locked, and no lock is unlocked or jammed (`doorStateOf`); otherwise it is a hole and its line is quiet.
     const sym = doorSymbol(f, d.kind, d.a, d.b),
-      quiet = sym && !sel && !open && !vibrating && !coverOpen;
+      swing = SWING_KINDS.includes(d.kind),
+      quiet = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
     const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`,
       pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
     // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
@@ -2257,9 +2388,9 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // The leader runs from the room's anchor to the edge of the text box nearest it, and is drawn under the text.
     if (from) {
       const down = toScreen([x, y])[1] > toScreen(from)[1],
-        [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * k : 0.25 * size + 0.5 * k);
+        [ex, ey] = screenOff([x, y], 0, down ? -0.75 * size - 0.5 * kt : 0.25 * size + 0.5 * kt);
       out.push(
-        `<line class="lbl-leader" stroke-width="${num(k)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`,
+        `<line class="lbl-leader" stroke-width="${num(kt)}" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(ex)}" y2="${num(ey)}"/>`,
       );
     }
     // S23.1: one style for every name; the class says what it is, `--fp-under` what it sits on (a zone: the room under it).
@@ -2267,7 +2398,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S23.3: a name whose every spot is covered is a tag, drawn after the icons on its own plate (see below).
     if (tag)
       return void tags.push(
-        `<rect class="lbl-tag"${up(x, y)} x="${num(x - (len(r.name) * 0.6 * size) / 2 - 2 * k)}" y="${num(y - 0.75 * size - k)}" width="${num(len(r.name) * 0.6 * size + 4 * k)}" height="${num(size + 2 * k)}" rx="${num(3 * k)}"/>`,
+        `<rect class="lbl-tag"${up(x, y)} x="${num(x - (len(r.name) * 0.6 * size) / 2 - 2 * kt)}" y="${num(y - 0.75 * size - kt)}" width="${num(len(r.name) * 0.6 * size + 4 * kt)}" height="${num(size + 2 * kt)}" rx="${num(3 * kt)}"/>`,
         `<text class="${cls} lbl-on" x="${num(x)}" y="${num(y)}" data-rl="${i}"${up(x, y)} text-anchor="middle" font-size="${num(size)}" style="--fp-under:var(--fp-outline)">${esc(r.name)}</text>`,
       );
     const under = zone ? underOf(f.rooms[roomAt(f, centroid(r.pts))] ?? { kind: "room" }) : underOf(r);
@@ -2287,10 +2418,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const lab = nameAt[i],
       base = lab?.at ?? centroid(r.pts),
       size = lab?.size ?? 0,
-      vs = 10 * k;
+      vs = 10 * kt;
     if (!base.every(Number.isFinite)) return;
     const [vx, vy] = place(
-      [screenOff(base, 0, 0.25 * size + k + 0.75 * vs), screenOff(base, 0, -0.75 * size - k - 0.25 * vs)],
+      [screenOff(base, 0, 0.25 * size + kt + 0.75 * vs), screenOff(base, 0, -0.75 * size - kt - 0.25 * vs)],
       vs,
       text,
     );
@@ -2299,14 +2430,39 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     );
   });
 
+  // S25.5: a fanned stack. Leaders and pins first, under every icon; the icons move in the loop below.
+  const spiderAt = new Map<number, Pt>();
+  const ringOut: string[] = []; // drawn last of all, so nothing else (a later device, an appliance, a name) ever covers a ring member
+  if (Array.isArray(o.spider))
+    for (const e of o.spider) {
+      const d = e && Number.isInteger(e.i) ? f.devices[e.i] : undefined;
+      if (
+        !d ||
+        !Array.isArray(e.at) ||
+        e.at.length !== 2 ||
+        !e.at.every((v: unknown) => typeof v === "number" && Number.isFinite(v))
+      )
+        continue;
+      if (layerHides(o.hiddenLayers, "dev", e.i, d.type, o.selection, o.keep) || iconHidden(d)) continue;
+      const from = centreOf(d, e.i);
+      if (!from.every(Number.isFinite)) continue;
+      spiderAt.set(e.i, e.at);
+      ringOut.push(
+        `<line class="spider-leader" x1="${num(from[0])}" y1="${num(from[1])}" x2="${num(e.at[0])}" y2="${num(e.at[1])}"/><circle class="spider-pin" cx="${num(from[0])}" cy="${num(from[1])}" r="${num(3 * k)}"/>`,
+      );
+    }
+
+  const needs = attentionDevices(f, o.state, o.attention); // S25 fix B: what the Overview's Attention lists stays a dot at far
+  const ringCx = spiderAt.size ? [...spiderAt.values()].reduce((a, p) => a + p[0], 0) / spiderAt.size : 0;
   f.devices.forEach((d, i) => {
-    const sel = o.selection?.t === "dev" && o.selection.i === i;
+    const sel = (o.selection?.t === "dev" && o.selection.i === i) || devsHave(o.selection, i); // S26.4: one device, or a member of a multi-selection
     if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) return;
     if (iconHidden(d)) return;
     const floorAt = centreOf(d, i);
     if (!floorAt.every(Number.isFinite)) return;
     // `c` is where the icon and all it carries are drawn; `floorAt` only the pin, the stem, the room test and a radar's targets.
-    const c = iconAt(d, floorAt);
+    const sp = spiderAt.get(i);
+    const c = sp ?? iconAt(d, floorAt);
     const person = d.type === "person";
     const { cls, style: styleParts, icon, s } = deviceMarkup(f, d, o, now, floorAt);
     // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
@@ -2355,7 +2511,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // 2.5D: a device mounted high (a ceiling light, a camera, a thermostat) is drawn where the real thing hangs (`c`,
     // lifted), with its aura, cone, rings and text. A small pin stays on the floor under it and a thin stem joins the
     // two. The tap target is the lifted icon. A person walks about and a heater bar lies on the floor: neither lifts.
-    if (c !== floorAt)
+    if (c !== floorAt && !sp)
       out.push(
         `<line class="stem" x1="${num(floorAt[0])}" y1="${num(floorAt[1])}" x2="${num(c[0])}" y2="${num(c[1])}"/><circle class="stem-top" cx="${num(floorAt[0])}" cy="${num(floorAt[1])}" r="${num(3 * k)}"/>`,
       );
@@ -2366,9 +2522,18 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         `<line data-xbar="${i}" class="heater ${cls}${sel ? " sel" : ""}" x1="${num(d.a[0])}" y1="${num(d.a[1])}" x2="${num(d.b[0])}" y2="${num(d.b[1])}" stroke-width="${sel ? 12 : 8}"/>`,
       );
     const dim = o.dimmed?.has(d.entity) ? " dim" : "";
-    out.push(
-      `<g data-x="${i}" class="dev dev-${esc(String(d.type))}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`,
+    (sp ? ringOut : out).push(
+      `<g data-x="${i}" class="dev dev-${esc(String(d.type))}${sp ? " spider" : ""}${d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : ""}${bound ? " bound" : ""}${o.editor && d.entity === "" ? " unbound" : ""} ${cls}${needs.has(i) ? " needs-attention" : ""}${sel ? " sel" : ""}${dim}"${style}${person ? "" : ` transform="translate(${at([c[0] - 12 * k, c[1] - 12 * k])}) scale(${num(k)})${rot ? ` rotate(${num(rot)} 12 12)` : ""}"`}><title>${title}</title>${cone}${back ? `<g transform="rotate(${num(-back)} 12 12)">${icon}</g>` : icon}${o.locate?.t === "dev" && o.locate.i === i ? `<circle class="locate" cx="12" cy="12" r="16"/>` : ""}</g>`,
     );
+    if (sp && showText) {
+      // S25.5: the member's name, outward of the ring's side so it never covers the next member
+      const right = sp[0] >= ringCx,
+        lx = sp[0] + (right ? 1 : -1) * 20 * k,
+        ly = sp[1] + 4 * kt;
+      ringOut.push(
+        `<text class="spider-lbl" x="${num(lx)}" y="${num(ly)}"${up(lx, ly)} text-anchor="${right ? "start" : "end"}" font-size="${num(12 * kt)}">${esc(label)}</text>`,
+      );
+    }
     // S7.9: a radar's targets. Each pair's x (mm, right of the sensor) and y (mm, ahead of it) is turned by the
     // sensor's own `rot` the same way a plan point turns (SVG's own clockwise convention: rot 0 keeps "ahead" up),
     // converted to centimetres, then added to the sensor's own position — the world point a target dot is drawn
@@ -2401,8 +2566,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       const unit =
         typeof s.attributes.unit_of_measurement === "string" ? `\u202F${s.attributes.unit_of_measurement}` : ""; // S23.1: never wraps
       const text = bad ? "–" : s.state + unit,
-        vs = 11 * k,
-        gap = 16 * k + 2 * k; // 2k clear of the 16k disc
+        vs = 11 * kt,
+        gap = 16 * k + 2 * kt; // 2kt clear of the 16k disc
       // S7.1: below the icon, then above, then to the right (the box centred on the icon's centre line).
       const [vx, vy] = place(
         [
@@ -2420,7 +2585,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     }
     if (showText && (o.showNames || sel))
       out.push(
-        `<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`,
+        `<text class="lbl" x="${num(c[0])}" y="${num(c[1] - 16 * k)}"${up(c[0], c[1] - 16 * k)} text-anchor="middle" font-size="${num(9 * kt)}">${esc(label)}</text>`,
       );
   });
 
@@ -2454,16 +2619,29 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     );
     if (showText && (o.showNames || sel))
       out.push(
-        `<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * k)}">${esc(label)}</text>`,
+        `<text class="lbl" x="${num(u.x)}" y="${num(u.y - 16 * k)}"${up(u.x, u.y - 16 * k)} text-anchor="middle" font-size="${num(9 * kt)}">${esc(label)}</text>`,
       );
   });
 
   out.push(...tags); // S23.3: over every icon, under the editor's handles
+  if (showText)
+    out.push(
+      ...badges({
+        f,
+        state: o.state,
+        attn: o.attention,
+        k: kt,
+        up,
+        screenOff,
+        anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 },
+      }),
+    ); // S25.3: shown by CSS at far and mid only; text, so none with labels off
   if (o.editor)
     for (const P of polys)
       P.pts.forEach((p, j) =>
         out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`),
       );
+  out.push(...ringOut);
   const body = out.join("\n");
   const turned = turn
     ? `<g class="plan-turn" transform="rotate(${num(turn.deg)} ${num(turn.pivot[0])} ${num(turn.pivot[1])})">${body}</g>`
@@ -2474,7 +2652,8 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   // A plan-level theme, so one plan can differ from its host. No o.theme writes nothing and inherits the host's. o.theme is checked against THEMES:
   // it lands in an attribute, and a caller's stray string must not.
   const night = o.night ? ' class="night"' : "";
+  const detail = o.detail === "far" || o.detail === "mid" || o.detail === "near" ? ` data-detail="${o.detail}"` : ""; // S25.2: three literals, nothing else reaches the attribute
   if (!o.theme || !(THEMES as readonly string[]).includes(o.theme))
-    return night ? `<g${night}>${coloured}</g>` : coloured;
-  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}${night}>${coloured}</g>`;
+    return night || detail ? `<g${night}${detail}>${coloured}</g>` : coloured;
+  return `<g data-theme="${o.theme}"${o.theme === "ha" && o.dark ? ' data-mode="dark"' : ""}${night}${detail}>${coloured}</g>`;
 }

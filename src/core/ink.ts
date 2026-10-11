@@ -103,6 +103,9 @@ export function heatColour(h: number): string {
   return mixOklch(mixOklch(HEAT.cool, HEAT.mid, 1 - Math.min(t * 2, 1)), HEAT.hot, 1 - Math.max(t * 2 - 1, 0));
 }
 
+/** S28.1: `--fp-shade-alpha` per theme kind. */
+export const SHADE_ALPHA = { light: 0.16, dark: 0.32 } as const;
+
 const pairs = (tokens: string) =>
   new Map(
     (tokens.match(/--fp-[a-z0-9-]+:[^;]+/g) ?? []).map((kv) => {
@@ -133,5 +136,7 @@ export function themeExtras(tokens: string, dark: boolean, idle?: string): strin
     if ((k === "--fp-idle" || k === "--fp-danger" || k.startsWith("--fp-dev-")) && parse(v))
       out.push(`${k}-ink:${pickInk(v, onLight, onDark)}`);
   out.push(`--fp-glow-blend:${dark ? "screen" : "multiply"}`);
+  // S28.1: how strong the baked contact shadow is. A dark plan needs more to show at all. Tuned by looking; the tests pin the order and a step.
+  out.push(`--fp-shade-alpha:${dark ? SHADE_ALPHA.dark : SHADE_ALPHA.light}`);
   return out.join(";");
 }

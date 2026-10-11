@@ -32,13 +32,151 @@ function emit(out: Triangles, a: number[], b: number[], c: number[], want: numbe
   }
 }
 
+/** The parts of a convex polygon `poly` that lie on the left of the line a->b (`keep` 1) or on its right (`keep` -1). */
+function halve(poly: Pt[], a: Pt, b: Pt, keep: number): Pt[] {
+  const side = (q: Pt) => keep * ((b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0]));
+  const res: Pt[] = [];
+  poly.forEach((u, i) => {
+    const v = poly[(i + 1) % poly.length],
+      su = side(u),
+      sv = side(v);
+    if (su >= 0) res.push(u);
+    if ((su > 0 && sv < 0) || (su < 0 && sv > 0)) {
+      const t = su / (su - sv);
+      res.push([u[0] + (v[0] - u[0]) * t, u[1] + (v[1] - u[1]) * t]);
+    }
+  });
+  return res;
+}
+/** A convex polygon (a triangle) minus convex holes, as convex pieces: each hole edge splits off what lies outside it. */
+function minus(tri: Pt[], holes: Pt[][]): Pt[][] {
+  let pieces: Pt[][] = [tri];
+  for (const h of holes) {
+    const ccw =
+      h.reduce((t, c, n) => {
+        const d = h[(n + 1) % h.length];
+        return t + c[0] * d[1] - d[0] * c[1];
+      }, 0) > 0
+        ? 1
+        : -1; // inside lies on this side of every edge
+    const next: Pt[][] = [];
+    for (const piece of pieces) {
+      let rest = piece;
+      for (let i = 0; i < h.length && rest.length >= 3; i++) {
+        const a = h[i],
+          b = h[(i + 1) % h.length],
+          away = halve(rest, a, b, -ccw);
+        if (away.length >= 3) next.push(away);
+        rest = halve(rest, a, b, ccw);
+      }
+    }
+    pieces = next;
+  }
+  return pieces.filter(
+    (q) =>
+      Math.abs(
+        q.reduce((t, c, n) => {
+          const d = q[(n + 1) % q.length];
+          return t + c[0] * d[1] - d[0] * c[1];
+        }, 0),
+      ) > 1e-6,
+  );
+}
+/** Parameters [t0, t1] of the segment a->b along which a point is inside the polygon `poly`, by crossing the polygon's own edges. */
+function within(a: Pt, b: Pt, poly: Pt[]): [number, number][] {
+  const ts = [0, 1],
+    dx = b[0] - a[0],
+    dy = b[1] - a[1];
+  poly.forEach((c, i) => {
+    const d = poly[(i + 1) % poly.length],
+      ex = d[0] - c[0],
+      ey = d[1] - c[1],
+      den = dx * ey - dy * ex;
+    if (!den) return;
+    const t = ((c[0] - a[0]) * ey - (c[1] - a[1]) * ex) / den,
+      u = ((c[0] - a[0]) * dy - (c[1] - a[1]) * dx) / den;
+    if (t > 0 && t < 1 && u >= 0 && u <= 1) ts.push(t);
+  });
+  ts.sort((x, y) => x - y);
+  const out: [number, number][] = [];
+  for (let i = 0; i + 1 < ts.length; i++) {
+    const m = (ts[i] + ts[i + 1]) / 2,
+      q: Pt = [a[0] + dx * m, a[1] + dy * m];
+    if (ts[i + 1] - ts[i] < 1e-9 || !contains(poly, q) || nearEdge(poly, q)) continue; // on the base's own edge: its outer wall stands there
+    out.push([ts[i], ts[i + 1]]);
+  }
+  return out;
+}
+const contains = (poly: Pt[], q: Pt) => {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i],
+      b = poly[j];
+    if (a[1] > q[1] !== b[1] > q[1] && q[0] < ((b[0] - a[0]) * (q[1] - a[1])) / (b[1] - a[1]) + a[0]) c = !c;
+  }
+  return c;
+};
+const nearEdge = (poly: Pt[], q: Pt) =>
+  poly.some((a, k) => {
+    const b = poly[(k + 1) % poly.length],
+      dx = b[0] - a[0],
+      dy = b[1] - a[1],
+      l2 = dx * dx + dy * dy,
+      t = l2 ? Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / l2)) : 0;
+    return Math.hypot(q[0] - (a[0] + t * dx), q[1] - (a[1] + t * dy)) < 0.5;
+  });
+/** Parameters of the segment a->b of a base edge that lie outside every hole (the base's outer wall is not drawn where a hole opens it). */
+function outside(a: Pt, b: Pt, holes: Pt[][]): [number, number][] {
+  let spans: [number, number][] = [[0, 1]];
+  for (const h of holes) {
+    const ccw =
+      h.reduce((t, c, n) => {
+        const d = h[(n + 1) % h.length];
+        return t + c[0] * d[1] - d[0] * c[1];
+      }, 0) > 0
+        ? 1
+        : -1;
+    let lo = 0,
+      hi = 1,
+      empty = false;
+    for (let i = 0; i < h.length && !empty; i++) {
+      // the part of the segment inside the hole: clip by each edge's inside half-plane
+      const c = h[i],
+        d = h[(i + 1) % h.length],
+        f0 = ccw * ((d[0] - c[0]) * (a[1] - c[1]) - (d[1] - c[1]) * (a[0] - c[0])),
+        f1 = ccw * ((d[0] - c[0]) * (b[1] - c[1]) - (d[1] - c[1]) * (b[0] - c[0]));
+      if (f0 <= 0 && f1 <= 0) {
+        empty = true;
+        break;
+      }
+      if (f0 < 0) lo = Math.max(lo, f0 / (f0 - f1));
+      else if (f1 < 0) hi = Math.min(hi, f0 / (f0 - f1));
+    }
+    if (empty || lo >= hi) continue;
+    spans = spans.flatMap(([s0, s1]) => {
+      const r: [number, number][] = [];
+      if (lo > s0) r.push([s0, Math.min(lo, s1)]);
+      if (hi < s1) r.push([Math.max(hi, s0), s1]);
+      return r.filter(([u, v]) => v > u);
+    });
+  }
+  return spans;
+}
+
 /**
  * Adds the prism over `base` from `z0` to `z1` to `out`: a top cap, a bottom cap and one quad per edge, each facing
  * outward whichever way the base is wound. A concave base is triangulated (earcut, from three). Returns whether
  * anything was added; a base with fewer than three distinct points, a line, a non-finite or huge coordinate, or a
- * flat height adds nothing.
+ * flat height adds nothing. `holes` (0.26.1, a stairwell) are polygons inside the base that the prism does not fill: each is
+ * dropped when it cannot be drawn, and its edges get walls that face into the hole.
  */
-export function prismTriangles(base: unknown, z0: number, z1: number, out: Triangles): boolean {
+export function prismTriangles(
+  base: unknown,
+  z0: number,
+  z1: number,
+  out: Triangles,
+  holes: unknown = undefined,
+): boolean {
   if (
     !Array.isArray(base) ||
     !(typeof z0 === "number" && typeof z1 === "number" && Math.abs(z0) <= LIMIT && Math.abs(z1) <= LIMIT && z1 > z0)
@@ -59,6 +197,25 @@ export function prismTriangles(base: unknown, z0: number, z1: number, out: Trian
       return s + a[0] * b[1] - b[0] * a[1];
     }, 0) / 2;
   if (!(Math.abs(area) > 1e-9)) return false;
+  // Holes (a stairwell) are convex polygons that may lie inside the base, touch its edge or cross it; a hole that is not convex is ignored.
+  const hs: Pt[][] = [];
+  if (Array.isArray(holes))
+    for (const h of holes) {
+      if (!Array.isArray(h) || !h.every(finitePt)) continue;
+      const q: Pt[] = [];
+      for (const v of h as Pt[]) {
+        const l = q[q.length - 1];
+        if (!l || l[0] !== v[0] || l[1] !== v[1]) q.push(v);
+      }
+      while (q.length > 1 && q[0][0] === q[q.length - 1][0] && q[0][1] === q[q.length - 1][1]) q.pop();
+      if (q.length < 3) continue;
+      const turn = q.map((a, i) => {
+        const b = q[(i + 1) % q.length],
+          c = q[(i + 2) % q.length];
+        return (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]);
+      });
+      if (turn.every((t) => t >= 0) || turn.every((t) => t <= 0)) hs.push(q);
+    }
   let faces: number[][];
   try {
     faces = ShapeUtils.triangulateShape(
@@ -72,9 +229,20 @@ export function prismTriangles(base: unknown, z0: number, z1: number, out: Trian
   for (const [i, j, k] of faces) {
     if (p[i] === undefined || p[j] === undefined || p[k] === undefined) continue;
     const at = (q: Pt, z: number) => [q[0], z, q[1]];
-    emit(out, at(p[i], z1), at(p[j], z1), at(p[k], z1), [0, 1, 0]);
-    emit(out, at(p[i], z0), at(p[j], z0), at(p[k], z0), [0, -1, 0]);
+    for (const piece of minus([p[i], p[j], p[k]], hs))
+      for (let n = 1; n + 1 < piece.length; n++) {
+        emit(out, at(piece[0], z1), at(piece[n], z1), at(piece[n + 1], z1), [0, 1, 0]);
+        emit(out, at(piece[0], z0), at(piece[n], z0), at(piece[n + 1], z0), [0, -1, 0]);
+      }
   }
+  const quad = (a: Pt, b: Pt, want: number[]) => {
+    const A = [a[0], z0, a[1]],
+      B = [b[0], z0, b[1]],
+      C = [b[0], z1, b[1]],
+      D = [a[0], z1, a[1]];
+    emit(out, A, B, C, want);
+    emit(out, A, C, D, want);
+  };
   p.forEach((a, i) => {
     const b = p[(i + 1) % p.length],
       dx = b[0] - a[0],
@@ -84,13 +252,27 @@ export function prismTriangles(base: unknown, z0: number, z1: number, out: Trian
     // Outward is (dy, -dx) for a positive area, the other way for a negative one.
     const s = area > 0 ? 1 : -1,
       want = [(s * dy) / len, 0, (-s * dx) / len];
-    const A = [a[0], z0, a[1]],
-      B = [b[0], z0, b[1]],
-      C = [b[0], z1, b[1]],
-      D = [a[0], z1, a[1]];
-    emit(out, A, B, C, want);
-    emit(out, A, C, D, want);
+    for (const [t0, t1] of outside(a, b, hs))
+      quad([a[0] + dx * t0, a[1] + dy * t0], [a[0] + dx * t1, a[1] + dy * t1], want);
   });
+  // The walls of each hole stand where the hole lies inside the base, and face into the hole.
+  for (const h of hs) {
+    const ha = h.reduce((t, c, n) => {
+      const d = h[(n + 1) % h.length];
+      return t + c[0] * d[1] - d[0] * c[1];
+    }, 0);
+    h.forEach((a, i) => {
+      const b = h[(i + 1) % h.length],
+        dx = b[0] - a[0],
+        dy = b[1] - a[1],
+        len = Math.hypot(dx, dy);
+      if (!(len > 0)) return;
+      const s = ha > 0 ? -1 : 1,
+        want = [(s * dy) / len, 0, (-s * dx) / len];
+      for (const [t0, t1] of within(a, b, p))
+        quad([a[0] + dx * t0, a[1] + dy * t0], [a[0] + dx * t1, a[1] + dy * t1], want);
+    });
+  }
   if (out.position.length === before) return false;
   return true;
 }

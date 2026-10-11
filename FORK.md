@@ -5,7 +5,7 @@ What this fork changed compared with upstream
 Newest first. Add an entry with every change that upstream does not have.
 
 **Forked from:** upstream `main` at `27fb096` (release 0.20.0, 2026-10-07).
-**Last synced:** upstream `main` at `05a5e8a` (release 0.22.1, 2026-10-09).
+**Last synced:** upstream `main` at `d1ec086` (release 0.26.2, 2026-10-11).
 
 To see the full difference at any time:
 
@@ -16,12 +16,37 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-11: Sync with upstream 0.26.2 (branch `task/upstream-sync-0.26.2`)
+
+Merged upstream `d1ec086` (0.23.0 to 0.26.2). The plain merge left 50 files in
+conflict, nearly all only because this fork had run oxfmt over the repo. Each was
+merged again with the base and upstream sides oxfmt-formatted first, which left 6
+real conflicts plus `docs/DECISIONS.md`:
+
+- The Lock plan toggle: upstream's 0.24 pill (a mask lock, "Plan locked" or
+  "Plan editable") replaces this fork's SVG lock on "Fix plan" (2026-10-09 entry
+  below). Upstream's toolbar now lives in `src/editor/toolbar.ts`.
+- `src/core/scene-build.ts`: furniture parts (this fork) and the tree trunk and
+  crown (upstream S28.7) are combined. A tree has no parts, so it takes upstream's path.
+- `src/card/three/shade.ts` (new upstream, 3D contact shadows): a piece built
+  from parts casts one patch under its whole footprint, not one per part (a
+  table cast four leg spots). `foldParts` merges a piece's parts into one box in
+  its own frame before shading; 5000 tables shade in about 25 ms.
+- `scripts/shots.mjs`: both the furniture-parts shots and upstream's
+  floors-below and `--polish` shots are kept.
+- `tests/fixtures/ghost-contrast.ts` (new upstream) uses an indirect `eval` inside
+  `page.evaluate`; this fork's oxlint flags it, so that one line has an
+  `oxlint-disable-next-line no-eval`.
+- `tests/card/plan-patch.test.ts`: the every-device-type test takes about 4 s
+  here (as on pristine upstream) and timed out at vitest's 5 s default under
+  the full parallel suite; it has a 20 s budget.
+
 ## 2026-10-09: Clearer toggles, confirm and 3D markers (branch `task/ui-review-2`)
 
 - A toolbar toggle that is on wears a primary ring; one that is off is a plain button (it was dimmed and read as disabled).
 - The popup's second press of a turn off reads "Yes, turn off" in the danger colour, on one line.
 - In 3D an off device's ball takes the disc colour, so its grey glyph no longer vanishes into a grey ball.
-- Editor: the Fix plan switch draws an SVG lock (CSS mask) instead of an emoji; the floor panel's two help lines are one.
+- Editor: the Fix plan switch draws an SVG lock (CSS mask) instead of an emoji (superseded by upstream's Lock plan pill in the 0.26.2 sync); the floor panel's two help lines are one.
 
 ## 2026-10-09: Phone-width card and clearer panel text (branch `task/ui-review-1`)
 

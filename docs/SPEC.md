@@ -56,7 +56,7 @@ in `prompts/`, then fixed in the editor.
   "version": 2, "unit": "cm", "north": 0, "rotate": 0,
   "floors": {
     "ground": {
-      "title": "Ground", "ha": "downstairs",
+      "title": "Ground", "ha": "downstairs", "offset"?: [x, y],
       "outline": [[x, y], ...], "owk": ["external", ...],
       "rooms":   [{"id", "name", "area", "kind", "pts", "wk", "color"?, "texture"?, "textureRot"?, "free"?, "entity"?, "temps"?, "humidity"?, "motion"?, "scenes"?, "haScenes"?}],
       "walls":   [{"id", "a", "b", "kind"}],
@@ -94,6 +94,32 @@ in `prompts/`, then fixed in the editor.
   conditioner's colours come from its state (`--fp-dev-ac-cool`, blue, and
   `--fp-dev-ac-heat`, orange), one knob cannot name two of them. Decided in
   S2.10; a cool and a heat knob can come later if anyone asks.
+- `floor.offset` (optional, S27.2) is where the floor sits in the house, in cm, x
+  right and y down as every plan point. A point's place in the house is its
+  stored point plus the floor's offset; stored coordinates never change. Absent
+  means `[0, 0]`, and writers delete the key at `[0, 0]`. Two finite numbers
+  within +-10 000 000 cm: `validate` reports anything else, `migrate` drops it.
+  The schema stays v2 (an old card ignores the field). Only the views that show
+  more than one floor read it (ghost floor, floors below in 3D, Align); one
+  floor's own plan is drawn exactly as without it.
+
+**Floors (S27).** The floor below is the key before this one in `floors` order, the order `floorElevation` stacks;
+the lowest floor has none. `floorShift(layout, from, to)` is what to add to a point of `from` to draw it on `to`
+(`from.offset - to.offset`).
+
+- **Align.** `alignFloor(upper, lower)` finds the translation that lays `upper` on `lower`, in stored coordinates, and
+  a score: the share of the upper floor's structure length (outline edges and external walls, else room edges),
+  sampled every 10 cm, within 5 cm of the lower floor's after the move. Under 50 % is "weak". The Studio's Align tab
+  (Floors, Align to floor below) shows it and Apply writes `lower.offset + t`, rounded to whole cm, as one undo step;
+  Lock plan refuses it.
+- **Ghost floor.** The floor below drawn as faint lines (`--fp-ghost`) under the shown one, at its relative offset: no
+  fills, devices, text or hit targets, drawn by `renderFloor` so the editor and the card cannot differ. It lies under the night veil (S28), so
+  an unlit room darkens it with the floor and a lit room keeps it as by day. Studio: View,
+  Floor below (off, kept in the browser). Card: `ghost_floor: true` and the Floor below button.
+- **Floors below in 3D.** Card `floors_below: off | ghost | solid` and a Floors below select beside Walls. Each lower
+  floor at its own elevation and offset; never picked, not framed by the camera, no live state.
+- **Floor switch.** In 2D and 2.5D the new floor's plan fades in from 16 px in the direction of travel over 220 ms
+  (`data-switch`, `fp-floor-in-up`, `fp-floor-in-down`); 3D cuts. `prefers-reduced-motion: reduce`: no animation.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.
   `room.area` is the HA area id. A zone is a dashed subdivision inside a room
   (a reading corner, a kitchen in an open living room): every edge is a
@@ -180,7 +206,7 @@ in `prompts/`, then fixed in the editor.
   and shades the treads for down. 2.5D: up is the rise; down is a stairwell, a
   sunken opening with treads below the floor and a short rim on the near edges;
   both is the rise with a low kerb round the foot. Resolver: `src/core/stairs.ts`.
-- `door.kind`: door, glass, window, sealed, slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
+- `door.kind`: door, glass (shown as "Glass door", 2026-10-09; the stored value stays `glass`), window, sealed, fullwindow (shown as "Full-height window", 2026-10-09, S25.D3: a window from the floor, sill 0, its head 40 cm under the ceiling of its wall like a window's and a glass door's, 210 on 250; a window in every other respect), slit (a window 60 cm high, its head 40 cm under the ceiling of its wall like a window's, 2026-10-06; before that it touched the ceiling; shown as "slit window"), open (a doorway: a door's cut, nothing drawn while closed; tripped, a solid alert band in the gap in 2D, 2.5D and 3D, 2026-10-05, S14.5). `sensor` is a binary_sensor entity;
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
@@ -226,6 +252,7 @@ in `prompts/`, then fixed in the editor.
   whenever its switch is on. S14.8: the same reading tints the plug from cool
   blue through amber to red between the card's `plug_heat_from` (default 0 W)
   and `plug_heat_to` (2000 W), in 2D, 2.5D and 3D; no sensor, no tint.
+- `device.locked` (optional, S26.1): `true` stops the device being dragged, alone or in a group; it can still be edited and deleted. Absent is `false`. `validate` refuses anything but a boolean; `migrate` leaves it as written. Same name as on a wall, door, opening, furniture piece and unlinked object.
 - `device.fx` (optional, S14.3): the size of the effect the device draws, in percent of its
   type's own size: 25 to 300, absent is 100. A lit light's aura (and its floor pool and wall
   light in 3D), a playing speaker's or media device's two waves, a triggered motion or contact
@@ -281,7 +308,7 @@ group nested in a solarized one keeps its own ink. Device and
 extra names and values keep `--fp-text`. Room names
 are 12k, outdoor and zone names 10k, weight 500, outdoor names in italic. The font is `--fp-font`: Home Assistant's body
 font, else system-ui. Values use tabular figures and a narrow space before the unit. On the card a name is never under
-11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom).
+11 px, and a shrunk name never under that floor either (S23.2; `px` in `renderFloor`, measured at fit, not at zoom). Labels keep that size at any zoom (S25.4): `zoom` in `renderFloor`, the view's width at fit over the width on show, divides a label's plan size and offsets; icons and discs still grow with the view.
 Every device icon sits on a disc three units wider than the icon (the halo), and is drawn above everything else on the
 plan, room names included. A name stays in its own room (S23.3): it goes only where its whole box is inside the room and
 inside no smaller named room, clear of icons and other text. It tries the centroid (or the room's pole of
@@ -323,14 +350,55 @@ fainter, when it is on. `room_glow` (below) keeps the fill-mix mechanism: it
 is a distinct signal, light spilling into a room, and a warm tint is the
 honest metaphor there.
 
-Plan symbols (S23.7). A door or glass door is a gap cut in the wall with a 1 px leaf, square to the wall and as long as the
-opening, and no swing arc (S23.F6); the leaf stands into the indoor room, else any room, else the smaller one. A window is three
-hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a window or slit
-also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a hairline jamb, so
-the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors,
-windows and slits cut the wall; a sealed door does not and draws no symbol. Doors wear `--fp-door`, windows and slits
-`--fp-window`, glass doors `--fp-glass`, which is the window blue in every theme. A closed door's own line paints nothing;
-open, alarm and an open cover draw it and the symbol red. The symbols take no clicks; the hit line under them does. 2.5D draws the same symbols on the floor.
+Plan symbols (S23.7, S25.D1). A door or glass door has no symbol: no swing arc (S23.F6) and, since S25.D1 (Diego,
+2026-10-09), no leaf either. It is a gap cut in the wall. Open it is just a hole and nothing is drawn; closed it is the gap
+closed by one thick line across it (1.6 times the wall, at most an external wall's 20 cm), in `--fp-door` (a glass door in `--fp-glass`). A door is closed only
+when it has a sensor and every sensor says `off` (and no attached lock is unlocked); no sensor, `unavailable`, `unknown` or
+a missing state all read as open, a hole. A sensor that reports open still draws the red alert band and pulse, as before. A
+window is three hairlines along the opening, at the wall's two faces and its middle; a slit spans a narrower band. In 2D a
+window or slit also fills its whole cut with an opaque pane, a glass tint of the room colour, closed at each end by a
+hairline jamb, so the cut never shows the board; 2.5D puts the glass on the wall face instead. Doors, glass doors, windows,
+full-height windows and slits cut the wall; a sealed door does not and draws no symbol. Windows, slits and full-height windows wear `--fp-window`, glass doors
+`--fp-glass`, which is the window blue in every theme. A window's own line paints nothing; open, alarm and an open cover
+draw it and the symbol red. The editor has no live state, so there a door is a hole, and a selected door shows its selection
+line. In 2.5D a door's leaf and a glass door's glass fill the gap on the same rule, and in 3D the leaf and the glass pane
+are there only while the door is closed (an alerting door keeps its red, swung leaf). The symbols take no clicks; the hit
+line under them does. 2.5D draws the same symbols on the floor.
+
+**2.5D and 3D polish (S28).** Always on, no key, no control. Colours only through `--fp-*` tokens (`--fp-tree`,
+`--fp-tree-edge`, `--fp-frame`, `--fp-shade`, `--fp-shade-alpha`). Real shadows from the sun stay a non-goal.
+
+- **Contact shadows, baked, not cast.** No shadow map. They show where things meet the floor and do not depend on the
+  sun, so day and night share them and nothing moves when the camera turns. The shade is `--fp-shade` (the theme's ink
+  pulled toward black, so it darkens a navy room too) at `--fp-shade-alpha` (.16 light themes, .32 dark).
+  2.5D: one `g.shade` after the room fills and stairs, before the ghost, the night veil and the walls, so the veil
+  darkens it with the floor. Two stepped bands per wall side (6 cm at full alpha, 6 cm at half) and a patch under each
+  standing piece (its footprint grown 6 cm). No blur filter. A piece whose bottom is at 40 cm or more touches no floor
+  and gets none; a flat patio gets none. Not drawn at tilt 0. 3D: a ground plane under the house (1.5 times the box of
+  everything drawn, `--fp-ink` 6 % into `--fp-bg`, never picked) and one shadow mesh per drawn floor: a 14 cm band round
+  each wall, 8 cm round furniture, boxes and device bodies, a soft ellipse under a tree. It multiplies the floor, so it
+  darkens on every theme; a floor shown ghosted below gets a quarter of the strength. Both cost one draw call each.
+- **Trees.** `treeShape` (`src/core/tree.ts`) gives one shape for every view: trunk 12 cm to 60 % of the tree's height,
+  crown from 50 % to 100 % with radii `w / 2` and `h / 2`. 2D: an 8-lobed crown (`--fp-tree` at .35, a 1 px
+  `--fp-tree-edge`), a trunk dot and a shade patch offset (+4, +6) cm. 2.5D: the patch, the trunk, and the same crown
+  lifted to the crown's middle. 3D: a faceted icosahedron per tree, all trees one instanced mesh, also on floors drawn
+  below, never picked (a tap reaches what is under it); the trunk ends where the crown starts.
+- **Frames.** A door, glass door, window, slit and full-height window stand in a frame: a jamb each side and a head,
+  plus a sill when the opening is raised (not for a full-height window). 5 cm wide (`FRAME_WIDTH`), 2 cm proud of the
+  wall face (`FRAME_PROUD`), colour `--fp-frame` (`--fp-door` 40 % into the ink, at least 1.5:1 against the wall side
+  in every theme). A doorway (`open`), a plain opening and a sealed panel have none. In 2.5D the frame is class `frame`
+  (no pointer events); in 3D it is a static `opening` solid with the door's own ref, so a tap on it is a tap on the
+  door, and a lowered wall lowers it. A closed 3D door leaf is quiet (`--fp-door` 60 % into the wall side); red only
+  open or alarmed.
+- **3D light and theme.** Tops, sun faces and shade faces step apart by at least 6 %, in every theme. 3D walls take
+  `--fp-wall-side-share`, as 2.5D does. A room or stair with its own paint is dimmed by `--fp-paint-dim` on a dark
+  theme, as in 2D. On dark themes the bare floor is the darkest surface, so it does not fight the shadows.
+- **3D labels do not overlap.** A greedy pass (`declutter`) keeps the more important of two overlapping labels: a device
+  icon, then a room name (a room over a garden over water, the larger first), a room readout, a device value, a device
+  name. The loser fades out in 120 ms (none under reduced motion) and its icon is not tappable. It decides the first
+  frame and again once the view has been still for 160 ms with no pointer down, and at once on a live update when still;
+  never mid-drag.
+- **The ghost at night.** See Floors above: the ghost lies under the night veil.
 
 S14.2 (interaction model): a tap on a device, a door, an unlinked appliance or an Active row never operates it. Wherever
 the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read: the tap opens a popup (name, state, one
@@ -361,7 +429,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |
 | camera | dark grey icon with a 120° cone of view in dark grey at 25 % alpha, turned by `rot` | — | `--fp-dev-camera` (#4a4a48) | more-info (live view) |
 | cover on a `door` or `sealed` opening | door normal | door open state shown, orange | `--fp-open` (#f28c28) | tap: confirm dialog naming the action, then `cover.open_cover`, or `close_cover` when it is already open; long press: chooser listing every entity the door names, the cover included (S10.3 review) |
-| cover on a `window` or `glass` door | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
+| cover on a `window`, `slit`, `fullwindow` or glass door (`glass`) | door normal | never colours the opening — here `cover` is curtains/blinds, not a security state (2026-09-28) | — | same tap/long-press behaviour as above; only the colour is suppressed |
 | siren | grey | `--fp-danger` icon and halo while its entity is on; rings only when the entity is in the `siren` domain | `--fp-danger` (#b02a2a) | popup (Turn on/off) |
 | alarm (`alarm_control_panel.*`) | grey while `disarmed` | `--fp-danger` icon and halo in every other state but `unavailable` (armed, arming, pending, triggered) | `--fp-danger` (#b02a2a) | more-info (no toggle) |
 | linked tv, speaker or computer piece (furniture with `entity`) | blue (`--fp-dev-tv`) body and edge | `--fp-active` body and edge, by the device rule of its type; waves while a tv or speaker is `playing` | `--fp-dev-tv` idle, `--fp-active` on | more-info, no popup; never a toggle |
@@ -618,6 +686,24 @@ terrace and pavement take ramp shades on the generated themes. The values per th
 
 `ha` is untouched by this system: its neutrals still come from Home Assistant's CSS variables, with `midnight`'s fixed hexes as the fallback, not blueprint's new palette.
 
+## Detail levels (S25)
+
+How much of a plan `renderFloor` draws depends on the zoom, `1` being the whole floor at fit (the smaller of fit width over
+shown width and fit height over shown height, `detailFor` in `src/core/detail.ts`). The plan root carries
+`data-detail="far|mid|near"`; every level rule is CSS keyed on it, so the card and the Studio cannot differ.
+
+| Level | Zoom | Drawn |
+|---|---|---|
+| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots; a device `attention()` reports on (class `needs-attention`) stays a dot even when its state reads off |
+| mid | 1.6 to below 3.2 (`DETAIL_NEAR_FROM`) | device icons, room names, badges |
+| near | 3.2 and up | everything, device names and readings too |
+
+The thresholds are constants, not settings. The mode: `auto` follows the zoom, `full` is always near, `minimal` is always far;
+anything else is `auto` (`parseDetailMode`). The viewer picks it in the Studio's View menu (Detail) and the card's Detail
+button, kept per browser (`floorplan-studio:detail` in the Studio; `detail` in the card's view memory). The card's YAML key
+`detail: auto | full | minimal` is its default and a stored viewer pick wins. Defaults: card `auto` (but `full` where the viewer can neither zoom nor reach the Detail button: kiosk, or `active_list: false` with `zoom: false`), Studio `full` (a device
+just placed must not vanish at fit). Live 3D draws every level.
+
 ## Search (both apps)
 
 One index, `src/core/search.ts` (S24.1). Entries are every floor, every named room and every device and linked piece
@@ -646,7 +732,7 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
 - Search and Outline (S24.5). The top bar holds `<fp-search>` after the floor
   chips ("Search or run a command ⌘K"); Cmd-K, Ctrl-K or `/` focuses it,
   bound on the editor host. Its entries are the plan's (search index above)
-  and six commands that run the menus' own code: Fix or Unfix plan, Draw
+  and six commands that run the menus' own code: Lock or Unlock plan, Draw
   room, Add device…, Zoom to fit, Undo, Save. A pick goes there: a floor
   switches; a room or device switches floor, is selected, and is centred
   with the zoom kept or raised to fit, never zoomed out further than fit; a
@@ -655,6 +741,16 @@ Cmd-K or Ctrl-K anywhere, `/` outside a text field.
   returns to the editor after a pick, so Delete and the arrows act on it.
   The Outline shows where the pick is: its floor and room open, its row the
   tree's tab stop and scrolled into view.
+- Editing at scale (Sprint 26, 0.24.0). Shift+click and Shift+drag select many devices (`marqueeHits` in
+  `src/editor/selection.ts`, taken back through the view's turn); a multi-selection moves, locks and deletes as one,
+  each a single undo step, through the pure edits in `src/editor/bulk.ts`. Lock is one word: the plan toggle holds
+  geometry only, a device, furniture piece or unlinked appliance has a Lock box, and a locked device is not dragged.
+  The Inspector has modes (Selection, Place, Add, Link); with several devices it offers Controlled by, Lock and
+  Delete n. Edit, Link lights to switches previews its pairs (`linkSuggestions`) and Apply is one step. Drawing snaps
+  to 15 degree rays (`snapRay`, Alt off) and takes a typed length (`Draw.placeTyped`). One context menu per object
+  comes from `ctxItems`, also for the Outline's rows. A status bar (`statusFacts`) sits on the foot of the canvas.
+  Acceptance: 20 lights in a room bind to one switch in three user actions (Shift+drag, Controlled by, the switch)
+  and one Undo unbinds all 20. No rendered string says Fix, Unfix or "length locked".
 - Left column, beside the canvas, never over it: tabs (Outline, Layers), collapsed to a 36 px rail by a button, open at 260 px. It starts
   open at 1100 px wide and more. Under 900 px it stacks above the canvas.
   The Outline: a filter field (every word, in names and entity ids; the

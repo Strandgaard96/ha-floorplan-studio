@@ -193,6 +193,20 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
       },
     ],
     [
+      "2000 trees",
+      (g) => {
+        g.furniture = Array.from({ length: 2000 }, (_, i) => ({
+          id: `t${i}`,
+          symbol: "tree",
+          x: (i % 50) * 18,
+          y: Math.floor(i / 50) * 18,
+          rot: i % 360,
+          w: 120 + (i % 7),
+          h: 90 + (i % 5),
+        }));
+      },
+    ],
+    [
       "a NaN and an Infinity size",
       (g) => {
         g.furniture.push(
@@ -261,6 +275,16 @@ test.describe("3D view: hostile layouts, in a real browser (S12.6)", () => {
         .toBeGreaterThan(0);
       // a layout the validator accepts must draw; one it refuses (NaN) falls back to its line
       if (!name.startsWith("a NaN")) expect(await canvas(page).count()).toBe(1);
+      if (name === "2000 trees") {
+        await drawn(page);
+        expect(
+          await page.evaluate(
+            () =>
+              (window as unknown as { __fp3d: { crowns(): { own: { count: number }[] } } }).__fp3d.crowns().own[0]
+                ?.count,
+          ),
+        ).toBe(2000);
+      }
       if (await canvas(page).count()) await drawn(page);
       else
         expect(await card(page).locator("css=.fp-3d-note, p.msg").first().textContent()).toMatch(

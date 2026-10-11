@@ -28,8 +28,21 @@ export {
 } from "./ha";
 export type { AddCandidate, HaBox, HaBoxRow, SwitchChoice } from "./ha";
 export * from "./geometry";
+export {
+  DETAIL_LABELS,
+  DETAIL_MODES,
+  DETAIL_MID_FROM,
+  DETAIL_NEAR_FROM,
+  detailFor,
+  detailLevel,
+  parseDetailMode,
+} from "./detail";
+export type { DetailLevel, DetailMode } from "./detail";
+export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups } from "./spider";
 export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
 export * from "./render";
+export { badges, floorRollups, roomRollup } from "./rollup";
+export type { BadgeCtx, Rollup } from "./rollup";
 export { attachedEntities, groupKind, placedEntities, unplacedCatalog } from "./bind";
 export { ACTIVE_LIST_RULE, activeDevices, groupActiveByType } from "./active";
 export type { ActiveDevice, ThingRef } from "./active";
@@ -58,6 +71,8 @@ export type { LayerId } from "./layers";
 export type { CategoryGroup, CategoryId } from "./categories";
 export { entitiesOfDevice, entitiesOfDoor, moreInfoEntities, playerOf } from "./attachments";
 export * from "./heights";
+export { TRUNK_SIDE, treeShape } from "./tree";
+export type { TreeShape } from "./tree";
 export {
   HEAT_FROM,
   HEAT_TO,
@@ -70,6 +85,7 @@ export {
 } from "./power";
 export type { PowerCandidate } from "./power";
 export * from "./stairs";
+export { floorBelow, floorShift, floorsBelow } from "./floor-stack";
 export { UNLINKED_BASE, WALLS_LABELS, WALLS_MODES, pieceDevice, wallsModeOf } from "./solids";
 export type { WallsMode } from "./solids";
 export {
@@ -104,3 +120,5 @@ export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } 
 export type { SearchEntry, SearchIndex } from "./search";
 export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";
 export type { OffGroup, OffRow } from "./floor-off";
+export { NEAR, WEAK_BELOW, alignFloor, alignKey, alignKeyOf } from "./align";
+export type { AlignResult } from "./align";

@@ -1,9 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { DEVICE_COLOURS, planPivot, rotateAbout, viewBoxFor } from "../../src/core/render";
+import { DEVICE_COLOURS, FLOORPLAN_CSS, planPivot, rotateAbout, renderFloor, viewBoxFor } from "../../src/core/render";
 import { validate, FURNITURE_SYMBOLS, type Layout, type Floor, type WallKind } from "../../src/core/schema";
 import { GUIDE_STEPS, plainBody } from "../../src/editor/guide";
 import { decodePng, pixelAt } from "../core/util/png";
+import { openLabels, pickFurniture, pickUnlinked } from "./menu-helpers";
 
 // Every pointer action goes through page.mouse at real screen coordinates, so the
 // real top element decides what is hit (icons, handles, walls), as for a user.
@@ -167,7 +168,7 @@ async function setGrid(page: Page, g: number) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.setViewportSize({ width: Number(process.env.PW_VW ?? 1280), height: 800 });
   await page.goto("/standalone.html");
   await page.locator("#fixPlan").uncheck(); // the plan opens fixed; these tests edit it
   await expect(page.locator(`${EDITOR} svg polygon[data-r]`).first()).toBeVisible();
@@ -233,16 +234,16 @@ test("Device places one and the list shrinks; removing it makes the list grow", 
   await page.locator("#vdel").click();
   // the light and its relay come back together
   expect(await unplacedCount(page)).toBe(3);
-  expect((await groundOf(page)).devices).toHaveLength(7);
+  expect((await groundOf(page)).devices).toHaveLength(11); // 7, and the four stacked in the Hall (S27.C)
   await openDevice(page);
   await devItem(page, "light-living").click(); // a real click on the visible item
   await expect(unplaced(page)).toHaveCount(2); // S8.5: the panel stays open after a pick
-  expect((await groundOf(page)).devices).toHaveLength(8);
+  expect((await groundOf(page)).devices).toHaveLength(12);
 });
 
 test("Add, Furniture, bed places a bed that can be moved and resized in the panel", async ({ page }) => {
   await menu(page, "Add");
-  await page.locator("#addFurn").selectOption("bed");
+  await pickFurniture(page, "bed");
   let g = await groundOf(page);
   expect(g.furniture).toHaveLength(3);
   const bed = g.furniture[2];
@@ -366,7 +367,6 @@ test("Undo brings back what Reset erased", async ({ page }) => {
   page.once("dialog", (d) => d.accept());
   await menu(page, "File");
   await page.locator("#reset").click();
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await layoutOf(page)).toEqual(before);
 });
@@ -407,7 +407,6 @@ test("break it: Reset cancelled keeps the plan and Load demo stays off", async (
 
 test("undo reverts the last drag", async ({ page }) => {
   await drag(page, 'circle[data-h="r0:1"]', 0, 50);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).rooms[0].pts[1]).toEqual([500, 0]);
 });
@@ -438,7 +437,7 @@ test("a device name with markup is shown as text", async ({ page }) => {
     l.floors.ground.devices[0].name = '<img src=x onerror="window.__pwn=1">';
     el.layout = l;
   }, EDITOR);
-  await menu(page, "View"); // S8.1: Names lives in View
+  await openLabels(page); // S26.17: Names lives in View, Labels
   await page.locator("#names").click();
   await page.waitForTimeout(100);
   expect(await page.evaluate(() => (window as any).__pwn)).toBeUndefined();
@@ -863,7 +862,6 @@ test("a stairs corner can be dragged, renamed in the panel, deleted with the but
   await page.locator("#sdel").click();
   await expect(stairsCount(page)).toHaveCount(1);
   expect((await groundOf(page)).stairs.map((s) => s.id)).toEqual(["stairs-ground-1"]);
-  await menu(page, "File");
   await page.locator("#undo").click();
   await expect(stairsCount(page)).toHaveCount(2);
   const back = (await groundOf(page)).stairs;
@@ -879,9 +877,7 @@ test("Delete removes selected stairs; nothing selected is a no-op with no undo s
   await page.mouse.click(...(Object.values(await screenOf(page, 300, 900)) as [number, number]));
   await page.keyboard.press("Delete");
   expect(await layoutOf(page)).toEqual(demo);
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
-  await menu(page, "File"); // closes it again
   // select the demo stairs by a real click, delete with the key
   const c = await screenOf(page, 740, 500);
   await page.mouse.click(c.x, c.y);
@@ -950,14 +946,12 @@ test("the living light shows its relay; clearing it frees the relay, undo restor
   expect(await bound(page, 0)).toBeUndefined();
   expect("bound" in (await groundOf(page)).devices[0]).toBe(false);
   expect(await unplacedCount(page)).toBe(2);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await bound(page, 0)).toBe(RELAY);
   expect(await unplacedCount(page)).toBe(2);
   // choosing the same value again records no step
   await selectDev(page, 0);
   await pickEntity(page, "#vbound", RELAY);
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
@@ -979,6 +973,7 @@ test("choosing another free switch updates the list and the saved layout validat
   await openDevice(page);
   await expect(devItem(page, "switch-living-relay")).toHaveCount(1);
   await expect(devItem(page, "plug-free")).toHaveCount(1);
+  await page.locator("#addDevClose").click(); // the panel opens centred over the toolbar; File is under it at 1280
   expect(validate(await layoutOf(page)).ok).toBe(true);
   await savedValid(page);
 });
@@ -1018,6 +1013,7 @@ test("S1.32: two lights on one wall switch, and the switch placed as its own ico
   expect(g2.devices.filter((d) => d.bound === RELAY)).toHaveLength(2);
   await expect(page.locator("svg g.dev-light.bound")).toHaveCount(2);
   await expect(page.locator("svg g.dev-switch")).toHaveCount(2); // the hall switch and the relay
+  await page.locator("#addDevClose").click(); // the panel opens centred over the toolbar; File is under it at 1280
   expect(validate(await layoutOf(page)).ok).toBe(true);
   await savedValid(page);
 });
@@ -1115,6 +1111,7 @@ test("a selection made from the Device menu survives the menu closing, then Dele
   await openDevice(page);
   await unplaced(page).first().click();
   await expect(page.locator("g.dev.sel")).toHaveCount(1);
+  await page.locator('aside [role=tab][data-mode="selection"]').click(); // S26.14: Add stays a mode of the aside after a pick; the Selection tab shows the new device
   await expect(page.locator("#panel")).not.toContainText("Nothing selected");
   const n = (await groundOf(page)).devices.length;
   await page.keyboard.press("Delete");
@@ -1153,7 +1150,6 @@ test("Add, Zone places a 200 x 200 cm zone on the grid, centred on the spawn poi
     expect(await edges.nth(i).evaluate((el) => getComputedStyle(el).strokeDasharray)).not.toBe("none");
   }
   expect(await page.locator(`svg polygon[data-r="${n}"]`).evaluate((el) => getComputedStyle(el).fill)).toBe("none");
-  await menu(page, "File");
   await page.locator("#undo").click();
   await expect(roomPolys(page)).toHaveCount(before.rooms.length);
   await savedValid(page);
@@ -1188,7 +1184,6 @@ test("the room panel kind select lists zone and water; picking zone clears every
   const z = (await groundOf(page)).rooms[0];
   expect(z.kind).toBe("zone");
   expect(z.wk).toEqual(["boundary", "boundary", "boundary", "boundary"]);
-  await menu(page, "File");
   await page.locator("#undo").click();
   const back = (await groundOf(page)).rooms[0];
   expect(back.kind).toBe("room");
@@ -1432,9 +1427,9 @@ async function addBareFloor(page: Page, title: string) {
   );
   await expect(page.locator("svg g[data-s]")).toHaveCount(0);
 }
-/** S8.1: Add floor is an item of the Edit menu; the title input still appears after the floor chips. */
+/** S8.1, S27.9: Add floor is an item of the Floors menu; the title input still appears after the floor chips. */
 async function clickAddFloor(page: Page) {
-  await menu(page, "Edit");
+  await menu(page, "Floors");
   const c = await centre(page, "#addFloor");
   await page.mouse.click(c.x, c.y);
 }
@@ -1487,7 +1482,6 @@ test("Add floor then Esc adds nothing and leaves no undo step; Enter on an empty
   await expect(page.locator("#newFloor")).toBeVisible(); // still asking
   await page.keyboard.press("Escape");
   expect(await floorKeys(page)).toEqual(["ground", "first", "test"]);
-  await menu(page, "File");
   await expect(undoBtn(page)).toBeDisabled();
 });
 
@@ -1656,11 +1650,15 @@ test("a floor added, renamed, moved and deleted is four undo steps, one per acti
 // ---- S1.11 draw mode ----
 const DRAW_STATUS = "Click to add points, double-click or Enter to finish, Esc to cancel";
 
-/** Draw, then one Draw item, through the real menu — opening its submenu first (S4.26: Draw is grouped like Add). */
+/** Add, then one Draw item, through the real menu — opening its submenus first (S27.9: Draw is folded into Add; the walls sit in Wall, Draw). */
 async function startDraw(page: Page, id: string) {
-  await menu(page, "Draw");
-  const sub = page.locator(`#mDraw details.sub:has(#${id})`);
-  await sub.locator("summary").click();
+  await menu(page, "Add");
+  const chain = await page.locator(`#${id}`).evaluate((e) => {
+    const out: string[] = [];
+    for (let d = e.closest("details.sub"); d; d = d.parentElement?.closest("details.sub") ?? null) out.unshift(d.id);
+    return out;
+  });
+  for (const sub of chain) await page.locator(`#${sub} > summary`).click();
   await page.locator(`#${id}`).click(); // scrolls the menu to the item; the menu is taller than a short window
 }
 /** Real clicks at plan points (cm). */
@@ -1672,7 +1670,7 @@ const svgCursor = (page: Page) =>
     .locator("svg")
     .first()
     .evaluate((s) => getComputedStyle(s).cursor);
-const drawnPoints = (page: Page) => page.locator("svg [data-dp]");
+const drawnPoints = (page: Page) => page.locator("svg circle[data-dp]");
 // Free ground below the house (outline ends at y 600), away from every corner. Off-grid on purpose:
 // the snapped points differ from the pointer, so a click that skipped snapping is caught.
 const FREE: [number, number][] = [
@@ -1785,12 +1783,13 @@ test("Backspace removes the last point; the shape then uses the remaining ones",
   await clicksCm(page, [103, 632], [297, 633], [298, 668]);
   await page.keyboard.press("Backspace");
   await expect(drawnPoints(page)).toHaveCount(2);
-  await clicksCm(page, [200, 668]);
+  // S26.12: a point goes on a 15 degree ray from the last one, so the replacement point is straight down from [295, 630]
+  await clicksCm(page, [295, 700]);
   await page.keyboard.press("Enter");
   expect((await groundOf(page)).rooms.at(-1)!.pts).toEqual([
     [105, 630],
     [295, 630],
-    [200, 670],
+    [295, 700],
   ]);
 });
 
@@ -2062,11 +2061,11 @@ test("draw items keep the single-shape Add items: Zone still adds a square in on
 const search = (page: Page) => page.locator("#addDevSearch");
 const shown = (page: Page) => page.locator("#addDevPanel button[data-add]:visible");
 
-test("the toolbar order is Add, Draw, View, Edit, File; Device… is a button of Add, right after Areas", async ({
+test("the toolbar order is Add, Floors, View, Edit, File; Device… is a button of Add, right after Areas", async ({
   page,
 }) => {
-  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Draw", "View", "Edit", "File"]); // S8.1: an Edit menu; S24.6: Filter gone, Layers is a tab
-  await expect(page.locator("#mAdd select")).toHaveCount(2); // furniture and unlinked-device selects (S4.25)
+  await expect(page.locator("details.menu > summary")).toHaveText(["Add", "Floors", "View", "Edit", "File"]); // S8.1: an Edit menu; S24.6: Filter gone, Layers is a tab
+  await expect(page.locator("#mAdd select")).toHaveCount(0); // S26.17: Furniture and Unlinked device are submenus of buttons, no select
   await menu(page, "Add");
   const subs = await page.locator("#mAdd > .box > *").evaluateAll((els) => els.map((e) => e.id || e.tagName));
   const areasIdx = subs.indexOf("addAreas");
@@ -2200,7 +2199,7 @@ test("S8.10 follow-up: at 380 wide the right-aligned cluster takes its own full-
 test("S8.10 follow-up (Opus review): every menu's dropdown box stays inside the viewport at every toolbar width", async ({
   page,
 }) => {
-  const menus = ["mAdd", "mDraw", "mOpt", "mEdit", "mFile"]; // S24.6: no Filter menu
+  const menus = ["mAdd", "mFloors", "mOpt", "mEdit", "mFile"]; // S24.6: no Filter menu
   for (const width of [380, 600, 769, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     for (const id of menus) {
@@ -2332,7 +2331,7 @@ test("Escape in the search field closes the panel and gives the keys back to the
   await expect(page.locator("#addDevPanel")).toHaveCount(0);
   await selectDev(page, 0);
   await page.keyboard.press("Delete");
-  expect((await groundOf(page)).devices).toHaveLength(7);
+  expect((await groundOf(page)).devices).toHaveLength(11); // 7, and the four stacked in the Hall (S27.C)
 });
 
 test("a device name with markup is text in the Device panel, and a click on it places that device", async ({
@@ -2390,19 +2389,22 @@ test("Opus review CSS pair: a long device name in the Add panel row is ellipsise
   expect(Math.abs(textLeft - sub!.x)).toBeLessThan(2);
 });
 
-test("S8.8: the Add > Device panel and the room Place popup are noticeably larger than the S8.5 baseline (520px/440px wide)", async ({
+test("S26.14: the Add and Place modes fill the aside, the same width as its other panels (they were floating 780/660 px panels)", async ({
   page,
 }) => {
   await openDevice(page);
-  const addBox = await page.locator("#addDevPanel").boundingBox();
-  expect(addBox!.width).toBeGreaterThan(520 * 1.4); // was 520/522, now clamped-50%-larger
+  const aside = (await page.locator("aside").boundingBox())!;
+  const addBox = (await page.locator("#addDevPanel").boundingBox())!;
+  expect(addBox.width).toBeGreaterThan(aside.width - 40);
+  expect(addBox.width).toBeLessThanOrEqual(aside.width);
   await page.locator("#addDevClose").click();
   await setHa(page, PLACE_HA_FOR_SIZE);
   const c = await screenOf(page, 200, 150); // inside Living
   await page.mouse.click(c.x, c.y);
   await page.locator("#rplace").click();
-  const placeBox = await page.locator("#placePanel").boundingBox();
-  expect(placeBox!.width).toBeGreaterThan(440 * 1.4); // was 440/442, now clamped-50%-larger
+  const placeBox = (await page.locator("#placePanel").boundingBox())!;
+  expect(placeBox.width).toBeGreaterThan(aside.width - 40);
+  expect(placeBox.width).toBeLessThanOrEqual(aside.width);
 });
 
 // A minimal HA fixture with one placeable living-room light, just to open the Place popup for the size check above.
@@ -2537,7 +2539,6 @@ test("the length field sets the length and keeps the midpoint and the direction"
   expect(mid(o)).toEqual(mid(before));
   expect(o.a[0]).toBe(before.a[0]);
   expect(Math.sign(o.b[1] - o.a[1])).toBe(Math.sign(before.b[1] - before.a[1]));
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(len((await gaps(page))[0])).toBe(120); // one step
   await expect(page.locator("#undo")).toBeEnabled();
@@ -2551,7 +2552,6 @@ test("the length field ignores an unchanged value and rubbish", async ({ page })
   await page.locator("#ol").fill("");
   await page.locator("#ol").press("Enter");
   expect(await gaps(page)).toEqual(o);
-  await menu(page, "File");
   await page.locator("#undo").click(); // undoes the add itself: the unchanged 120 and the empty field left no step of their own
   expect(await gaps(page)).toEqual([]);
 });
@@ -3238,7 +3238,6 @@ test("S1.52: Delete on a perimeter edge stops drawing it, and one undo brings it
   expect(g.owk?.[0]).toBe("none");
   await expect(page.locator('svg line.e.none[data-e="o:0"]')).toHaveCount(1); // a guide only in the editor, not a drawn line
   await expect(page.locator("#edel")).toHaveCount(0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   const u = await groundOf(page);
   expect(u.owk?.[0]).toBe("external");
@@ -3266,7 +3265,6 @@ test("Opus review: Delete on the unmodified demo clears the room edge AND the ou
   await expect(page.locator('svg line.e:not(.none)[data-e="o:0"]')).toHaveCount(0);
   await expect(page.locator('svg line.e.none[data-e="r0:0"]')).toHaveCount(1); // a faint guide only, as usual
   await expect(page.locator('svg line.e.none[data-e="o:0"]')).toHaveCount(1);
-  await menu(page, "File");
   await page.locator("#undo").click(); // one undo step restores both kinds together
   const u = await groundOf(page);
   expect(u.rooms[0].wk[0]).toBe("external");
@@ -3451,7 +3449,7 @@ test("Add, Wall, Zone, Stairs and Furniture all land right of the house, top ali
   await addMenuItem(page, "#addZone");
   await addMenuItem(page, "#addStairs");
   await menu(page, "Add");
-  await page.locator("#addFurn").selectOption("bed");
+  await pickFurniture(page, "bed");
   const g = await groundOf(page);
   const pts: number[][] = [
     ...g.walls.flatMap((w) => [w.a, w.b]),
@@ -3471,7 +3469,7 @@ test("S5.1: every FURNITURE_SYMBOLS entry can be placed from the Add menu, and t
   const before = (await groundOf(page)).furniture.length;
   for (const sym of FURNITURE_SYMBOLS) {
     await menu(page, "Add");
-    await page.locator("#addFurn").selectOption(sym);
+    await pickFurniture(page, sym);
   }
   const l = await layoutOf(page),
     g = l.floors.ground;
@@ -3483,7 +3481,7 @@ test("S5.1 break it: a furniture piece rotated past 360 by repeated button click
   page,
 }) => {
   await menu(page, "Add");
-  await page.locator("#addFurn").selectOption("bed"); // placing selects it
+  await pickFurniture(page, "bed"); // placing selects it
   for (let i = 0; i < 5; i++) await page.locator("#fr90").click(); // 5 x 90 = 450
   const g = await groundOf(page);
   expect(g.furniture[g.furniture.length - 1].rot).toBe(90);
@@ -3537,7 +3535,7 @@ const NEW_SHAPES: [string, (page: Page) => Promise<void>, string][] = [
     "furniture",
     async (p) => {
       await menu(p, "Add");
-      await p.locator("#addFurn").selectOption("bed");
+      await pickFurniture(p, "bed");
     },
     'g[data-f="2"]',
   ],
@@ -3615,48 +3613,50 @@ const DRAW_IDS = [
   "drawExtra",
 ];
 // S4.26: grouped like Add — Openings, Wall, Areas — so DOM order differs from DRAW_IDS' logical grouping.
-const DRAW_IDS_DOM = [
-  "drawOpening",
-  "drawWall-wall",
-  "drawWall-boundary",
-  "drawWall-external",
-  "drawWall-fence",
-  "drawWall-edge",
-  "drawWall-parapet",
-  "drawRoom",
-  "drawZone",
-  "drawWater",
-  "drawOutline",
-  "drawExtra",
-];
 
-test("the Add menu holds no Draw item and no Water; the Draw menu holds all twelve", async ({ page }) => {
-  for (const id of [...DRAW_IDS, "addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
-  await expect(page.locator("#mAdd .grp, #mAdd .sep").filter({ hasText: /Draw/ })).toHaveCount(0);
-  const ids = await page.locator("#mAdd button").evaluateAll((b) => b.map((x) => x.id));
+test("S27.9: Add holds all twelve Draw buttons in its submenus, no Water or Wall item of the old kind, and there is no Draw menu", async ({
+  page,
+}) => {
+  for (const id of ["addWater", "addWall"]) await expect(page.locator(`#mAdd #${id}`)).toHaveCount(0);
+  await expect(page.locator("#mDraw")).toHaveCount(0);
+  // S26.17: the furniture and unlinked-type buttons live in their own submenus and are counted in menu-cleanup.spec.ts
+  const ids = await page
+    .locator('#mAdd button:not([id^="addFurn-"]):not([id^="addUnlDev-"])')
+    .evaluateAll((b) => b.map((x) => x.id));
   expect(ids).toEqual([
     "addDoor",
     "addOpenDoor",
     "addWin",
     "addSlit",
     "addGap",
+    "drawOpening",
     "addWall-wall",
     "addWall-boundary",
     "addWall-external",
     "addWall-fence",
     "addWall-edge",
     "addWall-parapet",
+    "drawWall-wall",
+    "drawWall-boundary",
+    "drawWall-external",
+    "drawWall-fence",
+    "drawWall-edge",
+    "drawWall-parapet",
     "addStr",
     "addZone",
     "addStairs",
+    "drawRoom",
+    "drawZone",
+    "drawWater",
+    "drawOutline",
+    "drawExtra",
     "addDevBtn",
   ]);
-  await expect(page.locator("#mAdd select#addFurn")).toHaveCount(1);
-  expect(await page.locator("#mDraw button").evaluateAll((b) => b.map((x) => x.id))).toEqual(DRAW_IDS_DOM);
-  expect(new Set(DRAW_IDS_DOM)).toEqual(new Set(DRAW_IDS));
+  expect(new Set(ids.filter((i) => i.startsWith("draw")))).toEqual(new Set(DRAW_IDS));
+  await expect(page.locator("#mAdd details.sub#addFurn")).toHaveCount(1); // S26.17: a submenu of buttons, no select
   // and they are really there to click: open, visible, inside the window
-  await menu(page, "Draw");
-  await page.locator(`#mDraw details.sub > summary:text-is("Areas")`).click();
+  await menu(page, "Add");
+  await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
   const box = await page.locator("#drawRoom").boundingBox();
   expect(box).not.toBeNull();
   expect(box!.x).toBeGreaterThanOrEqual(0);
@@ -3673,11 +3673,11 @@ test("S4.11: Add's items sit under three submenus by group, Furniture stays flat
   await menu(page, "Add");
   // grouped correctly
   for (const id of ["addDoor", "addOpenDoor", "addWin", "addSlit", "addGap"])
-    await expect(subOf(id).locator("summary")).toHaveText("Openings");
-  for (const k of WALL_KINDS) await expect(subOf(`addWall-${k}`).locator("summary")).toHaveText("Wall");
-  for (const id of ["addStr", "addZone", "addStairs"]) await expect(subOf(id).locator("summary")).toHaveText("Areas");
-  // Furniture is not inside any submenu
-  await expect(page.locator("#mAdd > .box > #addFurn")).toHaveCount(1);
+    await expect(subOf(id).locator("> summary")).toHaveText("Openings");
+  for (const k of WALL_KINDS) await expect(subOf(`addWall-${k}`).locator("> summary")).toHaveText("Wall");
+  for (const id of ["addStr", "addZone", "addStairs"]) await expect(subOf(id).locator("> summary")).toHaveText("Areas");
+  // S26.17: Furniture is a submenu of its own, a direct child of the box
+  await expect(page.locator("#mAdd > .box > details.sub#addFurn")).toHaveCount(1);
   await menu(page, "Add"); // close
   // every existing id still resolves, one submenu-open click deeper (exercises addItem's routing for one of each group)
   for (const id of ["#addDoor", "#addWall-wall", "#addZone"]) {
@@ -3708,17 +3708,20 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
   await menu(page, "Add");
   await page.locator(`#mAdd details.sub > summary:text-is("Openings")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Wall")`).click();
+  await page.locator(`#mAdd details.sub > summary:text-is("Draw")`).click();
   await page.locator(`#mAdd details.sub > summary:text-is("Areas")`).click();
   const order = await page
     .locator("#mAdd .box *:is(summary, button, select)")
-    .evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim()));
-  expect(order).toEqual([
+    .evaluateAll((els) => els.map((e) => e.id || e.textContent?.trim() || ""));
+  // S26.17: Furniture and Unlinked device are submenus of buttons now; only one submenu is open at a time, all are in the DOM.
+  const head = [
     "Openings",
     "addDoor",
     "addOpenDoor",
     "addWin",
     "addSlit",
     "addGap",
+    "drawOpening",
     "Wall",
     "addWall-wall",
     "addWall-boundary",
@@ -3726,14 +3729,29 @@ test("S4.11: Tab reaches every Add item in DOM order, submenus included", async 
     "addWall-fence",
     "addWall-edge",
     "addWall-parapet",
+    "Draw",
+    "drawWall-wall",
+    "drawWall-boundary",
+    "drawWall-external",
+    "drawWall-fence",
+    "drawWall-edge",
+    "drawWall-parapet",
     "Areas",
     "addStr",
     "addZone",
     "addStairs",
+    "drawRoom",
+    "drawZone",
+    "drawWater",
+    "drawOutline",
+    "drawExtra",
     "addDevBtn",
-    "addFurn",
-    "addUnlDev",
-  ]);
+    "Furniture",
+  ];
+  expect(order.slice(0, head.length)).toEqual(head);
+  const furnEnd = order.indexOf("Unlinked device");
+  expect(order.slice(head.length, furnEnd)).toEqual(FURNITURE_SYMBOLS.map((y) => `addFurn-${y}`));
+  expect(order.slice(furnEnd + 1).every((id) => id.startsWith("addUnlDev-"))).toBe(true);
 });
 
 test("each Add, Wall item places a 200 cm wall of its kind at the spawn point, selected, in one undo step", async ({
@@ -3814,15 +3832,15 @@ test("a locked opening's dragged end pivots on an arc of fixed radius", async ({
   expect(o2.a).not.toEqual(o.a);
 });
 
-test("opening Draw closes Add, and a Draw item starts drawing with the Draw menu closed", async ({ page }) => {
+test("opening Floors closes Add, and a Draw item starts drawing with the Add menu closed", async ({ page }) => {
   await menu(page, "Add");
   await expect(page.locator("#mAdd")).toHaveJSProperty("open", true);
-  await menu(page, "Draw");
+  await menu(page, "Floors");
   await expect(page.locator("#mAdd")).toHaveJSProperty("open", false);
-  await expect(page.locator("#mDraw")).toHaveJSProperty("open", true);
-  await page.locator(`#mDraw details.sub:has(#drawWall-fence) summary`).click();
-  await page.locator("#drawWall-fence").click();
-  await expect(page.locator("#mDraw")).toHaveJSProperty("open", false);
+  await expect(page.locator("#mFloors")).toHaveJSProperty("open", true);
+  await startDraw(page, "drawWall-fence");
+  await expect(page.locator("#mFloors")).toHaveJSProperty("open", false);
+  await expect(page.locator("#mAdd")).toHaveJSProperty("open", false);
   expect(await svgCursor(page)).toBe("crosshair");
   await expect(page.locator("#status")).toHaveText(DRAW_STATUS);
 });
@@ -3992,7 +4010,6 @@ test("a door's angle field turns it about its midpoint: at 90 the ends swap axis
     .boundingBox();
   if (d1.a[0] === d1.b[0]) expect(box!.height).toBeGreaterThan(box!.width * 2);
   else expect(box!.width).toBeGreaterThan(box!.height * 2);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).doors.at(-1)).toEqual(d0);
   await savedValid(page);
@@ -4049,7 +4066,6 @@ test("a device rotation is stored, drawn on the group and undone; the glyph stay
   await page.locator("#vrotreset").click();
   expect("rot" in (await groundOf(page)).devices[0]).toBe(false); // the key is deleted at 0
   await page.locator("#vrotreset").click(); // already 0: no step
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(((await groundOf(page)).devices[0] as { rot?: number }).rot).toBe(90);
   await savedValid(page);
@@ -4089,7 +4105,6 @@ test("a room that shares corners cannot be rotated until it is unsnapped; unsnap
   const d = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
   expect(Math.abs(d(turned.rooms[0].pts[0], turned.rooms[0].pts[1]) - 500)).toBeLessThanOrEqual(1);
   expect(Math.abs(d(turned.rooms[0].pts[1], turned.rooms[0].pts[2]) - 400)).toBeLessThanOrEqual(1);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).rooms[0].pts).toEqual(free.rooms[0].pts); // one step back
   await savedValid(page);
@@ -4255,7 +4270,6 @@ test("Add, Stairs puts the same stairs on every floor; Delete removes them from 
     "Added to every floor; deleted from one only",
   );
   // one undo step for all floors
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeEnabled();
   await menu(page, "File");
   // on the first floor by a real click on the stairs' body, then delete: the ground floor keeps its own
@@ -4277,9 +4291,7 @@ test("Add, Stairs puts the same stairs on every floor; Delete removes them from 
   expect(after.floors.first.stairs).toHaveLength(0);
   expect(after.floors.ground.stairs).toHaveLength(2);
   // Undo the delete, then Undo the add: every floor is back to what it was
-  await menu(page, "File");
   await page.locator("#undo").click();
-  await menu(page, "File");
   await page.locator("#undo").click();
   const back = await layoutOf(page);
   expect(back.floors.ground.stairs).toEqual(before.floors.ground.stairs);
@@ -4354,7 +4366,7 @@ test("S1.28: every item Delete is orange", async ({ page }) => {
   await expectWarn(page, "#vdel");
   // furniture, stairs, wall, door, opening: added, so they are selected
   await menu(page, "Add");
-  await page.locator("#addFurn").selectOption("bed");
+  await pickFurniture(page, "bed");
   await expectWarn(page, "#fudel");
   await addStairs(page);
   await expectWarn(page, "#sdel");
@@ -4369,7 +4381,7 @@ test("S1.28: every item Delete is orange", async ({ page }) => {
 test("S1.28: the floor panel and the furniture panel each own their id", async ({ page }) => {
   await expect(page.locator("#fdel")).toHaveText("Delete floor");
   await menu(page, "Add");
-  await page.locator("#addFurn").selectOption("bed");
+  await pickFurniture(page, "bed");
   await expect(page.locator("#fdel")).toHaveCount(0);
   await expect(page.locator("#fudel")).toHaveText("Delete");
   await page.locator("#fudel").click();
@@ -4514,13 +4526,11 @@ test("S1.33: Edit has Rotate the plan; right steps +45, left steps -45, wrapping
   await page.locator("#rotl").click();
   await expect(page.locator("#rotv")).toContainText("315°");
   expect(await rotOf(page)).toBe(315);
-  await menu(page, "File");
+  await menu(page, "Edit"); // close it: the open Edit box covers Undo when the toolbar wraps
   await page.locator("#undo").click();
   expect(await rotOf(page)).toBe(0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await rotOf(page)).toBe(45);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await rotOf(page)).toBe(0);
   await expect(page.locator("#undo")).toBeDisabled(); // exactly three steps
@@ -4689,7 +4699,7 @@ for (const deg of [45, 90]) {
     });
 
     test("names, values and icons stay upright: their screen matrix has no turn", async ({ page }) => {
-      await menu(page, "View"); // S8.1: Names lives in View
+      await openLabels(page); // S26.17: Names lives in View, Labels
       await page.locator("#names").click();
       const turns = await rpt(page).evaluate((host) => {
         const svg = (host as any).shadowRoot.querySelector("svg") as SVGSVGElement;
@@ -4886,7 +4896,6 @@ test("S1.35: the Belgian stone swatch sets the fill, one undo step; the default 
   expect(await computed()).toBe("rgb(77, 78, 80)");
   expect((await groundOf(page)).rooms[0].color).toBe("#4d4e50");
   await expect(page.locator("#rcol")).toHaveValue("#4d4e50"); // the free input follows
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await computed()).toBe(plain);
   await page.mouse.click(at.x, at.y); // an undo leaves the room selected or not; select it
@@ -5004,11 +5013,9 @@ test("S1.36: changing the light colour reaches every light icon, camera colour c
   await setColourInput(page, "camera", "#0000ff");
   expect(await camFill(page)).toBe("rgb(0, 0, 255)");
   expect(await camFill(page)).not.toBe(cam0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await camFill(page)).toBe(cam0);
   expect((await layoutOf(page)).colors).toEqual({ light: "#123456" });
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await layoutOf(page)).colors).toBeUndefined();
   expect(await varOn(page, lights, "--fp-dev-light")).toBe("#ff8a1f"); // blueprint's --fp-dev-light collapses to the single accent
@@ -5022,7 +5029,6 @@ test("S1.36: a row's reset and Reset all remove colours, each one undo step", as
   expect((await layoutOf(page)).colors).toEqual({ tv: "#654321" });
   await page.locator(`${EDITOR} #devcolsx`).click();
   expect((await layoutOf(page)).colors).toBeUndefined();
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await layoutOf(page)).colors).toEqual({ tv: "#654321" });
 });
@@ -5112,12 +5118,10 @@ for (const [floor, deg] of [
     expect(now.bad).toEqual([]);
     expect(now.n).toBeGreaterThan(3);
     expect(JSON.stringify(await layoutOf(page))).toBe(before); // a view change writes nothing
-    await menu(page, "File");
     if (!deg) await expect(page.locator("#undo")).toBeDisabled();
     else {
       await page.locator("#undo").click();
       expect(await rotOf(page)).toBe(0);
-      await menu(page, "File");
       await expect(page.locator("#undo")).toBeDisabled();
     } // the one step is the rotation
   });
@@ -5234,7 +5238,6 @@ test("S1.38: picking an area writes its id and its name, one undo restores both"
   let r = (await groundOf(page)).rooms[0];
   expect(r).toMatchObject({ area: "study", name: "Study" });
   await expect(page.locator("#rn")).toHaveCount(0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   r = (await groundOf(page)).rooms[0];
   expect(r).toMatchObject({ area: "living", name: "Living" });
@@ -5293,7 +5296,7 @@ test("S1.38: the floor links to an HA floor and unlinking brings the title field
 test("S1.38: furniture has a plan name and an entity picker", async ({ page }) => {
   await setHa(page, HA);
   await menu(page, "Add");
-  await page.locator("#addFurn").selectOption("bed");
+  await pickFurniture(page, "bed");
   await page.locator("#fun").fill("Guest bed");
   await page.locator("#fun").press("Enter");
   await pickEntity(page, "#fuent", "light.lamp");
@@ -5400,7 +5403,7 @@ test("S1.41: a refused inner diameter snaps back, an accepted one stays", async 
 
 test("S1.41: a clamped furniture width shows the clamped value", async ({ page }) => {
   await menu(page, "Add");
-  await page.locator("#addFurn").selectOption("bed");
+  await pickFurniture(page, "bed");
   await setField(page, "#fw", "1");
   await expect(page.locator("#fw")).toHaveValue("5");
   expect((await groundOf(page)).furniture.at(-1)!.w).toBe(5);
@@ -5558,14 +5561,13 @@ test("S1.43: one press is one undo step; 360 wraps", async ({ page }) => {
   for (let i = 0; i < 4; i++) await page.locator("#srot90").click();
   expect((await groundOf(page)).stairs[1].rot).toBe(0);
   await page.locator("#srot90").click();
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).stairs[1].rot).toBe(0);
 });
 
 test("S1.43: furniture and devices turn; the device Reset deletes rot", async ({ page }) => {
   await menu(page, "Add");
-  await page.locator("#addFurn").selectOption("bed");
+  await pickFurniture(page, "bed");
   await page.locator("#fr45").click();
   await page.locator("#fr45").click();
   expect((await groundOf(page)).furniture.at(-1)!.rot).toBe(90);
@@ -5627,7 +5629,7 @@ test("S1.46: room, zone, device and extra names and the edge length are dark gre
     l.floors.ground.rooms[0].color = "#222222";
     el.layout = l;
   }, EDITOR);
-  await menu(page, "View"); // S8.1: Names lives in View
+  await openLabels(page); // S26.17: Names lives in View, Labels
   await page.locator("#names").click();
   await page.mouse.click(...(Object.values(await screenOf(page, 500, 200)) as [number, number])); // a click on the shared edge shows its length
   const kinds = ["svg text.lbl[data-rl]:not(.zone)", "svg text.lbl.zone", "svg text.len"];
@@ -5683,7 +5685,6 @@ test("S1.47: Delete on a shared edge stops drawing it on both rooms, and one und
   expect(await twins(page)).toBe(before - 2);
   await expect(page.locator('svg line.e.none[data-e="r0:1"]')).toHaveCount(1);
   await expect(page.locator("#edel")).toHaveCount(0);
-  await menu(page, "File");
   await page.locator("#undo").click();
   const u = await groundOf(page);
   expect(u.rooms[0].wk[1]).toBe("wall");
@@ -5739,7 +5740,6 @@ test("S1.47: Delete on the edge Hall shares in halves leaves no line drawn; one 
   expect(onSeam.length).toBe(3); // Living's, Kitchen's and Hall's edge
   expect(onSeam.map((e) => e.k)).toEqual(onSeam.map(() => "none"));
   expect(await twins(page)).toBe(lines - 3);
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect(await groundOf(page)).toEqual(before);
   await expect(page.locator("#undo")).toBeDisabled();
@@ -5787,7 +5787,7 @@ for (const [wall, kind, label] of [
     await expect(page.locator("#rn")).toHaveValue(`New ${kind}`);
     await expect(page.locator("[data-draw]")).toHaveCount(0);
     expect(validate(await layoutOf(page)).ok).toBe(true);
-    await menu(page, "File"); // the name field has focus, so Ctrl+Z would undo typing
+    // The name field has focus, so Ctrl+Z would undo typing: click the toolbar button.
     await page.locator("#undo").click();
     expect(await groundOf(page)).toEqual(before); // the walls are only drawn on commit, so one undo removes the room and leaves no walls
     await expect(page.locator("#undo")).toBeDisabled();
@@ -5801,9 +5801,7 @@ test("walls closed on the first point: one undo leaves nothing behind, redo brin
   await startDraw(page, "drawWall-wall");
   await clicksCm(page, ...LOOP, LOOP[0]);
   const after = await groundOf(page);
-  await menu(page, "File");
   await page.locator("#undo").click();
-  await menu(page, "File");
   await page.locator("#redo").click();
   expect(await groundOf(page)).toEqual(after);
 });
@@ -7027,7 +7025,6 @@ test("S1.50 break it: an empty floor draws a grid around the origin with no erro
   await menu(page, "View");
   await page.locator("#mgrid").click();
   await menu(page, "View");
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled(); // the toggle is a viewer preference, not an undo step
 });
 
@@ -7096,7 +7093,6 @@ test("S1.51: dragging the se handle grows the sofa while nw stays put; the panel
   const nwBefore: [number, number] = [SOFA.x - SOFA.w / 2, SOFA.y - SOFA.h / 2];
   const nwAfter: [number, number] = [m.x - m.w / 2, m.y - m.h / 2];
   expect(Math.hypot(nwAfter[0] - nwBefore[0], nwAfter[1] - nwBefore[1])).toBeLessThan(1);
-  await menu(page, "File");
   await page.locator("#undo").click();
   const undone = (await groundOf(page)).furniture[0];
   expect(undone).toEqual({
@@ -7144,7 +7140,6 @@ test("S1.51: a corner drag that ends where it started adds no undo step", async 
   await page.mouse.click(c.x, c.y);
   // Alt disables the grid, like every other handle, so a true no-op drag lands on the exact same corner.
   await dragCm(page, [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], [SOFA.x + SOFA.w / 2, SOFA.y + SOFA.h / 2], ["Alt"]);
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
@@ -8316,19 +8311,20 @@ test("S18.14: the device type select lists popular types, one unselectable separ
   expect(await sel.evaluate((s: HTMLSelectElement) => s.selectedOptions.length)).toBe(1);
 });
 
-test("S18.14: the unlinked device menu takes the same order: its placeholder, popular types, one separator, the rest A to Z", async ({
+test("S18.14: the unlinked device menu takes the same order: popular types, one separator, the rest A to Z (buttons since S26.17)", async ({
   page,
 }) => {
   await menu(page, "Add");
+  await page.locator("#addUnlDev > summary").click();
   const kids = await page
-    .locator("#addUnlDev")
-    .evaluate((s) =>
-      [...s.children].map((c) => (c.tagName === "HR" ? "---" : `${(c as HTMLOptionElement).value}|${c.textContent}`)),
+    .locator("#addUnlDev > :not(summary)")
+    .evaluateAll((els) =>
+      els.map((c) => (c.classList.contains("sep") ? "---" : `${c.id.replace("addUnlDev-", "")}|${c.textContent}`)),
     );
   const popular = ["light", "speaker", "tv"]; // the popular types this menu offers, in POPULAR_TYPES order
-  expect(kids.slice(0, 5).map((k) => k.split("|")[0])).toEqual(["", ...popular, "---"]);
+  expect(kids.slice(0, 4).map((k) => k.split("|")[0])).toEqual([...popular, "---"]);
   expect(kids.filter((k) => k === "---")).toHaveLength(1);
-  const rest = kids.slice(5).map((k) => k.split("|")[1]);
+  const rest = kids.slice(4).map((k) => k.split("|")[1]);
   expect(rest).toEqual([...rest].sort((a, b) => a.localeCompare(b, "en")));
   expect(rest.length).toBeGreaterThan(5);
 });
@@ -8529,20 +8525,23 @@ async function rightClickCm(page: Page, x: number, y: number) {
  */
 const PAGE_CORNER = { x: 5, y: 5 };
 
-test("S4.18: right-clicking a room selects it and opens a context menu with Change colour and Delete", async ({
+test("S4.18: right-clicking a room selects it and opens a context menu with Rename, Bring to front and Delete (S26.20: Change colour lives in the panel)", async ({
   page,
 }) => {
   await rightClickCm(page, 200, 150); // inside Living
   await expect(page.locator("#rk")).toHaveValue("room"); // the room panel is already open, per the design decision
   const menu = page.locator(".ctxmenu");
   await expect(menu).toBeVisible();
-  await expect(menu.locator("#cmColour")).toBeVisible();
+  await expect(menu.locator("#cmRename")).toBeVisible();
+  await expect(menu.locator("#cmToFront")).toBeVisible();
   await expect(menu.locator("#cmDelete")).toBeVisible();
 });
 
-test("S4.18: right-clicking the background or a device opens no menu", async ({ page }) => {
+test("S4.18 / S26.20: right-clicking the background opens the canvas menu, not a room's", async ({ page }) => {
   await rightClickCm(page, 950, 700); // outside every room
-  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  await expect(page.locator(".ctxmenu")).toBeVisible();
+  await expect(page.locator(".ctxmenu #cmAddDeviceHere")).toBeVisible();
+  await expect(page.locator(".ctxmenu #cmToFront")).toHaveCount(0);
 });
 
 test("S4.18: outside click, Escape and scroll all close the context menu", async ({ page }) => {
@@ -8661,7 +8660,7 @@ test("S4.26: 'Add device from <area>' places the device at the right-click point
 
 // ---- S4.27: right-click context menu on a wall (a room edge or the outline) --------------------------------------
 
-test("S4.27: right-clicking a wall selects it (the side panel shows its kind, like the room menu) and opens a context menu with Change type, Add a point, Add an opening, Delete", async ({
+test("S4.27: right-clicking a wall selects it (the side panel shows its kind, like the room menu) and opens a context menu with Change type, Add a point, Add door, Add window, Add opening, Delete", async ({
   page,
 }) => {
   await rightClickCm(page, 500, 300); // the Living / Kitchen shared wall
@@ -8670,18 +8669,16 @@ test("S4.27: right-clicking a wall selects it (the side panel shows its kind, li
   await expect(menu).toBeVisible();
   for (const label of ["Dotted boundary", "External wall", "Fence", "Outdoor edge", "Add a point", "Delete"])
     await expect(menu.locator("button", { hasText: label })).toBeVisible();
-  await expect(menu.locator("summary", { hasText: "Add an opening" })).toBeVisible(); // S4.31: a submenu, not a plain button
+  for (const label of ["Add door", "Add window", "Add opening"])
+    await expect(menu.locator("button", { hasText: label })).toBeVisible(); // S26.20: three plain items from ctxItems, no submenu
   // an edge (a room boundary) has no Fix/Unfix — only a free wall does
   await expect(menu.locator("button", { hasText: "Fix" })).toHaveCount(0);
 });
 
-test("S4.31: 'Add an opening' on a wall is a submenu offering Door, Window and Opening, each placed centred on the right-click point", async ({
-  page,
-}) => {
+test("S4.31: 'Add door' on a wall's menu places a door centred on the right-click point", async ({ page }) => {
   await rightClickCm(page, 500, 300); // the wall's own midpoint is (500,200) — 100 cm away from this point
   const menu = page.locator(".ctxmenu");
-  await menu.locator("summary", { hasText: "Add an opening" }).click();
-  await menu.locator("details.sub button", { hasText: /^Door$/ }).click();
+  await menu.locator("#cmAddDoor").click();
   await expect(menu).toHaveCount(0);
   const d = (await groundOf(page)).doors.at(-1)!;
   expect(d.kind).toBe("door");
@@ -8689,27 +8686,24 @@ test("S4.31: 'Add an opening' on a wall is a submenu offering Door, Window and O
   expect((d.a[1] + d.b[1]) / 2).toBeCloseTo(300, 0);
 });
 
-test("the wall menu's 'Add an opening' offers Open doorway: a door of kind open, centred on the right-click point, one undo step", async ({
+test("the wall menu's 'Add window' places a window centred on the right-click point, one undo step", async ({
   page,
 }) => {
   const before = (await groundOf(page)).doors.length;
   await rightClickCm(page, 500, 300);
-  const menu = page.locator(".ctxmenu");
-  await menu.locator("summary", { hasText: "Add an opening" }).click();
-  await menu.locator("details.sub button", { hasText: /^Open doorway$/ }).click();
+  await page.locator(".ctxmenu #cmAddWindow").click();
   const d = (await groundOf(page)).doors;
   expect(d).toHaveLength(before + 1);
-  expect(d.at(-1)).toMatchObject({ kind: "open", name: "new open doorway" });
+  expect(d.at(-1)).toMatchObject({ kind: "window" });
   expect((d.at(-1)!.a[1] + d.at(-1)!.b[1]) / 2).toBeCloseTo(300, 0);
   await page.locator("#undo").click();
   expect((await groundOf(page)).doors).toHaveLength(before);
 });
 
-test("S4.27: right-clicking the background, a device or a room's interior (away from any edge) opens no wall menu", async ({
-  page,
-}) => {
+test("S4.27: right-clicking the background (away from any edge) opens no wall menu", async ({ page }) => {
   await rightClickCm(page, 950, 700); // outside every room and wall
-  await expect(page.locator(".ctxmenu")).toHaveCount(0);
+  await expect(page.locator('.ctxmenu #cmKind, .ctxmenu [data-cm="kind"]')).toHaveCount(0);
+  await expect(page.locator(".ctxmenu #cmAddPoint")).toHaveCount(0);
 });
 
 test("S4.27: 'Change type' from the wall menu sets the kind on both rooms sharing the wall, one undo step", async ({
@@ -8749,8 +8743,7 @@ test("S4.27: 'Add an opening' from the wall menu places it centred on the right-
   page,
 }) => {
   await rightClickCm(page, 500, 300); // the wall's own midpoint is (500,200) — 100 cm away from this point
-  await page.locator(".ctxmenu summary", { hasText: "Add an opening" }).click();
-  await page.locator(".ctxmenu button", { hasText: "Opening" }).click();
+  await page.locator(".ctxmenu #cmAddOpening").click();
   await expect(page.locator(".ctxmenu")).toHaveCount(0);
   const o = (await groundOf(page)).openings[0];
   expect((o.a[1] + o.b[1]) / 2).toBeCloseTo(300, 0);
@@ -8776,7 +8769,7 @@ test("S4.27: 'Delete' from the wall menu stops drawing it, same as the edge pane
 
 // ---- S4.31: right-click Fix/Unfix on a wall, door, opening, furniture piece and unattached device ------------------
 
-test("S4.31: 'Fix' on a free wall's context menu locks it, one undo step; the menu then offers 'Unfix'", async ({
+test("S4.31 / S26.20: 'Lock' on a free wall's context menu locks it, one undo step; the menu then offers 'Unlock'", async ({
   page,
 }) => {
   // Near the top of the plan, clear of the menu's own height, unlike withWallRow's row under the house.
@@ -8788,18 +8781,18 @@ test("S4.31: 'Fix' on a free wall's context menu locks it, one undo step; the me
   }, EDITOR);
   await rightClickCm(page, 300, 20);
   const menu = page.locator(".ctxmenu");
-  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
-  await menu.locator("button", { hasText: "Fix" }).click();
+  await expect(menu.locator("#cmLock .cm-l")).toHaveText("Lock");
+  await menu.locator("#cmLock").click();
   await expect(menu).toHaveCount(0);
   expect((await groundOf(page)).walls[0].locked).toBe(true);
 
   await rightClickCm(page, 300, 20);
-  await expect(menu.locator("button", { hasText: "Unfix" })).toBeVisible();
-  await menu.locator("button", { hasText: "Unfix" }).click();
+  await expect(menu.locator("#cmLock .cm-l")).toHaveText("Unlock");
+  await menu.locator("#cmLock").click();
   expect((await groundOf(page)).walls[0].locked).toBe(false);
 
   await rightClickCm(page, 300, 20);
-  await menu.locator("button", { hasText: "Fix" }).click();
+  await menu.locator("#cmLock").click();
   await page.keyboard.press("Control+z");
   expect((await groundOf(page)).walls[0].locked).toBe(false); // one undo step
 });
@@ -8810,7 +8803,7 @@ async function rightClickEl(page: Page, selector: string) {
   await page.mouse.click(c.x, c.y, { button: "right" });
 }
 
-test("S4.31: right-clicking a door, an opening, a furniture piece or an unattached device opens a menu with only Fix/Unfix", async ({
+test("S4.31 / S26.20: right-clicking a door, an opening, a furniture piece or an unattached device opens a menu with only Lock and Delete", async ({
   page,
 }) => {
   await page.evaluate((tag) => {
@@ -8824,23 +8817,23 @@ test("S4.31: right-clicking a door, an opening, a furniture piece or an unattach
   const menu = page.locator(".ctxmenu");
 
   await rightClickCm(page, 345, 600); // door-ground-1, "Front door"
-  await expect(menu.locator("button")).toHaveCount(1);
-  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
+  await expect(menu.locator("button")).toHaveCount(2);
+  await expect(menu.locator("#cmLock")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await rightClickCm(page, 495, 600); // opening-fix-1
-  await expect(menu.locator("button")).toHaveCount(1);
-  await expect(menu.locator("button", { hasText: "Fix" })).toBeVisible();
+  await expect(menu.locator("button")).toHaveCount(2);
+  await expect(menu.locator("#cmLock")).toBeVisible();
   await page.keyboard.press("Escape");
 
   await rightClickEl(page, 'g[data-f="2"]'); // furn-fix-1: the demo already has 2 furniture pieces
-  await expect(menu.locator("button")).toHaveCount(1);
-  await menu.locator("button", { hasText: "Fix" }).click();
+  await expect(menu.locator("button")).toHaveCount(2);
+  await menu.locator("#cmLock").click();
   expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-1")!.locked).toBe(true);
 
   await rightClickEl(page, 'g[data-u="0"]'); // unl-fix-1: the only unlinked device
-  await expect(menu.locator("button")).toHaveCount(1);
-  await menu.locator("button", { hasText: "Fix" }).click();
+  await expect(menu.locator("button")).toHaveCount(2);
+  await menu.locator("#cmLock").click();
   expect((await groundOf(page)).unlinked.find((u) => u.id === "unl-fix-1")!.locked).toBe(true);
 });
 
@@ -8865,7 +8858,7 @@ test("S4.31: fixing furniture or an unattached device blocks a drag; unfixing re
   expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-2")).toEqual(before); // locked: drag is a no-op
 
   await rightClickEl(page, 'g[data-f="2"]');
-  await page.locator(".ctxmenu button", { hasText: "Unfix" }).click();
+  await page.locator(".ctxmenu #cmLock").click();
   await drag(page, 'g[data-f="2"]', 50, 30);
   expect((await groundOf(page)).furniture.find((m) => m.id === "furn-fix-2")).not.toEqual(before); // unfixed: drag works again
 });
@@ -9014,7 +9007,7 @@ test("S4.15/S8.1: the room panel's Place button opens a popup of the area's plac
   await btn.click();
   const panel = page.locator("#placePanel");
   await expect(panel).toBeVisible();
-  await expect(panel.locator(".fpanel-head > *").first()).toHaveAttribute("id", "placeClose");
+  await expect(panel.locator(".imode-head > *").first()).toHaveAttribute("id", "placeClose");
   await expect(panel.locator("[data-pent]")).toHaveCount(3);
   await expect(panel.locator('[data-pent="sensor.living_power"]')).toHaveCount(0);
   await expect(panel.locator('[data-pent="sensor.living_battery"]')).toHaveCount(0);
@@ -9100,22 +9093,12 @@ test("S8.1: the Place popup places everything when everything is ticked via Sele
   await expect(page.locator("#rplace")).toHaveCount(0); // nothing left to place
 });
 
-test("S8.1: the Place popup drags by its head, stays on a click elsewhere, and closes by its X or Escape", async ({
+test("S8.1/S26.14: the Place mode closes by its X or Escape (it no longer drags: it sits in the aside)", async ({
   page,
 }) => {
   await setHa(page, PLACE_HA);
   await openPlace(page);
-  const panel = page.locator("#placePanel"),
-    head = panel.locator(".fpanel-head");
-  const b0 = (await panel.boundingBox())!,
-    h = (await head.boundingBox())!;
-  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(h.x + h.width / 2 + 90, h.y + h.height / 2 + 60, { steps: 4 });
-  await page.mouse.up();
-  const b1 = (await panel.boundingBox())!;
-  expect(b1.x - b0.x).toBeCloseTo(90, 0);
-  expect(b1.y - b0.y).toBeCloseTo(60, 0);
+  const panel = page.locator("#placePanel");
   await page.locator("#placeClose").click();
   await expect(panel).toHaveCount(0);
   await openPlace(page);
@@ -9429,7 +9412,7 @@ async function withGroupWriter(page: Page, opt: { fail?: string } = {}) {
   );
 }
 
-test("S4.5: Shift+click accumulates same-kind devices, toggles one back out, and a different kind starts a fresh single selection instead of mixing", async ({
+test("S4.5: Shift+click accumulates same-kind devices, toggles one back out, and a different kind joins the selection too (S26.10: Shift+click toggles any device)", async ({
   page,
 }) => {
   const sel = (page: Page) => page.evaluate((tag) => (document.querySelector(tag as string) as any).st.sel, EDITOR);
@@ -9440,7 +9423,7 @@ test("S4.5: Shift+click accumulates same-kind devices, toggles one back out, and
   await shiftClickCm(page, 250, 200); // toggle living back out
   expect(await sel(page)).toEqual({ t: "dev", i: 1 });
   await shiftClickCm(page, 400, 500); // motion sensor: a different kind than the current light selection
-  expect(await sel(page)).toEqual({ t: "dev", i: 5 }); // starts fresh, never mixes kinds
+  expect(await sel(page)).toEqual({ t: "devs", is: [1, 5] }); // S26.10: any device toggles in, so bulk moves can mix kinds
 });
 
 test("S4.5: Create group asks, then Home Assistant builds a light group from the shift-clicked selection", async ({
@@ -9769,7 +9752,8 @@ test('S4.6: the Group menu\'s "Turns on..." builds a motion-group automation, mi
   await page.locator('#mGroup [data-group="group.demo_motion"]').click();
   await groupMenu(page); // choosing a group closes the menu (S4.5); reopen it to reach "Turns on..."
   await expect(page.locator("#motLightGrp")).toBeVisible();
-  await page.locator("#motLightGrp").selectOption("group.demo_lights");
+  await page.locator("#motLightGrp > summary").click(); // S26.17: a submenu of buttons, no select
+  await page.locator('#motLightGrp [data-light-group="group.demo_lights"]').click();
   await page.locator("#motMinutes").fill("5");
   await page.locator("#motGo").click();
   await page.locator("#fp-confirm-yes").click();
@@ -10255,7 +10239,7 @@ for (const t of [
     name: "furniture",
     open: async (p: Page) => {
       await menu(p, "Add");
-      await p.locator("#addFurn").selectOption("bed");
+      await pickFurniture(p, "bed");
     },
     id: "#frot",
     list: "furniture",
@@ -10264,7 +10248,7 @@ for (const t of [
     name: "unlinked",
     open: async (p: Page) => {
       await menu(p, "Add");
-      await p.locator("#addUnlDev").selectOption("heater");
+      await pickUnlinked(p, "heater");
     },
     id: "#uurot",
     list: "unlinked",
@@ -10291,14 +10275,14 @@ for (const t of [
     expect(await get()).toBe(37);
   });
 
-test("View menu shows the installed version, matching the integration manifest, at the top of the menu", async ({
+test("S26.17: the Help panel shows the installed version, matching the integration manifest; View no longer does", async ({
   page,
 }) => {
   await menu(page, "View");
-  const box = page.locator("#mOpt .box");
-  const first = box.locator("> *").first();
-  await expect(first).toHaveAttribute("id", "version");
-  await expect(first).toHaveText(`Floorplan Studio ${manifest.version}`);
+  await expect(page.locator("#mOpt #version")).toHaveCount(0);
+  await menu(page, "View");
+  await page.locator("#help").click();
+  await expect(page.locator("#version")).toHaveText(`Floorplan Studio ${manifest.version}`);
 });
 
 test("dragging a room snapped to a neighbour pans the view instead of moving the room; Unsnap first lets it move", async ({
@@ -10523,6 +10507,7 @@ test("S8.7: Link lights to switches links every unbound light on the floor to it
   await menu(page, "Edit");
   await expect(page.locator("#linkLights")).toBeVisible();
   await page.locator("#linkLights").click();
+  await page.locator("#linkApply").click(); // S26.23: the item opens the Link mode with every pair ticked; Apply binds them
   await expect(page.locator("#status")).toContainText("Linked");
 
   await page.locator('g[data-x="0"]').click(); // light-living, already bound before the click: untouched
@@ -10678,11 +10663,13 @@ test("Opus review finding 2: deleting the light while Create automation is still
 
 // ---- S8.1: the toolbar rework — Names in View, an Edit menu after View ------------------------------------------------
 
-test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assistant, Group, Link lights to switches, Rotate, Device colours and Trace image, in that order", async ({
+test("S8.1: Names sits in View with the theme; Edit holds Home Assistant, Group, Link lights to switches, Rotate, Device colours and Trace image, in that order", async ({
   page,
 }) => {
   await expect(page.locator(".bar > #names")).toHaveCount(0);
   await menu(page, "View");
+  await expect(page.locator("#mOpt #labelsSub")).toBeVisible(); // S26.17: Names sits in the Labels submenu
+  await page.locator("#labelsSub > summary").click();
   await expect(page.locator("#mOpt #names")).toBeVisible();
   await expect(page.locator("#mOpt #thSub")).toBeVisible();
   for (const id of ["#rotr", "#devcols", "#traceBtn", "#addFloor"])
@@ -10691,7 +10678,7 @@ test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assist
   await expect(page.locator("svg text.lbl")).not.toHaveCount(0);
   const items = (p: Page) => p.locator("#mEdit > .box > *").evaluateAll((els) => els.map((e) => e.id || e.className));
   await menu(page, "Edit");
-  expect(await items(page)).toEqual(["addFloor", "rotrow", "devcols", "traceBtn"]);
+  expect(await items(page)).toEqual(["rotrow", "devcols", "traceBtn"]);
   await menu(page, "Edit");
   await withHaMenu(page, { list: LABELLED });
   await menu(page, "Edit");
@@ -10699,7 +10686,7 @@ test("S8.1: Names sits in View with the theme; Edit holds Add floor, Home Assist
   // after Group — it acts on every light on the floor at once, not a chosen group, so nesting it under Group read
   // as if it were scoped to one. This is the deliberate reason the pinned order below now includes "linkLights"
   // between "mGroup" and "rotrow"; a future order change needs the same deliberate update, not a loosened assertion.
-  expect(await items(page)).toEqual(["addFloor", "mHA", "mGroup", "linkLights", "rotrow", "devcols", "traceBtn"]);
+  expect(await items(page)).toEqual(["mHA", "mGroup", "linkLights", "rotrow", "devcols", "traceBtn"]);
 });
 
 // ---- S8.9 follow-up: hints are rewritten short, not clipped ----------------------
@@ -10847,6 +10834,18 @@ test("S8.11: the opening is a real hole — the room fill shows through it, and 
   await setTheme(page, "light"); // pins light values; blueprint is the default since S2.12
   await page.locator('.chip[data-f="first"]').click();
   await expect(page.locator(EDITOR)).toHaveAttribute("data-theme", "light");
+  // S27.12: the plan slides in for 220 ms after a chip click; a pixel read waits for it to end (no sleep)
+  await expect
+    .poll(() =>
+      page
+        .locator(`${EDITOR} svg`)
+        .first()
+        .evaluate(
+          (svg) =>
+            svg.getAnimations().filter((a) => (a as CSSAnimation).animationName?.startsWith("fp-floor-in")).length,
+        ),
+    )
+    .toBe(0);
 
   const inHole = await screenOf(page, OPENING_MID_X, 600 - OFF_CENTRELINE);
   const onWall = await screenOf(page, 760, 600 - OFF_CENTRELINE); // 760: outside the opening's cap radius (711) and inside the outline (800)
@@ -11094,7 +11093,6 @@ test("S10.1: a keyboard-only pick (type, arrow down, Enter) commits the value in
   await page.keyboard.press("Enter");
   await expect.poll(() => comboValue(page, "#ve")).toBe("light.garage");
   expect((await groundOf(page)).devices[i].entity).toBe("light.garage");
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeEnabled();
   await page.locator("#undo").click();
   expect((await groundOf(page)).devices[i].entity).toBe(""); // one undo step, back to unbound
@@ -11109,7 +11107,6 @@ test("S10.1: Escape closes the list and restores the previous label without pick
   await page.keyboard.press("Escape");
   expect(await comboValue(page, "#vbound")).toBe(before); // untouched
   await expect(page.locator("#vbound li[role='option']")).toHaveCount(0); // list closed, no pick fired
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
 });
 
@@ -11168,7 +11165,6 @@ test("S10.1: picking the value that is already set adds no undo step", async ({ 
   await pickEntity(page, "#ve", "light.garage", "garage");
   await pickEntity(page, "#ve", "light.garage", "garage"); // the same value again
   expect((await groundOf(page)).devices[i].entity).toBe("light.garage");
-  await menu(page, "File");
   await page.locator("#undo").click();
   expect((await groundOf(page)).devices[i].entity).toBe(""); // one undo reaches the start: the re-pick made no step
 });
@@ -11198,7 +11194,6 @@ const heightsOf = async (page: Page) => {
   return out;
 };
 const undoOnce = async (page: Page) => {
-  await menu(page, "File");
   await page.locator("#undo").click();
 };
 
@@ -11226,7 +11221,7 @@ const HEIGHT_CASES: { name: string; open: (p: Page) => Promise<void>; id: string
     name: "furniture",
     open: async (p) => {
       await menu(p, "Add");
-      await p.locator("#addFurn").selectOption("bed");
+      await pickFurniture(p, "bed");
     },
     id: "#fuht",
     ph: "55",
@@ -11236,7 +11231,7 @@ const HEIGHT_CASES: { name: string; open: (p: Page) => Promise<void>; id: string
     name: "unlinked",
     open: async (p) => {
       await menu(p, "Add");
-      await p.locator("#addUnlDev").selectOption("heater");
+      await pickUnlinked(p, "heater");
     },
     id: "#uuht",
     ph: "60",
@@ -11369,7 +11364,7 @@ test("effect size: the field is on exactly the devices that draw an effect, and 
     l.floors.ground.devices.push({ id: "siren-x", type: "other", entity: "siren.hall", x: 300, y: 330 });
     el.layout = l;
   }, EDITOR);
-  // light 0 and motion 5 draw one; the switch 2, plug 3 and temp 4 do not; the siren 8 does, though its type is "other".
+  // light 0 and motion 5 draw one; the switch 2, plug 3 and temp 4 do not; the siren 12 (after the demo's eight and the Hall stack) does, though its type is "other".
   const devs = (await groundOf(page)).devices;
   for (const [i, want] of [
     [0, true],
@@ -11377,7 +11372,7 @@ test("effect size: the field is on exactly the devices that draw an effect, and 
     [3, false],
     [4, false],
     [5, true],
-    [8, true],
+    [12, true],
   ] as const) {
     await selectDev(page, i);
     await expect(page.locator("#vz"), `device ${i} panel is open`).toBeVisible();
@@ -11418,10 +11413,8 @@ test("the plug panel offers only power sensors, one pick is one undo step, the s
   await pickEntity(page, "#vpower", "sensor.tv_power");
   expect((await groundOf(page)).devices[i].power).toBe("sensor.tv_power");
   await pickEntity(page, "#vpower", "sensor.tv_power"); // unchanged: no step
-  await menu(page, "File");
   await page.locator("#undo").click(); // exactly one step back
   expect("power" in (await groundOf(page)).devices[i]).toBe(false);
-  await menu(page, "File");
   await expect(page.locator("#undo")).toBeDisabled();
   await selectDev(page, i);
   await pickEntity(page, "#vpower", "sensor.other_power");
@@ -11454,6 +11447,7 @@ test("placing a catalogued plug from Add writes its device's one power sensor in
   await devItem(page, "plug-free").click();
   const placed = (await groundOf(page)).devices.find((d) => d.id === "plug-free")!;
   expect(placed).toMatchObject({ type: "plug", power: "sensor.free_power" });
+  await page.locator("#addDevClose").click(); // the panel opens centred over the toolbar; File is under it at 1280
   await savedValid(page);
 });
 
@@ -11465,7 +11459,7 @@ for (const [sym, side] of [
 ] as const) {
   test(`S18.10: a ${sym} is picked 6 px outside its drawn edge and dragged`, async ({ page }) => {
     await menu(page, "Add");
-    await page.locator("#addFurn").selectOption(sym);
+    await pickFurniture(page, sym);
     const before = (await groundOf(page)).furniture.at(-1)!;
     const n = (await groundOf(page)).furniture.length - 1;
     await page.locator("#fixPlan").press("Escape"); // leaves nothing selected that could take the press
@@ -11654,4 +11648,167 @@ test("S18.12 CSS pair: a linked tv piece is not the plain furniture grey when id
   expect(linked).toBe(rgb("#2c7fb8")); // --fp-dev-tv, light
   expect(linked).not.toBe(plain);
   expect(await colour(n - 2, true)).toBe(rgb("#8a5117")); // --fp-active
+});
+
+// S26.4 CSS pair (finding 10): `.sel` on a multi-selection's members reaches the pixel. The plan is the real renderFloor
+// markup under the real stylesheet; the editor has no multi-select yet, so the page is built here. Break it: drop the
+// `devs` branch in render.ts and neither member gets the ink stroke.
+test("S26.4 CSS pair: two members of a multi-selection both compute the selection stroke, a third does not", async ({
+  page,
+}) => {
+  const f = {
+    title: "T",
+    outline: [
+      [0, 0],
+      [600, 0],
+      [600, 400],
+      [0, 400],
+    ],
+    rooms: [],
+    walls: [],
+    doors: [],
+    openings: [],
+    extras: [],
+    stairs: [],
+    furniture: [],
+    unlinked: [],
+    devices: [0, 1, 2].map((n) => ({
+      id: `d${n}`,
+      name: `D${n}`,
+      type: "light",
+      entity: `light.l${n}`,
+      x: 100 + n * 100,
+      y: 100,
+    })),
+  } as unknown as Floor;
+  const svg = renderFloor(f, { scale: 1, selection: { t: "devs", is: [0, 2] } });
+  await page.setContent(
+    `<style>:root{--fp-ink:rgb(1, 2, 3);--fp-bg:#fff}${FLOORPLAN_CSS}</style><svg viewBox="0 0 600 400" width="600" height="400">${svg}</svg>`,
+  );
+  const stroke = (i: number) => page.locator(`g[data-x="${i}"]`).evaluate((el) => getComputedStyle(el).stroke);
+  expect(await stroke(0)).toBe("rgb(1, 2, 3)");
+  expect(await stroke(2)).toBe("rgb(1, 2, 3)");
+  expect(await stroke(1)).not.toBe("rgb(1, 2, 3)");
+});
+
+// Opus re-check 5: `.btn:disabled{opacity:.5}` has the specificity of `.btn.light{opacity:.6}` and comes first, so a disabled Undo
+// read .6 like an enabled one and, hovered, went to 1. CSS pair, in three themes: disabled is lower than enabled, hovered or not.
+for (const theme of ["light", "ha", "blueprint"] as const) {
+  test(`CSS pair: a disabled Undo is dimmer than an enabled one, also under the pointer (${theme})`, async ({
+    page,
+  }) => {
+    await setTheme(page, theme);
+    const op = () => page.locator("#undo").evaluate((el) => Number(getComputedStyle(el).opacity));
+    await page.mouse.move(5, 5);
+    expect(await page.locator("#undo").isDisabled()).toBe(true);
+    const off = await op();
+    await page.locator("#undo").hover({ force: true });
+    const offHover = await op();
+    await page.evaluate((tag) => {
+      const el = document.querySelector(tag) as any;
+      el.st.edit((f: any) => {
+        f.devices[0].x += 5;
+      });
+      el.requestUpdate();
+    }, EDITOR);
+    await expect(page.locator("#undo")).toBeEnabled();
+    await page.mouse.move(5, 5);
+    const on = await op();
+    await page.locator("#undo").hover();
+    const onHover = await op();
+    expect(off).toBeLessThan(on);
+    expect(offHover).toBeLessThan(on);
+    expect(offHover).toBe(off);
+    expect(onHover).toBe(1);
+  });
+}
+
+// S27.5 CSS pair (finding 10, 18): the ghost's stroke and its pointer-events, as computed in the editor, whose own
+// `.room{pointer-events:all}` is the rule a presentation attribute would lose to. The markup is renderFloor's own
+// (tests/core/render-ghost.test.ts pins it); the editor passes no ghost until S27.11, so it is placed by hand, last, on top.
+test("S27.5 CSS pair: the ghost floor is drawn in --fp-ghost, thin, unfilled, and takes no click (editor)", async ({
+  page,
+}) => {
+  await setTheme(page, "light");
+  const probe = () =>
+    page.evaluate(() => {
+      const svg = document
+        .querySelector("floorplan-studio-editor")!
+        .shadowRoot!.querySelector(".canvas > svg")! as SVGSVGElement;
+      svg.querySelector("g.ghost-probe")?.remove();
+      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      g.setAttribute("class", "ghost ghost-probe");
+      g.innerHTML = '<path class="gl" d="M0 0L1000 0L1000 1000L0 1000Z"/>';
+      svg.append(g);
+      const p = g.querySelector("path")!,
+        cs = getComputedStyle(p);
+      const r = p.getBoundingClientRect(),
+        hit = document
+          .querySelector("floorplan-studio-editor")!
+          .shadowRoot!.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return {
+        stroke: cs.stroke,
+        fill: cs.fill,
+        width: cs.strokeWidth,
+        events: cs.pointerEvents,
+        ghostHit: !!hit && !!hit.closest("g.ghost"),
+      };
+    });
+  const light = await probe();
+  // Break it: drop `.ghost,.ghost *{pointer-events:none}` and events reads "visiblePainted"/"all"; drop --fp-ghost and stroke reads none.
+  expect(light).toMatchObject({ fill: "none", width: "1.5px", events: "none", ghostHit: false });
+  expect(light.stroke).not.toBe("none");
+  await setTheme(page, "midnight");
+  const dark = await probe();
+  expect(dark.stroke).not.toBe(light.stroke);
+  expect(dark.events).toBe("none");
+});
+
+// S28.3: a 2D tree is a crown, a trunk dot and a shade patch. The pair on the real Studio element: the colours come from the theme's
+// tokens (they differ between themes), the patch takes no click, and a real click on the crown selects the tree.
+test("Opus review CSS pair: a tree is a crown with an edge, a trunk dot and a shade patch that takes no click (S28.3)", async ({
+  page,
+}) => {
+  await page.evaluate((tag) => {
+    const el = document.querySelector(tag) as any,
+      l = JSON.parse(JSON.stringify(el.layout));
+    l.floors.ground.furniture.push({ id: "s283-tree", symbol: "tree", x: 868, y: 408, rot: 20, w: 50, h: 70 });
+    el.layout = l;
+  }, EDITOR);
+  const tree = page.locator("svg g.furn").last();
+  const read = () =>
+    tree.evaluate((g) => {
+      const svg = (g as unknown as SVGElement).ownerSVGElement!,
+        s = (sel: string) => getComputedStyle(sel === ".tree-shade" ? svg.querySelector(sel)! : g.querySelector(sel)!);
+      return {
+        fill: s(".tree-crown").fill,
+        op: s(".tree-crown").fillOpacity,
+        edge: s(".tree-crown").stroke,
+        w: s(".tree-crown").strokeWidth,
+        trunk: s(".tree-trunk").fill,
+        shade: s(".tree-shade").fill,
+        events: s(".tree-shade").pointerEvents,
+        shadeOp: s(".tree-shade").fillOpacity,
+      };
+    });
+  const seen: Record<string, Awaited<ReturnType<typeof read>>> = {};
+  for (const t of ["blueprint", "light", "midnight", "ha"] as const) {
+    await setTheme(page, t);
+    const v = (seen[t] = await read());
+    expect(v, t).toMatchObject({ op: "0.35", w: "1px", events: "none" });
+    expect(v.edge, t).toBe(v.trunk);
+    expect(v.edge, t).not.toBe(v.fill);
+    expect(+v.shadeOp, t).toBeGreaterThan(0.1);
+  }
+  expect(seen.light.shadeOp, "a dark plan needs a stronger shade").not.toBe(seen.midnight.shadeOp);
+  expect(seen.light.edge).not.toBe(seen.midnight.edge);
+  // a real click on the crown selects the tree (the shade patch under it is not what is hit)
+  const b = await tree.locator(".tree-crown").boundingBox();
+  await page.mouse.click(b!.x + b!.width / 2 + 3, b!.y + b!.height / 2 + 3);
+  expect(
+    await page.evaluate((tag) => {
+      const s = (document.querySelector(tag) as any).st.sel;
+      return s && s.t;
+    }, EDITOR),
+  ).toBe("furn");
 });

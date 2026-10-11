@@ -1,7 +1,7 @@
 import { TEXTURE_IDS } from "./textures";
 export type Pt = [number, number];
 export type RoomKind = "room" | "garden" | "pavement" | "fill" | "terrace" | "structure" | "zone" | "water";
-export type DoorKind = "door" | "glass" | "window" | "sealed" | "slit" | "open";
+export type DoorKind = "door" | "glass" | "window" | "sealed" | "slit" | "fullwindow" | "open";
 export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
@@ -73,6 +73,7 @@ export interface Stairs { id: string; name: string; pts: Pt[]; shape: StairShape
  * glass door or window. render.ts only colours the opening from `cover` on a plain `door` or `sealed` kind;
  * on `window`/`glass` it is curtains, not a security state, and opening them never colours the window
  * (Diego, 2026-09-28 — the office window's curtains were flipping it orange).
+ * `fullwindow` (2026-10-09, S25.D3; shown as "Full-height window") is a window from the floor: sill 0, its head as far under the ceiling of its wall as a window's and a glass door's (40 cm; 210 on 250). A window in every other respect.
  * `slit` (2026-10-05) is a window 60 cm high whose head ends 40 cm under the ceiling of its wall, as a window's does (2026-10-06); its width is the length a to b.
  * It reads and behaves as a `window` in every other respect. Its default sill is read from the wall, never stored.
  * `open` (2026-10-05) is a doorway: the wall is cut as for a door (210 high from 0), but nothing is drawn in the gap. It is a
@@ -108,8 +109,9 @@ export interface Extra { id: string; name: string; a: Pt; b: Pt }
  * lit lamp's aura (and its floor pool and wall light in 3D), a playing speaker's or media device's waves, a triggered motion or
  * contact sensor's ring and a siren's rings (`FX_TYPES`, `isSiren`); on a device that draws none it is ignored. Not a schema bump:
  * an old card ignores the field, and a layout without it draws as before.
+ * `locked` (S26.1): the device does not move when dragged, alone or in a group; it can still be edited and deleted. Absent is false.
  */
-export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number } & ({ x: number; y: number } | { a: Pt; b: Pt });
+export type Device = { id: string; type: DeviceType; entity: string; name?: string; bound?: string; trvs?: string[]; tempSensors?: string[]; linked?: string[]; room?: string; targets?: { x: string; y: string }[]; rot?: number; motion?: string; power?: string; z?: number; fx?: number; locked?: boolean } & ({ x: number; y: number } | { a: Pt; b: Pt });
 /** `name` is a plan name; `entity` is an HA entity whose state the piece shows. Both optional. `locked` (fixed):
  *  a right-click "Fix" on the plan stops it being dragged or resized until "Unfix"; panel edits still apply. `height` is the size of the piece, `z` its bottom above the floor
  *  (a wall TV, a speaker): the top is z + height. */
@@ -133,9 +135,9 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000
  *  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling
  *  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture
- *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. */
+ *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. `offset` (S27.2, cm, x right and y down) is where the floor sits in the house: a point's place in the house is its stored point plus the offset. Stored coordinates never change; absent means [0, 0], and writers delete the key at [0, 0]. */
 export interface Floor {
-  ha?: string; height?: number; slab?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; height?: number; slab?: number; offset?: [number, number]; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
@@ -181,7 +183,7 @@ export const WALL_KINDS: readonly WallKind[] = ["wall", "boundary", "external", 
 export const EDGE_KINDS: readonly EdgeKind[] = [...WALL_KINDS, "none"];
 export const STAIR_SHAPES: readonly StairShape[] = ["straight", "round"];
 export const STAIR_DIRECTIONS: readonly StairDirection[] = ["up", "down", "both"];
-export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit", "open"];
+export const DOOR_KINDS: readonly DoorKind[] = ["door", "glass", "window", "sealed", "slit", "fullwindow", "open"];
 /** S14.3: the least and most a device's effect size (`fx`, percent) may be. Absent reads as 100. */
 export const FX_MIN = 25, FX_MAX = 300;
 /** S14.3: the types that draw an effect the size scales: a lit lamp's aura, a playing speaker's or media device's waves, a triggered motion or contact sensor's ring. A siren draws rings by its entity's domain (`isSiren`), not by the `siren` type; see there. */
@@ -269,6 +271,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       }
     }
     optHeight(f, "height"); optHeight(f, "slab");
+    if (f.offset !== undefined && !(isPt(f.offset) && f.offset.every((n: number) => Math.abs(n) <= COORD_LIMIT)))
+      errors.push(`${at} offset must be two finite numbers [x, y] within +-${COORD_LIMIT} cm; leave it out for [0, 0]`);
     if (farCoordinate(f)) errors.push(`${at} a coordinate lies further than ${COORD_LIMIT} cm (100 km) from the origin; keep every point within +-${COORD_LIMIT} cm`);
     poly("outline", f.outline);
     // S1.52: owk is optional (migrate fills it), but once present it must match the outline point by point.
@@ -392,6 +396,7 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
       oneOf(`${d.id} type`, d.type, DEVICE_TYPES);
       optText(d, "name");
       optHeight(d, "z");
+      if (d.locked !== undefined && typeof d.locked !== "boolean") errors.push(`${at} ${d.id} locked must be true or false`);
       if (d.entity !== "" && !isEntity(d.entity)) errors.push(`${at} ${d.id} entity must be an entity id like light.name`);
       if (!(typeof d.x === "number" && Number.isFinite(d.x) && typeof d.y === "number" && Number.isFinite(d.y)) && !(isPt(d.a) && isPt(d.b)))
         errors.push(`${at} ${d.id} needs x and y, or a and b`);

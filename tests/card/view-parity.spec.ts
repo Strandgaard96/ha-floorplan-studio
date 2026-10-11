@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { serve, ORIGIN } from "./helpers-3d";
 
 // Diego, 0.12.22: "everything you do in studio must also be done in card". The rule for what is VIEWING: every
 // control the editor's View menu, its zoom group and its Filter menu draw is listed here with a decision, so a new
@@ -12,21 +13,26 @@ type Decision = { card: "yes"; has: string } | { card: "deliberate"; why: string
 const EDITING_AID = "an editing aid: it helps place and measure things, and a dashboard viewer places nothing";
 /** Editor control id -> what the card does. `has` is a selector in the card's shadow root. */
 const PARITY: Record<string, Decision> = {
-  version: { card: "deliberate", why: "the card names its version in the browser console instead of in its chrome" },
   snap: { card: "deliberate", why: EDITING_AID },
   mgrid: { card: "deliberate", why: EDITING_AID },
   lens: { card: "deliberate", why: EDITING_AID },
+  // S26.17: the Labels submenu holds Device names and Names and values; the version moved to the Help panel.
+  labelsSub: { card: "yes", has: 'button[aria-label="Labels"]' },
   names: { card: "yes", has: 'button[aria-label="Device names"]' },
   labels: { card: "yes", has: 'button[aria-label="Labels"]' },
   night: {
     card: "deliberate",
     why: "a preview of what the card already does: it goes dark after sunset by itself (`night`, `sun`)",
   },
+  // S27.11: the card's Floor below button (2D and 2.5D); in 3D the same choice is the Floors below select, checked below.
+  ghostFloor: { card: "yes", has: 'button[aria-label="Floor below"]' },
   thSub: { card: "yes", has: 'select[aria-label="Theme"]' },
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },
   // S24.6: Layers replaced the Filter menu; S24.8 gives the card a text chip per family in its Overview, unfolded by this button.
+  // S25.8: the Detail button beside Layers, same three choices; the card starts on Auto, the Studio on Full.
+  detailSub: { card: "yes", has: ".fp-ov-scopes button.fp-detail-toggle" },
   tabLayers: { card: "yes", has: ".fp-ov-scopes button.fp-layers-toggle" },
   zin: { card: "yes", has: 'button[aria-label="Zoom in"]' },
   zout: { card: "yes", has: 'button[aria-label="Zoom out"]' },
@@ -87,6 +93,25 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
   }
   for (const [id, has] of Object.entries(CARD_ONLY))
     await expect(page.locator("floorplan-studio-card").locator(`css=${has}`), `${id}: ${has}`).toHaveCount(1);
+});
+
+test("in 3D the Floor below choice is the Floors below select, and the button is gone", async ({ page }) => {
+  await serve(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(`${ORIGIN}/harness.html`);
+  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+  await page.evaluate((layout) => {
+    const el = document.getElementById("card") as unknown as {
+      setConfig(c: unknown): void;
+      hass: unknown;
+      updateComplete: Promise<unknown>;
+    };
+    el.setConfig({ type: "custom:floorplan-studio-card", view: "3d", layout, floor: "first", active_list: false });
+    el.hass = { states: {}, callService: () => undefined };
+    return el.updateComplete;
+  }, demo);
+  await expect(page.locator("floorplan-studio-card").locator('css=select[aria-label="Floors below"]')).toHaveCount(1);
+  await expect(page.locator("floorplan-studio-card").locator('css=button[aria-label="Floor below"]')).toHaveCount(0);
 });
 
 test("docs/card.md lists every control and its decision", () => {
