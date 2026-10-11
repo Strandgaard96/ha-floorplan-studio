@@ -200,9 +200,11 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
         .locator("option")
         .evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value)),
     ).toEqual(["off", "ghost", "solid"]);
-    // beside Walls: the same toolbar
+    // beside Walls: the same View options menu (UI refactor 3)
     expect(
-      await belowSelect(page).evaluate((s) => !!s.parentElement!.querySelector('select[aria-label="Walls"]')),
+      await belowSelect(page).evaluate(
+        (s) => !!s.closest(".fp-view-menu")?.querySelector('select[aria-label="Walls"]'),
+      ),
     ).toBe(true);
     const one = await y0(page);
     expect(one).toBeGreaterThanOrEqual(-26);

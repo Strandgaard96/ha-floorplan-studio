@@ -16,6 +16,16 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-11: Card UI refactor — integration fixes (branch `task/ui-refactor`)
+
+- 3D: a change of the view's aspect keeps the camera's zoom against the new framing (`Orbit.setAspect`). The card's height
+  follows each floor, and the projected fit depends on the aspect, so a floor switch restored a stored camera 6 % off.
+- 3D: a room tap is committed after the double-tap window. With the Overview folded, the first tap's pick opened the room
+  panel over the point tapped and a double tap could not undo it.
+- The folded Overview hides its breadcrumb below 480 px, so the summary chips (alerts first) keep the one line.
+- Tests that pinned the old design (motion red, HA dark walls in the text colour, controls outside View options, a
+  two-value 3D inset, the long time format) now pin the new one.
+
 ## 2026-10-11: Card UI refactor — plan (branch `task/ui-plan`)
 
 Spec: `docs/specs/card-ui-refactor.md`, items 5 to 8.

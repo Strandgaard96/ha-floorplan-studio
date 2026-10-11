@@ -6177,7 +6177,7 @@ test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera a
     });
   expect(vars).toEqual({
     light: "#e0a800",
-    motion: "#d64545",
+    motion: "#b5389a", // UI refactor item 6: motion has its own colour, not alert red
     contact: "#d64545",
     heater: "#e8801a",
     climate: "#e8801a",
@@ -6264,10 +6264,10 @@ test("Opus review CSS pair: a motion sensor that went off still fades: the fill 
           .map((n) => Math.round(+n * 255))
       : c.match(/\d+/g)!.map(Number);
   const idle = chan(await fillAt("0", false));
-  expect(chan(await fillAt("1", false))).toEqual([255, 138, 31]); // fully faded in: blueprint's motion colour collapses to the single accent
+  expect(chan(await fillAt("1", false))).toEqual([255, 95, 200]); // fully faded in: blueprint's motion colour (#ff5fc8 in its roles, UI refactor item 6)
   const half = chan(await fillAt("0.5", false));
   expect(half).not.toEqual(idle);
-  expect(half).not.toEqual([255, 138, 31]);
+  expect(half).not.toEqual([255, 95, 200]);
   // on: the glyph is the ink on the disc, whatever the fade (g.dev.on path outranks .dev.dev-motion path, finding 10)
   expect(chan(await fillAt("0.5", true))).toEqual(chan(await fillAt("1", true)));
   expect(chan(await fillAt("1", true))).not.toEqual([255, 138, 31]);
@@ -6626,8 +6626,8 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
       (e as SVGElement).style.removeProperty("--fp-fade");
       return r;
     });
-  expect(motion.devVar).toBe("#d64545");
-  expect(motion.haloFill).toBe(rgb("#d64545"));
+  expect(motion.devVar).toBe("#b5389a"); // UI refactor item 6
+  expect(motion.haloFill).toBe(rgb("#b5389a"));
 });
 
 // S23.5: unavailable is no longer a 45 % ghost but its own mark; the colour rule must still never paint over it.

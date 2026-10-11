@@ -140,12 +140,17 @@ export class Orbit {
     return hi;
   }
 
-  /** The view got wider or taller: the next `reset` frames the house for the new shape; where the camera is now stays. */
+  /** The view got wider or taller: the house is framed for the new shape, and the camera keeps its zoom against that framing,
+   * as `setInset` does. The fit projects the box with the aspect, so a card whose height follows each floor (a floor switch)
+   * would otherwise come back to a stored camera 6 % off (UI refactor item 11). Its direction and look-at point stay. */
   setAspect(aspect: number): void {
     if (!(fin(aspect) && aspect > 0) || aspect === this.aspect) return;
+    const was = this.fit;
     this.aspect = aspect;
     this.fit = this.fitDistance();
     this.start.distance = this.fit;
+    if (fin(was) && was > 0 && fin(this.fit))
+      this.distance = clamp(this.distance * (this.fit / was), this.fit * NEAR_FACTOR, this.fit * FAR_FACTOR);
   }
 
   /**

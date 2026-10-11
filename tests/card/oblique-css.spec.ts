@@ -136,7 +136,8 @@ test("2.5D CSS pair: on Home Assistant dark a wall's side is dark, nearer the ca
     ["host", viaHost],
     ["group", inGroup],
   ] as const) {
-    expect(rgbOf(r.wall), `${where}: HA's text colour reached the wall`).toEqual([225, 225, 225]);
+    // UI refactor item 7: the HA dark wall is a mid grey mixed from HA's text and card colours, no longer the text colour.
+    expect(rgbOf(r.wall), `${where}: the wall is not HA's text colour`).not.toEqual([225, 225, 225]);
     expect(r.side, `${where}: not the 55% slab`).not.toBe(r.at55);
     const toBg = ratio(rgbOf(r.side), rgbOf(r.bg)),
       toWall = ratio(rgbOf(r.side), rgbOf(r.wall));

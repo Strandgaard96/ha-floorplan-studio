@@ -137,7 +137,8 @@ async function mean(page: Page, p: Where, half = 10): Promise<[number, number, n
   }, buf.toString("base64"));
 }
 const lum = (c: number[]) => 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
-/** How many pixels of the page region are clearly red (the motion ring's colour in every theme). */
+/** How many pixels of the page region are clearly the motion colour: magenta, red and blue both well over green (UI refactor
+ * item 6 took motion off alert red; an orange lamp glow or a red alert is not counted). */
 async function reds(
   page: Page,
   box: { x: number; y: number; width: number; height: number },
@@ -155,9 +156,10 @@ async function reds(
       const g = c.getContext("2d")!;
       g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, c.width, c.height).data,
-        [lo, gap] = soft ? [90, 40] : [150, 70]; // half strength over a dark floor is a dull red
+        [lo, gap] = soft ? [90, 40] : [150, 70]; // half strength over a dark floor is a dull magenta
       let n = 0;
-      for (let i = 0; i < d.length; i += 4) if (d[i] > lo && d[i] > d[i + 1] + gap && d[i] > d[i + 2] + gap) n++;
+      for (let i = 0; i < d.length; i += 4)
+        if (d[i] > lo && d[i] > d[i + 1] + gap && d[i + 2] > d[i + 1] + gap / 2) n++;
       return n;
     },
     [buf.toString("base64"), soft] as const,

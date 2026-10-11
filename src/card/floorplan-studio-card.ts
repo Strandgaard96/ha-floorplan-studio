@@ -565,6 +565,8 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active-folded .fp-active-title { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fp-active-folded .fp-ov-chips { flex: 1 1 auto; order: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fp-active-folded .fp-active-collapse { order: 2; }
+    /* On a phone the folded line gives its room to the summary chips (alerts first); the breadcrumb comes back on a wider card. */
+    .fp-active-folded.fp-active-narrow .fp-crumb { display: none; }
     /* An open room or floor section keeps one chips line too (a wrapping one made the sheet's head three lines tall and left the body one and a half rows). */
     .fp-room-open .fp-ov-chips { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fp-ov-search:empty { display: none; }
@@ -2111,6 +2113,13 @@ export class FloorplanStudioCard extends LitElement {
     let start: { x: number; y: number } | null = null,
       pointers = 0;
     let last: { t: number; x: number; y: number; before: PickMemo } | null = null;
+    // A room tap is committed once the double-tap window has passed with no second tap: the pick opens the room panel, which can
+    // open over the very point tapped, and a double tap must leave the pick as it was (UI refactor: the Overview starts folded).
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const drop = () => {
+      if (pending !== null) clearTimeout(pending);
+      pending = null;
+    };
     const onDown = (e: PointerEvent) => {
       if (e.isPrimary) pointers = 0;
       pointers++;
@@ -2130,18 +2139,23 @@ export class FloorplanStudioCard extends LitElement {
         last = null;
         return;
       }
+      const now = performance.now();
+      // The second tap of a double tap undoes the first's pick before anything else is asked: the first tap's pick can open the
+      // room panel, which insets the view and slides the picture, so the second may now land on a marker (UI refactor: the
+      // Overview starts folded, so a pick is what opens it).
+      if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
+        drop();
+        this._closePopup();
+        this._restorePick(last.before);
+        last = null;
+        return;
+      }
       const p = this._pick3d({ clientX: s.x, clientY: s.y, timeStamp: -1 } as PointerEvent);
       if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked" || p.type === "piece")) {
         last = null;
         return;
       } // its own thing, never a pick
       this._closePopup(); // a tap on anything else is an outside tap
-      const now = performance.now();
-      if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
-        this._restorePick(last.before);
-        last = null;
-        return;
-      }
       last = {
         t: now,
         x: e.clientX,
@@ -2150,7 +2164,12 @@ export class FloorplanStudioCard extends LitElement {
       };
       if (!this._activeListVisible()) return;
       const room = p?.type === "room" ? p.index : null;
-      this._pickRoom(room !== null && this._picked() !== room ? room : null);
+      drop();
+      pending = setTimeout(() => {
+        pending = null;
+        if (!this._activeListVisible()) return;
+        this._pickRoom(room !== null && this._picked() !== room ? room : null);
+      }, DOUBLE_TAP_MS);
     };
     const onCancel = () => {
       pointers = 0;
@@ -2206,6 +2225,7 @@ export class FloorplanStudioCard extends LitElement {
       host.removeEventListener("pointerdown", onDown);
       host.removeEventListener("pointerup", onUp);
       host.removeEventListener("pointercancel", onCancel);
+      drop();
     };
   }
 
@@ -3674,7 +3694,7 @@ export class FloorplanStudioCard extends LitElement {
     // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`
     // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
     // that function is the only thing that ever touches this element's inline position.
-    return html`<div class=${summary ? "fp-active fp-room-open" : folded ? "fp-active fp-active-folded" : "fp-active"} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
+    return html`<div class=${summary ? "fp-active fp-room-open" : folded ? `fp-active fp-active-folded${this._narrow ? " fp-active-narrow" : ""}` : "fp-active"} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
       <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)} @click=${(e: MouseEvent) => this._onActiveHeadClick(e, folded)}>
         <span class="fp-active-title">Home${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}</span>
         ${

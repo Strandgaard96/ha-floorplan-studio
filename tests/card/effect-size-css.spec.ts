@@ -21,8 +21,9 @@ const DEVICES = [
   dev("spk-half", "speaker", "media_player.c", 300, { fx: 50 }),
   dev("sir", "other", "siren.a", 400),
   dev("sir2", "other", "siren.b", 500, { fx: 200 }),
-  dev("mot", "motion", "binary_sensor.m", 600),
-  dev("mot2", "motion", "binary_sensor.n", 700, { fx: 150 }),
+  // Outside every room: a motion sensor inside one lights that room's outline and draws no ring of its own (UI refactor item 6).
+  dev("mot", "motion", "binary_sensor.m", 600, { y: -200 }),
+  dev("mot2", "motion", "binary_sensor.n", 700, { y: -200, fx: 150 }),
 ];
 const STATE = {
   "media_player.a": st("playing"),

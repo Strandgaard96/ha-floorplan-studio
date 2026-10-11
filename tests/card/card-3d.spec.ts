@@ -154,8 +154,10 @@ test.describe("3D view: the canvas", () => {
     expect(await renderers(page)).toBe(0);
     // the tilt and walls controls belong to 2.5D alone
     await viewSelect(page).selectOption("3d");
+    await openViewMenu(page); // UI refactor 3: Tilt lives in View options
     await expect(card(page).locator('css=input[aria-label="Tilt"]')).toHaveCount(0);
     await viewSelect(page).selectOption("2.5d");
+    await openViewMenu(page);
     await expect(card(page).locator('css=input[aria-label="Tilt"]')).toHaveCount(1);
   });
 

@@ -205,7 +205,7 @@ for (const width of [1280, 375]) {
         Area: "20 m²",
         Temperature: "21.7\u202F°C",
         Humidity: "48\u202F%",
-        Motion: expect.stringMatching(/^on since \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
+        Motion: expect.stringMatching(/^on since (\d{1,2} [A-Z][a-z]{2} )?\d{2}:\d{2}$/), // 1d: short form
         Open: "Patio door",
         "Lights on": "Living light",
       });

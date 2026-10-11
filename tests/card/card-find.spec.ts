@@ -202,6 +202,8 @@ test.describe("S24.8 search in the card", () => {
 
   test("a card that is neither focused nor hovered leaves / alone", async ({ page }) => {
     await boot(page);
+    // boot clicks the Overview open (UI refactor 1), which leaves focus in the card: take it out again
+    await card(page).evaluate((el) => (el.shadowRoot!.activeElement as HTMLElement | null)?.blur());
     await page.mouse.move(2, 2); // the page's margin, outside the card
     await page.keyboard.press("/");
     expect(await focused(page)).toBeNull();
