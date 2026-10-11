@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.26.1 - 2026-10-11
 
 - 3D: a stair going down is drawn again where nothing covers it. Since 0.26.0 the ground plane lay at the slab's bottom (25 cm) and a down flight sinks 60 cm, so most of it was under the ground. The ground now lies a centimetre under the deepest solid. A flight inside the house is shown too: the slab and the room fill now have a hole where a down flight stands (a flight that crosses a room's edge opens the slab and leaves that room's fill whole).
 - Test-only: 66 end-to-end tests no longer fail on GitHub CI. They opened the File menu before clicking Undo, which is in the toolbar; on the runner's wider font Undo wraps under File and the open menu covered it. The overview-over-the-plan tests fold the overview first. No product change.
