@@ -53,15 +53,75 @@ export function stackGroups(points: readonly unknown[], minDist: number): number
   return [...groups.values()].filter((g) => g.length > 1).sort((x, y) => x[0] - y[0]);
 }
 
+/** What the ring must clear, in screen px: the drawn disc (`32k` plan units, so it grows with the zoom), the widest name beside a member, the name's font size. */
+export interface SpiderSize {
+  disc: number;
+  tag?: number;
+  font?: number;
+}
+
+/** The width of a name tag on screen for a name of `chars` characters at `font` px, an upper estimate (a plan unit of text is never wider than 0.6 em per character) capped at `LABEL_PX`. */
+export const tagWidth = (chars: number, font: number): number =>
+  Math.min(LABEL_PX, Math.max(0, chars) * 0.6 * font + 4);
+
+/** The name tag's gap to its member's centre, as `renderFloor` draws it: 20k beside a 32k disc. */
+const TAG_GAP = 20 / 32;
+
+type Box = [number, number, number, number]; // x0, y0, x1, y1
+
+/** Whether a ring of radius `r` (px) puts any member's disc or name tag on another's. */
+function clashes(n: number, r: number, size: SpiderSize): boolean {
+  const D = size.disc,
+    tag = size.tag ?? 0,
+    font = size.font ?? 12,
+    pad = 3;
+  const c = Array.from({ length: n }, (_, j) => [
+    r * Math.cos(-Math.PI / 2 + (2 * Math.PI * j) / n),
+    r * Math.sin(-Math.PI / 2 + (2 * Math.PI * j) / n),
+  ]);
+  const tags: Box[] = tag
+    ? c.map(([x, y]) => {
+        const right = x >= -1e-6, // the rule `renderFloor` uses: outward of the ring's side
+          x0 = x + (right ? 1 : -1) * TAG_GAP * D;
+        return [
+          Math.min(x0, x0 + (right ? 1 : -1) * tag),
+          y - 0.6 * font,
+          Math.max(x0, x0 + (right ? 1 : -1) * tag),
+          y + 0.6 * font,
+        ];
+      })
+    : [];
+  const discHits = (j: number, b: Box) => {
+    const nx = Math.min(b[2], Math.max(b[0], c[j][0])),
+      ny = Math.min(b[3], Math.max(b[1], c[j][1]));
+    return Math.hypot(nx - c[j][0], ny - c[j][1]) < D / 2 + pad;
+  };
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++) {
+      if (Math.hypot(c[i][0] - c[j][0], c[i][1] - c[j][1]) < D + pad) return true;
+      if (tags.length) {
+        const a = tags[i],
+          b = tags[j];
+        if (a[0] < b[2] + pad && b[0] < a[2] + pad && a[1] < b[3] + pad && b[1] < a[3] + pad) return true;
+      }
+    }
+  if (tags.length)
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) if (i !== j && discHits(j, tags[i])) return true;
+  return false;
+}
+
 /**
  * Where the members of a stack go: evenly on one ring about the mean of their true spots, the first straight up. `unit`
  * is plan units per screen px, so the ring is the same size on screen at any zoom. The centre is moved until the ring and
  * room for the names beside it lie inside `box` (a box too small gets the ring at its centre). Junk gives none.
+ * `size`, when given, is what the ring must clear on screen: it grows until no disc or name tag lies on another, because the
+ * discs grow with the zoom and a ring of fixed size sank under them (UI refactor, item 8).
  */
 export function spiderLayout(
   spots: readonly unknown[],
   unit: number,
   box: { x: number; y: number; w: number; h: number },
+  size?: SpiderSize,
 ): Pt[] {
   if (
     !Array.isArray(spots) ||
@@ -74,7 +134,17 @@ export function spiderLayout(
     return [];
   const n = spots.length;
   const mean: Pt = [spots.reduce((s, p) => s + p[0], 0) / n, spots.reduce((s, p) => s + p[1], 0) / n];
-  const r = Math.max(SPIDER_MIN_R_PX, n > 1 ? SPIDER_GAP_PX / (2 * Math.sin(Math.PI / n)) : 0) * unit;
+  let rPx = Math.max(SPIDER_MIN_R_PX, n > 1 ? SPIDER_GAP_PX / (2 * Math.sin(Math.PI / n)) : 0);
+  const D = size && typeof size.disc === "number" && Number.isFinite(size.disc) && size.disc > 0 ? size.disc : 0;
+  if (D && n > 1) {
+    const sz: SpiderSize = {
+      disc: D,
+      tag: typeof size!.tag === "number" && Number.isFinite(size!.tag) && size!.tag > 0 ? size!.tag : 0,
+      font: typeof size!.font === "number" && Number.isFinite(size!.font) && size!.font > 0 ? size!.font : 12,
+    };
+    for (let g = 0; g < 400 && clashes(n, rPx, sz); g++) rPx += Math.max(2, D / 40);
+  }
+  const r = rPx * unit;
   const fit = (v: number, lo: number, hi: number, mid: number) => (lo > hi ? mid : Math.min(hi, Math.max(lo, v)));
   const okBox = box && [box.x, box.y, box.w, box.h].every((v) => typeof v === "number" && Number.isFinite(v));
   let cx = mean[0],

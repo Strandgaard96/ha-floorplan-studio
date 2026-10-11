@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: the stack fan clears the discs it draws (UI refactor, item 8)
+
+At close zoom the fan's members sat on top of each other. Cause, confirmed by a failing Playwright test first (6 of 6 cases at zoom 3 and 6 failed on "disc 0 / disc 1"): `spiderLayout` sized the ring in screen px (40 px radius, 44 px apart), but an icon disc is 32k plan units, so it grows with the zoom. At 6x a disc is 235 px across and the ring was 44 px. `spiderLayout` now takes the drawn size (`SpiderSize`: disc px, widest name tag px, font px) and widens the ring from its old minimum until no disc or name tag lies on another disc or tag (3 px of air), so it holds at near, mid and far. The old fixed ring is the floor, so a small disc fans exactly as before. The card passes `disc = 32k/unit`, with the same `k` renderFloor draws with, and a tag width estimated from the longest member name. A ring too big for the view still centres and clips rather than shrinking: a fan that is readable and cut by the card edge beats one that overlaps. `renderFloor` decides a tag's side with a 1e-6 tolerance so the top and bottom members do not flip with float noise; the layout uses the same rule.
+
 ## 2026-10-11: a piece built from parts casts one contact shadow (fork, upstream 0.26.2 sync)
 
 Upstream's 3D contact shadows (S28.8) give each furniture solid a patch. This fork draws a table, sofa, bed and the

@@ -2527,7 +2527,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     );
     if (sp && showText) {
       // S25.5: the member's name, outward of the ring's side so it never covers the next member
-      const right = sp[0] >= ringCx,
+      const right = sp[0] >= ringCx - 1e-6, // the rule spiderLayout clears the tags by (no float flip at the top and bottom members)
         lx = sp[0] + (right ? 1 : -1) * 20 * k,
         ly = sp[1] + 4 * kt;
       ringOut.push(

@@ -16,6 +16,13 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-11: Card UI refactor — plan (branch `task/ui-plan`)
+
+Spec: `docs/specs/card-ui-refactor.md`, items 5 to 8.
+
+- The stack fan's ring grows with the drawn disc and name tags, so members never overlap at any zoom
+  (`spiderLayout` takes a `SpiderSize`; the card passes it).
+
 ## 2026-10-11: Sync with upstream 0.26.2 (branch `task/upstream-sync-0.26.2`)
 
 Merged upstream `d1ec086` (0.23.0 to 0.26.2). The plain merge left 50 files in

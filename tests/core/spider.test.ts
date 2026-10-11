@@ -271,3 +271,42 @@ describe("renderFloor with a spider (S25.5)", () => {
     expect(s).not.toMatch(/spider-leader/);
   });
 });
+
+describe("spiderLayout with a drawn size (UI refactor, item 8)", () => {
+  const box = { x: -1e6, y: -1e6, w: 2e6, h: 2e6 };
+  const dist = (a: number[], b: number[]) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  const spots = (n: number) => Array.from({ length: n }, (_, j) => [500 + j, 400] as [number, number]);
+  for (const n of [2, 3, 5, 8])
+    for (const disc of [30, 90, 240])
+      it(`${n} members of a ${disc} px disc sit at least a disc apart, and the ring grows with the disc`, () => {
+        const unit = 0.5; // 0.5 plan units per px
+        const at = spiderLayout(spots(n), unit, box, { disc });
+        for (let i = 0; i < n; i++)
+          for (let j = i + 1; j < n; j++) expect(dist(at[i], at[j]) / unit).toBeGreaterThanOrEqual(disc);
+        const plain = spiderLayout(spots(n), unit, box);
+        if (disc >= 90) expect(dist(at[0], at[1])).toBeGreaterThan(dist(plain[0], plain[1]));
+      });
+  it("keeps a name tag off the next member's disc", () => {
+    const n = 6,
+      disc = 90,
+      tag = 110;
+    const at = spiderLayout(spots(n), 1, box, { disc, tag, font: 12 });
+    const cx = at.reduce((s, p) => s + p[0], 0) / n;
+    at.forEach((p, i) => {
+      const right = p[0] >= cx - 1e-6,
+        x0 = p[0] + (right ? 1 : -1) * 0.625 * disc,
+        lo = Math.min(x0, x0 + (right ? tag : -tag)),
+        hi = Math.max(x0, x0 + (right ? tag : -tag));
+      at.forEach((q, j) => {
+        if (i === j) return;
+        const nx = Math.min(hi, Math.max(lo, q[0])),
+          ny = Math.min(p[1] + 7, Math.max(p[1] - 7, q[1]));
+        expect(Math.hypot(nx - q[0], ny - q[1]), `tag ${i} on disc ${j}`).toBeGreaterThanOrEqual(disc / 2);
+      });
+    });
+  });
+  it("junk sizes are ignored", () => {
+    for (const s of [undefined, { disc: NaN }, { disc: -4 }, { disc: "9" as never }, null as never])
+      expect(spiderLayout(spots(3), 1, box, s)).toEqual(spiderLayout(spots(3), 1, box));
+  });
+});
