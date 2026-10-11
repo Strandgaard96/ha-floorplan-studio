@@ -18,6 +18,8 @@ git diff upstream/main --stat           # files we changed
 
 ## 2026-10-11: Card UI refactor — 3D (branch `task/ui-3d`)
 
+- Idle devices in 3D are full markers: lit size, opaque `--fp-disc` disc, thin `--fp-idle` edge, full-opacity glyph at 3:1 or
+  better (`overlay.ts`, `inkFor`). Never hidden.
 - The first 3D view frames the house box in the free area: 85 % of the view under the toolbar and beside the Active list,
   centred, on every floor; Reset camera returns to it (`orbit.ts`, new `top` inset and `shiftY`; the card passes the
   toolbar's bottom edge).

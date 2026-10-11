@@ -71,6 +71,10 @@ hide an idle device that is drawn today at the same zoom and detail setting.
 11. **The house fills the view.** The default camera frames the house's box so
     it fills about 85 % of the card's free area (the area under the toolbar),
     in every floor, with floors below on or off.
+11a. **The ground has no visible edge.** The 3D ground fades to transparent toward its border, so on a light Home Assistant
+    page with a dark theme (blueprint) it is not a dark stripe with white bands above and below; in every theme, day and night.
+11b. **A room's readout never outlives its name.** The declutter keeps a room's readout only when the same room's name stays
+    (readout dropped first).
 
 ### System (lane `ui-system`, runs after shell and plan are merged)
 

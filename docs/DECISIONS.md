@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: idle devices are full markers in 3D (card UI refactor item 9)
+
+Magnus: devices that are off are not noise; the 3D view is for controlling them. An idle icon was a glyph at .7 opacity on
+a disc at 0 opacity, over a small translucent ball. The 3D overlay layer (`overlay.ts` only; 2D keeps its quiet look) now
+gives every idle, non-alert device the lit marker's size, an opaque `--fp-disc` disc with a 1 px `--fp-idle` edge, and the
+glyph at full opacity. The theme's idle colours (`--fp-idle`, `--fp-dev-camera`, `--fp-dev-garden`) are measured against
+the disc on this layer and pushed toward black or white until they keep 3.3:1 (blueprint's idle grey was 2.93:1 on its
+light disc). Hit radius was already the same for both (`HIT_PX`), and a test now holds it.
+
 ## 2026-10-11: the first 3D view frames the house box in the free area (card UI refactor item 11)
 
 The fit was a sphere round the house at 0.85 of its radius, so a long low house left a band at the top and the toolbar sat
