@@ -591,6 +591,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.addEventListener("focusout", this.onFocusOut);
     this.addEventListener("click", this.onButtonClick);
     window.addEventListener("click", this.onWindowClick);
+    window.addEventListener("pointerdown", this.onWindowPointerDown, true);
   }
   disconnectedCallback() {
     super.disconnectedCallback();
@@ -604,6 +605,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.removeEventListener("focusout", this.onFocusOut);
     this.removeEventListener("click", this.onButtonClick);
     window.removeEventListener("click", this.onWindowClick);
+    window.removeEventListener("pointerdown", this.onWindowPointerDown, true);
     this.ro?.disconnect();
     this.stopFadeTimer();
     clearTimeout(this.locateTimer);
@@ -1822,6 +1824,15 @@ export class FloorplanStudioEditor extends LitElement {
       if (!document.hasFocus()) return; // the window lost focus; the user comes back to the same selection
       if (this.st.sel) { this.st.sel = null; this.requestUpdate(); }
     }, 0);
+  };
+
+  /** A press outside an open menu closes it at once. A drag on the plan never ends in a click on the plan, so `onWindowClick`
+   * alone left the menu open over the toolbar (and over Undo) after a device was moved. */
+  private onWindowPointerDown = (ev: PointerEvent) => {
+    const path = ev.composedPath();
+    this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]").forEach((m) => {
+      if (!path.includes(m)) { m.open = false; this.closeSubs(m); }
+    });
   };
 
   private onWindowClick = (ev: MouseEvent) => {
