@@ -251,3 +251,65 @@ test("7. a stored rotation of -180 is not rewritten to 180 by a no-op edit", asy
   expect((await poseOf(page)).rot).toBe(-180);
   expect(await depth(page)).toBe(d0);
 });
+
+// ---- Review 29, round 2: the Outline is a way into the plan too ----
+
+async function outlineRow(page: Page, name: string) {
+  await page.locator(`${EDITOR} #outlineFilter`).fill(name);
+  const r = page.locator(`${EDITOR} #outlineTree [role="treeitem"]`, { hasText: name }).first();
+  await expect(r).toBeVisible();
+  return r;
+}
+const hostState = (page: Page) => page.evaluate((tag) => { const e = document.querySelector(tag) as any; return { sel: e.st.sel, ctx: !!e.ctxMenu, rooms: e.st.f.rooms.length }; }, EDITOR);
+
+test("5. Align open: a right click on an Outline row opens no menu and Delete removes nothing", async ({ page }) => {
+  await setup(page);
+  await openAlign(page);
+  const l0 = JSON.stringify(await layoutOf(page)), d0 = await depth(page);
+  const r = await outlineRow(page, "Landing");
+  const b = (await r.boundingBox())!;
+  await page.mouse.click(b.x + 30, b.y + b.height / 2, { button: "right" });
+  expect(await page.locator(`${EDITOR} .ctxmenu`).count(), "no menu").toBe(0);
+  expect((await hostState(page)).sel, "nothing selected").toBeNull();
+  await page.keyboard.press("Delete");
+  expect((await hostState(page)).rooms, "the room is still there").toBe(1);
+  // the Menu key on the focused row
+  await r.focus();
+  await page.keyboard.press("ContextMenu");
+  await page.keyboard.press("Delete");
+  expect(await page.locator(`${EDITOR} .ctxmenu`).count(), "no menu from the Menu key").toBe(0);
+  expect((await hostState(page)).sel).toBeNull();
+  expect(JSON.stringify(await layoutOf(page))).toBe(l0);
+  expect(await depth(page)).toBe(d0);
+  await expect(page.locator("#alignPanel")).toBeVisible();
+});
+
+test("5. Align open: a click on an Outline row of this floor leaves nothing selected and Align open", async ({ page }) => {
+  await setup(page);
+  await openAlign(page);
+  const r = await outlineRow(page, "Landing");
+  const b = (await r.boundingBox())!;
+  await page.mouse.click(b.x + 30, b.y + b.height / 2);
+  expect((await hostState(page)).sel, "nothing selected").toBeNull();
+  await expect(page.locator("#alignPanel")).toBeVisible();
+  expect(await page.locator(`${EDITOR} svg circle.h`).count(), "no handle drawn").toBe(0);
+});
+
+// ---- typed values past the coordinate limit speak ----
+
+test("6. a typed offset or rotation that would pass the coordinate limit says so, and writes nothing", async ({ page }) => {
+  await setup(page, (l) => { l.floors.first.offset = [9999990, 0]; });
+  await openAlign(page);
+  const d0 = await depth(page), l0 = JSON.stringify(await layoutOf(page));
+  await page.locator("#alignX").fill("99999999");
+  await page.locator("#alignX").press("Enter");
+  await expect(status(page)).toHaveText(/beyond the limit/);
+  expect(await depth(page)).toBe(d0);
+  expect(JSON.stringify(await layoutOf(page))).toBe(l0);
+  await page.evaluate((tag) => { (document.querySelector(tag) as any).status = ""; }, EDITOR);
+  await page.locator("#alignRot").fill("90");
+  await page.locator("#alignRot").press("Enter");
+  await expect(status(page)).toHaveText(/beyond the limit/);
+  expect(await depth(page)).toBe(d0);
+  expect(JSON.stringify(await layoutOf(page))).toBe(l0);
+});

@@ -1905,6 +1905,7 @@ export class FloorplanStudioEditor extends LitElement {
     } else if (e.kind === "floor") {
       this.revealInOutline(`f:${e.floor}`);
     }
+    if (this.aligning) st.sel = null; // review 29: Align is read-only and nothing is selected in it; the pick is centred and ringed, not selected
     this.requestUpdate();
   }
 
@@ -1975,7 +1976,7 @@ export class FloorplanStudioEditor extends LitElement {
    *  right-click on the plan does; a floor, an unplaced entity or a "No room" row has no menu and the browser's own shows. */
   private openCtxForRow(row: OutlineRow, x: number, y: number): boolean {
     const e = row.node.entry;
-    if (!e || (e.kind !== "room" && e.kind !== "device")) return false;
+    if (this.aligning || !e || (e.kind !== "room" && e.kind !== "device")) return false; // review 29: the menu selects and deletes; Align is read-only
     // A row of the multi-selection keeps it, as a right-click on the plan does (Opus review).
     const sel = this.st.sel;
     if (e.kind === "device" && !e.piece && e.floor === this.st.floor && e.device !== undefined && sel?.t === "devs" && sel.is.includes(e.device)) {
@@ -1995,6 +1996,7 @@ export class FloorplanStudioEditor extends LitElement {
     return true;
   }
   private onOutlineCtx = (row: OutlineRow, ev: MouseEvent) => {
+    if (this.aligning) { ev.preventDefault(); return; } // review 29: no plan menu while Align is open, and not the browser's either
     if (this.openCtxForRow(row, ev.clientX, ev.clientY)) ev.preventDefault();
   };
   /** The tree's own keys (WAI-ARIA tree pattern). A key it uses goes no further, so the arrows move in the tree, not the plan. */
@@ -2004,6 +2006,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (!(t instanceof HTMLElement) || t.getAttribute("role") !== "treeitem") return;
     const rows = this.outlineRows(this.findData().tree);
     if (ev.key === "ContextMenu" || (ev.key === "F10" && ev.shiftKey)) { // the Menu key: beside the row, as the pointer would
+      if (this.aligning) { ev.preventDefault(); ev.stopPropagation(); return; } // review 29: Align is read-only
       const row = rows.find((x) => x.node.id === t.dataset.node), b = t.getBoundingClientRect();
       if (row && this.openCtxForRow(row, b.left + 24, b.bottom)) { ev.preventDefault(); ev.stopPropagation(); }
       return;
@@ -2663,11 +2666,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (key === null || bk === null) return null;
     const upper = st.layout.floors[key], lower = st.layout.floors[bk];
     const place = floorPlace(st.layout, key, bk);
-    // A drag edits the floor on every pointer move, and every edit is a new floor object: searching each time would stall the drag.
-    // The preview keeps the last answer while a drag is in progress and searches once when it ends.
-    const dragging = this.drag !== null && this.drag.type !== "pan" && this.drag.type !== "marquee" && this.drag.moved;
     // S28.12: keyed on what the search reads (`alignKey`), not on the floor objects: a nudge or an undo makes new objects with the same structure. S29.9: the key holds the turn, so a move does not search and a turn does.
-    const k = dragging && this.alignMemo ? this.alignMemo.key : `${alignKeyOf(upper, place.turn)}#${alignKeyOf(lower)}`;
+    const k = `${alignKeyOf(upper, place.turn)}#${alignKeyOf(lower)}`;
     if (!this.alignMemo || this.alignMemo.key !== k) { this.alignSearches++; this.alignMemo = { key: k, r: alignFloor(upper, lower, place.turn) }; }
     const r = this.alignMemo.r, pose = floorPose(st.layout, key), cur = pose.off;
     const to = r ? poseFromPlace(st.layout, key, bk, { turn: place.turn, shift: r.t }) : null;
@@ -2695,7 +2695,7 @@ export class FloorplanStudioEditor extends LitElement {
     const upper = st.layout.floors[key], lower = st.layout.floors[bk], place = floorPlace(st.layout, key, bk);
     return { rows: stairReport(upper, lower, place), belowTitle: lower.title || bk, can: stairPlace(upper, lower, place) !== null };
   }
-  /** Align stairs: the first stair of this floor laid on the first stair below, turn and shift, one undo step; the status says what it did. */
+  /** Align stairs: the first stair of this floor laid on the nearest stair below, turn and shift, one undo step; the status says what it did. */
   alignStairs() {
     const st = this.st, key = this.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
     if (key === null || bk === null) return;
@@ -2731,6 +2731,12 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.planBlocked) { this.refused(); return; }
     this.poseNone();
   }
+  /** A typed value that wrote nothing: the lock says so; the same value is silent (the box shows the layout again); a pose past the coordinate limit says so. */
+  private typedRefused() {
+    if (this.st.planBlocked) this.refused();
+    else if (this.st.lastPose === "refused") this.poseNone();
+    else this.requestUpdate();
+  }
   /** One of the two offset fields (cm): a number, one undo step; junk or the same value changes nothing and the field shows the layout again. */
   setAlignOffset(axis: 0 | 1, text: string) {
     const a = this.alignPreview();
@@ -2738,16 +2744,16 @@ export class FloorplanStudioEditor extends LitElement {
     const n = parseAlignNumber(text);
     if (!Number.isFinite(n)) { this.status = "Type a number of centimetres, such as 3,5 or -2.25"; this.requestUpdate(); return; }
     const to: Pt = axis === 0 ? [n, a.cur[1]] : [a.cur[0], n];
-    if (this.st.setOffset(a.key, to)) this.changed("Floor offset set"); else this.refused();
+    if (this.st.setOffset(a.key, to)) this.changed("Floor offset set"); else this.typedRefused();
   }
-  /** S29.10: the rotation box (degrees, a comma works); one undo step, the offset kept; junk or the same value changes nothing and the box shows the layout again. */
+  /** S29.10: the rotation box (degrees, a comma works); one undo step, about the pivot the Turn buttons use; junk or the same value changes nothing and the box shows the layout again. */
   setAlignRotation(text: string) {
     const a = this.alignPreview();
     if (!a) return;
     const n = parseAlignNumber(text);
     if (!Number.isFinite(n)) { this.status = "Type a number of degrees, such as 3,5 or -2.25"; this.requestUpdate(); return; }
     // Review 29: about the pivot the Turn buttons use, so the floor's place in the house does not jump; the same angle writes nothing.
-    if (this.st.setRotation(a.key, n, floorPivot(this.st.layout.floors[a.key]))) this.changed("Floor rotation set"); else if (this.st.planBlocked) this.refused(); else this.requestUpdate();
+    if (this.st.setRotation(a.key, n, floorPivot(this.st.layout.floors[a.key]))) this.changed("Floor rotation set"); else this.typedRefused();
   }
   /** Reset: rotation and offset both to zero, one undo step. */
   resetAlignOffset() { const a = this.alignPreview(); if (a && (a.rot !== 0 || a.cur[0] !== 0 || a.cur[1] !== 0)) { if (this.st.setPose(a.key, { rot: 0, off: [0, 0] })) this.changed("Floor offset and rotation reset"); else this.refused(); } }
