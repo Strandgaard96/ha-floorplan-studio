@@ -292,14 +292,20 @@ test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the w
     const ring = kids.find((n) => n.tagName === "polygon" && n.getAttribute("class") === "room on ring")!;
     const rs = getComputedStyle(ring);
     return {
-      baseFill: getComputedStyle(base).fill, // the room's own water colour: untouched, the ring is a stroke only
+      baseFill: (() => {
+        // UI refactor 17: water is --fp-water mixed 20 % into --fp-bg, a color-mix(), which computed style does not give as rgb().
+        const c = document.createElement("canvas").getContext("2d")!;
+        c.fillStyle = "#000";
+        c.fillStyle = getComputedStyle(base).fill;
+        return c.fillStyle;
+      })(), // the room's own water colour: untouched, the ring is a stroke only
       ringStroke: rs.stroke,
       ringFillAttr: ring.getAttribute("fill"),
       ringPointerEvents: rs.pointerEvents,
       ringAfterWalls: kids.indexOf(ring) > kids.indexOf(lastWall), // DOM order: later siblings paint on top in SVG
     };
   });
-  expect(info.baseFill).toBe("rgb(169, 207, 227)"); // --fp-water, unmoved by the "on" state
+  expect(info.baseFill).toBe("#e5e9e5"); // --fp-water-fill (20 % water in the light bg), unmoved by the "on" state
   expect(info.ringStroke).toBe("rgb(138, 81, 23)"); // --fp-active, light theme
   expect(info.ringFillAttr).toBe("none");
   expect(info.ringPointerEvents).toBe("none"); // a click on the pond still reaches the room polygon underneath

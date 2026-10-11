@@ -188,10 +188,10 @@ const paintAttr = (r: { color?: string; texture?: string; textureRot?: number; t
 const SURFACE: Record<RoomKind, string> = {
   room: "--fp-room-empty",
   structure: "--fp-room-empty",
-  garden: "--fp-garden",
-  terrace: "--fp-terrace",
-  pavement: "--fp-pavement",
-  water: "--fp-water",
+  garden: "--fp-garden-fill",
+  terrace: "--fp-terrace-fill",
+  pavement: "--fp-pavement-fill",
+  water: "--fp-water-fill",
   fill: "--fp-fill",
   zone: "--fp-room-empty",
 };
@@ -362,8 +362,8 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({
    and --fp-dev-ac-cool here) — TV is the one exception to "each type keeps its own hue" too. S23 review S6: base1 is
    near 3.2:1 on the outdoor shades and 1.3:1 on the blue, so outdoor names take base2 (--fp-text-out) and water is
    Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
-const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#11424f;--fp-terrace:#124c5b;--fp-pavement:#135161;--fp-wall:#93a1a1;--fp-idle:#586e75;
---fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#6c71c4;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#15608c;--fp-fill:#073642;--fp-fill-line:#586e75;
+const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#0d3b48;--fp-terrace:#0d3d4a;--fp-pavement:#0a3a4a;--fp-wall:#93a1a1;--fp-idle:#586e75;
+--fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#6c71c4;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#0f3f5c;--fp-fill:#073642;--fp-fill-line:#586e75;
 --fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#6c71c4;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
@@ -493,7 +493,7 @@ ${THEME_EXTRAS}
    that reads var() is resolved on the element that declares it, so each plan, host and nested theme group derives its own.
    The side is 55% wall unless the theme sets --fp-wall-side-share (HA dark, whose wall is its light text colour). The share
    is its own variable, never a second --fp-wall-side, so this rule, later and as specific as THEME_EXTRAS, cannot beat it. */
-:host,.fp,[data-theme]{--fp-ghost:color-mix(in srgb,var(--fp-wall) 35%,var(--fp-bg));--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg));--fp-tree:color-mix(in srgb,var(--fp-dev-garden) 70%,var(--fp-garden));--fp-tree-edge:color-mix(in srgb,var(--fp-dev-garden) 55%,var(--fp-ink));--fp-trunk:color-mix(in srgb,color-mix(in srgb,var(--fp-tree) 35%,var(--fp-garden)) calc(var(--fp-crown-lift,0%) * 2.2),var(--fp-tree-edge));--fp-frame:color-mix(in srgb,var(--fp-door) 40%,var(--fp-ink));--fp-shade:color-mix(in srgb,var(--fp-on-light) 35%,black)}
+:host,.fp,[data-theme]{--fp-garden-fill:color-mix(in srgb,var(--fp-garden) 30%,var(--fp-bg));--fp-terrace-fill:color-mix(in srgb,var(--fp-terrace) 30%,var(--fp-bg));--fp-pavement-fill:color-mix(in srgb,var(--fp-pavement) 33%,var(--fp-bg));--fp-water-fill:color-mix(in srgb,var(--fp-water) 20%,var(--fp-bg));--fp-ghost:color-mix(in srgb,var(--fp-wall) 35%,var(--fp-bg));--fp-wall-top:var(--fp-wall);--fp-wall-side:color-mix(in srgb,var(--fp-wall) var(--fp-wall-side-share,55%),var(--fp-bg));--fp-box-top:color-mix(in srgb,var(--fp-furniture) 35%,var(--fp-bg));--fp-box-side:color-mix(in srgb,var(--fp-furniture) 60%,var(--fp-bg));--fp-box-side-w:color-mix(in srgb,var(--fp-furniture) 75%,var(--fp-bg));--fp-tree:color-mix(in srgb,var(--fp-dev-garden) 70%,var(--fp-garden));--fp-tree-edge:color-mix(in srgb,var(--fp-dev-garden) 55%,var(--fp-ink));--fp-trunk:color-mix(in srgb,color-mix(in srgb,var(--fp-tree) 35%,var(--fp-garden)) calc(var(--fp-crown-lift,0%) * 2.2),var(--fp-tree-edge));--fp-frame:color-mix(in srgb,var(--fp-door) 40%,var(--fp-ink));--fp-shade:color-mix(in srgb,var(--fp-on-light) 35%,black)}
 /* A room with its own colour carries a fill attribute; the :not([fill]) rules let it show. The fill room keeps its hatch.
    Each kind also names its own fill as --fp-room-fill, so a later rule can tint the room without ever having to know,
    or replace, the colour underneath (Opus review: the glow and on rules below used to read straight from --fp-glow,
@@ -501,11 +501,12 @@ ${THEME_EXTRAS}
    went plain yellow, not a tinted blue). */
 /* --fp-room-empty: a plain "room" or "structure" with no colour or texture of its own reads as not-yet-painted. A light
    theme keeps the light grey (Diego, 2026-09-21); a dark theme uses its own room shade (S23.6), so ha in dark mode follows
-   HA's --secondary-background-color again. Garden, terrace, pavement, water and zone keep their own kind colour. */
-.room:not([fill]){--fp-room-fill:var(--fp-room-empty);fill:var(--fp-room-fill)} .room-garden:not([fill]){--fp-room-fill:var(--fp-garden);fill:var(--fp-room-fill)} .room-terrace:not([fill]){--fp-room-fill:var(--fp-terrace);fill:var(--fp-room-fill)} .room-pavement:not([fill]){--fp-room-fill:var(--fp-pavement);fill:var(--fp-room-fill)}
+   HA's --secondary-background-color again. Garden, terrace, pavement and water keep their own kind colour but drawn quiet (UI refactor 17):
+   the -fill tokens above mix it into the background, so a lawn bigger than the house does not outweigh it; zone has no fill. */
+.room:not([fill]){--fp-room-fill:var(--fp-room-empty);fill:var(--fp-room-fill)} .room-garden:not([fill]){--fp-room-fill:var(--fp-garden-fill);fill:var(--fp-room-fill)} .room-terrace:not([fill]){--fp-room-fill:var(--fp-terrace-fill);fill:var(--fp-room-fill)} .room-pavement:not([fill]){--fp-room-fill:var(--fp-pavement-fill);fill:var(--fp-room-fill)}
 /* S23.6: a room or stair with its own paint is dimmed on a dark theme (--fp-paint-dim), never recoloured. The on ring carries fill="none" and is left alone. */
 .room[fill]:not([fill="none"]){filter:var(--fp-paint-dim)}
-.room.room-fill{--fp-room-fill:var(--fp-fill);fill:url(#fp-hatch)} .room-zone:not([fill]){--fp-room-fill:transparent;fill:none} .room-water:not([fill]){--fp-room-fill:var(--fp-water);fill:var(--fp-room-fill)}
+.room.room-fill{--fp-room-fill:var(--fp-fill);fill:url(#fp-hatch)} .room-zone:not([fill]){--fp-room-fill:transparent;fill:none} .room-water:not([fill]){--fp-room-fill:var(--fp-water-fill);fill:var(--fp-room-fill)}
 /* S2.6: room_glow. Three classes (.room.glow:not([fill])) outrank every rule above (two classes each), so which
    wins is settled by specificity, not source order (CLAUDE.md finding 10: a [fill] attribute beat a class once
    before). A room with its own colour (own[fill] attribute) is the user's choice and keeps it, glowing or not.
@@ -751,7 +752,7 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
    no one surface and keeps the plain text colour. One font, Home Assistant's own. */
 :host,svg{--fp-font:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,system-ui,sans-serif))}
-.lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
+.lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:600} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}
 /* S25.2: semantic zoom. renderFloor writes data-detail on the plan root (far, mid or near; none is near); every level rule is here, so the editor and
@@ -2288,7 +2289,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   };
   const nameAt: Label[] = [],
     zoneAt: Label[] = [];
-  // S23.1: a room's name is 12, an outdoor name, like a zone's, 10: smaller than a room, never fainter.
+  // S23.1, UI refactor 12: a room's name is 14 px semibold on the screen's scale, an outdoor name, like a zone's, 12: smaller than a room, never fainter.
   const OUTDOOR = new Set<RoomKind>(["garden", "terrace", "pavement", "water"]);
   // S23.3: the smallest room first. It has the fewest spots, and a pond whose name goes outside on a leader then takes
   // its spot before the garden round it picks one there.
@@ -2298,10 +2299,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     .map(([, i]) => i);
   for (const i of bySize) {
     const r = f.rooms[i];
-    if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * kt, 7 * kt);
+    if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 12 : 14) * kt, 7 * kt);
   }
   f.rooms.forEach((r, i) => {
-    if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * kt, 6 * kt);
+    if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 12 * kt, 6 * kt);
   });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
@@ -2455,7 +2456,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const lab = nameAt[i],
       base = lab?.at ?? centroid(r.pts),
       size = lab?.size ?? 0,
-      vs = 10 * kt;
+      vs = 12 * kt;
     if (!base.every(Number.isFinite)) return;
     const [vx, vy] = place(
       [screenOff(base, 0, 0.25 * size + kt + 0.75 * vs), screenOff(base, 0, -0.75 * size - kt - 0.25 * vs)],

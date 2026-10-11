@@ -425,7 +425,7 @@ export class FloorplanStudioCard extends LitElement {
        fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
        the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
        than cropped or stretched. */
-    :host { display: block; position: relative; height: 100%; }
+    :host { display: block; position: relative; height: 100%; --fp-space-1: 4px; --fp-space-2: 8px; --fp-space-3: 12px; --fp-space-4: 16px; --fp-space-5: 24px; --fp-radius-control: 6px; --fp-radius-surface: 12px; --fp-radius-pill: 999px; --fp-shadow-sm: 0 1px 2px color-mix(in srgb, var(--fp-ink) 22%, transparent), 0 2px 6px color-mix(in srgb, var(--fp-ink) 12%, transparent); --fp-shadow-lg: 0 2px 4px color-mix(in srgb, var(--fp-ink) 20%, transparent), 0 8px 24px color-mix(in srgb, var(--fp-ink) 24%, transparent); }
     /* S8.3: hui-panel-view gives the card no definite height either, so the plan grew by width past the bottom of
        the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
     :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
@@ -434,15 +434,15 @@ export class FloorplanStudioCard extends LitElement {
        indefinite height it sizes like the svg, in a fixed row it fills it). */
     .fp-3d { position: relative; width: 100%; height: 100%; display: block; }
     /* One line, over the plan, when 3D cannot run: why, and that 2D is what is shown. */
-    .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: 4px 8px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; }
+    .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: var(--fp-space-1) var(--fp-space-2); font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); }
     p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
        renderFloor draws and is positioned over it instead. */
     /* Opus review finding 13: the active-devices panel below (also z-index: 1, and later in DOM order, so it
        would otherwise win ties) can be dragged to sit right under this row; the floor chips must still take the
        click, not the panel behind — or in front of, without this — them. */
-    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: 6px; }
-    .fp-floors button { font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: var(--fp-space-2); }
+    .fp-floors button { font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-pill); box-shadow: var(--fp-shadow-sm); padding: var(--fp-space-1) var(--fp-space-3); cursor: pointer; }
     /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
        one attribute serves both the visual state and the accessible one, no added "(current)" text). */
@@ -452,14 +452,14 @@ export class FloorplanStudioCard extends LitElement {
     /* S24.7: a floor with a triggered alarm. After the pressed rule, so the shown floor keeps the warn border too; the count
        sits on a warn badge in --fp-on-light, readable on the pressed pill's ink and on the plain one alike. */
     .fp-floors button.fp-floor-alarm { border-color: var(--fp-warn); }
-    .fp-floor-alarm .fp-floor-count { background: var(--fp-warn); color: var(--fp-on-light); border-radius: 999px; padding: 0 5px; font-weight: 600; }
+    .fp-floor-alarm .fp-floor-count { background: var(--fp-warn); color: var(--fp-on-light); border-radius: var(--fp-radius-pill); padding: 0 var(--fp-space-1); font-weight: 600; }
     /* S2.7: the cover confirm dialog is card chrome too (same reasoning as .fp-floors above) — it acts on the
        real home, so it sits over the whole card, not only the plan. */
-    .fp-dialog-backdrop { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); }
-    .fp-dialog { background: var(--fp-room); color: var(--fp-ink); border-radius: 8px; padding: 16px 20px; min-width: 200px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
-    .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
+    .fp-dialog-backdrop { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--fp-bg) 70%, transparent); }
+    .fp-dialog { background: var(--fp-room); color: var(--fp-ink); border-radius: var(--fp-radius-surface); padding: var(--fp-space-4) var(--fp-space-5); min-width: 200px; box-shadow: var(--fp-shadow-lg); }
+    .fp-dialog p { margin: 0 0 var(--fp-space-3); font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
-    .fp-dialog-actions button { font: 13px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+    .fp-dialog-actions button { font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); box-shadow: var(--fp-shadow-sm); padding: var(--fp-space-2) var(--fp-space-3); cursor: pointer; }
     /* S7.4: the view controls are card chrome, the same colours as the floor chips, in the other top corner.
        Like the studio: a horizontal toolbar (.fp-zoom) for the look controls and a vertical stack (.fp-stack) for
        zoom, fit, rotate and reset, just below it. .fp-viewonly is the toolbar when zoom is off, not .fp-zoom, so
@@ -470,7 +470,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
     .fp-stack { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-direction: column; gap: 4px; }
     .fp-stack.fp-stack-row { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; left: 8px; }
-    .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); box-shadow: var(--fp-shadow-sm); cursor: pointer; }
     .fp-zoom button:disabled, .fp-viewonly button:disabled, .fp-stack button:disabled { opacity: 0.45; cursor: default; }
     /* UI refactor 4: Reset view carries [hidden] until the view differs; the class rule above sets display:flex and would beat the browser's own hidden rule, so say it here. */
     .fp-stack button[hidden] { display: none; }
@@ -478,17 +478,17 @@ export class FloorplanStudioCard extends LitElement {
     .fp-seg { display: flex; }
     .fp-zoom .fp-seg button, .fp-viewonly .fp-seg button { width: auto; min-width: 36px; padding: 0 8px; font: 600 12px/1 var(--fp-font, system-ui, sans-serif); border-radius: 0; }
     .fp-seg button + button { margin-left: -1px; }
-    .fp-seg button:first-child { border-radius: 6px 0 0 6px; }
-    .fp-seg button:last-child { border-radius: 0 6px 6px 0; }
+    .fp-seg button:first-child { border-radius: var(--fp-radius-control) 0 0 var(--fp-radius-control); }
+    .fp-seg button:last-child { border-radius: 0 var(--fp-radius-control) var(--fp-radius-control) 0; }
     .fp-zoom .fp-seg button[aria-pressed="true"], .fp-viewonly .fp-seg button[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); box-shadow: none; z-index: 1; }
     /* The View options menu: a popover under the toolbar, a labelled row for each look control. It stands left of the control stack (28 px and a gap), so the zoom and rotate buttons stay reachable while it is open. */
     .fp-zoom:has(.fp-view-menu), .fp-viewonly:has(.fp-view-menu) { z-index: 2; }
-    .fp-view-menu { position: absolute; top: calc(100% + 4px); right: 36px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; width: max-content; min-width: 200px; max-width: calc(100vw - 32px); max-height: 60vh; overflow-y: auto; padding: 8px; background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 4px 16px color-mix(in srgb, var(--fp-ink) 30%, transparent); }
-    .fp-vm-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
+    .fp-view-menu { position: absolute; top: calc(100% + 4px); right: 36px; display: flex; flex-direction: column; gap: var(--fp-space-2); box-sizing: border-box; width: max-content; min-width: 200px; max-width: calc(100vw - 32px); max-height: 60vh; overflow-y: auto; padding: var(--fp-space-2); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-surface); box-shadow: var(--fp-shadow-lg); }
+    .fp-vm-row { display: flex; align-items: center; justify-content: space-between; gap: var(--fp-space-3); font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-vm-row > span { flex: 0 0 auto; }
     .fp-zoom .fp-view-menu select, .fp-viewonly .fp-view-menu select { flex: 1 1 auto; min-width: 0; max-width: 150px; }
     .fp-zoom .fp-view-menu input[type="range"], .fp-viewonly .fp-view-menu input[type="range"] { flex: 1 1 auto; min-width: 0; max-width: 120px; }
-    .fp-zoom .fp-view-menu button, .fp-viewonly .fp-view-menu button { width: 100%; justify-content: flex-start; gap: 8px; padding: 0 8px; font: 12px/1 var(--fp-font, system-ui, sans-serif); }
+    .fp-zoom .fp-view-menu button, .fp-viewonly .fp-view-menu button { width: 100%; justify-content: flex-start; gap: var(--fp-space-2); padding: 0 var(--fp-space-2); font: 14px/1 var(--fp-font, system-ui, sans-serif); box-shadow: none; }
     .fp-view-menu button b { width: 14px; text-align: center; font-weight: 700; }
     /* A toggle that is on wears the primary ring; one that is off is a plain button. Dimming it read as disabled. */
     .fp-zoom button[aria-pressed="true"], .fp-viewonly button[aria-pressed="true"] { border-color: var(--fp-primary); box-shadow: inset 0 0 0 1px var(--fp-primary); }
@@ -498,7 +498,7 @@ export class FloorplanStudioCard extends LitElement {
        rules, .extra, .door-hit), which an inherited value on the svg alone would lose to. */
     svg.fp-turning, svg.fp-turning * { pointer-events: none; }
     .fp-zoom input[type="range"], .fp-viewonly input[type="range"] { width: 72px; height: 28px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
-    .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 4px; font: 13px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 var(--fp-space-1); font: 14px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); cursor: pointer; }
     /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
        a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
        any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
@@ -512,10 +512,10 @@ export class FloorplanStudioCard extends LitElement {
     /* S10.4: the chooser lists one button per entity, column layout (unlike the cover/vacuum row of verbs), each
        row left-aligned since it carries a name, not a short verb; Cancel stays a separate, right-aligned row like
        every other dialog's own Cancel. */
-    .fp-chooser-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .fp-chooser-list { display: flex; flex-direction: column; gap: var(--fp-space-2); margin-bottom: var(--fp-space-3); }
     /* Review fix: a row wears the same button look as Cancel (it had the browser's default white box), the name
        on the left and the live state on the right, muted, so the list reads as "which one, and what is it doing". */
-    .fp-chooser-list button { display: flex; justify-content: space-between; gap: 12px; text-align: left; font: 13px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+    .fp-chooser-list button { display: flex; justify-content: space-between; gap: 12px; text-align: left; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); padding: var(--fp-space-2) var(--fp-space-3); cursor: pointer; }
     .fp-chooser-list button .state { opacity: 0.7; white-space: nowrap; }
     .fp-chooser-dialog .fp-dialog-actions { justify-content: flex-end; }
     /* S9.5: the active-devices panel, card chrome like .fp-floors/.fp-zoom above (CLAUDE.md finding 8 — nothing here
@@ -524,23 +524,25 @@ export class FloorplanStudioCard extends LitElement {
        off-screen (S9.5 spec). */
     /* Opus review finding 5: min(200px, 45%) instead of a flat 200px, so a narrow (phone-width) card gets a panel
        that fits it rather than one that is most of the card's own width at 200px on a ~380px card. */
-    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
-    .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 8px; cursor: grab; touch-action: none; user-select: none; font: 600 12px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
+    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-surface); box-shadow: var(--fp-shadow-lg); }
+    .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--fp-space-1) var(--fp-space-2); padding: var(--fp-space-2); cursor: grab; touch-action: none; user-select: none; font: 600 14px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
     .fp-active-title { flex: 1; }
     .fp-active-count { font-weight: 400; color: var(--fp-text); }
-    .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 4px; }
+    .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: var(--fp-space-1); }
     .fp-active-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 4px 8px 8px; background: linear-gradient(var(--fp-room) 30%, transparent) 0 0 / 100% 24px no-repeat local, linear-gradient(transparent, var(--fp-room) 70%) 0 100% / 100% 24px no-repeat local, radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--fp-ink) 30%, transparent), transparent) 0 0 / 100% 8px no-repeat scroll, radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--fp-ink) 30%, transparent), transparent) 0 100% / 100% 8px no-repeat scroll; }
-    .fp-active-group-label { font: 600 10px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
+    .fp-active-group-label { font: 500 12px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); margin-top: var(--fp-space-2); }
+    /* UI refactor 15: a section heading (Devices) outranks the group headings under it (Lights, Climate …): ink, 600, capitals. */
+    .fp-active-group-label.fp-section-label { font-weight: 600; color: var(--fp-ink); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-active-group-label:first-child { margin-top: 0; }
     /* S14.6: a category header is a button (keyboard, aria-expanded); it keeps the label's look. */
-    button.fp-cat { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; text-align: left; border: none; background: transparent; padding: 0 2px; cursor: pointer; border-radius: 4px; }
+    button.fp-cat { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; text-align: left; border: none; background: transparent; padding: 0 var(--fp-space-1); cursor: pointer; border-radius: var(--fp-radius-control); }
     button.fp-cat:hover, button.fp-cat:focus-visible { background: var(--fp-idle); }
     .fp-cat-name { flex: 1; min-width: 0; }
     .fp-cat-chev { flex: 0 0 10px; }
-    .fp-active-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); padding: 4px 2px; cursor: pointer; border-radius: 4px; }
+    .fp-active-row { display: flex; align-items: center; gap: var(--fp-space-2); width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); padding: var(--fp-space-1); cursor: pointer; border-radius: var(--fp-radius-control); }
     .fp-active-row:hover, .fp-active-row:focus-visible { background: var(--fp-idle); }
     .fp-active-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: var(--fp-active-row-color, var(--fp-ink)); }
-    .fp-active-empty { margin: 4px 2px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
+    .fp-active-empty { margin: var(--fp-space-1); font: 14px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* S11.3/S11.4: the room section and the details under a row. Same card chrome and tokens as the list above. */
     .fp-active.fp-room-open { width: min(260px, 70%); }
     /* S14 review: on a card narrower than ACTIVE_FOLD_BELOW_PX an open room panel is a short sheet, not a column down the card: at most 45% of the card high, its body scrolling, and docked on the half opposite the picked room (class set in _positionActivePanelNow) so that room stays in view. */
@@ -550,14 +552,14 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active.fp-sheet.fp-dock-over { top: 8px; z-index: 2; }
     .fp-item { display: flex; flex-wrap: wrap; align-items: center; }
     .fp-item .fp-active-row { flex: 1 1 0; width: auto; min-width: 0; }
-    .fp-row-state { margin-left: auto; padding-left: 6px; flex: 0 0 auto; white-space: nowrap; font-size: 11px; color: var(--fp-text); overflow-wrap: anywhere; text-align: right; }
+    .fp-row-state { margin-left: auto; padding-left: var(--fp-space-2); flex: 0 0 auto; white-space: nowrap; font-size: 12px; color: var(--fp-text); overflow-wrap: anywhere; text-align: right; }
     .fp-active-row.fp-off svg { opacity: 0.6; }
-    .fp-room-facts > div { display: flex; gap: 6px; }
-    .fp-room-facts dt { flex: 0 0 88px; color: var(--fp-text); }
-    .fp-room-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .fp-room-facts > div { display: flex; gap: var(--fp-space-2); align-items: baseline; }
+    .fp-room-facts dt { flex: 0 0 88px; color: var(--fp-text); font-size: 12px; }
+    .fp-room-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--fp-ink); font-size: 14px; }
     /* S24.7: the Overview. The header's chips sit under the title; the alerts chip in the warn colour. */
     .fp-crumb { font-weight: 400; color: var(--fp-text); }
-    .fp-ov-chips { flex: 0 0 100%; font: 400 11px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
+    .fp-ov-chips { flex: 0 0 100%; font: 400 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     .fp-chip-warn { color: var(--fp-warn); font-weight: 600; }
     /* UI refactor 1: folded (where the Overview starts, at every width) the header is one line, the breadcrumb then the chips, and a tap anywhere on it opens the panel. The panel is as wide as that line needs, up to a cap that keeps clear of the control stack on the right; what still does not fit ends in an ellipsis, never cut mid-glyph. */
     .fp-active-folded { width: max-content; max-width: min(360px, calc(100% - 58px)); }
@@ -571,16 +573,16 @@ export class FloorplanStudioCard extends LitElement {
     .fp-room-open .fp-ov-chips { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fp-ov-search:empty { display: none; }
     /* S24.8: the search at the top of the sheet; its list drops over the rows below. */
-    .fp-ov-search { margin: 2px 0 6px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); }
+    .fp-ov-search { margin: 0 0 var(--fp-space-2); font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
     /* S24.8: one row of tools: Turn off on this floor…, Layers, All floors. */
-    .fp-ov-scopes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+    .fp-ov-scopes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--fp-space-2); margin-bottom: var(--fp-space-2); }
     .fp-ov-scopes .fp-floor-off { margin-right: auto; }
     /* S24.8: the layer chips, one per family, unfolded by the Layers button; and the note for a kept thing. */
     .fp-ov-layers:empty { display: none; }
-    .fp-ov-layers { margin: 0 0 6px; }
+    .fp-ov-layers { margin: 0 0 var(--fp-space-2); }
     .fp-layer-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-    .fp-ov-detail { margin: 0 0 6px; }
-    .fp-layer, .fp-layers-toggle, .fp-detail, .fp-detail-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
+    .fp-ov-detail { margin: 0 0 var(--fp-space-2); }
+    .fp-layer, .fp-layers-toggle, .fp-detail, .fp-detail-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 12px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: var(--fp-radius-pill); padding: var(--fp-space-1) var(--fp-space-2); cursor: pointer; min-height: 24px; }
     .fp-layer[aria-pressed="false"] { border-style: dashed; text-decoration: line-through; }
     .fp-detail[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
     .fp-layers-toggle[aria-expanded="true"], .fp-detail-toggle[aria-expanded="true"] { border-color: var(--fp-ink); }
@@ -588,21 +590,21 @@ export class FloorplanStudioCard extends LitElement {
     .fp-layer-note { margin: 4px 0 0; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-floor-off:disabled { opacity: 0.5; cursor: default; }
     .fp-floor-off:disabled:hover { border-color: var(--fp-idle); }
-    .fp-ov-scope { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 10px; cursor: pointer; min-height: 24px; }
+    .fp-ov-scope { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 12px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: var(--fp-radius-pill); padding: var(--fp-space-1) var(--fp-space-3); cursor: pointer; min-height: 24px; }
     .fp-ov-scope[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
     .fp-ov-section + .fp-ov-section { margin-top: 8px; }
-    .fp-ov-head { font: 600 11px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
+    .fp-ov-head { font: 600 12px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-ov-attn .fp-ov-head { color: var(--fp-warn); }
     .fp-ov-row { align-items: flex-start; }
     .fp-ov-row svg, .fp-ov-mark { margin-top: 1px; }
-    .fp-ov-mark { flex: 0 0 16px; width: 16px; text-align: center; color: var(--fp-warn); font-size: 13px; line-height: 16px; }
+    .fp-ov-mark { flex: 0 0 16px; width: 16px; text-align: center; color: var(--fp-warn); font-size: 14px; line-height: 16px; }
     .fp-ov-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
     .fp-ov-name { overflow-wrap: anywhere; }
-    .fp-ov-where { font-size: 10px; color: var(--fp-text); display: flex; gap: 4px; flex-wrap: wrap; }
-    .fp-row-floor { border: 1px solid var(--fp-idle); border-radius: 4px; padding: 0 3px; line-height: 1.3; }
+    .fp-ov-where { font-size: 12px; color: var(--fp-text); display: flex; gap: 4px; flex-wrap: wrap; }
+    .fp-row-floor { border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); padding: 0 var(--fp-space-1); line-height: 1.3; }
     .fp-ov-row .fp-row-state { white-space: normal; max-width: 45%; }
     .fp-ov-age { white-space: nowrap; }
-    .fp-ov-hint { margin: 8px 2px 0; font: 10px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
+    .fp-ov-hint { margin: var(--fp-space-2) var(--fp-space-1) 0; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* One target per row, finger-sized on a touch screen (S24.7). */
     @media (pointer: coarse) { .fp-active-row { min-height: 40px; } }
     /* A finger needs about 40 px: the pill chips and the floor-off buttons are 24 to 32 px for a mouse. */
@@ -612,26 +614,26 @@ export class FloorplanStudioCard extends LitElement {
     /* Not fp-locate: that is the plan's own ring (render.ts), and one name in one shadow root means one wins (S24.R7). */
     @keyframes fp-pulse-ring { 0% { opacity: 1; box-shadow: 0 0 0 0 var(--fp-primary); } 100% { opacity: 0.6; box-shadow: 0 0 0 10px transparent; } }
     @media (prefers-reduced-motion: reduce) { .fp-pulse { animation: none; } }
-    .fp-room { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--fp-idle); }
-    .fp-room-head { display: flex; align-items: center; gap: 6px; font: 600 13px/1.3 var(--fp-font, system-ui, sans-serif); }
+    .fp-room { padding-bottom: var(--fp-space-2); margin-bottom: var(--fp-space-2); border-bottom: 1px solid var(--fp-idle); }
+    .fp-room-head { display: flex; align-items: center; gap: var(--fp-space-2); font: 600 16px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-room-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-    .fp-room-clear { flex: 0 0 24px; width: 24px; height: 24px; border: none; background: transparent; color: inherit; font: 14px/1 var(--fp-font, system-ui, sans-serif); border-radius: 4px; cursor: pointer; }
+    .fp-room-clear { flex: 0 0 24px; width: 24px; height: 24px; border: none; background: transparent; color: inherit; font: 14px/1 var(--fp-font, system-ui, sans-serif); border-radius: var(--fp-radius-control); cursor: pointer; }
     .fp-room-clear:hover, .fp-room-clear:focus-visible { background: var(--fp-idle); }
     /* S20.1: the same look as a scene button, with classes of its own so the Scenes section's tests and counts stay about scenes. */
-    .fp-alloff-row { margin: 2px 0 6px; display: flex; flex-wrap: wrap; gap: 6px; }
-    .fp-alloff, .fp-floor-off { min-height: 32px; padding: 0 10px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; }
+    .fp-alloff-row { margin: 0 0 var(--fp-space-2); display: flex; flex-wrap: wrap; gap: var(--fp-space-2); }
+    .fp-alloff, .fp-floor-off { min-height: 32px; padding: 0 var(--fp-space-3); font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); cursor: pointer; }
     .fp-alloff:hover, .fp-alloff:focus-visible, .fp-floor-off:hover, .fp-floor-off:focus-visible { border-color: var(--fp-primary); }
     /* S24.8: the floor-off checklist. A long list scrolls inside the dialog; the buttons stay. */
     .fp-off-dialog { display: flex; flex-direction: column; max-width: min(360px, calc(100% - 32px)); max-height: calc(100% - 32px); box-sizing: border-box; }
-    .fp-off-list { overflow-y: auto; margin: 0 0 14px; min-height: 0; }
+    .fp-off-list { overflow-y: auto; margin: 0 0 var(--fp-space-3); min-height: 0; }
     .fp-off-group { border: none; margin: 0 0 8px; padding: 0; }
     .fp-off-group legend { padding: 0; font: 600 12px/1.6 var(--fp-font, system-ui, sans-serif); }
-    .fp-off-row { display: flex; align-items: center; gap: 8px; min-height: 32px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); cursor: pointer; }
+    .fp-off-row { display: flex; align-items: center; gap: var(--fp-space-2); min-height: 32px; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); cursor: pointer; }
     .fp-off-row input { width: 18px; height: 18px; margin: 0; flex: 0 0 auto; accent-color: var(--fp-primary); }
-    .fp-off-via { font-size: 11px; color: var(--fp-text); }
-    .fp-room-facts { margin: 4px 0 6px; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); }
-    .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
-    .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
+    .fp-off-via { font-size: 12px; color: var(--fp-text); }
+    .fp-room-facts { margin: var(--fp-space-1) 0 var(--fp-space-2); font: 12px/1.4 var(--fp-font, system-ui, sans-serif); }
+    .fp-filter { display: flex; align-items: center; gap: var(--fp-space-2); font: 600 12px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); text-transform: uppercase; letter-spacing: 0.04em; }
+    .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 12px/1.4 var(--fp-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0; border-radius: var(--fp-radius-control); padding: var(--fp-space-1) var(--fp-space-2); cursor: pointer; }
     .fp-show-all:hover, .fp-show-all:focus-visible { background: var(--fp-idle); }
   `,
     POPUP_CSS,
@@ -3482,7 +3484,7 @@ export class FloorplanStudioCard extends LitElement {
       ${s.offEntities.length || scope === FLOOR_SCOPE ? html`<div class="fp-alloff-row">${s.offEntities.length ? html`<button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title=${this._layout ? allOffTitle(this._layout.floors, this._floorKey() ?? "", s) : ALL_OFF_TITLE} @click=${() => this._allOff(s.offEntities)}>Lights off</button>` : nothing}${scope === FLOOR_SCOPE ? this._floorOffButton() : nothing}</div>` : nothing}
       ${this._scenesBlock()}
       ${active}
-      <div class="fp-active-group-label">Devices</div>
+      <div class="fp-active-group-label fp-section-label">Devices</div>
       <div class="fp-room-devices">
         ${
           s.devices.length || s.sensors.length

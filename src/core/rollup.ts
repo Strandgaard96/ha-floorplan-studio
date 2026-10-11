@@ -116,7 +116,7 @@ export interface BadgeCtx {
  */
 export function badges(c: BadgeCtx): string[] {
   const { k } = c,
-    s = 10 * k,
+    s = 12 * k,
     icon = 1.1 * s,
     pad = 2 * k,
     gap = 3 * k;

@@ -48,13 +48,13 @@ const st = (state: string, unit: string) => ({
 
 /** Where each kind's name stands. A new kind fails here until someone decides (finding 17). */
 const SIZE: Record<RoomKind, number | null> = {
-  room: 12,
-  structure: 12,
-  garden: 10,
-  terrace: 10,
-  pavement: 10,
-  water: 10,
-  zone: 10,
+  room: 14,
+  structure: 14,
+  garden: 12,
+  terrace: 12,
+  pavement: 12,
+  water: 12,
+  zone: 12,
   fill: null,
 };
 const OUTDOOR: RoomKind[] = ["garden", "terrace", "pavement", "water"];
@@ -92,7 +92,7 @@ describe("S23.1: one label style", () => {
       }),
       { scale: 1 },
     );
-    expect(attr(text(html, "Lawn"), "style")).toBe("--fp-under:var(--fp-garden)");
+    expect(attr(text(html, "Lawn"), "style")).toBe("--fp-under:var(--fp-garden-fill)");
     expect(attr(text(html, "Den"), "style")).toBe("--fp-under:var(--fp-room-empty)");
     expect(attr(text(html, "Nook"), "style")).toBe("--fp-under:var(--fp-room-empty)"); // a zone has no fill: the room under it
   });

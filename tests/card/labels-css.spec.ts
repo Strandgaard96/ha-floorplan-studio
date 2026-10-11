@@ -120,7 +120,7 @@ const readAll = (page: import("@playwright/test").Page, id: string) =>
   }, UNDER) as Promise<Read[]>;
 
 test.describe("S23.1 CSS pair: one label style", () => {
-  test("every name is solid, weight 500, one font, halo at --fp-outline; outdoor names are italic", async ({
+  test("every name is solid, weight 600, one font, halo at --fp-outline; outdoor names are italic", async ({
     page,
   }) => {
     await page.setContent(page_());
@@ -130,7 +130,7 @@ test.describe("S23.1 CSS pair: one label style", () => {
       for (const r of all) {
         const tag = `${c.id} ${r.name}`;
         expect(r.opacity, tag).toBe("1");
-        expect(r.weight, tag).toBe("500");
+        expect(r.weight, tag).toBe("600"); // UI refactor 12: a name is semibold
         expect(r.family, tag).toBe("system-ui, sans-serif");
         expect(r.stroke, tag).toBe(r.outline);
         expect(r.style, tag).toBe(

@@ -2969,8 +2969,8 @@ test("S23.1: a zone's plan label is solid like a room's, and smaller", async ({ 
       });
   const zone = await style("svg text.lbl.zone[data-rl]"),
     room = await style("svg text.lbl:not(.zone):not(.out)[data-rl]");
-  expect([zone.opacity, zone.weight]).toEqual(["1", "500"]);
-  expect([room.opacity, room.weight]).toEqual(["1", "500"]);
+  expect([zone.opacity, zone.weight]).toEqual(["1", "600"]);
+  expect([room.opacity, room.weight]).toEqual(["1", "600"]);
   expect(zone.size).toBeLessThanOrEqual(room.size);
 });
 
@@ -6112,10 +6112,25 @@ test("Opus review CSS pair: each room kind has its own fill; fill is hatched; zo
       .locator(`svg polygon.room-${k}`)
       .first()
       .evaluate((e) => getComputedStyle(e).fill);
-  expect(await fill("garden")).toBe(rgb("#9db98a"));
-  expect(await fill("terrace")).toBe(rgb("#cdb094"));
-  expect(await fill("pavement")).toBe(rgb("#c9c6bf"));
-  expect(await fill("water")).toBe(rgb("#a9cfe3"));
+  // UI refactor 17: an outdoor kind is its token mixed into --fp-bg (#f4f0e6 here) so it is quieter than a room: garden 30 %,
+  // terrace 30 %, pavement 33 %, water 20 %. Computed style of a color-mix() is not rgb(), so read it through a canvas.
+  const near = async (k: string, hex: string) => {
+    const got = await page
+      .locator(`svg polygon.room-${k}`)
+      .first()
+      .evaluate((e) => {
+        const c = document.createElement("canvas").getContext("2d")!;
+        c.fillStyle = "#000";
+        c.fillStyle = getComputedStyle(e).fill;
+        return c.fillStyle;
+      });
+    const ch = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    ch(got).forEach((v, i) => expect(Math.abs(v - ch(hex)[i]), `${k} ${got} vs ${hex}`).toBeLessThanOrEqual(1));
+  };
+  await near("garden", "#dae0ca");
+  await near("terrace", "#e8ddcd");
+  await near("pavement", "#e6e2d9");
+  await near("water", "#e5e9e5");
   expect(await fill("zone")).toBe("none");
   expect(await fill("fill")).toContain("#fp-hatch");
   // the hatch pattern paints with the two fill variables
