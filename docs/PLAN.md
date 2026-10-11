@@ -3513,7 +3513,7 @@ Lane draw: the consumers (`src/core/render.ts`, `src/core/scene-build.ts`, `src/
       `tests/card/view-parity.spec.ts`.
 
 Lane writer (`src/editor/state.ts`, `src/core/align.ts`):
-- [ ] S29.6 One pose writer and the session pose (Sonnet, **judgement**: when the exact pose is trusted).
+- [x] S29.6 One pose writer and the session pose (Sonnet, **judgement**: when the exact pose is trusted).
       `EditorState.setPose(key, { rot, off })`: normalises, rounds the rotation to 0.01 and the offset to 0.1 cm, one
       undo step, none when unchanged, deletes each key at 0, refused under Lock plan with `planBlocked`, false beyond
       `COORD_LIMIT`; `setOffset` becomes a wrapper (now 0.1 cm); `addFloor` copies the lowest floor's rotation.

@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.6, one pose writer and when the exact pose is trusted
+
+Design note for `EditorState` in `src/editor/state.ts`.
+- **One writer.** `setPose(key, { rot, off })` is the only code that stores a pose. It wraps the rotation into (-180, 180], rounds it to 0.01 and the offset to 0.1 cm, deletes each key at 0, writes no `-0`, records one undo step, and records none when the rounded pose is the stored one. `setOffset` keeps the floor's rotation and calls it, so it now rounds to 0.1 cm (whole cm before). A stored rotation that is not a number is never "the same": the next write heals it.
+- **The session pose.** `nudgeFloor` and `turnFloor` apply to an exact, unrounded pose kept in the editor (not in the layout, not an undo step) and write its rounding through `setPose`. Why: 3600 turns of 0.1 degree, each rounded to 0.01 and 0.1 cm, would add up.
+- **When it is trusted.** The exact pose is used only while `roundPose(exact)` equals the stored pose, field by field. That one comparison covers every other writer: a box, Reset, Apply, Align stairs, undo, redo and a load all change the stored pose, so the two differ and the next press starts from the stored pose. Redo that lands on the pose the press wrote gets the exact pose back, which is harmless. It is also keyed on the floor. No event hooks, no clearing calls to forget.
+- **Refused presses** (lock, limit, junk) leave the exact pose alone. A press that rounds to no change (a turn of 0.001) still advances the exact pose, so ten of them add up to a change.
+- **Move.** The direction on screen is turned back by the view turn to give the move in the floor's frame; the offset changes by that move turned by the floor's rotation. **Turn.** `rot' = rot + d`, `off' = off + R(rot)·c - R(rot')·c`, so the pivot's house point is exact.
+- **Align.** `alignToBelow` keeps the floor's turn (S29.7, below).
+
 ## 2026-10-11: S29.2, the pose maths: sign, composition, pivot
 
 Design note for `src/core/floor-stack.ts`, written before the code.

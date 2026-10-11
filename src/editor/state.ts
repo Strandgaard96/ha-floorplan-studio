@@ -1,4 +1,4 @@
-import { alignFloor, floorBelow, DETAIL_MODES, parseDetailMode, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
+import { alignFloor, floorBelow, floorPose, normaliseTurn, placePoint, DETAIL_MODES, parseDetailMode, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
 import { COORD_LIMIT } from "../core/schema";
 import type { DetailMode, CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
@@ -138,6 +138,11 @@ export function ptOf(f: Floor, ref: PtRef): Pt | null {
 
 const MAX_HISTORY = 100;
 
+/** The stored precision of a pose (S29.6): rotation wrapped into (-180, 180] and rounded to 0.01 degree, offset to 0.1 cm, no -0. */
+function roundPose(rot: number, off: Pt): { rot: number; off: Pt } {
+  return { rot: normaliseTurn(Math.round(normaliseTurn(rot) * 100) / 100) + 0, off: [Math.round(off[0] * 10) / 10 + 0, Math.round(off[1] * 10) / 10 + 0] };
+}
+const turnVec = (v: Pt, deg: number): Pt => placePoint({ turn: deg, shift: [0, 0] }, v);
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 export const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 /** A floors object with no prototype, so a floor called `__proto__` or `constructor` is just a key. */
@@ -305,6 +310,7 @@ export class EditorState {
     this.snapshot();
     const first = Object.values(this.layout.floors)[0];
     const nf: Floor = { title: t, outline: structuredClone(first?.outline ?? []), rooms: [], walls: [], stairs: [], doors: [], openings: [], extras: [], devices: [], furniture: [], unlinked: [] };
+    if (typeof first?.rotation === "number" && Number.isFinite(first.rotation) && first.rotation !== 0) nf.rotation = first.rotation; // and the turn it was drawn with (S29.6)
     if (first?.offset) nf.offset = [first.offset[0], first.offset[1]]; // it copies that floor's outline, so it sits where that floor sits (S27.8)
     if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
@@ -314,24 +320,99 @@ export class EditorState {
   }
 
   /**
-   * Sets where a floor sits in the house (S27.8), whole cm; `[0, 0]` deletes the key. One undo step; none when the value
-   * is unchanged. False for an unknown floor, a value that is not two finite numbers within COORD_LIMIT, and under Lock
-   * plan (`planBlocked`), where the offset is geometry. Does not move the selection or the current floor.
+   * S29.6: sets where a floor sits in the house, its rotation (degrees, normalised to (-180, 180], rounded to 0.01) and
+   * its offset (cm, rounded to 0.1); each key is deleted at 0. One undo step; none when the rounded pose is the stored
+   * one. False for an unknown floor, a rotation that is not a finite number, an offset that is not two finite numbers
+   * within COORD_LIMIT, and under Lock plan (`planBlocked`), where the pose is geometry. Does not move the selection
+   * or the current floor. Every other pose writer goes through here.
    */
-  setOffset(key: string, to: Pt): boolean {
-    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
-    if (!Array.isArray(to) || to.length !== 2 || !to.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)) return false;
-    const x = Math.round(to[0]) + 0, y = Math.round(to[1]) + 0; // + 0: no -0
-    const cur = this.layout.floors[key].offset, cx = cur?.[0] ?? 0, cy = cur?.[1] ?? 0;
-    if (x === cx && y === cy) return false;
-    if (!this.planOpen()) return false;
-    this.snapshot();
-    const fl = this.layout.floors[key];
-    if (x === 0 && y === 0) delete fl.offset; else fl.offset = [x, y];
-    return true;
+  setPose(key: string, pose: { rot: number; off: Pt }): boolean {
+    return this.writePose(key, pose) === "wrote";
   }
 
-  /** Lays a floor on the floor below it: the offset of the one below plus the best translation (S27.4), whole cm. False when there is no floor below, nothing to match, or nothing changes. */
+  /**
+   * "wrote" a step was recorded; "same" the rounded pose is the stored one (nothing recorded); "refused" nothing
+   * written. Rounds rotation to 0.01 and offset to 0.1 cm; this is the only place the stored pose is written.
+   */
+  private writePose(key: string, pose: { rot: number; off: Pt }): "wrote" | "same" | "refused" {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return "refused";
+    const rot = pose?.rot, off = pose?.off;
+    if (typeof rot !== "number" || !Number.isFinite(rot)) return "refused";
+    if (!Array.isArray(off) || off.length !== 2 || !off.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)) return "refused";
+    const r = roundPose(rot, off);
+    const fl = this.layout.floors[key];
+    const cur = fl.offset, cx = cur?.[0] ?? 0, cy = cur?.[1] ?? 0, cr = fl.rotation === undefined ? 0 : typeof fl.rotation === "number" ? fl.rotation : NaN; // junk is never the same: it is healed
+    if (r.rot === cr && r.off[0] === cx && r.off[1] === cy) return "same";
+    if (!this.planOpen()) return "refused";
+    this.snapshot();
+    if (r.rot === 0) delete fl.rotation; else fl.rotation = r.rot;
+    if (r.off[0] === 0 && r.off[1] === 0) delete fl.offset; else fl.offset = r.off;
+    return "wrote";
+  }
+
+  /** Sets only where a floor sits (S27.8, now to 0.1 cm), keeping its rotation. `[0, 0]` deletes the key. See `setPose`. */
+  setOffset(key: string, to: Pt): boolean {
+    if (!hasOwn(this.layout.floors, key)) { this.fresh(); return false; }
+    return this.setPose(key, { rot: floorPose(this.layout, key).rot, off: to });
+  }
+
+  /**
+   * S29.6, the session pose. Each press rounds what it stores, and many small rounded steps would add up. So the editor
+   * keeps an exact (unrounded) pose for the floor being aligned and applies each press to that; the stored pose is the
+   * exact one rounded. The exact pose is trusted only while its rounding equals the stored pose: after anything else
+   * writes the pose (a box, Reset, Apply, Align stairs, undo, redo, a load) the two differ, and the next press starts
+   * from the stored pose. Not in the layout, not an undo step. A press refused (lock, limit) leaves it alone.
+   */
+  private exact: { key: string; rot: number; off: Pt } | null = null;
+
+  private exactPose(key: string): { rot: number; off: Pt } {
+    const stored = floorPose(this.layout, key), e = this.exact;
+    if (e && e.key === key) {
+      const r = roundPose(e.rot, e.off);
+      if (r.rot === stored.rot && r.off[0] === stored.off[0] && r.off[1] === stored.off[1]) return { rot: e.rot, off: [e.off[0], e.off[1]] };
+    }
+    return { rot: stored.rot, off: [stored.off[0], stored.off[1]] };
+  }
+
+  private press(key: string, rot: number, off: Pt): boolean {
+    const r = this.writePose(key, { rot, off });
+    if (r === "refused") return false;
+    this.exact = { key, rot: normaliseTurn(rot), off };
+    return r === "wrote";
+  }
+
+  /**
+   * Moves floor `key` by `cm` along a direction on screen (`screenDir`, any length; up is [0, -1]). The move in the floor's
+   * own frame is that direction turned back by `viewTurn` (degrees, the view's clockwise turn), and the offset changes by
+   * that move turned by the floor's rotation. One undo step. False for an unknown floor, no direction, a value that
+   * is not finite, a result beyond COORD_LIMIT, and under Lock plan.
+   */
+  nudgeFloor(key: string, screenDir: Pt, cm: number, viewTurn: number): boolean {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
+    const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+    if (!Array.isArray(screenDir) || !fin(screenDir[0]) || !fin(screenDir[1]) || !fin(cm) || !fin(viewTurn)) return false;
+    const len = Math.hypot(screenDir[0], screenDir[1]);
+    if (!len || !cm) return false;
+    const e = this.exactPose(key);
+    const m = turnVec([screenDir[0] / len * cm, screenDir[1] / len * cm], -viewTurn), h = turnVec(m, e.rot);
+    return this.press(key, e.rot, [e.off[0] + h[0], e.off[1] + h[1]]);
+  }
+
+  /**
+   * Turns floor `key` by `deg` clockwise about `pivot`, a point in the floor's own frame (see `floorPivot`), so that the
+   * pivot's place in the house does not change: `rot' = rot + deg`, `off' = off + R(rot)·c - R(rot')·c`. One undo step.
+   * False as `nudgeFloor`.
+   */
+  turnFloor(key: string, deg: number, pivot: Pt): boolean {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
+    const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+    if (!fin(deg) || !Array.isArray(pivot) || !fin(pivot[0]) || !fin(pivot[1]) || !deg) return false;
+    const e = this.exactPose(key), rot = normaliseTurn(e.rot + deg);
+    const a = turnVec(pivot, e.rot), b = turnVec(pivot, rot);
+    return this.press(key, rot, [e.off[0] + a[0] - b[0], e.off[1] + a[1] - b[1]]);
+  }
+
+  /** Lays a floor on the floor below it: the offset of the one below plus the best translation (S27.4). False when there is no floor below, nothing to match, or nothing changes. */
   alignToBelow(key: string): boolean {
     if (!this.fresh()) return false;
     const below = floorBelow(this.layout, key);
