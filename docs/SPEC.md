@@ -694,7 +694,7 @@ shown width and fit height over shown height, `detailFor` in `src/core/detail.ts
 
 | Level | Zoom | Drawn |
 |---|---|---|
-| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots; a device `attention()` reports on (class `needs-attention`) stays a dot even when its state reads off |
+| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots that carry their glyph (half size, ink 3:1 on the dot; UI refactor, item 5); a device `attention()` reports on (class `needs-attention`) stays a dot even when its state reads off |
 | mid | 1.6 to below 3.2 (`DETAIL_NEAR_FROM`) | device icons, room names, badges |
 | near | 3.2 and up | everything, device names and readings too |
 

@@ -755,13 +755,19 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}
 /* S25.2: semantic zoom. renderFloor writes data-detail on the plan root (far, mid or near; none is near); every level rule is here, so the editor and
-   the card cannot differ. Far: a device that is off or idle is not drawn; one that is on, alerting (class danger, or needs-attention: what the Overview lists) or unavailable keeps its disc as a half-size dot
-   (the glyph and the badges go). Far and mid: a device's name and reading go; a room's name and reading (data-rl, data-rv) and an extra's name stay.
+   the card cannot differ. Far: a device that is off or idle is not drawn; one that is on, alerting (class danger, or needs-attention: what the Overview lists) or unavailable keeps its disc as a smaller dot
+   (the glyph shrinks into it and holds still, a cleaning vacuum's spin included, which would overwrite the shrink; the badges go). Far and mid: a device's name and reading go; a room's name and reading (data-rl, data-rv) and an extra's name stay.
    The selected device is always whole. */
 [data-detail="far"] .dev:not(.on):not(.danger):not(.unavailable):not(.needs-attention):not(.sel):not(.spider),[data-detail="far"] .heater.off,[data-detail="far"] .stem,[data-detail="far"] .stem-top{display:none}
-[data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone),[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
-[data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.5)}
+[data-detail="far"] .dev:not(.sel):not(.spider) .gone-mark,[data-detail="far"] .dev:not(.sel):not(.spider) .away-mark{display:none}
+[data-detail="far"] .dev:not(.sel):not(.spider) .halo{transform-box:fill-box;transform-origin:center;transform:scale(.64)}
+/* UI refactor, item 5: the dot keeps its glyph, half size about the icon's centre (12, 12) so it lies inside the .64 dot, so the type reads in grayscale. The ink is the one the near disc already has: --fp-dev-ink on an on dot (g.dev.on path, S23.4), the danger ink on a danger dot, and below for the two that have no solid disc at near. */
+[data-detail="far"] .dev:not(.sel):not(.spider) path:not(.cone){transform-box:view-box;transform-origin:12px 12px;transform:scale(.5);animation:none}
+/* An unavailable device has no solid disc at near (a dashed warn ring); as a dot it is the board's colour, ringed, with its glyph in the plan's ink. */
+[data-detail="far"] .dev.unavailable:not(.sel):not(.spider) .halo{fill:var(--fp-bg);fill-opacity:1}
+[data-detail="far"] g.dev.unavailable:not(.sel):not(.spider) path:not(.cone){fill:var(--fp-ink);fill-opacity:1}
 [data-detail="far"] .dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) .halo{fill:var(--fp-warn);fill-opacity:1;stroke:var(--fp-ink);stroke-opacity:1;stroke-width:1.5px;vector-effect:non-scaling-stroke}
+[data-detail="far"] g.dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) path:not(.cone){fill:var(--fp-on-light);fill-opacity:1}
 [data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;

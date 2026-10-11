@@ -415,7 +415,7 @@ Zoom 1 is the whole floor at fit.
 
 | Level | Zoom | What is drawn |
 |---|---|---|
-| far | below 1.6 | rooms, room names and room badges; a device that is on, alerting or unavailable stays as a dot, and so does one the Overview lists under Attention (an unlocked or jammed lock, a low battery, an open contact; it wears a thin ink outline so it never reads as a lit lamp); other idle devices go |
+| far | below 1.6 | rooms, room names and room badges; a device that is on, alerting or unavailable stays as a dot with its icon inside, so the type reads in grayscale, and so does one the Overview lists under Attention (an unlocked or jammed lock, a low battery, an open contact; it wears a thin ink outline so it never reads as a lit lamp); other idle devices go |
 | mid | 1.6 to below 3.2 | device icons, room names and badges; no device names or readings |
 | near | 3.2 and up | everything, with device names and readings |
 

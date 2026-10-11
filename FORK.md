@@ -22,6 +22,7 @@ Spec: `docs/specs/card-ui-refactor.md`, items 5 to 8.
 
 - The stack fan's ring grows with the drawn disc and name tags, so members never overlap at any zoom
   (`spiderLayout` takes a `SpiderSize`; the card passes it).
+- Far-zoom dots carry their glyph (half size, 3:1 ink on the dot); the dot grows from .5 to .64.
 - Red is for alerts only: motion has its own non-red colour in every theme (`ThemeRoles.motion`), and a motion sensor that lights its
   room's outline draws no ring of its own.
 - `ha` theme in dark mode draws walls in a mid grey mixed from HA's text and card colours instead of the text colour itself.
