@@ -114,3 +114,20 @@ describe("prismTriangles: holes (a stairwell, 0.26.1)", () => {
     }
   });
 });
+
+describe("prismTriangles: a hole that touches or crosses the edge (a flight on a room's edge, 0.26.2)", () => {
+  const sq = (x0: number, y0: number, x1: number, y1: number): [number, number][] => [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+  const topArea = (out: Triangles) => { let a = 0; for (let t = 0; t < out.position.length; t += 9) { const p = out.position.slice(t, t + 9); if (out.normal[t + 1] === 1) a += Math.abs((p[3] - p[0]) * (p[8] - p[2]) - (p[6] - p[0]) * (p[5] - p[2])) / 2; } return a; };
+  it("removes exactly the part of the cap inside the hole, whether it touches, crosses or is rotated", () => {
+    for (const [hole, left] of [[sq(30, 0, 60, 20), 10000 - 600], [sq(80, 40, 140, 60), 10000 - 20 * 20], [[[50, 0], [100, 50], [50, 100], [0, 50]] as [number, number][], 10000 - 5000]] as const) {
+      const out: Triangles = { position: [], normal: [] };
+      expect(prismTriangles(sq(0, 0, 100, 100), 0, 10, out, [hole])).toBe(true);
+      expect(topArea(out)).toBeCloseTo(left, 3);
+    }
+  });
+  it("ignores a hole that is not convex", () => {
+    const out: Triangles = { position: [], normal: [] };
+    prismTriangles(sq(0, 0, 100, 100), 0, 10, out, [[[10, 10], [90, 10], [50, 40], [90, 90], [10, 90]]]);
+    expect(topArea(out)).toBeCloseTo(10000, 3);
+  });
+});

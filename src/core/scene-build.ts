@@ -23,7 +23,7 @@ export type SceneDeps = Pick<Heights, "deviceZ" | "doorSpan" | "edgeHeight" | "f
   & Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> & Pick<typeof import("./tree"), "treeShape">;
 
 /** A vertical extrusion of a polygon from `z0` to `z1` (every box is one), or a single point (a device with no body of its own). */
-export type Shape = { type: "prism"; base: Pt[]; z0: number; z1: number; /** Polygons inside `base` the prism does not fill: a stairwell. Optional. */ holes?: Pt[][] } | { type: "point"; at: Pt; z: number };
+export type Shape = { type: "prism"; base: Pt[]; z0: number; z1: number; /** Convex polygons the prism does not fill: a stairwell, which may lie inside `base`, touch its edge or cross it. Optional. */ holes?: Pt[][] } | { type: "point"; at: Pt; z: number };
 export type SolidKind = "floor" | "room" | "wall" | "opening" | "furniture" | "unlinked" | "stair" | "device";
 /**
  * What the viewer needs to find the thing again. `poly` is "o" (the outline), "r<n>" (room n) or "w" (a free wall) and
@@ -171,9 +171,12 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       const blocks = isObj(t) ? stairBlocks(t as never) : null;
       if (blocks && resolveStairDirection(t as never, opts?.around) === "down") wells.push(blocks.foot(0));
     }));
-    /** The wells that lie wholly inside `base`: a hole that crosses the edge cannot be cut, and that part of the flight stays as it was. */
-    const onEdge = (v: Pt, q: Pt[]) => q.some((a, k) => { const b = q[(k + 1) % q.length], dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy, t = l2 ? Math.max(0, Math.min(1, ((v[0] - a[0]) * dx + (v[1] - a[1]) * dy) / l2)) : 0; return Math.hypot(v[0] - (a[0] + t * dx), v[1] - (a[1] + t * dy)) <= 1; });
-    const holesIn = (base: Pt[]) => { const h = wells.filter((w) => w.every((v) => isPt(v) && inside(v, base) && !onEdge(v, base))); return h.length ? { holes: h } : {}; };
+    /** The wells that meet `base`'s box (the mesh clips the exact shape: a well may lie inside, touch the edge or cross it, and in a real house it does). */
+    const holesIn = (base: Pt[]) => {
+      const xs = base.map((v) => v[0]), ys = base.map((v) => v[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+      const h = wells.filter((w) => w.every(isPt) && Math.max(...w.map((v) => v[0])) > x0 && Math.min(...w.map((v) => v[0])) < x1 && Math.max(...w.map((v) => v[1])) > y0 && Math.min(...w.map((v) => v[1])) < y1);
+      return h.length ? { holes: h } : {};
+    };
 
     // The slab under the house, its top at the walking surface.
     piece(() => { const o = ring(f.outline); if (o) add("floor", "floor", "slab", { type: "prism", base: o, z0: -floorSlab(f), z1: 0, ...holesIn(o) }, {}, { role: "slab" }); });

@@ -680,11 +680,11 @@ describe("scene: a stairwell opens the slab and the room fill (0.26.1)", () => {
     for (const s of [slab, hall]) { expect(s.shape.type === "prism" && s.shape.holes).toHaveLength(1); }
     expect(den.shape.type === "prism" && den.shape.holes).toBeUndefined();
   });
-  it("cuts nothing for a flight going up, nor for one that crosses the edge of its room", () => {
+  it("cuts nothing for a flight going up; a flight that crosses or touches a room's edge opens every solid it meets", () => {
     const up = flr(); (up.stairs![0] as { direction: string }).direction = "up";
     expect(buildScene(up).solids.some((s) => s.shape.type === "prism" && s.shape.holes)).toBe(false);
     const across = flr(); (across.stairs![0] as { pts: number[][] }).pts = [[360, 100], [440, 100], [440, 260], [360, 260]];
     const sc = buildScene(across);
-    expect(sc.solids.filter((s) => s.shape.type === "prism" && s.shape.holes).map((s) => s.kind)).toEqual(["floor"]); // the slab holds it whole; neither room does
+    expect(sc.solids.filter((s) => s.shape.type === "prism" && s.shape.holes).map((s) => s.id)).toEqual(["floor", "room:0", "room:1"]); // the slab and both rooms it lies across; the mesh clips each to its own edge
   });
 });

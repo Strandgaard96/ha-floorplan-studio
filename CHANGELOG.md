@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- 3D: a stair going down shows when it lies on the edge of its room, across two rooms, or under a fill lying over the room. 0.26.1 cut the stairwell only where the flight lay strictly inside a room, so a flight that touched its room's edge (the usual case in a real house) stayed under the room fill. The slab and every room fill are now clipped to the flight's outline.
+
 ## 0.26.1 - 2026-10-11
 
 - 3D: a stair going down is drawn again where nothing covers it. Since 0.26.0 the ground plane lay at the slab's bottom (25 cm) and a down flight sinks 60 cm, so most of it was under the ground. The ground now lies a centimetre under the deepest solid. A flight inside the house is shown too: the slab and the room fill now have a hole where a down flight stands (a flight that crosses a room's edge opens the slab and leaves that room's fill whole).
