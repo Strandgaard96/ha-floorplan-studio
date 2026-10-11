@@ -3469,7 +3469,7 @@ Wave 0, in order on `task/s29-hand-align`, one coder (every lane reads what it l
       opens and validates; the render snapshot and the 3D scene snapshot unchanged.
       Files: `src/core/schema.ts`, `src/core/migrate.ts`, `docs/schema.md`, `docs/SPEC.md`, a new
       `tests/core/floor-rotation.test.ts`.
-- [ ] S29.2 Pose helpers and the fixture, chained after S29.1 (Sonnet, **judgement**: the sign conventions). In
+- [x] S29.2 Pose helpers and the fixture, chained after S29.1 (Sonnet, **judgement**: the sign conventions). In
       `floor-stack.ts`: `floorPose`, `floorPlace`, `placePoint`, `invertPlace`, `composePlace`, `poseFromPlace`,
       `floorPivot`, as the spec says, exported from core; `floorShift` stays for now. A new fixture
       `tests/fixtures/hand-align-house.json` (demo-style, no real house): basement, ground and first, no `offset` or

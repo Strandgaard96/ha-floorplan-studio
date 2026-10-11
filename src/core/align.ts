@@ -15,7 +15,7 @@ import type { Floor, Pt } from "./schema";
  * 800 longest lines of the lower floor.
  */
 
-type Seg = [number, number, number, number];
+export type Seg = [number, number, number, number];
 type Sample = { x: number; y: number; w: number };
 
 export interface AlignResult {
@@ -45,7 +45,8 @@ function ring(pts: unknown, out: Seg[]): void {
   }
 }
 
-function structure(f: unknown): Seg[] {
+/** The structure lines of a floor (see the note at the top). Exported for `floorPivot` (S29.2). */
+export function structure(f: unknown): Seg[] {
   const o = typeof f === "object" && f !== null ? (f as Record<string, unknown>) : {};
   const s: Seg[] = [];
   if (list(o.outline).length > 2) ring(o.outline, s);

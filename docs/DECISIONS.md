@@ -2,6 +2,35 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.2, the pose maths: sign, composition, pivot
+
+Design note for `src/core/floor-stack.ts`, written before the code.
+- **Sign.** Degrees, clockwise on screen with y pointing down. `R(t)·(x, y) = (x cos t - y sin t, x sin t + y cos t)`, so
+  `R(90)` sends (1, 0), a point to the right, to (0, 1), a point below it. `R(4)·(100, 0) = (99.756, 6.976)`. The same
+  sense as `turnAbout` and `rot` on furniture and stairs.
+- **A place** is `{ turn, shift }`: `p' = R(turn)·p + shift`. `floorPlace(l, from, to)` has `turn = rot_from - rot_to` and
+  `shift = R(-rot_to)·(off_from - off_to)`. Why: a stored point of `from` is at `R(rot_from)·p + off_from` in the house;
+  to read it in `to`'s stored frame undo `to`'s pose: `R(-rot_to)·(house - off_to)`. Example: a basement at the origin, a
+  ground at -2.5 degrees and [-57, 112]: ground to basement is `{ turn: -2.5, shift: [-57, 112] }`, so the ground's
+  (400, 240) lands at (353.09, 334.32) in the basement; basement to ground is turn 2.5 and shift `R(2.5)·(57, -112)`.
+- **Composition.** `composePlace(a, b)` applies `a` first, then `b`: turn `a.turn + b.turn`, shift `R(b.turn)·a.shift + b.shift`.
+  So `floorPlace(A, C) = composePlace(floorPlace(A, B), floorPlace(B, C))`. `invertPlace(p)` is turn `-turn`,
+  shift `-R(-turn)·shift`. Turns are not wrapped inside these (a sum stays a sum); only `poseFromPlace` wraps, and a turn is only known modulo 360.
+- **poseFromPlace(layout, key, below, place)** answers: which stored rotation and offset make `floorPlace(key, below)`
+  equal `place`? `rot = rot_below + turn` (wrapped to (-180, 180]), `off = off_below + R(rot_below)·shift`. Unrounded: the
+  writer rounds (0.01 degree, 0.1 cm).
+- **Zero rotations are exact.** The rotation of a vector by 0 returns it untouched, not through cos and sin, so two floors
+  with no rotation give exactly `floorShift`, signed zeros included.
+- **Junk reads as identity**, field by field: a rotation that is not a finite number in -180..180, an offset as `offsetOf`
+  reads it, an unknown key. Never throws.
+- **floorPivot(floor)** is the centre of the bounding box of `align.ts`'s structure lines (outline and external walls,
+  else room edges), else of the stairs' points, else `[0, 0]`. It reads geometry only, never the pose. `structure` and its
+  `Seg` type are exported from `align.ts` for it, so Align and the pivot cannot disagree on what a structure line is.
+- **Fixture.** `tests/fixtures/hand-align-house.json` is invented. Every floor is stored with no pose; the truth lives in
+  `hand-align-truth.ts`: ground to basement turn -2.5 shift [-57, 112], first to ground turn 4 shift [83, -41]. A stair is
+  a 200 x 80 box; the lower floor's stair is the upper one's box centre placed, with `rot` the upper's `rot + turn`
+  taken modulo 360, since a stair's `rot` is in [0, 360) (a box turned about its own centre, so the footprints match).
+
 ## 2026-10-11: S29.1, `floor.rotation` is validated like the offset
 
 `rotation` is a finite number from -180 to 180 inclusive. `validate` reports anything else and never throws; `migrate` drops it (as it drops a bad offset) so a hand-edited file opens, and keeps a good value exactly as written. Writers (later tasks) normalise and delete the key at 0; the schema does not insist on it. No view reads the field yet, so the render and 3D snapshots are unchanged.

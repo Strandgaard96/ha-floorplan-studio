@@ -1,0 +1,301 @@
+{
+ "version": 2,
+ "unit": "cm",
+ "north": 0,
+ "rotate": 0,
+ "floors": {
+  "basement": {
+   "title": "Basement",
+   "outline": [
+    [
+     -57.0,
+     112.0
+    ],
+    [
+     942.0,
+     68.4
+    ],
+    [
+     968.2,
+     667.8
+    ],
+    [
+     -30.8,
+     711.4
+    ]
+   ],
+   "owk": [
+    "external",
+    "external",
+    "external",
+    "external"
+   ],
+   "rooms": [
+    {
+     "id": "r-cellar",
+     "name": "Cellar",
+     "area": "",
+     "kind": "room",
+     "pts": [
+      [
+       -57.0,
+       112.0
+      ],
+      [
+       942.0,
+       68.4
+      ],
+      [
+       968.2,
+       667.8
+      ],
+      [
+       -30.8,
+       711.4
+      ]
+     ],
+     "wk": [
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+     ]
+    }
+   ],
+   "walls": [],
+   "stairs": [
+    {
+     "id": "stairs-basement",
+     "name": "Basement stairs",
+     "pts": [
+      [
+       253.1,
+       294.3
+      ],
+      [
+       453.1,
+       294.3
+      ],
+      [
+       453.1,
+       374.3
+      ],
+      [
+       253.1,
+       374.3
+      ]
+     ],
+     "shape": "straight",
+     "steps": 12,
+     "rot": 357.5,
+     "direction": "up"
+    }
+   ],
+   "doors": [],
+   "openings": [],
+   "extras": [],
+   "devices": [],
+   "furniture": [],
+   "unlinked": []
+  },
+  "ground": {
+   "title": "Ground",
+   "outline": [
+    [
+     0,
+     0
+    ],
+    [
+     1000,
+     0
+    ],
+    [
+     1000,
+     600
+    ],
+    [
+     600,
+     600
+    ],
+    [
+     600,
+     900
+    ],
+    [
+     0,
+     900
+    ]
+   ],
+   "owk": [
+    "external",
+    "external",
+    "external",
+    "external",
+    "external",
+    "external"
+   ],
+   "rooms": [
+    {
+     "id": "r-hall",
+     "name": "Hall",
+     "area": "",
+     "kind": "room",
+     "pts": [
+      [
+       0,
+       0
+      ],
+      [
+       1000,
+       0
+      ],
+      [
+       1000,
+       600
+      ],
+      [
+       0,
+       600
+      ]
+     ],
+     "wk": [
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+     ]
+    }
+   ],
+   "walls": [],
+   "stairs": [
+    {
+     "id": "stairs-ground",
+     "name": "Ground stairs",
+     "pts": [
+      [
+       300,
+       200
+      ],
+      [
+       500,
+       200
+      ],
+      [
+       500,
+       280
+      ],
+      [
+       300,
+       280
+      ]
+     ],
+     "shape": "straight",
+     "steps": 12,
+     "rot": 0,
+     "direction": "both"
+    }
+   ],
+   "doors": [],
+   "openings": [],
+   "extras": [],
+   "devices": [],
+   "furniture": [],
+   "unlinked": []
+  },
+  "first": {
+   "title": "First",
+   "outline": [
+    [
+     -79.9,
+     46.7
+    ],
+    [
+     917.6,
+     -23.1
+    ],
+    [
+     959.5,
+     575.5
+    ],
+    [
+     -38.1,
+     645.2
+    ]
+   ],
+   "owk": [
+    "external",
+    "external",
+    "external",
+    "external"
+   ],
+   "rooms": [
+    {
+     "id": "r-landing",
+     "name": "Landing",
+     "area": "",
+     "kind": "room",
+     "pts": [
+      [
+       -79.9,
+       46.7
+      ],
+      [
+       917.6,
+       -23.1
+      ],
+      [
+       959.5,
+       575.5
+      ],
+      [
+       -38.1,
+       645.2
+      ]
+     ],
+     "wk": [
+      "wall",
+      "wall",
+      "wall",
+      "wall"
+     ]
+    }
+   ],
+   "walls": [],
+   "stairs": [
+    {
+     "id": "stairs-first",
+     "name": "First stairs",
+     "pts": [
+      [
+       235.8,
+       218.2
+      ],
+      [
+       435.8,
+       218.2
+      ],
+      [
+       435.8,
+       298.2
+      ],
+      [
+       235.8,
+       298.2
+      ]
+     ],
+     "shape": "straight",
+     "steps": 12,
+     "rot": 356,
+     "direction": "down"
+    }
+   ],
+   "doors": [],
+   "openings": [],
+   "extras": [],
+   "devices": [],
+   "furniture": [],
+   "unlinked": []
+  }
+ },
+ "catalog": []
+}
