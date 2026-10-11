@@ -1792,13 +1792,15 @@ test("S8.10: the toolbar's Redo button sits flush against the toolbar's right ed
 });
 
 test("S8.10 follow-up: the right-aligned cluster is tight — equal gaps, Redo flush right, a status change moves no button", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+  // Wide enough that the cluster is one row in any system font. At 1280 it is one row on a Mac and two on the CI runner's
+  // wider font, so "one row" there was a fact about the font, not about the toolbar. Narrower widths are the 380 test below.
+  await page.setViewportSize({ width: 1920, height: 800 });
   // Break it: put back `.status{flex:0 1 12em;min-width:6em;max-width:12em}` (the pre-follow-up rule that always
   // reserved 12em for "Ready") and this fails — the gap right before Help balloons far past the 6px flex gap.
   const items = await page.locator(".bar-right > *").evaluateAll((els) => els
     .filter((el) => (el as HTMLElement).offsetParent !== null || getComputedStyle(el as HTMLElement).display !== "none")
     .map((el) => { const r = el.getBoundingClientRect(); return { id: (el as HTMLElement).id || el.className, x: r.x, right: r.x + r.width, cy: r.y + r.height / 2 }; }));
-  // Single row at 1280: every visible item shares the same row (align-items:center lines up their vertical
+  // Single row at 1920: every visible item shares the same row (align-items:center lines up their vertical
   // centres, not their tops — items differ in height, a <span> vs a <details>/<button>).
   const rowCy = items[0].cy;
   for (const it of items) expect(Math.abs(it.cy - rowCy), it.id).toBeLessThan(3);
