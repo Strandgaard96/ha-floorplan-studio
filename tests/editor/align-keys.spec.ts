@@ -120,7 +120,10 @@ test("the offset and rotation boxes take typed values, one undo step each; junk 
   await type("#alignX", "abc");
   expect(await depth(page)).toBe(d0 + 4);
   await expect(page.locator("#alignRot")).toHaveValue("3.5");
-  await expect(page.locator("#alignX")).toHaveValue("3.5");
+  // review 29: a typed rotation turns about the pivot, so the offset follows it; the box shows the stored offset, and junk left it alone
+  const off = (await poseOf(page)).off;
+  expect(off[0]).not.toBe(3.5);
+  await expect(page.locator("#alignX")).toHaveValue(String(off[0]));
   await type("#alignRot", "3.5"); // unchanged: no step
   expect(await depth(page)).toBe(d0 + 4);
 });
