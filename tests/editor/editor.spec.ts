@@ -2969,8 +2969,8 @@ test("S23.1: a zone's plan label is solid like a room's, and smaller", async ({ 
       });
   const zone = await style("svg text.lbl.zone[data-rl]"),
     room = await style("svg text.lbl:not(.zone):not(.out)[data-rl]");
-  expect([zone.opacity, zone.weight]).toEqual(["1", "500"]);
-  expect([room.opacity, room.weight]).toEqual(["1", "500"]);
+  expect([zone.opacity, zone.weight]).toEqual(["1", "600"]);
+  expect([room.opacity, room.weight]).toEqual(["1", "600"]);
   expect(zone.size).toBeLessThanOrEqual(room.size);
 });
 

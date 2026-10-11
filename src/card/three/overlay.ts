@@ -57,9 +57,9 @@ export const roomPriority = (kind: string): number =>
 // `inkFor` makes --fp-idle at least INK_RATIO against the disc on this layer, in any theme. The plan's own idle look (core/render.ts:
 // no disc, a .7 glyph) is for 2D, where the floor is one flat colour; these rules win by specificity, and only in this layer.
 /** Item 10: a label is a chip on the 2D plan's tag colour (`.lbl-tag`, --fp-outline). A device's value and its name stack one chip apart:
- *  11 px text at line-height 1.2 is 13.2 px, plus 1 px padding above and below, plus a 2 px gap. */
+ *  12 px text at line-height 1.2 is 14.4 px, plus 1 px padding above and below, plus a 2 px gap. */
 const CHIP_GAP = 2,
-  CHIP_STEP = 17;
+  CHIP_STEP = 19;
 const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0}
 .fp3-ov *{pointer-events:none}
 .fp3-dev,.fp3-rm{position:absolute;left:0;top:0;will-change:transform}
@@ -67,13 +67,13 @@ const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:no
 .fp3-ic{position:absolute;left:-${ICON_PX / 2}px;top:-${ICON_PX / 2}px;width:${ICON_PX}px;height:${ICON_PX}px;overflow:visible}
 .fp3-ic g.dev:not(.on):not(.danger) .halo{fill:var(--fp-disc);fill-opacity:1;stroke:var(--fp-idle);stroke-width:1}
 .fp3-ic g.dev:not(.on):not(.danger) path{fill-opacity:1}
-.fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:11px/1.2 var(--fp-font,system-ui,sans-serif)}
+.fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:12px/1.2 var(--fp-font,system-ui,sans-serif)}
 .fp3-dv{top:${ICON_PX / 2 + 1}px}
 .fp3-dn{top:${ICON_PX / 2 + 1 + CHIP_STEP}px}
 .fp3-dv,.fp3-dn,.fp3-name,.fp3-val{color:var(--fp-text);background:var(--fp-outline);border-radius:3px;padding:1px 5px}
-.fp3-rm{display:flex;flex-direction:column;align-items:center;gap:${CHIP_GAP}px;text-align:center;white-space:nowrap;font:500 12px/1.25 var(--fp-font,system-ui,sans-serif)}
+.fp3-rm{display:flex;flex-direction:column;align-items:center;gap:${CHIP_GAP}px;text-align:center;white-space:nowrap;font:600 14px/1.25 var(--fp-font,system-ui,sans-serif)}
 .fp3-name,.fp3-val{display:block}
-.fp3-val{font-weight:400;font-size:11px}
+.fp3-val{font-weight:400;font-size:12px}
 .fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:opacity .12s linear}
 .fp3-ov .fp3-lose{opacity:0}
 @media (prefers-reduced-motion:reduce){.fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:none}}`;

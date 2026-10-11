@@ -752,7 +752,7 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
    that passes on every theme's surface (light garden 4.56, terminal pavement 4.67). A device's or an extra's name sits on
    no one surface and keeps the plain text colour. One font, Home Assistant's own. */
 :host,svg{--fp-font:var(--ha-font-family-body,var(--paper-font-body1_-_font-family,system-ui,sans-serif))}
-.lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:500} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
+.lbl,.val{font-family:var(--fp-font)} .lbl{font-weight:600} .lbl[data-rl]{--fp-label:color-mix(in srgb,var(--fp-text) 92%,var(--fp-under,var(--fp-room-empty)));fill:var(--fp-label)} .lbl.out{font-style:italic} .lbl[data-rl].out{--fp-label:color-mix(in srgb,var(--fp-text-out,var(--fp-text)) 92%,var(--fp-under,var(--fp-room-empty)))} .val{font-variant-numeric:tabular-nums}
 .mg{stroke:var(--fp-measure);stroke-width:.5;vector-effect:non-scaling-stroke} .mg.m{stroke-width:1}
 .sel{stroke:var(--fp-ink)} .door-open.sel:not(.open):not(.alarm):not(.cover-open){stroke-opacity:.35} .h{fill:var(--fp-bg);stroke:var(--fp-ink);stroke-width:1.5}
 /* S25.2: semantic zoom. renderFloor writes data-detail on the plan root (far, mid or near; none is near); every level rule is here, so the editor and
@@ -2289,7 +2289,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   };
   const nameAt: Label[] = [],
     zoneAt: Label[] = [];
-  // S23.1: a room's name is 12, an outdoor name, like a zone's, 10: smaller than a room, never fainter.
+  // S23.1, UI refactor 12: a room's name is 14 px semibold on the screen's scale, an outdoor name, like a zone's, 12: smaller than a room, never fainter.
   const OUTDOOR = new Set<RoomKind>(["garden", "terrace", "pavement", "water"]);
   // S23.3: the smallest room first. It has the fewest spots, and a pond whose name goes outside on a leader then takes
   // its spot before the garden round it picks one there.
@@ -2299,10 +2299,10 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     .map(([, i]) => i);
   for (const i of bySize) {
     const r = f.rooms[i];
-    if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 10 : 12) * kt, 7 * kt);
+    if (named(r) && r.kind !== "zone") nameAt[i] = placeName(r, (OUTDOOR.has(r.kind) ? 12 : 14) * kt, 7 * kt);
   }
   f.rooms.forEach((r, i) => {
-    if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 10 * kt, 6 * kt);
+    if (named(r) && r.kind === "zone") zoneAt[i] = placeName(r, 12 * kt, 6 * kt);
   });
 
   // Openings erase the wall under them; extras are dashed outlines with a name. Both sit under devices and names.
@@ -2456,7 +2456,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const lab = nameAt[i],
       base = lab?.at ?? centroid(r.pts),
       size = lab?.size ?? 0,
-      vs = 10 * kt;
+      vs = 12 * kt;
     if (!base.every(Number.isFinite)) return;
     const [vx, vy] = place(
       [screenOff(base, 0, 0.25 * size + kt + 0.75 * vs), screenOff(base, 0, -0.75 * size - kt - 0.25 * vs)],

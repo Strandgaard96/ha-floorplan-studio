@@ -39,12 +39,12 @@ exports[`renderFloor > S5.1: matches the snapshot for a floor carrying every FUR
 <line data-d="3" class="door door-fullwindow door-window quiet" x1="800" y1="60" x2="800" y2="300" stroke-width="20"><title>Kitchen full-height window</title></line>
 <path data-ds="3" class="door-sym k-fullwindow" d="M790 60L790 300M800 60L800 300M810 60L810 300"/>
 <path data-dj="3" class="win-jamb k-fullwindow" d="M812 60L788 60M812 300L788 300"/>
-<text class="lbl" x="346" y="200" data-rl="0" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Living</text>
-<text class="lbl" x="650" y="264" data-rl="1" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Kitchen</text>
-<text class="lbl" x="496" y="500" data-rl="2" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Hall</text>
-<text class="lbl zone" x="400" y="58" data-rl="3" text-anchor="middle" font-size="12.28" style="--fp-under:var(--fp-room-empty)">Reading corner</text>
-<text class="lbl out" x="850" y="524" data-rl="4" text-anchor="middle" font-size="20" style="--fp-under:var(--fp-garden-fill)">Garden</text>
-<text class="lbl out" x="600" y="615" data-rl="5" text-anchor="middle" font-size="14.45" style="--fp-under:var(--fp-pavement-fill)">Pavement</text>
+<text class="lbl" x="346" y="200" data-rl="0" text-anchor="middle" font-size="28" style="--fp-under:var(--fp-room-empty)">Living</text>
+<text class="lbl" x="650" y="264" data-rl="1" text-anchor="middle" font-size="28" style="--fp-under:var(--fp-room-empty)">Kitchen</text>
+<text class="lbl" x="496" y="500" data-rl="2" text-anchor="middle" font-size="28" style="--fp-under:var(--fp-room-empty)">Hall</text>
+<text class="lbl zone" x="400" y="58" data-rl="3" text-anchor="middle" font-size="12.53" style="--fp-under:var(--fp-room-empty)">Reading corner</text>
+<text class="lbl out" x="850" y="524" data-rl="4" text-anchor="middle" font-size="20.4" style="--fp-under:var(--fp-garden-fill)">Garden</text>
+<text class="lbl out" x="600" y="615" data-rl="5" text-anchor="middle" font-size="14" style="--fp-under:var(--fp-pavement-fill)">Pavement</text>
 <line class="lbl-leader" stroke-width="2" x1="837" y1="464" x2="837" y2="423"/>
 <text class="lbl out" x="837" y="418.5" data-rl="6" text-anchor="middle" font-size="14" style="--fp-under:var(--fp-water-fill)">Garden pond</text>
 <g data-x="0" class="dev dev-light bound off" transform="translate(226 176) scale(2)"><title>light: Living light + switch.demo_living_relay</title><circle class="halo" cx="12" cy="12" r="16"/><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></g>
@@ -87,12 +87,12 @@ exports[`renderFloor > matches the snapshot for the demo ground floor without st
 <line data-d="3" class="door door-fullwindow door-window quiet" x1="800" y1="60" x2="800" y2="300" stroke-width="20"><title>Kitchen full-height window</title></line>
 <path data-ds="3" class="door-sym k-fullwindow" d="M790 60L790 300M800 60L800 300M810 60L810 300"/>
 <path data-dj="3" class="win-jamb k-fullwindow" d="M812 60L788 60M812 300L788 300"/>
-<text class="lbl" x="346" y="200" data-rl="0" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Living</text>
-<text class="lbl" x="650" y="264" data-rl="1" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Kitchen</text>
-<text class="lbl" x="496" y="500" data-rl="2" text-anchor="middle" font-size="24" style="--fp-under:var(--fp-room-empty)">Hall</text>
-<text class="lbl zone" x="400" y="58" data-rl="3" text-anchor="middle" font-size="12.28" style="--fp-under:var(--fp-room-empty)">Reading corner</text>
-<text class="lbl out" x="850" y="524" data-rl="4" text-anchor="middle" font-size="20" style="--fp-under:var(--fp-garden-fill)">Garden</text>
-<text class="lbl out" x="600" y="615" data-rl="5" text-anchor="middle" font-size="14.45" style="--fp-under:var(--fp-pavement-fill)">Pavement</text>
+<text class="lbl" x="346" y="200" data-rl="0" text-anchor="middle" font-size="28" style="--fp-under:var(--fp-room-empty)">Living</text>
+<text class="lbl" x="650" y="264" data-rl="1" text-anchor="middle" font-size="28" style="--fp-under:var(--fp-room-empty)">Kitchen</text>
+<text class="lbl" x="496" y="500" data-rl="2" text-anchor="middle" font-size="28" style="--fp-under:var(--fp-room-empty)">Hall</text>
+<text class="lbl zone" x="400" y="58" data-rl="3" text-anchor="middle" font-size="12.53" style="--fp-under:var(--fp-room-empty)">Reading corner</text>
+<text class="lbl out" x="850" y="524" data-rl="4" text-anchor="middle" font-size="20.4" style="--fp-under:var(--fp-garden-fill)">Garden</text>
+<text class="lbl out" x="600" y="615" data-rl="5" text-anchor="middle" font-size="14" style="--fp-under:var(--fp-pavement-fill)">Pavement</text>
 <line class="lbl-leader" stroke-width="2" x1="837" y1="464" x2="837" y2="423"/>
 <text class="lbl out" x="837" y="418.5" data-rl="6" text-anchor="middle" font-size="14" style="--fp-under:var(--fp-water-fill)">Garden pond</text>
 <g data-x="0" class="dev dev-light bound off" transform="translate(226 176) scale(2)"><title>light: Living light + switch.demo_living_relay</title><circle class="halo" cx="12" cy="12" r="16"/><path d="M12,2A7,7 0 0,0 5,9C5,11.38 6.19,13.47 8,14.74V17A1,1 0 0,0 9,18H15A1,1 0 0,0 16,17V14.74C17.81,13.47 19,11.38 19,9A7,7 0 0,0 12,2M9,21A1,1 0 0,0 10,22H14A1,1 0 0,0 15,21V20H9V21Z"/></g>

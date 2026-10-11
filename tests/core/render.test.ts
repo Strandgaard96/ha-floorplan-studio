@@ -2785,10 +2785,11 @@ describe("S1.42: a device never hides a room name", () => {
     expect(x > 211 || x + w < 189, `name ${x}..${x + w} across the door`).toBe(true);
   });
   it("S7.15: a door whose stroke just reaches the name's box counts, one 1 unit further does not", () => {
-    // The name box at the centroid spans y 83.5..105.5 (22 tall, baseline 0.75 down). A horizontal door at y 116 with
-    // stroke 22 reaches up to 105 and overlaps; at y 117 its edge only touches the box, which does not count.
-    expect(nameAt(withDoor([100, 116], [300, 116])).slice(0, 2)).not.toEqual([200, cy]);
-    expect(nameAt(withDoor([100, 117], [300, 117])).slice(0, 2)).toEqual([200, cy]);
+    // UI refactor 12: a room name is 14 px now, so at scale 0.5 the box at the centroid is 28 tall (baseline 0.75 down),
+    // y 79..107. A horizontal door at y 117 with stroke 22 reaches up to 106 and overlaps; at y 118 its edge only
+    // touches the box, which does not count.
+    expect(nameAt(withDoor([100, 117], [300, 117])).slice(0, 2)).not.toEqual([200, cy]);
+    expect(nameAt(withDoor([100, 118], [300, 118])).slice(0, 2)).toEqual([200, cy]);
   });
   it("S7.15: a door far from the name leaves it at the centroid", () => {
     expect(nameY(withDoor([50, 190], [350, 190]))).toBe(cy);
@@ -2796,7 +2797,7 @@ describe("S1.42: a device never hides a room name", () => {
   it("a zone follows the same search with its smaller size", () => {
     const one = floor("zone", [[200, 100]]);
     offDiscs(one, [[200, 100]]);
-    expect(nameAt(one)[2]).toBe(10 * k);
+    expect(nameAt(one)[2]).toBe(12 * k); // UI refactor 12: a zone name is 12
   });
   it("counts only devices the filter draws", () => {
     expect(nameY(floor("room", [[200, 100]], "heater"))).toBe(cy);
@@ -3267,7 +3268,7 @@ describe("S7.1: labels never overprint each other", () => {
 
   it("a name that fits keeps its full size", () => {
     const t = labelOf(renderFloor(roomLayout("Store", 100), { scale: 1 }), "Store");
-    expect(t.size).toBe(12); // S23.1: a room name is 12
+    expect(t.size).toBe(14); // S23.1, UI refactor 12: a room name is 14
   });
 
   it("a zone label shrinks to 6k at the least", () => {
@@ -3864,7 +3865,7 @@ describe("0.12.16: room names sit inside their room, small and half transparent"
     f.devices = [{ id: "l", type: "light", entity: "light.a", x: 25, y: 25 }] as never;
     expect(inside(at(renderFloor(f, { scale: 1 }), "Laundry"), ell)).toBe(true);
   });
-  it("S23.1: a room name is 12, a zone name 10 (times the scale), and neither is faded", () => {
+  it("S23.1, UI refactor 12: a room name is 14, a zone name 12 (times the scale), and neither is faded", () => {
     const html = renderFloor(
       mk(
         [
@@ -3877,7 +3878,7 @@ describe("0.12.16: room names sit inside their room, small and half transparent"
       ),
       { scale: 1 },
     );
-    expect(html).toMatch(/<text class="lbl"[^>]*font-size="12"[^>]*>Laundry</);
+    expect(html).toMatch(/<text class="lbl"[^>]*font-size="14"[^>]*>Laundry</);
     const zone = renderFloor(
       mk(
         [
@@ -3890,7 +3891,7 @@ describe("0.12.16: room names sit inside their room, small and half transparent"
       ),
       { scale: 1 },
     );
-    expect(zone).toMatch(/<text class="lbl zone"[^>]*font-size="10"[^>]*>Laundry</);
+    expect(zone).toMatch(/<text class="lbl zone"[^>]*font-size="12"[^>]*>Laundry</);
     for (const h of [html, zone]) expect(h).not.toMatch(/<text class="lbl[^>]*opacity=/);
   });
 });
