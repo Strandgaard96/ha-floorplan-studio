@@ -1,5 +1,14 @@
 import { stairSteps } from "./geometry";
-import { FX_MIN, FX_MAX, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
+import {
+  COORD_LIMIT,
+  FX_MIN,
+  FX_MAX,
+  type CatalogEntry,
+  type Device,
+  type DeviceType,
+  type Layout,
+  type Pt,
+} from "./schema";
 
 const slug = (t: string) =>
   t
@@ -61,6 +70,20 @@ function dropBadHeights(f: any) {
   for (const k of ["height", "slab"]) if (k in f && bad(f[k])) delete f[k];
   for (const [list, keys] of HEIGHT_KEYS)
     for (const o of f[list]) for (const k of keys) if (k in o && bad(o[k])) delete o[k];
+}
+
+/** S27.2: a floor `offset` that is not two finite numbers within COORD_LIMIT is dropped, so the floor sits at [0, 0] and the file opens. A good one is kept as written. */
+function dropBadOffset(f: any) {
+  const o = f.offset;
+  if (
+    "offset" in f &&
+    !(
+      Array.isArray(o) &&
+      o.length === 2 &&
+      o.every((n: unknown) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)
+    )
+  )
+    delete f.offset;
 }
 
 /** S14.3: an effect size outside 25-300 (or not a number) is dropped, so the device draws at 100 and the file opens. */
@@ -142,6 +165,7 @@ export function migrate(x: unknown): Layout {
     });
     dropBadHeights(f);
     dropBadFx(f);
+    dropBadOffset(f);
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = {

@@ -2781,3 +2781,648 @@ Wave 2, the apps (Studio and card in parallel, two tasks each in order):
       sensor in volts is not read as %.
 - [x] S24.R11 `render.ts` drops its private copy of the Layers rule and imports `layerHides`; `src/core/index.ts`
       exports it. No behaviour change: the existing Layers tests stay green.
+
+## Sprint 25 (0.23.0): scale on the plan
+
+Branch `task/s25-scale`. Diego, 2026-10-09: "semantic zoom, allow a config in the view menu." Answers (defaults taken):
+three detail levels; the View menu offers a mode, Auto, Always full or Always minimal, in Studio and card; kept per viewer
+in the browser, with a card YAML key for the default. Goal: a 437-device house reads at fit zoom (rooms and what is wrong
+in them) and shows everything when you zoom in. Rules: one draw path (finding 8); per-type rules iterate `DEVICE_TYPES`
+(finding 17); every CSS rule that matters gets its `getComputedStyle` pair (finding 10); real `page.mouse` (finding 3);
+look at `npm run shots` (finding 16); the Studio and the card get every view feature (parity). Out of scope: Inspector,
+marquee, lock (sprint 26); floor offset (27); 3D shadows (28); card chrome and phone sheet (29).
+
+Levels (zoom is relative to the floor at fit, `1` = whole floor): far below 1.6, mid from 1.6 to below 3.2, near from
+3.2. Far: rooms, room names, room badges; devices that are on, alerting or unavailable stay as dots. Mid: device icons,
+room names, badges. Near: everything, with device labels and readings. Mode `full` is always near; `minimal` is always
+far; `auto` follows zoom. Thresholds are constants in core, not settings.
+
+Wave 1, core (parallel):
+- [x] S25.1 `detailLevel(zoom, mode)` in `src/core/detail.ts`: returns `far | mid | near`; unknown or non-finite input
+      falls back to `near` (finding 1). Exported. Test: the three bands at their edges (1.59, 1.6, 3.19, 3.2), the
+      modes pin, junk input.
+- [x] S25.2 `renderFloor` takes `detail` and writes `data-detail` on the plan root; every level rule is CSS keyed on it,
+      so editor and card cannot differ. Test: a render per level; a `getComputedStyle` pair per rule (far hides an off
+      lamp's icon and keeps an on lamp's dot; mid hides device labels; near hides nothing); an iteration over
+      `DEVICE_TYPES` so a new type has to say what it does at far.
+- [x] S25.3 Room badges with rollups. `roomRollup(room, states)` in core: counts of lights on, alerts, open doors and
+      windows, motion; a badge per room drawn by `renderFloor` at far and mid, hidden at near. Test: counts for a room
+      with mixed states; the badge text; an empty room has no badge; the escape payload `"><script>` in a name.
+- [x] S25.4 Labels placed in CSS px. A label keeps its on-screen size and offset at any zoom; placement is computed
+      from the view scale, not from cm. Test: at zoom 1 and 6 the label's `getBoundingClientRect` height is the same
+      (asymmetric values), and 11 px floor holds.
+
+Wave 2, view and behaviour (after wave 1):
+- [x] S25.5 Spiderfy. Devices closer than a touch target fan out on tap into a ring with their labels; Escape or a tap
+      elsewhere folds them. Test: two stacked lamps, a real click on the stack opens the ring, a real click on one
+      acts on that one; Escape folds.
+- [x] S25.6 Incremental render. A state update for one entity rewrites only that device's nodes. Test: a mutation
+      observer on the plan root sees changes under one device group only after one `hass` update, and none for an
+      unrelated entity; the full render still happens on layout change.
+- [x] S25.7 Studio View menu: a Detail group with Auto, Full, Minimal; kept in the browser, per viewer; the toolbar shows
+      the pinned mode when it is not Auto. Test: real clicks, the plan root's `data-detail` follows, survives reload,
+      one undo stack untouched.
+- [x] S25.8 Card: the same control (a Detail button beside Layers in the chrome), same storage rule, and `detail:
+      auto|full|minimal` in the card YAML as the default (untrusted config: bad value falls back to `auto`). The card
+      config editor offers it. Test: real clicks; YAML default; a stored viewer choice wins over YAML.
+- [x] S25.9 Docs: `docs/card.md`, `docs/editor.md`, `docs/SPEC.md` (levels, thresholds, the key), CHANGELOG,
+      DECISIONS.
+
+Review (one Opus pass on the integrated build) then fixes with their tests; exit test: one sensor update writes only its
+device, on the stress house.
+
+Door follow-ups from Diego, 2026-10-09 (own branch `task/doors-open-closed`):
+- [x] S25.D1 Doors and glass doors: no leaf line; open or sensorless = a hole, closed (sensor `off`) = a thick line (1.6x the wall, max 20 cm).
+- [x] S25.D3 New door kind `fullwindow` ("Full-height window"): a window with sill 0 and its head under the ceiling.
+- [x] S25.D2 Rename the glass kind to "Glass door" (visible name only).
+
+## Sprint 26 (0.24.0): Studio editing at scale
+
+Branch `task/s26-edit`. Lanes branch off it as `task/s26-<lane>`, each in its own worktree with its own `PW_PORT`, and
+merge back into `task/s26-edit`. Diego, 2026-10-09: "as planned. go." The roadmap row: "Studio editing at scale:
+Inspector modes, marquee and multi-select, bulk Controlled by, one Lock, context menus, menu clean-up, status bar, typed
+lengths, 15° snap." From the Studio review of 2026-10-08: U2, U3, U5, U7, U8, U14, U15, U18, U19, U22. Direction: one
+Inspector and an Outline in the Studio, the same context menu per object everywhere, nothing new floats. Goal: on the
+stress house, bulk work is a selection and one action. Exit test: bind 20 lights in 3 actions (marquee, Controlled by,
+pick), one undo step.
+
+Rules. Each task: one outcome, its failing test written first and watched failing (finding 5). Real `page.mouse` and
+`page.keyboard` at real coordinates on the real top element (finding 3). One undo step per gesture, none when nothing
+changed; keys bound on the editor host, never `window` (finding 6). A writer that builds schema objects gets a test over
+every combination of its inputs, and every result passes `validate` (finding 12). Every CSS rule that matters gets its
+`getComputedStyle` pair (finding 10). A new Playwright test runs `--repeat-each=10` before it is committed (finding 13).
+Where behaviour is per member of a union (`DEVICE_TYPES`, `Sel["t"]`, the context-menu targets), a test iterates the
+union (finding 17). Editor state survives a `hass` update. A visible change: screenshots at 1280 and 1024 wide, dark and
+light, looked at; a change to `render.ts` runs `npm run shots`.
+
+Out of scope: the Align tab and floor offset (27); a Floors menu and folding Draw into Add (27, with Align); Align,
+Distribute, Duplicate, Move to room, cut, copy and paste; multi-select of anything but devices; offset Add picks (U13);
+the outline icon rail at 1024 (U25; the column already collapses under 1100); long-press and card context menus (29).
+
+Assumptions (defaults taken; Diego can overrule any):
+- A multi-selection holds devices only, any types mixed. Shift+click toggles one; Shift+drag on empty canvas draws a
+  marquee; a plain drag still pans. Ctrl/⌘+A selects every drawn device on the floor. A device the plan does not draw
+  (Layers, detail) is never selected.
+- Lock is the one word: "Lock plan" in the toolbar, "Lock" in panels and menus. A locked device, furniture piece or
+  unlinked object does not move (drag, group drag); it can still be edited and deleted. A locked wall, door or opening
+  keeps its length, as `locked` does today; its label says so. Devices gain `locked?: boolean` (schema stays v2).
+- Lock plan holds geometry only: points, walls, openings, kinds, heights, stairs, furniture. Names, titles, colours,
+  textures, area and entity links stay editable (review: "names and colours are never locked"). Supersedes the plan()
+  rule of 2026-10-06; DECISIONS entry in S26.3.
+- 15° steps apply while drawing, to the segment from the last point; a corner or an alignment with an earlier point of
+  the shape wins inside its 14 px reach. Alt turns every snap off, as today. Shift keeps its meaning (detach a corner).
+- A typed length is cm ("350"), or metres with an "m" ("3.5m"), along the rubber band's direction. Enter places the
+  point; Escape clears the typed value first, then cancels the drawing.
+- The status bar shows facts (selection, room, snap, floor, zoom, lock); messages and refusals keep the banner.
+- Bulk Controlled by offers the first selected light's choices (they are floor-scoped, so the same for every light) and
+  writes `bound` on the lights only; the Inspector says how many non-lights it left alone.
+
+Wave 1, pure modules (parallel; one worktree each, two chained where noted; none touches `editor-app.ts`):
+- [x] S26.1 (U3) Devices can be locked. `locked?: boolean` on a device in `src/core/schema.ts`; `validate` reports a
+      non-boolean and never throws; `migrate` keeps it. `npm run docs:schema`; SPEC. Test: `locked` true, false,
+      absent, `"yes"`, `1`, `null`, on a device whose id is `__proto__`.
+      Files: `src/core/schema.ts`, `docs/schema.md`, `docs/SPEC.md`, a new `tests/core/device-lock.test.ts`.
+- [x] S26.2 (U15, U18) Bulk writers, chained after S26.1 in the same worktree. Pure floor transforms in a new
+      `src/editor/bulk.ts`: `bindLights(f, is, entity)` (lights only, `""` clears `bound`, returns how many it skipped),
+      `removeDevices(f, is)`, `moveDevices(f, is, dx, dy)` (skips locked), `lockDevices(f, is, on)`, and
+      `reindexAfterRemove(is, removed)`. Junk, duplicate and out-of-range indices are ignored; nothing changed returns
+      an equal floor, so `edit` records no step. Test: iterate `DEVICE_TYPES` x bound or not x locked or not, with junk
+      indices; every result passes `validate`; each no-op leaves no undo step through `EditorState.edit`.
+      Files: `src/editor/bulk.ts`, `tests/editor/bulk.test.ts`.
+- [x] S26.3 (U3) Lock plan holds geometry only. `EditorState.plan()` compares shapes, not names: under the lock a room,
+      floor or door rename, a colour, a texture, an area or entity link is one undo step; a corner, wall, door
+      position, kind, height, stairs or furniture change is still refused with `planBlocked`. DECISIONS entry. Test:
+      unit over each field, allowed and refused. `refused-edit.spec.ts` and `plan-lock.spec.ts` used a rename as the
+      refused edit: move them to a corner drag, on purpose, and say so in the commit.
+      Files: `src/editor/state.ts`, `tests/editor/plan-lock.test.ts`, `tests/editor/plan-lock.spec.ts`,
+      `tests/editor/refused-edit.spec.ts`, `docs/DECISIONS.md`.
+- [x] S26.4 (U18) The plan draws a multi-selection. `RenderOpts.selection` also takes `{ t: "devs", is }`: each member
+      gets `.sel` as a single device does, and a member under a hidden layer is drawn, as the single selection is. Absent,
+      the markup is byte for byte as before. Test: iterate `DEVICE_TYPES`, each selected member has `.sel`; the render
+      snapshot unchanged without it; a computed-style pair for `.sel` on two members; `npm run shots` looked at.
+      Files: `src/core/render.ts`, `src/core/layers.ts` if `layerHides` needs the list, a new
+      `tests/core/render-multi-sel.test.ts`, a pair in `tests/editor/editor.spec.ts`.
+- [x] S26.5 (U18) Marquee hits. `marqueeHits(f, quad, skip)` in a new `src/editor/selection.ts`: the indices of devices
+      whose centre (a point device's x,y, a segment device's midpoint) lies in `quad`, four corners in plan space (the
+      screen rectangle taken back through the view's turn); `skip(i)` leaves out what is not drawn. A centre on the edge
+      counts. Junk never throws and never hits. Test: an axis box, a 45° turned quad that a bounding-box test gets
+      wrong, skip, NaN corners, an empty floor.
+      Files: `src/editor/selection.ts`, `tests/editor/selection.test.ts`.
+- [x] S26.6 (U19) One context-menu model. `ctxItems(target, facts)` in a new `src/editor/ctx-items.ts` returns the
+      ordered `{ id, label, key?, disabled? }` for each target: canvas, room, edge, wall, door, opening, stairs, extra,
+      furn, unl, dev, devs. Order from the review (Exhibit 14), only what exists: device: Rename, Controlled by… (a
+      light), Select same type, Hide this type, Lock or Unlock, Delete; several: Controlled by… (any light), Lock or
+      Unlock, Delete n; room: Rename, Place devices from area…, Select devices inside, Bring to front, Send to back,
+      Delete; wall and edge: kind, Add a point, Add door, window, opening, Lock or Unlock (wall), Delete; canvas: Add
+      device here…, Select all devices, Zoom to fit. `facts` (locked, has a light, count, HA present) come from the
+      caller, so the module is pure. Test: iterate the target union, each has a list; every list but canvas ends in
+      Delete; Lock follows `facts.locked`; Controlled by only with a light; ids unique; labels never say Fix.
+      Files: `src/editor/ctx-items.ts`, `tests/editor/ctx-items.test.ts`.
+- [x] S26.7 15° steps. `snapRay(from, p, stepDeg, grid)` in `src/editor/draw.ts`: `p` moved onto the nearest
+      `stepDeg` ray from `from`, its length rounded to the grid (0: to 1 cm). Test: 17° gives 15°, 23° gives 30°, 352°
+      gives 0°, grid 0, 5 and 10, `p` equal to `from`, NaN.
+      Files: `src/editor/draw.ts`, `tests/editor/draw.test.ts`.
+- [x] S26.8 Typed length, chained after S26.7 in the same worktree. `Draw` gets a typed buffer: `type(ch)`,
+      `untype()`, `placeTyped(toward)` adds the next point at the typed length along the direction from the last point
+      to `toward`. "350" is cm, "3.5m" metres; empty, 0, negative, over 10 000 cm, or no point yet: refused, nothing
+      added. Test: unit, each case.
+      Files: `src/editor/draw.ts`, `tests/editor/draw.test.ts`.
+
+Wave 2, alone, after wave 1 is merged:
+- [x] S26.9 Split the host, no behaviour change. Out of `editor-app.ts`: the toolbar template into `toolbar.ts`; the
+      context menu (open, view, actions) into `ctx-menu.ts`; the aside, the Place and Add popups and their state into
+      `inspector.ts`. Each module exports its own `css`; the host's `static styles` becomes an array. The pointer and key
+      handlers stay in the host. This is what lets wave 3 run in parallel. Test: the whole suite bare, no test edited,
+      and `npm run shots -- --strict` reports no change.
+      Files: `src/editor/editor-app.ts`, new `src/editor/toolbar.ts`, `src/editor/ctx-menu.ts`,
+      `src/editor/inspector.ts`.
+
+Wave 3, four lanes in parallel, each on its own files; tasks inside a lane run in order:
+
+Lane A, pointer and keys (`editor-app.ts` handlers only, plus new spec files):
+- [x] S26.10 (U18) Select many on the plan. Shift+click toggles any device; Shift+drag from empty canvas draws a
+      `.marquee` rectangle in the overlay and selects `marqueeHits` (adding to the selection); Ctrl/⌘+A selects every
+      drawn device on the floor; Escape clears. A plain drag still pans. No undo step. Test: stress layout, Shift held
+      with `keyboard.down`, a marquee over 4 lights selects exactly 4; again with the view turned 45°; a device of a
+      hidden layer inside is not taken; Shift+click a switch into a light selection keeps both; computed-style pair on
+      `.marquee`. New `tests/editor/multi-select.spec.ts`.
+- [x] S26.11 (U18) A multi-selection moves and deletes as one. A drag on a member moves every unlocked member
+      (`moveDevices`), one undo step; Delete or Backspace removes them all (`removeDevices`), one undo step; a locked
+      device does not follow a drag, alone or in a group. Test: real drag of 3 lights, all moved by the same delta, one
+      Undo restores all; Delete 3, one Undo; a locked member stays put.
+- [x] S26.12 Typed lengths and 15° steps while drawing. `snapDraw` uses `snapRay` after the corner and alignment snaps;
+      Alt turns it off. Digits typed while drawing show in a small field at the rubber band; Enter places the point
+      (`placeTyped`). Test: draw a wall with the pointer at 17°, the segment is at 15°; Alt held, it is not; type 350,
+      Enter: the segment is 350 cm; Escape clears the typed value, a second Escape cancels.
+- [x] S26.13 (U22) `?` opens Help from the plan (not from a text field). Test: real key, panel open; in the Outline
+      filter `?` types a character.
+
+Lane B, the Inspector (`inspector.ts`, `panels.ts`):
+- [x] S26.14 (U11, U12) Inspector modes. The aside gets tabs: Selection, Place, Add. Selection follows the selection;
+      Place (a room's HA area) and Add (Add > Device…) open as modes in the aside, never as floating panels; the canvas
+      does not move. Test: room, Place devices…, the Place tab is selected, no `.fpanel` in the DOM, the Place button
+      is inside the viewport at 1024x768, the canvas box unchanged; the mode survives a `hass` update in the panel.
+- [x] S26.15 (U15) The Inspector on a multi-selection. Count by type, then Controlled by (when any light is in it:
+      `bindLights`, one undo step, says "Bound 20 lights; 2 others left alone"), Lock (ticked, unticked or mixed:
+      `lockDevices`), Delete n, and Create group as before. Test: 20 lights and 2 sensors selected, pick a switch
+      with real clicks: 20 `bound`, one undo step, the note names 2; the mixed Lock box; Delete n.
+- [x] S26.16 (U3) Lock in every panel. The device panel gets a Lock box; "length locked" reads "Lock (keeps its
+      length)" on a wall, door and opening; furniture and unlinked panels say Lock. Test: tick Lock on a device, the
+      layout has `locked: true`, one undo step; no panel text says Fix or "length locked".
+
+Lane C, menus (`toolbar.ts`, `src/editor/guide.ts`, `src/core/icons.ts`):
+- [x] S26.17 (U5, U7, U8) Menu clean-up. Opening a submenu closes its siblings; a menu box never runs past the
+      viewport (it scrolls); Add holds only buttons and submenus (Furniture and Unlinked device become submenus of
+      buttons, furniture names through a table: "Patio, wood"); View has one Labels submenu (Device names, Names and
+      values) and the version moves under Help. Test: real clicks at 1024x768, each menu's box inside the viewport;
+      two subs never open at once; no `select` inside a menu; every furniture label has no hyphen; `#version` not in
+      View. `guide-controls.spec.ts` follows any renamed control.
+- [x] S26.18 (U22) Every menu item with a key shows it at its right edge (Undo ⌘Z or Ctrl+Z, Save, Search, Fit,
+      Select all, Delete, Help ?). Test: each listed item's text ends in its key for the platform; a key named in a menu
+      works when pressed (one per item, real keyboard).
+- [x] S26.19 (U2) Lock plan, not Fix plan. A neutral toggle with an inline SVG lock (no emoji), "Plan locked" or "Plan
+      editable"; the warning colour only on hover. Test: computed-style pair, the toggle's background is not
+      `--fp-danger` (or the red it had) when on; its accessible name; the guide step names it.
+
+Lane D, context menus (`ctx-menu.ts`):
+- [x] S26.20 (U19) One context menu per object on the plan. Right-click on a device, a multi-selection, stairs, a
+      structure line and the empty canvas now opens a menu; every menu takes its items and order from `ctxItems`;
+      Escape and a click elsewhere close it, as today. Test: iterate the targets on the demo, a real right-click on
+      each opens a menu whose labels equal `ctxItems` for it; device Lock then a drag does not move it; canvas "Add
+      device here…" opens Add with the click point.
+
+Wave 4, in order on `task/s26-edit` (each touches the host):
+- [x] S26.21 (U19) The Outline offers the same menu. A right-click (or the Menu key) on a device or room row opens the
+      plan's menu for it. Test: the labels from the Outline row equal the labels from a right-click on the same device
+      on the plan. Files: `outline.ts`, the host's `sideView`, `ctx-menu.ts`.
+- [x] S26.22 Status bar. A bar under the canvas: "4 selected · Living · Snap 10 cm · 15° · Ground · 100 %", and "Plan
+      locked [Unlock]" while locked. The text comes from a pure `statusFacts(st, view)` in a new
+      `src/editor/status-bar.ts`. Test: unit on the text for none, one, several, a turned view, Alt; Playwright: a marquee
+      reads "4 selected", a zoom changes the %, a real click on Unlock unlocks; computed-style pair on the bar.
+- [x] S26.23 (U14) Link lights with a preview. Edit, Link lights to switches opens a Link mode in the Inspector: the
+      pairs (light, suggested switch) with ticks, scoped to the selection, else the selected room, else the floor;
+      Apply binds the ticked ones in one undo step. `linkSuggestions(st, scope)` in `bulk.ts`. Test: unit on the
+      scopes; Playwright: untick one of three, Apply, two bound, one Undo clears both.
+- [x] S26.24 (U3) One word. No rendered string says Fix, fixed, Unfix or "length locked": banner "The plan is locked.
+      [Unlock]", the scene-save refusal, the guide. Test: a sweep over the editor's shadow DOM text and `title`s after
+      opening every menu, panel and context menu.
+- [x] S26.25 Exit test and docs. On the stress layout with 20 lights and a switch in one room: Shift+drag over the
+      lights (1), Controlled by (2), the switch (3); all 20 bound; one Undo unbinds all 20. `docs/editor.md`,
+      `docs/SPEC.md`, guide, CHANGELOG, DECISIONS (multi-select, Lock, Inspector modes, status bar, typed length, snap).
+- [ ] S26.26 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
+      `--repeat-each=10`; `npm run shots` looked at; screenshots of the Inspector modes, the marquee, a context menu and
+      the status bar at 1280 and 1024, dark and light; the exit test walked by hand once.
+
+Review (one Opus pass on the integrated build) then fixes with their tests; exit test: bind 20 lights in 3 actions, one
+undo step.
+
+## Sprint 27 (0.25.0): floors
+
+Branch `task/s27-floors`. Lanes branch off it as `task/s27-<lane>`, each in its own worktree with its own `PW_PORT`, and
+merge back into `task/s27-floors`. Diego, 2026-10-08: auto-align floors, floors below in 3D, an animated floor switch.
+Diego, 2026-10-10: "27", and furniture Lock must work under Lock plan. The roadmap row: "Floors: floor offset in the
+schema, Align to floor below with a score, ghost floor in 2D, floors below in 3D (off, ghost, solid), animated switch
+with a reduced-motion cut." Carried from Sprint 26: the Align tab, a Floors menu, folding Draw into Add. Why the offset
+comes first: `docs/specs/real-3d.md` (I) records that a dimmed stack of the floors below was built in 0.14.0 and removed,
+because on a real layout the floors drifted out of line. Exit test: a misaligned floor aligns within 2 cm; both motion
+paths tested.
+
+Rules. As Sprint 26: each task one outcome, its failing test written first and watched failing (finding 5); real
+`page.mouse` and `page.keyboard` on the real top element (finding 3); one undo step per gesture, none when nothing
+changed, keys on the editor host (finding 6); a writer that builds schema objects gets a test over every combination of
+its inputs and every result passes `validate` (finding 12); layout input is untrusted, `validate` and the new core
+functions never throw (finding 1); one draw path, the ghost is drawn by `renderFloor` (finding 8); every CSS rule that
+matters gets its `getComputedStyle` pair (finding 10), and a presentation attribute is never the behaviour (finding 18);
+a new Playwright test runs `--repeat-each=10` (finding 13); a change to `render.ts` runs `npm run shots` and is looked at
+(finding 16); the card size test stays green with its limit unchanged; Studio and card parity for every view feature
+(the parity table in `view-parity.spec.ts` gets its row). Motion: the floor switch adds no wait to any existing test; a
+test that races the animation is fixed with a real end condition (`getAnimations()` finished), never a retry or a sleep.
+
+Out of scope: rotating or scaling a floor to fit (translation only); aligning to any floor but the one below; floors
+above in 3D; live state (glow, open doors) on floors below in 3D; an animated switch in 3D (it cuts, as today); holding
+one point of the house on screen across a switch (each floor keeps its own view, S14.4); 3D shadows and the rest of 2.5D
+and 3D polish (28); card chrome and the phone sheet (29).
+
+Assumptions (defaults taken; Diego can overrule any):
+- **The offset is a field, not a rewrite.** `Floor.offset?: [number, number]`, cm, x right and y down as every plan
+  point: where the floor sits in the house. A point's place in the house is its stored point plus the floor's offset.
+  Stored coordinates never change. Absent means `[0, 0]`; writers delete the key at `[0, 0]`. Schema stays v2: an old
+  card ignores the field. Why not rewrite every point: Align would touch every array of the floor, the card's `center`
+  pins, each viewer's saved floor view and the trace image would all point at the old spot, and repeated aligns would
+  drift by rounding. With the field, one floor's own 2D view is byte for byte as before, Align is one key and one undo
+  step, and only the new multi-floor views (ghost, 3D stack, Align) read it.
+- `validate` reports an offset that is not two finite numbers within `COORD_LIMIT`. `migrate` drops such an offset, as
+  `dropBadHeights` drops a bad height, so a hand-edited file still opens; a good one is kept as written.
+- **The floor below** is the key before this one in `floors` order, the order `floorElevation` stacks. The lowest floor
+  has none: no ghost, Align disabled with a reason.
+- **The offset is geometry.** Lock plan refuses Align and offset edits with `planBlocked` and the Unlock offer (`plan()`
+  already compares every floor key it does not drop). `addFloor` gives the new floor the lowest floor's offset, since it
+  copies that floor's outline.
+- **Align.** `alignFloor(upper, lower)` returns the translation that best lays `upper` on `lower`, in their stored
+  coordinates, and its score; the new offset is `lower.offset + t`, rounded to whole cm. Structure lines of a floor: the
+  outline's edges and every `external` wall; with neither, every room's edges. Score: the share of the upper floor's
+  structure length, sampled every 10 cm, that lies within 5 cm of the lower floor's structure lines after the move,
+  0 to 100 %. Candidates: every pair of corners (upper, lower), capped at the 64 corners with the longest edges each, plus
+  no move; the best is refined by a translation-only nearest-line fit (at most 10 rounds, samples within 25 cm). A tie
+  within 1 point goes to the smaller move. Under 50 % the result is "weak" and says so; Apply still works. Nothing to
+  match (no lines, junk): `null`, never a throw.
+- **Ghost floor.** The floor below drawn as faint lines under the current one, at its relative offset
+  (`below.offset - current.offset`): outline, room edges, walls and stairs; no fills, devices, furniture, text or hit
+  targets. Flat at floor level in 2.5D too. One token, `--fp-ghost`, in the generic defaults (a mix of `--fp-wall` into
+  `--fp-bg`), so every theme has it. Studio: View > Floor below, off by default, kept per viewer like Detail; the Align
+  mode shows it whatever the toggle says. Card: `ghost_floor: true|false` in YAML (default false, junk false) and a
+  Floor below button in the view controls, kept per viewer in the view memory; a stored viewer choice wins over YAML.
+- **3D floors below.** `floors_below: off|ghost|solid` in the card YAML, default `off` (today's look and today's
+  one-floor test). Ghost: every lower floor translucent; solid: every lower floor in its own colours. Each at its own
+  elevation under the current floor and its relative offset. Never pickable; the camera frames the current floor. A
+  Floors below select beside Walls in 3D, kept per viewer. The Studio has no 3D view, so no Studio control.
+- **Animated switch.** 2D and 2.5D, card and Studio. The plan of the new floor fades in from 16 px in the direction of
+  travel (going up, it comes from above) over 220 ms; nothing of the old floor is kept (a copy would double every
+  selector and hit test). `prefers-reduced-motion: reduce`: no animation at all, the floor is simply there.
+- **Floors menu.** A Floors menu in the Studio toolbar: Add floor (moved from Edit, id kept), Align to floor below…,
+  Move up, Move down, Delete floor… (the floor panel keeps its own buttons). Draw folds into Add: Openings ends with
+  Draw opening, Wall gets a Draw submenu of the kinds, Areas ends with Draw room, zone, water, outline and structure line.
+  Every id is kept, so tests and the guide follow by label only.
+- **The Align tab** is an Inspector mode, as Place, Add and Link: the floor below by name, the score, the proposed move
+  in words ("137 cm left, 61 cm down"), Apply, and the offset as two number fields for a hand nudge, with Reset.
+
+Wave 1, five lanes in parallel, each in its own worktree; tasks inside a lane run in order:
+
+Lane lock (`src/editor/state.ts` `plan()` only):
+- [x] S27.1 Furniture Lock works under Lock plan. `EditorState.plan()` drops a furniture piece's `locked` from the
+      compare, so ticking or unticking Lock on a piece under Lock plan is one undo step; moving, resizing or turning the
+      piece is still refused. Supersedes the "known edge" of the S26.16 entry and the furniture line of S26.3 (DECISIONS,
+      newest first). Test: unit, under Lock plan, `locked` on and off is allowed and one step each, `x`, `w`, `rot` are
+      refused; Playwright, Lock plan on, tick the furniture panel's Lock and the context menu's Lock with real clicks: the
+      layout has `locked: true` and no banner says locked.
+      Files: `src/editor/state.ts`, `tests/editor/plan-lock.test.ts`, `tests/editor/plan-lock.spec.ts`, `docs/DECISIONS.md`.
+
+Lane schema (`schema.ts`, `migrate.ts`, a new `src/core/floor-stack.ts`):
+- [x] S27.2 Floors have an offset. `offset?: [number, number]` on `Floor`; `validate` reports anything but two finite
+      numbers within `COORD_LIMIT` and never throws; `migrate` drops such a value and keeps a good one. `npm run
+      docs:schema`; SPEC schema section. Test: absent, `[0,0]`, `[137,-61]`, `[1.5,2]`, `"1,2"`, `[1]`, `[1,2,3]`,
+      `[NaN,0]`, `[2e7,0]`, `null`, on a floor whose key is `__proto__`; a migrated junk offset opens and validates.
+      Files: `src/core/schema.ts`, `src/core/migrate.ts`, `docs/schema.md`, `docs/SPEC.md`, a new
+      `tests/core/floor-offset.test.ts`.
+- [x] S27.3 Floor stack helpers, chained after S27.2. `floorBelow(layout, key)` (the key before, or null),
+      `floorsBelow(layout, key)` (every lower key, nearest first) and `floorShift(layout, from, to)` (cm to add to a
+      point of `from` to draw it on `to`: `from.offset - to.offset`, junk read as `[0,0]`). Exported from core. Test:
+      three floors with asymmetric offsets, the lowest floor, an unknown key, junk offsets, a `__proto__` key.
+      Files: `src/core/floor-stack.ts`, `src/core/index.ts`, `tests/core/floor-stack.test.ts`.
+
+Lane align (a new `src/core/align.ts`):
+- [x] S27.4 Align with a score. `alignFloor(upper, lower)` returns `{ t, score, weak }` or null, as the assumption says.
+      A new fixture `tests/fixtures/align-house.json` (demo-style, no real house): an L-shaped ground floor with external
+      walls and a smaller first floor over one wing, shifted by `[137.4, -61.7]`. Test: the fixture aligns within 2 cm
+      with a score over 90 %; the demo's identical floors give `[0,0]` and 100 %; a symmetric case takes the smaller
+      move; a floor with no lines, an empty floor, NaN points and a 10 000-point outline give null or a result and never
+      throw; the stress layout's floors align in under 200 ms.
+      Files: `src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, `tests/fixtures/align-house.json`.
+
+Lane render (`src/core/render.ts`):
+- [x] S27.5 Ghost floor in `renderFloor`. `RenderOpts.ghost?: { floor: Floor; shift: Pt }` draws a `g.ghost` first,
+      under everything: lines only, as the assumption says, stroke `--fp-ghost`, `pointer-events:none` by class rule.
+      Absent, the markup is byte for byte as before. Test: unit, the ghost has paths and no `text`, `use` or device
+      group, a payload `"><script>` in its room names never appears, junk ghost input draws nothing; the render snapshot
+      unchanged without it; computed-style pairs for the stroke and `pointer-events` (card and editor stylesheets);
+      `npm run shots` looked at with a ghost on, every theme.
+      Files: `src/core/render.ts`, a new `tests/core/render-ghost.test.ts`, a pair in `tests/editor/editor.spec.ts`.
+- [x] S27.6 Switch motion in core, chained after S27.5. `floorSwitch(keys, from, to, reduced)` returns
+      `{ dir: "up" | "down" }` or null (same floor, unknown key, reduced). Keyframes `fp-floor-in-up` and
+      `fp-floor-in-down` (220 ms) in `FLOORPLAN_CSS`, keyed on `data-switch` on the plan root, with no animation under
+      `prefers-reduced-motion: reduce`. Test: unit on the helper; a computed-style pair, `animation-name` set without
+      the media query and `none` with it (`page.emulateMedia({ reducedMotion: "reduce" })`).
+      Files: `src/core/render.ts`, `tests/core/floor-switch.test.ts`, a pair in `tests/card/` (new spec).
+
+Lane 3D (`scene-build.ts`, `src/card/three/`):
+- [x] S27.7 The 3D view can draw floors below. `SceneOpts.shift?: Pt` moves every solid in plan x and y (junk: none).
+      `View3D.setBelow(floors: { floor, elevation, shift }[], mode)` builds them under the current floor: `off` none,
+      `ghost` translucent (opacity at most .25, no depth write), `solid` in their own colours; never in `pick`; disposed
+      with the view and on every new call; cached per floor and theme. Test: unit on `shift`; Playwright on the stress
+      layout through the test hook: `solid` gives a z range below 0, `ghost` materials are transparent, `off` matches
+      today's one-floor test; a tap on a lower floor's garden picks nothing in every mode; 20 switches with `solid`
+      leave no mesh behind; the 3D chunk stays under its size limit.
+      Files: `src/core/scene-build.ts`, `src/card/three/view3d.ts`, `src/card/three/pick.ts` if needed, a new
+      `tests/card/card-3d-below.spec.ts`, `tests/card/three-*.test.ts` as needed.
+
+Wave 2, two lanes in parallel after wave 1 is merged; tasks inside a lane run in order:
+
+Lane studio (`state.ts`, `editor-app.ts`, `toolbar.ts`, `inspector.ts`, `panels.ts`, `guide.ts`):
+- [x] S27.8 Writers. `EditorState.setOffset(key, pt)` and `alignToBelow(key)`: one undo step, none when the offset is
+      unchanged, `[0,0]` deletes the key, refused under Lock plan with `planBlocked`; `addFloor` gives the new floor the
+      lowest floor's offset. Test: every combination of (offset absent, zero, set) x (lock on, off) x (lowest, middle,
+      unknown floor); every result passes `validate`; each no-op leaves no step.
+      Files: `src/editor/state.ts`, a new `tests/editor/floor-offset-state.test.ts`.
+- [x] S27.9 Floors menu, and Draw folded into Add, as the assumption says. Test: real clicks at 1024x768: the Floors
+      menu holds its five items in order and its box is inside the viewport; Align is disabled on the lowest floor with
+      its reason; no `#mDraw`; every former Draw id opens from Add and starts drawing; `guide-controls.spec.ts` and the
+      one-word sweep follow.
+      Files: `src/editor/toolbar.ts`, `src/editor/guide.ts`, `tests/editor/floors-menu.spec.ts`, the specs that opened
+      `#mDraw`.
+- [x] S27.10 The Align tab. Floors, Align to floor below… opens the Align mode in the Inspector with the ghost on; it
+      shows the score and the move, Apply writes the offset (one undo step) and says "Aligned to Ground: 94 % match";
+      a weak result says so; the two offset fields nudge it, one step per change; Escape and the X close it, as Link.
+      Test: on `align-house.json`, open, Apply with real clicks: the offset is within 2 cm of `[-137.4, 61.7]`, one Undo
+      clears it; under Lock plan Apply is refused and offers Unlock; the mode survives a `hass` update.
+      Files: `src/editor/inspector.ts`, `src/editor/editor-app.ts`, `src/editor/panels.ts`, a new
+      `tests/editor/align-mode.spec.ts`.
+- [x] S27.11 View > Floor below, after the card lane's S27.13 is merged into `task/s27-floors` (its parity row needs the
+      card's button). The toggle passes `ghost` to `renderFloor`; kept per viewer in the browser, every storage access in
+      try/catch; no undo step. A real click on the plan where only the ghost is drawn selects nothing. Test: the toggle
+      draws `g.ghost` at the shift of an offset floor, survives reload; the click; the `ghostFloor` parity row.
+      Files: `src/editor/toolbar.ts`, `src/editor/editor-app.ts`, `tests/card/view-parity.spec.ts`, a new
+      `tests/editor/ghost-floor.spec.ts`.
+- [x] S27.12 The Studio's floor switch is animated. A floor chip sets `data-switch` from `floorSwitch`. Test: default
+      motion, a chip click starts an animation on the plan root and a real click during it selects on the new floor;
+      reduced motion, no animation is ever running after the click.
+      Files: `src/editor/editor-app.ts`, a new `tests/editor/floor-switch.spec.ts`.
+
+Lane card (`floorplan-studio-card.ts`, `config-editor.ts`, `view-state.ts`):
+- [x] S27.13 Card ghost floor. `ghost_floor` in YAML and the Floor below button, as the assumption says; the plan passes
+      `ghost` with `floorShift`; the config editor offers it. Test: YAML default on and off, junk is off; a real click
+      on the button toggles `g.ghost`; a stored viewer choice wins over YAML; the lowest floor draws none; a tap on a
+      ghost-only spot opens nothing.
+      Files: `src/card/floorplan-studio-card.ts`, `src/card/config-editor.ts`, `src/card/view-state.ts`, a new
+      `tests/card/card-ghost.spec.ts`, `tests/card/card-view-memory.test.ts`.
+- [x] S27.14 Card 3D floors below. `floors_below` in YAML and the select beside Walls, kept per viewer, the config editor
+      offers it; the card calls `setBelow` with `floorsBelow`, `floorElevation` differences and `floorShift`. Test: the
+      select's three values change the drawn z range as S27.7 does; YAML default; junk is `off`; a stored choice wins;
+      the camera of each floor survives a switch (S14.4).
+      Files: `src/card/floorplan-studio-card.ts`, `src/card/config-editor.ts`, `src/card/view-state.ts`,
+      `tests/card/card-3d-below.spec.ts`.
+- [x] S27.15 The card's floor switch is animated. `_selectFloor` sets `data-switch` from `floorSwitch`, in 2D and 2.5D;
+      3D cuts. Test, both paths with real clicks on the floor tabs: default motion, an animation runs on the plan root
+      with the right direction and is finished within 400 ms; reduced motion (`emulateMedia`), no animation runs and the
+      new floor is drawn in the same frame; a search Enter onto another floor animates too.
+      Files: `src/card/floorplan-studio-card.ts`, a new `tests/card/card-floor-switch.spec.ts`.
+
+Wave 3, in order on `task/s27-floors`:
+- [x] S27.16 Exit test and docs. `floors-exit.spec.ts`: load `align-house.json` in the Studio, Floors, Align to floor
+      below, Apply: the offset is within 2 cm; Save; the card with `floors_below: solid` shows the first floor over the
+      ground with their outer corners within 2 cm in the test hook's bounds; the card's ghost lines up the same way.
+      Both motion paths are the S27.12 and S27.15 tests. Docs: `docs/SPEC.md` (offset, Align, ghost, floors below,
+      switch), `docs/specs/real-3d.md` (criterion I and 8 superseded, why), `docs/card.md` (keys `ghost_floor`,
+      `floors_below`, the parity table), `docs/editor.md`, guide, CHANGELOG, DECISIONS.
+- [ ] S27.17 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
+      `--repeat-each=10`; `npm run shots` looked at, ghost on and off; screenshots of the Align tab, the Floors menu,
+      the card's ghost and 3D ghost and solid at 1280 and 1024, dark and light; the exit test walked by hand once.
+
+Review (one Opus pass on the integrated build) then fixes with their tests; exit test: a misaligned floor aligns within
+2 cm; both motion paths tested.
+
+## Sprint 28 (0.26.0): 2.5D and 3D polish
+
+Branch `task/s28-polish`. Lanes branch off it as `task/s28-<lane>`, each in its own worktree with its own `PW_PORT`, and
+merge back into `task/s28-polish`. Diego, 2026-10-10: "start sprint 28". The roadmap row: "2.5D and 3D polish: shadows,
+lighting, tree crowns, framed openings, 3D label collision." From the visual review of 2026-10-08: V5 (3D labels
+collide), V21 (2D trees are grey discs), V22 (2.5D lollipops, bare 3D sticks: `scene-build.ts` says the crown is "the
+viewer's" and no viewer draws one), V24 (2.5D has no contact shadow), V25 (3D floats in a void, flat materials), V26 (3D
+doors are wall-height slabs, no frame). Carried: S23.F5 "paint dim in 3D" and "3D walls on HA dark still mix 55 %"; the
+card-polish spec item 23 (S15.6 blob shadows); two leftovers of Sprint 27: the ghost floor keeps full contrast at night
+while the rooms dim (`g.ghost` is pushed after the night overlay), and Align stalls about 0.8 s per nudge or undo on a
+huge floor while the tab is open (the memo keys on floor objects, and every nudge and undo makes new ones). Exit test:
+shots at 4x, three themes (blueprint, light, ha-dark), looked at.
+
+Rules. As Sprint 27: each task one outcome, its failing test written first and watched failing (finding 5); layout input
+is untrusted, every new builder never throws and skips junk (finding 1); every interpolated string escaped (finding 2);
+one draw path, all 2D and 2.5D marks come from `renderFloor` and `solids.ts`, the 3D ones from `scene-build.ts` and the
+view (finding 8); colours only through `--fp-*` variables, the 3D view reads them through `palette.ts` roles, never a hex
+in code (finding 9); every CSS rule that matters gets its `getComputedStyle` pair, and a presentation attribute is never
+the behaviour (findings 10, 18); a per-kind rule iterates its union (`FURNITURE_SYMBOLS`, `DOOR_KINDS`, every theme,
+finding 17); a new Playwright test runs `--repeat-each=10` (finding 13). Visual work is proved three ways, all three
+required: a structural assertion (markup, scene graph, instance count), a measured one (computed style, a pixel probe in
+a real browser, a contrast ratio over every theme), and the 4x shots looked at in the three themes, day and night, before
+the report (finding 16: a green suite does not mean the pixel is right). A pixel probe compares two spots of the same frame
+(a wall foot against the middle of its room), never a stored image, so it holds across machines. Budgets stay as they are:
+the card size test with its limit unchanged, the 3D chunk under `CHUNK_LIMIT`, `scripts/trim-three.mjs` unchanged (no
+shadow map comes back), the 5000-furniture and hostile-layout tests in `card-3d-perf.spec.ts` and the scene budget in
+`scene-budget.test.ts` green with their bounds unchanged. 2D and 2.5D at tilt 0 stay byte for byte as before where the
+task does not say otherwise (the render snapshot changes only on purpose, said in the commit). Studio and card parity:
+the Studio draws 2D only, so a 2D change (the tree crown, the ghost at night) shows in both through `renderFloor`; 2.5D and
+3D are the card's.
+
+Out of scope: real shadow maps, a sun that moves with the time of day, shadows in 2D (2D stays a plan); 3D camera framing
+and the empty sky (V27, with card chrome in 29); wall weights in light (V18), icon glyphs (V15), placement parity between
+editor and card (V4), state transitions and a 3D loading skeleton (V30); the 2D leader and window-contrast follow-ups
+S23.F1 and S23.F2; any new YAML key or control (shadows, frames and crowns are always on); a 3D view in the Studio.
+
+Assumptions (defaults taken; Diego can overrule any):
+- **Shadows are contact shadows, baked, not cast.** No shadow map: three's is trimmed out (`trim-three.mjs`,
+  `NoShadowMap`) and a shadow map costs a pass per light per frame on a tablet. What carries depth instead is ambient
+  occlusion where things meet the floor: a soft band along each wall foot, a soft patch under each piece of furniture,
+  appliance, device body and tree. It does not depend on where the sun is, so day and night share it, and nothing moves
+  when the camera turns. The real-3d non-goal "real shadows from sunlight" stands.
+- **One shade colour.** `--fp-shade` (the theme's `--fp-on-light`, near black) at `--fp-shade-alpha`, written by
+  `themeExtras` per theme kind: .16 on a light theme, .32 on a dark one (a dark plan needs more to show at all). Generic
+  defaults so all 13 themes have both. The coder may tune the two numbers by looking; the tests pin the ordering and a
+  minimum step, not the value.
+- **2.5D shadows have no blur filter.** An SVG `feGaussianBlur` is re-rasterised on every pan and zoom and would cost the
+  most on the 5000-furniture plan. Softness comes from two stepped bands instead: 6 cm at full alpha, then 6 cm more at half.
+  Drawn as one `g.shade` after the room fills and stairs and before the ghost, the night overlay, walls and furniture, so
+  the night veil darkens them with the floor. Not drawn at rise 0: tilt 0 stays exactly the 2D plan.
+- **The ghost floor dims at night, like the rooms.** `g.ghost` moves before the night overlay (still after the room fills
+  and stairs, where review 27 put it, so a fill never hides it). In an unlit room the veil darkens it with the floor; in a
+  lit room and on the bare board it is as by day. Chosen over a separate night stroke for the ghost: one less rule, and
+  the ghost then reads exactly as the floor it lies on. The Align tab in the Studio shows the ghost under Preview night the
+  same way.
+- **A tree is a trunk under a crown, one shape in every view.** `treeShape(m)` in a new `src/core/tree.ts` gives, from a
+  tree's `w`, `h` and its height (`furnitureHeight`, 400 cm by default): trunk top at 60 % of the height, crown from 50 % to
+  100 %, crown radii `w / 2` and `h / 2`, trunk 12 cm (`TRUNK_SIDE`). Junk gives null. 2D: an 8-lobed crown outline in
+  `--fp-tree` at .35 fill with a 1 px `--fp-tree-edge` edge, a trunk dot 6 % of `w`, and a soft patch offset (+4, +6) cm
+  in `--fp-shade`. 2.5D: the shade patch on the ground at the trunk foot, the trunk to its top, the same crown symbol at
+  the crown's lifted height. 3D: an icosahedron crown (detail 1, flat shaded) per tree, all trees one `InstancedMesh`, the
+  trunk solid cut to the trunk top. `--fp-tree` and `--fp-tree-edge` are generic defaults mixed from `--fp-dev-garden`
+  and `--fp-garden`, so every theme has them and none hard-codes a green.
+- **Framed openings.** A door, a glass door and a window get a frame: two jambs and a head, plus a sill for a window whose
+  sill is above the floor. Frame width 5 cm along the wall (`FRAME_WIDTH`), 2 cm proud of each face (`FRAME_PROUD`), in
+  `--fp-frame` (a mix of `--fp-door` into the wall side, at least 1.5:1 against `--fp-wall-side` in every theme). A plain
+  opening, an open doorway (`open`) and a sealed panel get none: they are holes or wall. In 3D the frame is an `opening`
+  solid with tag `frame` and the door's `ref`, so a tap on a frame is a tap on its door, and it carries `wall` so it lowers
+  with its wall. The 3D door leaf at rest is quiet (`--fp-door` 60 % into the wall side), red only when open or alarmed
+  as now. A closed door stays shut: the review's "15° ajar" would draw a state the sensor did not report.
+- **3D lighting.** The hemisphere and sun stay (`DAY`, `NIGHT` in `view3d.ts`); the change is in what they light. A
+  ground plane under the house, 1.5 times the plan's box, `--fp-bg` mixed 6 % toward `--fp-ink` (role `ground`), at the
+  lowest drawn slab bottom (under the floors below when they are drawn); never picked. Wall tops read lighter than the
+  sun side, the sun side lighter than the shade side, and an empty floor lighter than the wall sides: each step at least
+  6 % in relative luminance, measured, every one of the three themes. 3D walls read `--fp-wall-side-share` as 2.5D does
+  (S23.F5, HA dark). `--fp-paint-dim` applies to the user's colours and textures in 3D: the token is parsed
+  (`brightness(a) saturate(b)`, anything else none), so a painted floor matches its 2D colour.
+- **3D labels do not overlap.** A new pure `declutter(boxes)` in `src/card/three/declutter.ts`: greedy by priority on a
+  grid, device icons first, then room names (a room over a garden, a garden over water, larger area first), then room
+  readouts, then device values and names. A loser is hidden with a 120 ms opacity fade (none under reduced motion). It
+  runs when the camera settles (no change for one frame after a move) and on a live update, never mid-drag; during a drag
+  the last answer holds. Element sizes are measured once per text change, not per frame.
+- **Align caches by structure.** The search answer depends on the two floors' structure lines, not on the upper floor's
+  offset. The memo keys on a structure signature that leaves `offset` out (a hash over the outline, `external` walls, room
+  points and `owk`, kept per floor object in a WeakMap), and keeps the last 4 answers, so a nudge reuses the answer and an
+  undo back to an earlier shape finds it again. A drag still holds its last answer, as review 27 decided.
+- **The shots.** `npm run shots -- --polish` renders `shots/current/polish/`: the demo ground and first floor in 2.5D
+  (tilt .5) and 3D (default camera and one orbit), blueprint, light and ha-dark, day and night, at deviceScaleFactor 4,
+  plus 4x crops of a door, a window, a tree and a wall foot. The demo has no tree, so the script adds two to the demo
+  garden in the page (as the ghost shots set an offset); `demo/layout.json` is not touched. The run fails if a file is
+  missing or a frame is blank.
+
+Wave 0, in order on `task/s28-polish`, one coder (every lane reads what it lays down):
+- [x] S28.1 Groundwork. `treeShape(m)` in `src/core/tree.ts`, exported from core; `FRAME_WIDTH` and `FRAME_PROUD` in
+      `solids.ts`; tokens `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` in the generic defaults and
+      `--fp-shade-alpha` in `themeExtras`; the `--polish` shot set. Nothing draws them yet. Test: unit `treeShape` on the
+      default tree, asymmetric `w` and `h`, a set height, `w: 0`, NaN, a string height, a `__proto__` symbol: numbers or
+      null, never a throw; a computed-style sweep over every theme (card and Studio): each token resolves, crown edge
+      against `--fp-garden` at least 3:1, `--fp-frame` against `--fp-wall-side` at least 1.5:1, `--fp-shade-alpha`
+      higher on every dark theme than on every light one; `npm run shots -- --polish` writes its files.
+      Files: `src/core/tree.ts`, `src/core/index.ts`, `src/core/solids.ts` (two constants), `src/core/render.ts` (the
+      generic token block only), `src/core/ink.ts`, `scripts/shots.mjs`, `tests/core/tree.test.ts`, a new
+      `tests/card/polish-tokens.spec.ts`.
+
+Wave 1, four lanes in parallel after S28.1, each in its own worktree; tasks inside a lane run in order:
+
+Lane plan (`src/core/render.ts`, `src/core/solids.ts`, `src/core/icons.ts`):
+- [x] S28.2 The ghost floor dims at night. `g.ghost` moves before the night overlay, as the assumption says. Test: unit,
+      the markup order (fills, stairs, ghost, night, auras, walls) with night on and off; Playwright in the card and the
+      Studio (Preview night), blueprint and light: the contrast of a ghost line against its unlit room at night is under
+      .8 times the day contrast and over 1.15:1, and in a lit room within 2 % of the day contrast. Both fail on the old
+      order. The review-27 paint-order pairs in `ghost-floor.spec.ts` and `card-ghost.spec.ts` follow the new order.
+      Files: `src/core/render.ts`, `tests/core/render-ghost.test.ts`, `tests/editor/ghost-floor.spec.ts`,
+      `tests/card/card-ghost.spec.ts`.
+- [x] S28.3 A 2D tree is a crown (V21). The `tree` symbol becomes the crown, trunk dot and shade patch of the assumption,
+      through `treeShape`; the patch offset stays (+4, +6) cm whatever `w`, `h` and `rot` are (drawn outside the scaled
+      group). Classes, not attributes, carry the colours. Test: unit, the crown path has 8 lobes, the patch is offset by
+      exactly (4, 6) cm for a 120 x 300 tree at `rot` 30, a payload name is escaped; computed-style pairs for the crown
+      fill, edge and patch in both hosts; a selected tree still shows its selection and handles; a sweep over every theme,
+      crown edge against the garden it stands on at least 3:1. Shots: 2D gardens looked at in the three themes.
+      Files: `src/core/icons.ts`, `src/core/render.ts`, `tests/core/render.test.ts` or a new `tests/core/tree-2d.test.ts`,
+      a pair in `tests/editor/editor.spec.ts` and one in `tests/card/`.
+- [x] S28.4 A 2.5D tree stands (V22). `furnitureSolid` for a pole draws the shade patch at the trunk foot, a 12 cm trunk
+      up to `treeShape`'s trunk top, and the S28.3 crown at the crown's lifted height, in that order inside the piece's
+      group; its depth key is unchanged. Test: unit, the order, the trunk's end point equals `lift(foot, trunkTop)`, the
+      crown's translate equals `lift(centre, crown middle)`, rise 0 draws the 2D tree; Playwright at 4x on the shot
+      layout: the pixel at the lifted crown centre is the crown's computed colour and the pixel on the trunk halfway up is
+      the trunk's. Shots: 2.5D gardens, three themes.
+      Files: `src/core/solids.ts`, `src/core/render.ts` if the order needs it, `tests/core/solids-objects.test.ts`, a new
+      `tests/card/tree-25d.spec.ts`.
+- [x] S28.5 2.5D contact shadows (V24). One `g.shade`, as the assumption says: two stepped bands along both sides of every
+      drawn wall run, one patch under each furniture box, unlinked box and device body, in `--fp-shade` at
+      `--fp-shade-alpha`; `pointer-events:none` by class rule; nothing at rise 0. Test: unit, one `g.shade` in the order of
+      the assumption, a band pair per wall run and a patch per box (count over the demo), none at rise 0, junk walls draw
+      nothing; computed-style pairs for fill, opacity and pointer events; Playwright, light and blueprint: the pixel 4 cm
+      off a wall foot inside a room is darker than the room's middle by at least 4 % relative luminance (fails without
+      the group); the 2.5D render of 5000 furniture within the existing render bound. Shots: three themes, day and night.
+      Files: `src/core/render.ts`, `src/core/solids.ts`, a new `tests/core/shade-25d.test.ts`, a new
+      `tests/card/shade-25d.spec.ts`.
+- [x] S28.6 2.5D framed openings. `wallSolids` draws jambs, head and (window) sill quads of `FRAME_WIDTH` on the face of
+      each framed opening, class `frame`, under the cutaway like the wall (a lowered wall lowers its frame); the open and
+      alarm red stays as it is. Test: unit, iterate `DOOR_KINDS` plus `opening`: door, glass, window, slit and fullwindow
+      framed (fullwindow with no sill), `open`, `opening` and `sealed` not; frame quads lie inside the opening's span
+      widened by `FRAME_WIDTH`; none at rise 0; a computed-style pair for `.frame`. Shots: the door and window crops.
+      Files: `src/core/solids.ts`, `tests/core/solids-openings.test.ts`, a pair in `tests/card/`.
+
+Lane 3D (`src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, `palette.ts`, a new
+`src/card/three/shade.ts`):
+- [x] S28.7 3D tree crowns (V22). `scene-build` cuts a tree's trunk at `treeShape`'s trunk top (`treeShape` joins
+      `SceneDeps`); the view draws one `InstancedMesh` of icosahedron crowns from the tree solids' `ref.size`, role
+      `furniture-tree`, built with the scene, disposed with it, drawn for floors below too, never picked (a tap on a crown
+      picks what is under it). Test: unit on the trunk height and on a pure `crownMatrices(solids)` (count, centre, scale;
+      junk sizes skipped); Playwright through the hook on the stress layout: one crown mesh, `count` equals its trees, the
+      crowns' z range is `treeShape`'s; a hostile case of 2000 trees draws inside the existing 10 s bound; 20 floor
+      switches leave no crown mesh behind; the chunk under its limit. Shots: 3D gardens, three themes.
+      Files: `src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/view3d.ts`, a new
+      `src/card/three/crowns.ts`, `tests/core/scene.test.ts`, a new `tests/card/three-crowns.test.ts`,
+      `tests/card/card-3d-perf.spec.ts` (one case added).
+- [x] S28.8 3D ground and contact shadows (V25, S15.6). The ground plane of the assumption, and one shadow mesh per drawn
+      floor from a pure `contactShadows(solids)` in `shade.ts`: wall-foot bands both sides, a soft patch under each
+      furniture piece, unlinked box, device body and tree crown, vertex alpha falling to 0 at the edge, `--fp-shade` at
+      `--fp-shade-alpha`, no depth write, a hair above the floor. Neither is picked; both are disposed on every build.
+      Test: unit, bands and patches counted on the demo, alpha 0 on every outer vertex, junk skipped, 5000 furniture in
+      under 100 ms; Playwright: draw calls rise by at most 2 (the hook reads `renderer.info.render.calls`), the pixel 4 cm
+      off a wall foot is darker than the middle of its room by at least 4 % in light and blueprint (fails without the mesh),
+      a tap on the ground picks nothing, the 5000-furniture tap test still under a second. Shots: three themes, day and
+      night, floors below solid.
+      Files: `src/card/three/shade.ts`, `src/card/three/view3d.ts`, `src/card/three/palette.ts`, a new
+      `tests/card/three-shade.test.ts`, a new `tests/card/card-3d-shade.spec.ts`.
+- [x] S28.9 3D lighting and theme (V25, S23.F5). Face tones as the assumption says, by material and role, not new lights;
+      3D walls read `--fp-wall-side-share`; `--fp-paint-dim` parsed and applied to user colours and textures. Test: unit
+      on the paint-dim parser (the two theme values, `none`, junk, a `url(` payload: none); Playwright, each of blueprint,
+      light and ha-dark: probes on a wall top, a sun-side face, a shade-side face and an empty floor of the demo give the
+      ordering with 6 % steps; on midnight a painted room's 3D floor is within ΔE 3 of its 2D computed colour, and on light
+      unchanged; night still darkens (the `NIGHT` probe below the day one).
+      Files: `src/card/three/palette.ts`, `src/card/three/view3d.ts`, `tests/card/three-palette.test.ts`,
+      `tests/card/card-3d-colors.spec.ts`.
+- [x] S28.10 3D framed openings (V26). `scene-build` adds the frame solids of the assumption beside each leaf and pane;
+      the door leaf's rest role is quiet. Test: unit, iterate `DOOR_KINDS` plus `opening`: which kinds get frames and how
+      many (2 jambs and a head, a sill for a raised window), every frame within the span widened by `FRAME_WIDTH`, its
+      depth the wall's thickness plus `2 * FRAME_PROUD`, `ref.wall` and `ref.index` set, a lowered wall clips it to
+      `CUT_WALL_HEIGHT`; Playwright: a tap on a door's frame opens that door's popup; an open door's leaf is still
+      `--fp-open-door` and a closed one is not. Shots: the door and window crops.
+      Files: `src/core/scene-build.ts`, `src/core/three-deps.ts`, `src/card/three/palette.ts`, `tests/core/scene.test.ts`,
+      `tests/card/card-3d-doorway.spec.ts`.
+
+Lane labels (`src/card/three/overlay.ts`, a new `src/card/three/declutter.ts`):
+- [x] S28.11 3D labels do not collide (V5). `declutter` and its use in `overlay.place`, as the assumption says. Test: unit,
+      two overlapping boxes keep the higher priority, equal priorities keep the larger room then the lower index, a chain
+      of three, no box shown overlaps another, 1000 boxes in under 5 ms, NaN boxes skipped; Playwright: on the stress
+      layout in 3D after the camera settles, no two shown label boxes intersect (fails with `declutter` removed), the demo's
+      garden pond and garden both stay when they do not touch; a drag shows no label flipping (the shown set is constant
+      across the frames of one drag); reduced motion, no transition. Shots: 3D labels, three themes.
+      Files: `src/card/three/overlay.ts`, `src/card/three/declutter.ts`, a new `tests/card/three-declutter.test.ts`, a new
+      `tests/card/card-3d-labels.spec.ts`.
+
+Lane studio (`src/editor/editor-app.ts`, `src/core/align.ts`):
+- [x] S28.12 Align does not search on a nudge or an undo. `alignKey(floor)` in `align.ts` and the memo of the assumption.
+      Test: unit, `alignKey` equal for a floor and its copy with another offset, different for a moved outline point, an
+      added external wall, a changed `owk`; never throws on junk. Playwright on the stress layout's largest floor, Align
+      open: 10 nudges and 10 undos leave `alignSearches` unchanged; a moved wall then adds one search; the median nudge,
+      from key to the next frame, under 100 ms (it is about 800 now).
+      Files: `src/core/align.ts`, `src/editor/editor-app.ts`, `tests/core/align.test.ts`, `tests/editor/align-mode.spec.ts`.
+
+Wave 2, in order on `task/s28-polish` after every lane is merged:
+- [x] S28.13 Exit and docs. `npm run shots -- --polish` on the integrated build; the coordinator opens every 4x shot and
+      crop in the three themes, day and night, and lists in the report what each shows and anything wrong (each defect
+      goes back to its lane, test first). Docs: `docs/SPEC.md` (2.5D and 3D: shadows, crowns, frames, labels; the ghost at
+      night), `docs/card.md` (2.5D and 3D sections), `docs/specs/real-3d.md` (contact shadows; sun shadows still a
+      non-goal), `docs/specs/card-polish-and-light.md` item 23 done, CHANGELOG, DECISIONS (one entry per assumption that
+      held, and each change from it).
+- [x] S28.14 Verify: `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; new tests
+      `--repeat-each=10`; the size test and the 3D perf file read on their own; `npm run shots` and `--polish` looked at.
+
+Review (one Opus pass on the integrated build, the 4x shots open beside the diff) then fixes with their tests; exit test:
+shots at 4x, three themes.

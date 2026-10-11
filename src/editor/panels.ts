@@ -63,6 +63,7 @@ import type {
   RoomKind,
   WallKind,
 } from "../core";
+import { bindLights, lockDevices, removeDevices } from "./bulk";
 import {
   setRoomList,
   type RoomSensorField,
@@ -78,6 +79,7 @@ import {
 import { polyPts, ptOf, type EditorState, type Sel } from "./state";
 import { removeScene, setRoomHaScenes } from "./room-scenes-ops";
 import { GUIDE_STEPS, CONTROLS } from "./guide";
+import manifest from "../../custom_components/floorplan_studio/manifest.json";
 import "./combo";
 import type { ComboOption } from "./combo";
 import { groupSensorChoices, type GroupedChoice } from "./sensor-order";
@@ -409,7 +411,11 @@ function select(
   return html`<label for=${id}>${label}</label><select id=${id} .value=${live(value)} @change=${(e: Event) => on(val(e))}>${options.map((o) => html`<option value=${o} ?selected=${o === value}>${names[o] ?? o}</option>`)}</select>`;
 }
 /** What the door type select shows where it differs from the stored kind id (`slit` is stored, "slit window" is read). */
-const DOOR_KIND_NAMES: Record<string, string> = { slit: "slit window" };
+const DOOR_KIND_NAMES: Record<string, string> = {
+  slit: "slit window",
+  glass: "Glass door",
+  fullwindow: "Full-height window",
+};
 export const ROOM_LABELS: Record<RoomKind, string> = {
   room: "Room",
   garden: "Garden",
@@ -497,6 +503,7 @@ const guideBody = (body: string) =>
 export function helpPanel(close: () => void): TemplateResult {
   return html`<strong>? Help</strong>
     <p><button class="btn" id="helpClose" @click=${close}>Close</button></p>
+    <p class="grp" id="version">Floorplan Studio ${manifest.version}</p>
     <table class="controls" id="controls" aria-label="Controls">
       ${CONTROLS.map((c) => html`<tr><th scope="row"><kbd>${c.keys}</kbd></th><td>${c.does}</td></tr>`)}
     </table>
@@ -538,17 +545,31 @@ export function selectionPanel(c: PanelCtx): TemplateResult {
   }
 }
 
-/** S4.5: several Shift+clicked devices. "Create group" shows only when they are all lights or all motion sensors, two or more. */
+/**
+ * Several selected devices (S4.5 Shift+click; S26.15 the Inspector). Count by type, then the bulk actions: Controlled by
+ * (when a light is in it), Lock (ticked, unticked or half-ticked when mixed), Delete n, and Create group when they are all
+ * lights or all motion sensors. Each action is one `commit`, so one undo step; `bulk.ts` leaves what does not apply alone.
+ */
 function devsPanel(c: PanelCtx, is: number[]): TemplateResult {
   const { st } = c,
     f = st.f;
-  const names = is
-    .map((i) => f.devices[i])
-    .filter((d) => !!d)
-    .map((d) => d!.name ?? d!.entity);
+  const mine = [...new Set(is)].filter((i) => Number.isInteger(i) && !!f.devices[i]);
+  const devs = mine.map((i) => f.devices[i]);
+  const names = devs.map((d) => d.name ?? d.entity);
   const kind = groupKind(f, is);
-  return html`<strong>${is.length} devices selected</strong>
-    <ul>${names.map((n) => html`<li>${n}</li>`)}</ul>
+  const byType = new Map<DeviceType, number>();
+  for (const d of devs) byType.set(d.type, (byType.get(d.type) ?? 0) + 1);
+  const label = (t: DeviceType) => TYPE_LABELS.find(([x]) => x === t)?.[1] ?? t;
+  const counts = [...byType].sort((a, b) => b[1] - a[1] || label(a[0]).localeCompare(label(b[0]), "en"));
+  const lights = mine.filter((i) => f.devices[i].type === "light");
+  const locked = devs.filter((d) => d.locked === true).length;
+  const allLocked = devs.length > 0 && locked === devs.length,
+    mixed = locked > 0 && !allLocked;
+  return html`<strong>${mine.length} devices selected</strong>
+    <p class="hint" id="devsTypes">${counts.map(([t, n]) => `${n} ${label(t)}`).join(" · ")}</p>
+    <details class="pnl-sec"><summary class="pnl-h">Devices</summary><ul>${names.map((n) => html`<li>${n}</li>`)}</ul></details>
+    ${lights.length || !kind || c.createGroup ? heading("Links") : nothing}
+    ${lights.length ? bulkBound(c, mine, lights) : nothing}
     ${!kind ? hint("Shift+click more of the same kind to group.") : nothing}
     ${
       kind && c.createGroup
@@ -562,7 +583,61 @@ function devsPanel(c: PanelCtx, is: number[]): TemplateResult {
         if (name) c.createGroup!(is, kind, name);
       })}</p>`
         : nothing
-    }`;
+    }
+    ${heading("Appearance")}
+    <label><input type="checkbox" id="devsLock" .checked=${live(allLocked)} .indeterminate=${mixed} @change=${() => c.commit((fl) => lockDevices(fl, mine, !allLocked))}> Lock</label>
+    ${hint(mixed ? `${locked} of ${devs.length} are locked. Tick to lock them all.` : "A locked device does not move.")}
+    ${heading("Danger")}
+    <p>${button(
+      "devsDel",
+      `Delete ${mine.length}`,
+      () => {
+        c.commit((fl) => removeDevices(fl, mine));
+        c.select(null);
+      },
+      "warn",
+    )}</p>`;
+}
+
+/** "Controlled by" for a selection holding lights: the first light's switch and plug choices (they are floor-scoped, so the same for all), `bound` written on the lights only. */
+function bulkBound(c: PanelCtx, mine: number[], lights: number[]) {
+  const { st } = c,
+    f = st.f;
+  const choices = st.switchChoicesForLight(lights[0]);
+  const suggested = choices.filter((s) => s.suggested),
+    rest = choices.filter((s) => !s.suggested);
+  const bounds = new Set(lights.map((i) => f.devices[i].bound ?? ""));
+  const common = bounds.size === 1 ? [...bounds][0] : "";
+  const opt = (s: { entity: string; room?: string; name: string }, suggest = false): ComboOption => ({
+    value: s.entity,
+    label: `${s.room ? `${s.room} - ` : ""}${s.name}${suggest ? " (suggested)" : ""}`,
+    group: s.room,
+  });
+  const options: ComboOption[] = [
+    ...suggested.map((s) => opt(s, true)),
+    ...rest.map((s) => opt(s)),
+    ...(common && !choices.some((s) => s.entity === common) ? [{ value: common, label: common }] : []),
+  ];
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const set = (v: string) => {
+    const own = v ? lights.filter((i) => f.devices[i].entity === v).length : 0; // a light that is the pick itself cannot be bound to itself
+    const others = mine.length - lights.length + own;
+    // Only the lights that would change count; none: say so, write nothing, make no undo step.
+    const changing = lights.filter((i) => {
+      const d = f.devices[i];
+      return v ? d.entity !== v && d.bound !== v : d.bound !== undefined;
+    }).length;
+    if (!changing) {
+      c.say(v ? "Nothing to bind: the lights already have it" : "Nothing to clear: no light is linked");
+      return;
+    }
+    c.commit((fl) => bindLights(fl, mine, v).floor);
+    c.say(
+      `${v ? "Bound" : "Cleared"} ${plural(changing, "light")}${others > 0 ? `; ${others} other${others === 1 ? "" : "s"} left alone` : ""}`,
+    );
+  };
+  return html`<label for="vbound">Controlled by</label>
+    ${combo("vbound", "Controlled by", common, options, set, bounds.size > 1 ? "(mixed)" : "(none)")}`;
 }
 
 /** Shown when nothing is selected: the current floor. */
@@ -828,7 +903,17 @@ function lockField(c: PanelCtx, id: string, list: "walls" | "doors" | "openings"
   return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) =>
     c.commit((f) => {
       f[list][i].locked = (e.target as HTMLInputElement).checked;
-    })}> length locked</label>`;
+    })}> Lock (keeps its length)</label>`;
+}
+
+/** S26.16: the Lock box of a device, a piece of furniture or an unlinked appliance. Ticked writes `locked: true`; unticked removes the key. */
+function lockBox(c: PanelCtx, id: string, list: "devices" | "furniture" | "unlinked", i: number) {
+  const locked = c.st.f[list][i].locked === true;
+  return html`<label><input type="checkbox" id=${id} .checked=${live(locked)} @change=${(e: Event) =>
+    c.commit((f) => {
+      if ((e.target as HTMLInputElement).checked) f[list][i].locked = true;
+      else delete f[list][i].locked;
+    })}> Lock</label>`;
 }
 
 /** "angle (deg)": turns wall, door or opening `i` about its midpoint to the typed angle. Same angle, or rubbish: nothing. */
@@ -914,7 +999,10 @@ function doorPanel(c: PanelCtx, i: number) {
     c.commit((f) => mutateList(field)(f, next));
   // `cover` is general purpose (a garage door's roller shutter is one too, kind "door") and stays offered on
   // every kind, same as before S4.24 — it doubles as the electric-curtain dropdown on a glass door or window.
-  const coverLabel = d.kind === "glass" || d.kind === "window" || d.kind === "slit" ? "electric curtain" : "cover";
+  const coverLabel =
+    d.kind === "glass" || d.kind === "window" || d.kind === "slit" || d.kind === "fullwindow"
+      ? "electric curtain"
+      : "cover";
   // The placeholders are what the kind would be with no own value: for a slit that depends on the wall it hangs from.
   const dflt = doorSpan({ kind: d.kind } as Door, doorCeiling(c.st.f, d));
   return html`<strong>Door / window</strong>
@@ -943,7 +1031,7 @@ function doorPanel(c: PanelCtx, i: number) {
       }),
     )}
     ${heightField(c, "height (cm)", "dht", d.height, dflt.head - dflt.sill, heightSetter(c, "doors", i, "height"))}
-    ${d.kind === "window" || d.kind === "slit" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}
+    ${d.kind === "window" || d.kind === "slit" || d.kind === "fullwindow" || d.sill !== undefined ? heightField(c, "sill (cm)", "dsill", d.sill, dflt.sill, heightSetter(c, "doors", i, "sill")) : nothing}
     <p>${button(
       "deld",
       "Delete",
@@ -1553,6 +1641,7 @@ function devicePanel(c: PanelCtx, i: number) {
     ${attachToRoomField(c, i)}
     ${areaDiffField(c, i)}
     ${heading("Appearance")}
+    ${lockBox(c, "vlock", "devices", i)}
     ${heightField(c, "mount height (cm)", "vz", d.z, DEVICE_Z[d.type] ?? 100, heightSetter(c, "devices", i, "z"))}
     ${drawsEffect(d) ? fxField(c, d.fx, heightSetter(c, "devices", i, "fx")) : nothing}
     ${rotateButtons(
@@ -1956,6 +2045,7 @@ function furniturePanel(c: PanelCtx, i: number) {
       }),
     )}
     ${heading("Appearance")}
+    ${lockBox(c, "fulock", "furniture", i)}
     ${number(c, "width (cm)", "fw", m.w, setSize("w"))}
     ${number(c, "depth (cm)", "fh", m.h, setSize("h"))}
     ${heightField(c, "height (cm)", "fuht", m.height, FURNITURE_HEIGHTS[m.symbol] ?? 100, heightSetter(c, "furniture", i, "height"))}
@@ -2017,6 +2107,7 @@ function unlinkedPanel(c: PanelCtx, i: number) {
     ${heading("Home Assistant")}
     ${multiAttachField(c, "uuattach", "attached entities", u.attached ?? [], c.st.unlinkedAttachChoices(u.type), setAttached, { apply: mutateAttached, targetLabel: u.name ?? label })}
     ${heading("Appearance")}
+    ${lockBox(c, "uulock", "unlinked", i)}
     <label for="uucol">colour</label>
     <input id="uucol" type="color" .value=${live(u.color ?? "#8b8578")} @change=${(e: Event) =>
       c.commit((f) => {

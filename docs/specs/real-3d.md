@@ -57,6 +57,10 @@ does not work well.
 - I. Floors: only the selected floor is drawn, solid. Floors below and above
   are hidden. (A dimmed stack of the floors below was built in 0.14.0 and
   removed in the 3D fixes: on a real layout the floors drifted out of line.)
+  Superseded in 0.25.0 (S27): `floors_below: off | ghost | solid` draws the
+  floors below, `off` by default, which is this criterion. It can come back
+  because a floor now carries an `offset` and Align finds it, so the stack
+  lines up; floors above stay hidden. Decision in DECISIONS, 2026-10-10.
 - J. Performance: 60 fps on a mid laptop, 30 on a wall tablet. Render on
   demand (on change, drag, state update), not in a constant loop. Reduced
   motion: no camera easing.
@@ -67,6 +71,12 @@ does not work well.
 ## Non-goals
 
 Editing in 3D. Placing devices in 3D. Real shadows from sunlight. Exporting a 3D model.
+
+Contact shadows (0.26.0, S28) are not the shadows listed here. They are baked
+ambient occlusion where walls, furniture, device bodies and trees meet the floor:
+no shadow map, no light direction, the same by day and night, one draw call per
+floor. Sun shadows (a shadow that moves with the time of day) are still a
+non-goal, and `trim-three.mjs` still leaves the shadow map out.
 
 ## Risks
 

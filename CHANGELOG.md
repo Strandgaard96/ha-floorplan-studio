@@ -1,6 +1,108 @@
 # Changelog
 
-## Unreleased
+## 0.26.2 - 2026-10-11
+
+- 3D: a stair going down shows when it lies on the edge of its room, across two rooms, or under a fill lying over the room. 0.26.1 cut the stairwell only where the flight lay strictly inside a room, so a flight that touched its room's edge (the usual case in a real house) stayed under the room fill. The slab and every room fill are now clipped to the flight's outline.
+
+## 0.26.1 - 2026-10-11
+
+- 3D: a stair going down is drawn again where nothing covers it. Since 0.26.0 the ground plane lay at the slab's bottom (25 cm) and a down flight sinks 60 cm, so most of it was under the ground. The ground now lies a centimetre under the deepest solid. A flight inside the house is shown too: the slab and the room fill now have a hole where a down flight stands (a flight that crosses a room's edge opens the slab and leaves that room's fill whole).
+- Test-only: 66 end-to-end tests no longer fail on GitHub CI. They opened the File menu before clicking Undo, which is in the toolbar; on the runner's wider font Undo wraps under File and the open menu covered it. The overview-over-the-plan tests fold the overview first. No product change.
+
+## 0.26.0 - 2026-10-10
+
+- 2.5D door and window trim is drawn over the wall on both sides of the gap; the far jamb was half hidden by the wall after it.
+- 2.5D door and window trim stands beside the gap, as in 3D, so a narrow window keeps its glass.
+- 2.5D wall shadows reach the wall foot; a strip of bare floor showed under the wall face.
+- A sealed panel has no frame in 3D either, as in 2.5D and the spec.
+- 2.5D has contact shadows: a soft stepped band along both sides of every wall and a patch under every piece of furniture, appliance and device body, so things sit on the floor instead of floating over it. Baked, no blur, none at tilt 0.
+- 3D has a ground plane under the house and soft contact shadows: a band along each wall foot, a patch under furniture, boxes and device bodies, and a soft ellipse under each tree. Never tappable, on every floor drawn. They are not sun shadows; nothing moves with the time of day.
+- A tree on the plan is a crown, not a grey disc: an 8-lobed green outline over the garden, a trunk dot and a soft shade patch, in the card and the Studio.
+- A tree in 2.5D stands: a 12 cm trunk rises to 60 % of its height, the crown hangs at 75 % and the shade lies at its foot.
+- A tree in 3D has a crown: a faceted ball on a 12 cm trunk that ends at 60 % of the tree's height, also on floors drawn below. A tap on a crown reaches what is under it.
+- A 3D crown is a round, slightly lumpy blob, no taller than it is wide, standing on 50 % of the tree's height where the trunk enters it. It was a tall pointed lens.
+- 3D crowns are lifted toward white on a dark theme (`--fp-crown-lift`, 45 %), so they read against the ground at night, 1.8:1 at least in every theme. They sank into it.
+- A 2.5D trunk on a dark theme is the crown's own fill colour (`--fp-trunk`), not a pale grey stick on a dark crown. Light themes keep the crown's edge colour.
+- Doors, glass doors, windows, slits and full-height windows are framed in 2.5D and 3D: a jamb each side, a head, and a sill when raised, 5 cm wide and 2 cm proud of the wall. A tap on a 3D frame is a tap on the door. A closed 3D door leaf is quiet; red only when open or alarmed.
+- 3D labels no longer pile on each other. When two would overlap, the more important one stays (a device icon, then a room name, a room readout, a device value, a device name; a room over a garden over water, a larger room first) and the other fades out in 120 ms. This happens when the view is still, never mid-drag.
+- 3D walls take the theme's own side share (`--fp-wall-side-share`, as the 2.5D sides do), and a room or stair with its own paint is dimmed on a dark theme (`--fp-paint-dim`), as in 2D. Wall tops, sun faces and shade faces step apart by 6 % or more in every theme.
+- The floor below dims at night with the rooms it lies on, in the card and in the Studio's Preview night; in a lit room it stays as by day.
+- The Align tab no longer searches again on every offset nudge or undo; it searches when the outline, an external wall or the edge kinds change.
+- Themes carry `--fp-tree`, `--fp-tree-edge`, `--fp-frame`, `--fp-shade` and `--fp-shade-alpha`. `npm run shots -- --polish` renders the polish set at 4x.
+- Docs cover the 2.5D and 3D polish.
+
+## 0.25.0 - 2026-10-10
+
+- Floors have an offset. A floor may carry `offset: [x, y]` (cm): where it sits in the house, so upper floors can sit apart from the one below. Absent is `[0, 0]`; validation reports a bad value and opening a file drops it. The stored points never change.
+- Studio: Floors menu with Add floor, Align to floor below, Move up, Move down and Delete floor. Add floor moved here from Edit, and a new floor takes the lowest floor's offset. The Draw menu is gone: Draw opening ends Openings, Wall holds a Draw submenu of the kinds, and Areas ends with Draw room, zone, water, outline and structure line.
+- Studio: Align to floor below opens an Align tab. It lays the floor over the one below, which shows as faint lines, and says the match in per cent and the move in words ("137 cm left, 62 cm down"), or that the match is weak. Apply writes the offset in one undo step (refused under Lock plan, with Unlock offered). Two boxes set the offset by hand in cm, and Reset clears it. A smaller floor goes to the corner it sits in, to within 0.5 cm. A floor a few cm off is laid flush, and Apply says so when the offset would pass the 10 000 000 cm limit. The preview does not search while you drag something.
+- Studio: View, Floor below draws the floor under the shown one as faint lines at its place in the house. Off by default, remembered in the browser, no undo step; disabled on the lowest floor.
+- Studio: switching floors slides the plan in, up from above and down from below (220 ms), and does not move under reduced motion.
+- Studio: a furniture piece's Lock can be ticked and unticked while the plan is locked, from the panel and from the context menu. Moving, resizing and turning it are still refused.
+- Card: `ghost_floor: true` and a Floor below button in the view controls (2D and 2.5D) draw the floor under the shown one as faint lines, drawn over the room fills and under the walls. The viewer's button wins over the YAML and is remembered; the lowest floor has none. The config form has the checkbox.
+- Card: `floors_below: off|ghost|solid` and a Floors below select beside Walls draw the floors under the shown one in 3D, translucent or in their own colours, at their own height and offset. Remembered per viewer; each floor keeps its own camera. The config form has the select.
+- Card: switching floors in 2D and 2.5D slides the plan in, up or down with the stack (220 ms), and cuts under reduced motion and in 3D.
+- Demo: a full-height window in the Kitchen east wall and four devices stacked on one spot in the Hall, for the window and the spiderfy fan.
+- Docs and the Help guide cover floors: offset, Align, the ghost floor, floors below in 3D and the floor switch.
+
+## 0.24.0 - 2026-10-10
+
+- Studio: a disabled Undo or Redo is dimmed, and stays dimmed under the pointer.
+- Studio: Escape cancels a drag of one device, or of several, at once, also while Help or Place is open; the device goes back, no undo step is left and the selection stays.
+- Studio: a typed wall length goes along the exact 15 degree ray, also with the pointer close to the last point, and ends on whole centimetres.
+- Studio: Escape during a drag of several devices cancels the drag and puts them back.
+- Studio: a right-click on an Outline row of a selected group keeps the group and gives the same menu as the plan.
+- Studio: a disabled button (Link 0, Show all) is dimmed and shows a not-allowed cursor.
+- Studio: Controlled by on several devices counts only the lights that change, and says "Nothing to bind" when none would; the heading and Delete count the same devices.
+- Studio: a context menu opened near the foot of the window moves up to fit instead of shrinking to a short scrolling box.
+- Studio: Help opens in the Add, Place and Link modes too.
+- Studio: Link mode closes when the plan changes under it (a delete, an Undo, a Redo), so Apply can never bind lights you did not choose.
+- Studio: a wall drawn on a 15 degree ray ends on whole centimetres.
+- Studio: drawing a wall onto a corner joins it, also when the corner is off the 15 degree rays.
+- Studio: Edit, Link lights to switches now previews first. A Link mode in the Inspector lists each unbound light with the switch it would get, in the selection, else the selected room, else the floor. Untick what should stay, Apply binds the rest in one undo step.
+- Studio: a Lock box on a device, a piece of furniture and an unlinked appliance. On a wall, door and opening it now reads "Lock (keeps its length)".
+- Studio: menus tidy up. Opening a submenu closes its siblings; a menu box takes the room below its button and scrolls past it. Add holds only buttons and submenus (Furniture and Unlinked device are submenus now; furniture reads "Patio, wood"). View has one Labels submenu, and the version moved to the Help panel.
+- Studio: Undo, Redo, Save and Fit to window show their key at the right edge, for the platform (⌘Z on a Mac, Ctrl+Z elsewhere).
+- Studio: "Fix plan" is "Lock plan". A neutral pill with a lock reads "Plan locked" or "Plan editable"; the warning colour shows only on hover.
+
+- Studio: one context menu per object on the plan. A right-click on a device, a multi-selection, stairs, a line, a door, an opening, a wall, furniture, a room or the empty canvas opens a menu in the same order. Device and selection menus offer Lock (a locked device does not move when dragged), Delete, Controlled by..., Select same type and Hide this type; the canvas offers Add device here..., Select all devices and Zoom to fit; a room offers Select devices inside. A wall's Add an opening is now Add door, Add window and Add opening; Fix is now Lock.
+- Studio (internal): pure bulk edits for devices (bind lights, remove, move, lock), ready for multi-select. No visible change yet.
+
+- Layout: a device may carry `locked: true`, so it will not be moved by a drag. The file check refuses a value that is not true or false.
+- Studio: Fix plan holds geometry only. With it on, names, titles, colours, textures, areas and entity links can still be edited (one undo step each); corners, walls, doors and windows, kinds, heights, stairs and furniture stay refused.
+- Studio (core): the plan can draw a multi-selection of devices, each with the selection stroke, even on a hidden layer. Nothing in the Studio selects more than one yet.
+- Studio: one context-menu model (`ctxItems`) lists what a right-click offers on each of the twelve targets, in one order. Not wired into the menus yet.
+- Studio (internal): `snapRay` puts a drawn point on the nearest 15 degree ray from the last point. Not wired to the pointer yet.
+- Studio (internal): `Draw` keeps a typed length ("350" cm or "3.5m") and `placeTyped` adds the next point that far along the pointer direction. Not wired to the keys yet.
+- Studio: select many devices on the plan. Shift+click toggles any device in or out of the selection (it was lights and motion sensors of one kind); Shift+drag from the plan draws a dashed rectangle and adds every drawn device inside it, also with the view turned; Ctrl or Cmd+A selects every drawn device on the floor; Escape clears the selection. A device on a hidden Layer is not taken. A plain drag still pans.
+- Studio: a multi-selection moves and deletes as one. Drag any member and every unlocked member follows, in one undo step; Delete or Backspace removes them all, in one undo step. A locked device does not move, alone or in a group.
+- Studio: the Inspector has tabs, Selection, Place and Add. Place devices (a room's Home Assistant area) and Add, Device open in the side panel instead of floating over the plan, so the plan does not move and the buttons stay in view.
+- Studio: with several devices selected the panel counts them by type and offers Controlled by (binds every light to one switch, says how many others it left alone), Lock (ticked, unticked or half-ticked when mixed) and Delete n. Each is one undo step.
+- Studio: the Outline offers the plan's context menu. Right-click a device or room row, or press the Menu key (or Shift+F10) on it, and the same menu opens as on the plan, with the same items in the same order.
+- Studio: a status bar under the canvas reads the facts of the moment: what is selected, its room, the snap, the floor and the zoom ("4 selected · Living · Snap 10 cm · Ground · 100 %"). While you draw it shows the 15° step; with Alt held it says "Snap off"; a turned view says so; a locked plan says "Plan locked" with an Unlock button.
+
+- Studio: one word, Lock. The banner after a refused edit reads "The plan is locked." with an Unlock button, the command list says Lock plan or Unlock plan, and no menu, panel, banner or message says Fix, Unfix or "length locked" any more.
+- Studio: the guide has two new steps, drawing to a length (15 degree steps, typed lengths) and working on many devices at once.
+- Studio: binding 20 lights to one switch takes three actions (Shift+drag over them, Controlled by, the switch), and one Undo takes it back. A test walks it with the real pointer.
+
+## 0.23.1 - 2026-10-09
+
+- Card and studio: a closed door or glass door is a thick line, 1.6 times the wall it sits in (never thicker than an external wall, so it stays flush there). It was as thin as the wall and read as a hairline. An open door is still a hole; windows, alerts and 2.5D are unchanged.
+
+## 0.23.0 - 2026-10-09
+
+- Card: at far zoom the dots and the room badges now read the same attention result as the Overview, Home Assistant's entity registry included. A Zigbee2MQTT contact whose battery is a separate sensor on the same device keeps its dot, and the Hall badge counts what the Overview lists.
+- Card: a viewer's stored Detail pick no longer beats a card that became `kiosk` or whose YAML `detail` changed; both now start a clean memory.
+- Card and studio: a door with one locked and one jammed lock is not drawn closed. The far attention dot has a thin ink outline, so it no longer reads as a lit lamp or an open cover.
+- Card and Studio: semantic zoom, with a setting. Far out the plan shows rooms, room names and badges, and only the devices that are on, alerting or unavailable (as dots); closer in it adds the icons, closest the device names and readings. View, Detail in the Studio and a Detail button beside Layers in the card pick Auto, Full or Minimal, and each viewer's choice is kept in the browser. The card takes `detail: auto | full | minimal` in its YAML as the default (the Edit-card form has it); a viewer's pick wins. The card starts on Auto, so idle devices are not drawn until you zoom in or pick Full, except where the viewer could not do either: a kiosk card, or one with `active_list: false` and `zoom: false`, starts on Full. An explicit `detail` in the YAML always wins. The Studio starts on Full so that devices you place stay visible.
+- Card: a state update rewrites only what changed. One lamp turning on touches its icon, its light and its room, not the other 400 devices; an update that changes nothing touches nothing. Icons keep their place in the page, so a fade or a glide now runs on the same element.
+- Card: devices that overlap on screen can be told apart. A tap on a stack fans its members out in a ring, each with a line back to its true spot and its name; a tap on one of them opens that device's popup, Escape or a tap elsewhere folds the ring.
+- Plan: the plan root carries `data-detail` (far, mid, near) from the zoom against the floor at fit. Far drops idle devices and keeps lit, alerting and unavailable ones as dots; far and mid drop device names and readings. A device Attention lists (an unlocked or jammed lock, an open contact, a leak, a low battery) stays a dot at far even when its state reads off.
+- Card: names and labels keep their size on screen when you zoom in or out. They no longer grow with the plan; the 11 px floor still holds.
+- Card and Studio: each room carries a small badge with what is on and what is wrong in it: lights on, alerts, open doors and windows, motion. It shows at far and mid zoom and keeps its size on screen when you zoom, like a room name.
+- Card and studio: doors and glass doors lose the leaf line. An open door is a hole in the wall; a closed one, a thin line across the gap. A door is closed only when every contact sensor says off, or a lock says locked; a door with neither is a hole, and an unlocked lock alone does not close it. The red open alert is unchanged. In 2.5D and 3D the leaf and the glass follow the same rule.
+- Card and studio: new door kind "Full-height window": a window from the floor to 40 cm under the ceiling, so a floor-to-ceiling window no longer needs a glass door.
+- Studio: the glass door kind is now named "Glass door" in the type selector and the docs. The stored value is unchanged.
 
 - Card: below 480 px the view, walls, theme, labels and names controls fold behind one View options button, so they no longer cover the plan. Escape closes it and gives focus back to the button.
 - Card: on a narrow card the popup spans the card. Its sliders always keep one whole slider in view, and on a very short card the popup scrolls instead of spilling past its edge. Details has a disclosure triangle.
@@ -722,3 +824,5 @@ First release.
 - Lovelace card: lights, switches, sensors, cameras, thermostats, doors, monitored devices. Three themes.
 - The card script is added to every dashboard by the integration; no manual resource.
 - Installed and updated through HACS.
+- Studio: drawing snaps the segment from the last point to a 15 degree ray (Alt: free). A corner or an alignment with an earlier point still wins. Type digits (or `3.5m`) while drawing: the length shows at the rubber band, Enter places the point that far toward the pointer, Backspace takes back a digit, Escape clears the typed value and a second Escape cancels the drawing.
+- Studio: press `?` on the plan to open or close Help. In a text field it types a question mark.

@@ -1,4 +1,8 @@
 import {
+  alignFloor,
+  floorBelow,
+  DETAIL_MODES,
+  parseDetailMode,
   FURNITURE,
   MAX_ROOM_SENSORS,
   DEVICE_TYPES,
@@ -26,7 +30,9 @@ import {
   validate,
   viewBoxFor,
 } from "../core";
+import { COORD_LIMIT } from "../core/schema";
 import type {
+  DetailMode,
   CatalogEntry,
   DeviceType,
   Floor,
@@ -86,6 +92,31 @@ function readTheme(): ThemeChoice {
     return (THEME_VALUES as readonly string[]).includes(raw ?? "") ? (raw as ThemeChoice) : DEFAULT_THEME;
   } catch {
     return DEFAULT_THEME;
+  }
+}
+
+/** S25.7: localStorage key for the detail mode. A viewer preference, not part of the layout, never an undo step. */
+export const DETAIL_KEY = "floorplan-studio:detail";
+export const DETAIL_VALUES = DETAIL_MODES;
+/** While editing the Studio draws everything: a device just placed must not vanish at fit. */
+export const DEFAULT_DETAIL: DetailMode = "full";
+/** The stored choice, or full when there is none, it is not one of the three names, or storage is blocked. */
+function readDetail(): DetailMode {
+  try {
+    const raw = localStorage.getItem(DETAIL_KEY);
+    return raw !== null && (DETAIL_VALUES as readonly string[]).includes(raw) ? parseDetailMode(raw) : DEFAULT_DETAIL;
+  } catch {
+    return DEFAULT_DETAIL;
+  }
+}
+
+/** S27.11: localStorage key for View, Floor below. A viewer preference, not part of the layout, never an undo step. */
+export const GHOST_KEY = "floorplan-studio:ghost-floor";
+function readGhost(): boolean {
+  try {
+    return localStorage.getItem(GHOST_KEY) === "true";
+  } catch {
+    return false;
   }
 }
 
@@ -267,6 +298,10 @@ export class EditorState {
   measure: boolean = readMeasure();
   /** Blueprint (default), light, or ha (Home Assistant's own theme). Kept in localStorage, not in the layout, never an undo step. */
   theme: ThemeChoice = readTheme();
+  /** S25.7: the detail mode (View, Detail). Kept in localStorage, not in the layout, never an undo step. */
+  detail: DetailMode = readDetail();
+  /** S27.11: whether the floor below is drawn as a ghost under the plan (View, Floor below). Kept in localStorage, not in the layout, never an undo step. */
+  ghostFloor: boolean = readGhost();
   /** S5.5: whether the Help panel is open. Kept in localStorage, not in the layout, never an undo step. */
   helpOpen: boolean = readHelp();
   /** S7.6: whether the plan is drawn as at night. Kept in localStorage, not in the layout, never an undo step. */
@@ -363,7 +398,7 @@ export class EditorState {
   // ---- floors: whole-layout snapshots, one undo step each, nothing recorded when refused ----
 
   /**
-   * "Fix plan" (2026-10-06): while on, nothing of the plan changes, only devices (lights and the rest). View state, like
+   * "Lock plan" (2026-10-06, named Fix plan until Sprint 26): while on, the plan's geometry holds still; devices, names, colours and links can still be edited. View state, like
    * `viewRot`: not in the layout and not an undo step. Every writer below asks `planOpen()` first; `planBlocked` says the
    * last one was refused, so the editor can tell the person why nothing happened.
    */
@@ -379,15 +414,30 @@ export class EditorState {
     this.planBlocked = false;
     return true;
   }
-  /** The floor with its devices and objects (heater, TV...) taken out: what a plan lock holds still. Walls, rooms, doors, windows, areas, stairs and furniture are the plan. */
+  /**
+   * What a plan lock holds still: the floor's geometry (S26.3, supersedes the 2026-10-06 rule). Points, walls, openings,
+   * kinds, heights, stairs, furniture. Left out, so they stay editable: devices and objects, every name and title, colours
+   * and textures, the HA area and floor id, and every entity link (a room's sensors, scenes and entity, a door's sensors,
+   * locks and cover, a piece of furniture's entity and its Lock, S27.1). Scenes stay out as before (2026-10-07).
+   */
   private static plan(f: Floor): string {
+    const drop = <T extends object>(o: T, keys: string[]): object => {
+      const c: Record<string, unknown> = { ...(o as Record<string, unknown>) };
+      for (const k of keys) delete c[k];
+      return c;
+    };
+    const paint = ["name", "color", "texture", "textureRot", "textureScale"];
     return JSON.stringify({
-      ...f,
-      devices: [],
-      unlinked: [],
-      rooms: f.rooms.map((r) => ({ ...r, scenes: undefined, haScenes: undefined })),
+      ...drop(f, ["title", "ha", "devices", "unlinked"]),
+      rooms: f.rooms.map((r) =>
+        drop(r, [...paint, "area", "entity", "temps", "humidity", "motion", "scenes", "haScenes"]),
+      ),
+      stairs: f.stairs.map((t) => drop(t, paint)),
+      doors: f.doors.map((d) => drop(d, ["name", "sensors", "vibration", "locks", "cover"])),
+      extras: f.extras.map((x) => drop(x, ["name"])),
+      furniture: f.furniture.map((m) => drop(m, ["name", "entity", "locked"])),
     });
-  } // scenes are what a room offers, not its shape: a fixed plan still takes them (2026-10-07)
+  }
 
   /** Adds a floor last and selects it, with the outline (and its wall kinds), and the stairs, of the first floor (the lowest) and nothing else, so a house is not traced twice. Deep copies; the stairs get ids of the new floor. The key is the slug of the title, with -2, -3 on a clash. Returns the key, or "" for an empty title. */
   addFloor(title: string): string {
@@ -411,6 +461,7 @@ export class EditorState {
       furniture: [],
       unlinked: [],
     };
+    if (first?.offset) nf.offset = [first.offset[0], first.offset[1]]; // it copies that floor's outline, so it sits where that floor sits (S27.8)
     if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
     Object.defineProperty(this.layout.floors, key, { value: nf, enumerable: true, writable: true, configurable: true });
@@ -419,6 +470,44 @@ export class EditorState {
     this.openDoor = null;
     this.confirmDelete = false;
     return key;
+  }
+
+  /**
+   * Sets where a floor sits in the house (S27.8), whole cm; `[0, 0]` deletes the key. One undo step; none when the value
+   * is unchanged. False for an unknown floor, a value that is not two finite numbers within COORD_LIMIT, and under Lock
+   * plan (`planBlocked`), where the offset is geometry. Does not move the selection or the current floor.
+   */
+  setOffset(key: string, to: Pt): boolean {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
+    if (
+      !Array.isArray(to) ||
+      to.length !== 2 ||
+      !to.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)
+    )
+      return false;
+    const x = Math.round(to[0]) + 0,
+      y = Math.round(to[1]) + 0; // + 0: no -0
+    const cur = this.layout.floors[key].offset,
+      cx = cur?.[0] ?? 0,
+      cy = cur?.[1] ?? 0;
+    if (x === cx && y === cy) return false;
+    if (!this.planOpen()) return false;
+    this.snapshot();
+    const fl = this.layout.floors[key];
+    if (x === 0 && y === 0) delete fl.offset;
+    else fl.offset = [x, y];
+    return true;
+  }
+
+  /** Lays a floor on the floor below it: the offset of the one below plus the best translation (S27.4), whole cm. False when there is no floor below, nothing to match, or nothing changes. */
+  alignToBelow(key: string): boolean {
+    if (!this.fresh()) return false;
+    const below = floorBelow(this.layout, key);
+    if (below === null) return false;
+    const r = alignFloor(this.layout.floors[key], this.layout.floors[below]);
+    if (!r) return false;
+    const lo = this.layout.floors[below].offset;
+    return this.setOffset(key, [(lo?.[0] ?? 0) + r.t[0], (lo?.[1] ?? 0) + r.t[1]]);
   }
 
   /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. False when the plan is fixed. */
@@ -435,14 +524,7 @@ export class EditorState {
   /** Changes the title only; the key stays. False for an empty title, the same title or an unknown key. */
   renameFloor(key: string, title: string): boolean {
     const t = title.trim();
-    if (
-      !this.fresh() ||
-      !t ||
-      !hasOwn(this.layout.floors, key) ||
-      this.layout.floors[key].title === t ||
-      !this.planOpen()
-    )
-      return false;
+    if (!this.fresh() || !t || !hasOwn(this.layout.floors, key) || this.layout.floors[key].title === t) return false; // a title is a name: the plan lock lets it through (S26.3)
     this.snapshot();
     this.layout.floors[key].title = t;
     return true;
@@ -491,6 +573,11 @@ export class EditorState {
     this.hist.push(this.pack(this.layout));
     if (this.hist.length > MAX_HISTORY) this.hist.shift();
     this.fut = [];
+  }
+
+  /** Takes back the snapshot a drag made on its first move, when the drag is cancelled (Escape): no undo step is left. The redo stack it cleared stays cleared. */
+  dropSnapshot() {
+    this.hist.pop();
   }
 
   /** One undoable change to the current floor. `fn` gets a copy and may return a new floor. Returns false, and records nothing, when the floor did not change. */
@@ -666,7 +753,7 @@ export class EditorState {
     i: number,
     paint: { color: string } | { texture: string; rot?: number; scale?: number } | null,
   ): boolean {
-    if (!this.planOpen()) return false;
+    this.planBlocked = false; // colour and texture are not geometry: the plan lock lets them through (S26.3)
     const next: Layout = structuredClone(this.layout);
     const shape = next.floors[this.floor][on][i];
     if (!shape) return false;
@@ -1244,6 +1331,25 @@ export class EditorState {
     this.theme = t;
     try {
       localStorage.setItem(THEME_KEY, t);
+    } catch {
+      /* private mode: the choice lasts until reload */
+    }
+  }
+  /** Sets the detail mode (S25.7). A viewer preference: no undo step, never written to the layout. */
+  setDetail(m: DetailMode) {
+    if (!(DETAIL_VALUES as readonly string[]).includes(m)) return;
+    this.detail = m;
+    try {
+      localStorage.setItem(DETAIL_KEY, m);
+    } catch {
+      /* private mode: the choice lasts until reload */
+    }
+  }
+  /** View, Floor below (S27.11). A viewer preference: no undo step, never written to the layout. */
+  setGhostFloor(v: boolean) {
+    this.ghostFloor = v === true;
+    try {
+      localStorage.setItem(GHOST_KEY, String(this.ghostFloor));
     } catch {
       /* private mode: the choice lasts until reload */
     }

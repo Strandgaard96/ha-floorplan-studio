@@ -112,6 +112,10 @@ export const UI_ICONS = {
     "M21.4 11.6L12.4 2.6C12 2.2 11.5 2 11 2H4C2.9 2 2 2.9 2 4V11C2 11.5 2.2 12 2.6 12.4L11.6 21.4C12 21.8 12.5 22 13 22C13.5 22 14 21.8 14.4 21.4L21.4 14.4C21.8 14 22 13.5 22 13C22 12.5 21.8 12 21.4 11.6M13 20L4 11V4H11L20 13M6.5 5C7.3 5 8 5.7 8 6.5S7.3 8 6.5 8 5 7.3 5 6.5 5.7 5 6.5 5M10.1 8.9L11.5 7.5L17 13L15.6 14.4L10.1 8.9M7.6 11.4L9 10L13 14L11.6 15.4L7.6 11.4Z",
   /** mdiTuneVariant: the View button that holds the look controls on a narrow card. */
   view: "M8 13C6.14 13 4.59 14.28 4.14 16H2V18H4.14C4.59 19.72 6.14 21 8 21S11.41 19.72 11.86 18H22V16H11.86C11.41 14.28 9.86 13 8 13M8 19C6.9 19 6 18.1 6 17C6 15.9 6.9 15 8 15S10 15.9 10 17C10 18.1 9.1 19 8 19M19.86 6C19.41 4.28 17.86 3 16 3S12.59 4.28 12.14 6H2V8H12.14C12.59 9.72 14.14 11 16 11S19.41 9.72 19.86 8H22V6H19.86M16 9C14.9 9 14 8.1 14 7C14 5.9 14.9 5 16 5S18 5.9 18 7C18 8.1 17.1 9 16 9Z",
+  /** mdiLock and mdiLockOpenVariant: the Lock plan toggle in the Studio's toolbar (S26.19), drawn instead of an emoji. */
+  lock: "M12,17A2,2 0 0,0 14,15C14,13.89 13.1,13 12,13A2,2 0 0,0 10,15A2,2 0 0,0 12,17M18,8A2,2 0 0,1 20,10V20A2,2 0 0,1 18,22H6A2,2 0 0,1 4,20V10C4,8.89 4.89,8 6,8H7V6A5,5 0 0,1 12,1A5,5 0 0,1 17,6V8H18M12,3A3,3 0 0,0 9,6V8H15V6A3,3 0 0,0 12,3Z",
+  lockOpen:
+    "M18,1C15.24,1 13,3.24 13,6V8H4A2,2 0 0,0 2,10V20A2,2 0 0,0 4,22H16A2,2 0 0,0 18,20V10A2,2 0 0,0 16,8H15V6A3,3 0 0,1 18,3A3,3 0 0,1 21,6V8H23V6C23,3.24 20.76,1 18,1M10,13A2,2 0 0,1 12,15C12,16.11 11.11,17 10,17A2,2 0 0,1 8,15A2,2 0 0,1 10,13Z",
   /** mdiClose: the round Remove button in the editor's room Sensors section. */
   close:
     "M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
@@ -125,6 +129,17 @@ const SB = 'class="ff" stroke="currentColor" stroke-width="3" stroke-linejoin="r
 const r = (x: number, y: number, w: number, h: number, rx = 0, part = "") =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ${part ? `data-part="${part}" ` : ""}${SB}/>`;
 const c = (x: number, y: number, rr: number) => `<circle cx="${x}" cy="${y}" r="${rr}" ${SB}/>`;
+
+// S28.3: a tree seen from above: a crown of 8 lobes (an arc between neighbouring points on a circle of radius 40, bulging outwards
+// to about 44) and the trunk dot. The colours are classes (`.tree-crown`, `.tree-trunk`), never attributes (finding 18); the crown's
+// edge is a 1 px non-scaling line, so the non-uniform scale of a 120 x 300 tree does not thin it.
+export const TREE_CROWN = (() => {
+  const pt = (k: number) => {
+    const a = (k * Math.PI) / 4;
+    return `${+(50 + 40 * Math.cos(a)).toFixed(2)} ${+(50 + 40 * Math.sin(a)).toFixed(2)}`;
+  };
+  return `<path class="tree-crown" d="M${pt(0)}${[1, 2, 3, 4, 5, 6, 7, 8].map((k) => ` A17 17 0 0 1 ${pt(k % 8)}`).join("")}Z"/>`;
+})();
 
 /** Top-down symbols drawn in a 100x100 box, stretched to `w` x `h` cm. Colour is `currentColor`. */
 export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: string }> = {
@@ -161,7 +176,7 @@ export const FURNITURE: Record<FurnitureSymbol, { w: number; h: number; svg: str
       r(76, 10, 16, 42, 3, "case") +
       c(84, 20, 2.5),
   },
-  tree: { w: 200, h: 200, svg: c(50, 50, 46) + c(50, 50, 8) },
+  tree: { w: 200, h: 200, svg: TREE_CROWN + '<circle class="tree-trunk" cx="50" cy="50" r="3"/>' },
   "patio-wood": {
     w: 300,
     h: 300,

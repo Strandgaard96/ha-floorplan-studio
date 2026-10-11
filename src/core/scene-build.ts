@@ -38,9 +38,12 @@ export type SceneDeps = Pick<
     Solids,
     | "DEVICE_SOLID"
     | "FURNITURE_SOLID"
+    | "FRAME_PROUD"
+    | "FRAME_WIDTH"
     | "KERB_HIGH"
     | "KERB_OUT"
     | "OPENING_FILL"
+    | "OPENING_FRAMED"
     | "RADIATOR_DEEP"
     | "SPEAKER_HEIGHT"
     | "SPEAKER_SIDE"
@@ -55,10 +58,19 @@ export type SceneDeps = Pick<
     | "tvPlacement"
     | "within"
   > &
-  Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS">;
+  Pick<Schema, "DEVICE_TYPES" | "ROOM_KINDS" | "WALL_KINDS"> &
+  Pick<typeof import("./tree"), "treeShape">;
 
 /** A vertical extrusion of a polygon from `z0` to `z1` (every box is one), or a single point (a device with no body of its own). */
-export type Shape = { type: "prism"; base: Pt[]; z0: number; z1: number } | { type: "point"; at: Pt; z: number };
+export type Shape =
+  | {
+      type: "prism";
+      base: Pt[];
+      z0: number;
+      z1: number;
+      /** Convex polygons the prism does not fill: a stairwell, which may lie inside `base`, touch its edge or cross it. Optional. */ holes?: Pt[][];
+    }
+  | { type: "point"; at: Pt; z: number };
 export type SolidKind = "floor" | "room" | "wall" | "opening" | "furniture" | "unlinked" | "stair" | "device";
 /**
  * What the viewer needs to find the thing again. `poly` is "o" (the outline), "r<n>" (room n) or "w" (a free wall) and
@@ -79,6 +91,8 @@ export interface SolidRef {
   size?: [number, number];
   faces?: [number, number][];
   wall?: string;
+  /** A tree's crown (S28.7): its z range in the scene (lift included, as the shapes' are) and the tree's turn in degrees. The viewer draws it; the trunk is the prism. */
+  crown?: { z0: number; z1: number; rot: number };
   /** A device that is a room's own sensor (its `temps`, `humidity` or `motion` list): it draws no marker, and a tap passes through it (DECISIONS S11.1, S12.5). */
   hidden?: true;
 }
@@ -108,6 +122,8 @@ export interface SceneOpts {
   elevation?: number;
   /** Whether a floor lies above and below, which sets where an unmarked stair goes (see `resolveStairDirection`). Absent: up. */
   around?: FloorsAround;
+  /** cm: moves every solid in plan x and y (S27.7: a floor below drawn at its place in the house). Anything but two finite numbers: none. */
+  shift?: Pt;
 }
 
 /** cm. How thick a wall is, by kind (the plan draws 10, and 20 for an external wall; a fence is a thin rail). Centred on its line. */
@@ -155,8 +171,11 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     DEVICE_SOLID,
     FURNITURE_SOLID,
     KERB_HIGH,
+    FRAME_PROUD,
+    FRAME_WIDTH,
     KERB_OUT,
     OPENING_FILL,
+    OPENING_FRAMED,
     RADIATOR_DEEP,
     SPEAKER_HEIGHT,
     SPEAKER_SIDE,
@@ -173,6 +192,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     DEVICE_TYPES,
     ROOM_KINDS,
     WALL_KINDS,
+    treeShape,
   } = d;
   const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && fin(p[0]) && fin(p[1]);
@@ -333,6 +353,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
   function buildScene(floor: Floor, opts: SceneOpts = {}): Scene {
     const solids: Solid[] = [];
     const lift = isObj(opts) && fin(opts.elevation) ? opts.elevation : 0;
+    const sh: Pt =
+      isObj(opts) && isPt(opts.shift) && Array.isArray(opts.shift) && opts.shift.length === 2 ? opts.shift : [0, 0];
     const f = (isObj(floor) ? floor : {}) as Floor;
     /** One choke point: a shape with a non-finite number or no thickness never leaves here. */
     const add = (kind: SolidKind, id: string, tag: string, shape: Shape, ref: SolidRef, paint: Paint) => {
@@ -345,17 +367,24 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
           !(shape.z1 > shape.z0)
         )
           return;
+        const at = ref.crown
+          ? { ...ref, crown: { ...ref.crown, z0: ref.crown.z0 + lift, z1: ref.crown.z1 + lift } }
+          : ref; // the crown's z range is given without the lift, like the shape
+        const holes = shape.holes
+          ?.filter((h) => h.length >= 3 && h.every(isPt))
+          .map((h) => h.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]));
         solids.push({
           id,
           kind,
           tag,
           shape: {
             type: "prism",
-            base: shape.base.map((p): Pt => [p[0], p[1]]),
+            base: shape.base.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]),
             z0: shape.z0 + lift,
             z1: shape.z1 + lift,
+            ...(holes?.length ? { holes } : {}),
           },
-          ref,
+          ref: at,
           paint,
         });
       } else if (isPt(shape.at) && fin(shape.z))
@@ -363,7 +392,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
           id,
           kind,
           tag,
-          shape: { type: "point", at: [shape.at[0], shape.at[1]], z: shape.z + lift },
+          shape: { type: "point", at: [shape.at[0] + sh[0], shape.at[1] + sh[1]], z: shape.z + lift },
           ref,
           paint,
         });
@@ -377,10 +406,45 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
       }
     };
 
+    // The footprints of the flights that go down: the slab and the room fills are open there, or the flight lies under a lid (0.26.1).
+    const wells: Pt[][] = [];
+    list(f.stairs).forEach((t) =>
+      piece(() => {
+        const blocks = isObj(t) ? stairBlocks(t as never) : null;
+        if (blocks && resolveStairDirection(t as never, opts?.around) === "down") wells.push(blocks.foot(0));
+      }),
+    );
+    /** The wells that meet `base`'s box (the mesh clips the exact shape: a well may lie inside, touch the edge or cross it, and in a real house it does). */
+    const holesIn = (base: Pt[]) => {
+      const xs = base.map((v) => v[0]),
+        ys = base.map((v) => v[1]),
+        x0 = Math.min(...xs),
+        x1 = Math.max(...xs),
+        y0 = Math.min(...ys),
+        y1 = Math.max(...ys);
+      const h = wells.filter(
+        (w) =>
+          w.every(isPt) &&
+          Math.max(...w.map((v) => v[0])) > x0 &&
+          Math.min(...w.map((v) => v[0])) < x1 &&
+          Math.max(...w.map((v) => v[1])) > y0 &&
+          Math.min(...w.map((v) => v[1])) < y1,
+      );
+      return h.length ? { holes: h } : {};
+    };
+
     // The slab under the house, its top at the walking surface.
     piece(() => {
       const o = ring(f.outline);
-      if (o) add("floor", "floor", "slab", { type: "prism", base: o, z0: -floorSlab(f), z1: 0 }, {}, { role: "slab" });
+      if (o)
+        add(
+          "floor",
+          "floor",
+          "slab",
+          { type: "prism", base: o, z0: -floorSlab(f), z1: 0, ...holesIn(o) },
+          {},
+          { role: "slab" },
+        );
     });
 
     // Room fills. A zone is an overlay and a structure has no floor of its own (ROOM_OWNS in render.ts says neither owns a point);
@@ -469,7 +533,14 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         if (typeof r.texture === "string") paint.texture = r.texture;
         if (typeof r.textureRot === "number") paint.textureRot = r.textureRot;
         if (typeof r.textureScale === "number") paint.textureScale = r.textureScale;
-        add("room", `room:${i}`, r.kind, { type: "prism", base: p, z0, z1: z0 + ROOM_THICKNESS }, { room: i }, paint);
+        add(
+          "room",
+          `room:${i}`,
+          r.kind,
+          { type: "prism", base: p, z0, z1: z0 + ROOM_THICKNESS, ...holesIn(p) },
+          { room: i },
+          paint,
+        );
       }),
     );
 
@@ -583,6 +654,31 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
               else if (s.kind !== "opening" && fill !== "void") part("door-leaf", "door-leaf", LEAF_THICKNESS);
               // A doorway has no leaf: its live state (open, vibrating, cover open) is a thin alert slab in the gap, shown only then (S14.5).
               else if (s.kind !== "opening") part("band", "door-band", PANE_THICKNESS);
+              // S28.10: a door or a window stands in a frame (OPENING_FRAMED: a sealed panel has none): a jamb each side, a head, and a sill when it is raised. The
+              // trim lies outside the gap and stands FRAME_PROUD proud of both wall faces. A doorway, a sealed panel or a plain opening is a bare gap.
+              if (has(OPENING_FRAMED, s.kind) && OPENING_FRAMED[s.kind] && fill !== "void") {
+                const depth = thick + 2 * FRAME_PROUD,
+                  bar = (tag: string, u0: number, u1: number, z0: number, z1: number) => {
+                    if (u1 > u0 && Math.min(z1, w.h) > Math.max(z0, 0))
+                      add(
+                        "opening",
+                        `opening:${s.index}:frame:${tag}`,
+                        "frame",
+                        {
+                          type: "prism",
+                          base: slab(w.a, w.b, u0, u1, depth),
+                          z0: Math.max(z0, 0),
+                          z1: Math.min(z1, w.h),
+                        },
+                        oref,
+                        { role: "frame" },
+                      );
+                  };
+                bar("jamb0", t0 - FRAME_WIDTH, t0, sill, head);
+                bar("jamb1", t1, t1 + FRAME_WIDTH, sill, head);
+                bar("head", t0 - FRAME_WIDTH, t1 + FRAME_WIDTH, head, head + FRAME_WIDTH);
+                if (sill > 0) bar("sill", t0 - FRAME_WIDTH, t1 + FRAME_WIDTH, sill - FRAME_WIDTH, sill);
+              }
             }
             cursor = t1;
           }
@@ -663,6 +759,9 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
           symbol = m.symbol as FurnitureSymbol,
           pole = FURNITURE_SOLID[symbol] === "pole",
           parts = FURNITURE_SOLID[symbol] === "box" ? FURNITURE_PARTS[symbol] : null;
+        // A tree is a trunk to treeShape's trunk top, and a crown (the viewer's) above it; any other piece stands to its height.
+        const tree = pole ? treeShape(m as never) : null,
+          h = z0 + (tree ? tree.trunkTop : H);
         // A linked tv, speaker or computer (`pieceDevice`) carries its entity and its own colour: the viewer recolours it by state and hands a tap on it to the gesture code.
         const linked = pieceDevice(m as never);
         // `add` stores ref and paint as given, so each part gets its own copy.
@@ -670,6 +769,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
             index: i,
             id: text(m.id),
             size: [m.w, m.h],
+            ...(tree ? { crown: { z0: z0 + tree.crownBottom, z1: z0 + tree.crownTop, rot: m.rot } } : {}),
             ...(linked ? { entity: linked.entity } : {}),
           }),
           paint = (): Paint => ({ role: linked ? "furniture-linked" : `furniture-${m.symbol}` });
@@ -703,7 +803,7 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
             [-half[0], half[1]],
           ] as Pt[]
         ).map((q) => turnAbout([c[0] + q[0], c[1] + q[1]], pole ? 0 : m.rot, c));
-        add("furniture", `furniture:${i}`, m.symbol, { type: "prism", base, z0, z1: z0 + H }, ref(), paint());
+        add("furniture", `furniture:${i}`, m.symbol, { type: "prism", base, z0, z1: h }, ref(), paint());
       }),
     );
 
@@ -850,7 +950,8 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
         for (const p of s.shape.base) {
           grow(p[0], p[1], s.shape.z0);
           grow(p[0], p[1], s.shape.z1);
-        }
+          if (s.ref.crown) grow(p[0], p[1], s.ref.crown.z1);
+        } // a tree's crown stands above its trunk: the frame holds it
       else grow(s.shape.at[0], s.shape.at[1], s.shape.z);
     }
     return solids.length
