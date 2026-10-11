@@ -258,3 +258,57 @@ describe("alignKeyOf", () => {
     for (const j of [null, undefined, 5, "x"]) expect(typeof alignKeyOf(j as any)).toBe("string");
   });
 });
+
+// S29.7: Align keeps the turn. The upper floor's lines are turned by `turn` about the origin before the search; `t` is in the
+// lower floor's frame, so the place is { turn, shift: t }.
+import hand from "../fixtures/hand-align-house.json";
+import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
+
+describe("alignFloor with a turn (S29.7)", () => {
+  const l = hand as unknown as Layout;
+
+  it("turn 0 and no turn are the same answer as before", () => {
+    const a = alignFloor(l.floors.ground, l.floors.basement), b = alignFloor(l.floors.ground, l.floors.basement, 0);
+    expect(b).toEqual(a);
+  });
+
+  it("the first floor, given its true turn of 4 degrees, finds its true shift within 2 cm", () => {
+    const r = alignFloor(l.floors.first, l.floors.ground, FIRST_TO_GROUND.turn)!;
+    expect(r).not.toBeNull();
+    expect(Math.abs(r.t[0] - FIRST_TO_GROUND.shift[0])).toBeLessThan(2);
+    expect(Math.abs(r.t[1] - FIRST_TO_GROUND.shift[1])).toBeLessThan(2);
+    expect(r.score).toBeGreaterThan(70);
+  });
+
+  it("the ground, given its true turn of -2.5 degrees, finds its true shift within 2 cm", () => {
+    const r = alignFloor(l.floors.ground, l.floors.basement, GROUND_TO_BASEMENT.turn)!;
+    expect(Math.abs(r.t[0] - GROUND_TO_BASEMENT.shift[0])).toBeLessThan(2);
+    expect(Math.abs(r.t[1] - GROUND_TO_BASEMENT.shift[1])).toBeLessThan(2);
+  });
+
+  it("the turn is read: the wrong turn does not find the true shift", () => {
+    const r = alignFloor(l.floors.first, l.floors.ground, 0)!;
+    const bad = Math.hypot(r.t[0] - FIRST_TO_GROUND.shift[0], r.t[1] - FIRST_TO_GROUND.shift[1]);
+    expect(bad > 2 || r.score < 70).toBe(true);
+  });
+
+  it("junk turns read as 0 and never throw", () => {
+    const zero = alignFloor(l.floors.ground, l.floors.basement, 0);
+    for (const j of [NaN, Infinity, -Infinity, "4", null, undefined, [4], {}, 1e308]) {
+      expect(() => alignFloor(l.floors.ground, l.floors.basement, j as never), String(j)).not.toThrow();
+      if (typeof j !== "number" || !Number.isFinite(j)) expect(alignFloor(l.floors.ground, l.floors.basement, j as never)).toEqual(zero);
+    }
+  });
+
+  it("alignKey: a move keeps the key, a turn changes it", () => {
+    const f = l.floors.first;
+    const moved = { ...clone(f), offset: [5, 6] as [number, number] };
+    expect(alignKey(moved, 4)).toBe(alignKey(f, 4));
+    expect(alignKey(f, 4)).not.toBe(alignKey(f, 4.5));
+    expect(alignKey(f, 4)).not.toBe(alignKey(f));
+    expect(alignKey(f, 0)).toBe(alignKey(f));
+    expect(alignKeyOf(f, 4)).toBe(alignKey(f, 4));
+    expect(alignKeyOf(f, 4.5)).toBe(alignKey(f, 4.5));
+    expect(alignKey(f, NaN as never)).toBe(alignKey(f));
+  });
+});

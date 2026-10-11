@@ -179,14 +179,15 @@ function corners(segs: Seg[]): Pt[] {
 
 /**
  * S28.12: what `alignFloor` reads of a floor, as a string: the structure lines in stored coordinates, and `owk`. The
- * offset, the title and everything else are left out, so a nudge or an undo (a new floor object, the same structure)
+ * offset, the title and everything else are left out (the turn the lines are searched at is added, S29.7), so a nudge or an undo (a new floor object, the same structure)
  * gives the same key and the editor does not search again. Never throws; junk gives a key too.
  */
-export function alignKey(f: unknown): string {
+export function alignKey(f: unknown, turn: unknown = 0): string {
   try {
     const o = typeof f === "object" && f !== null ? (f as Record<string, unknown>) : {};
     const owk = Array.isArray(o.owk) ? o.owk.map((k) => (typeof k === "string" ? k : "?")).join(",") : "";
-    return `${structure(f).join(";")}|${owk}`;
+    const t = turnOf(turn);
+    return `${structure(f).join(";")}|${owk}${t ? `|turn ${t}` : ""}`; // S29.7: the search reads the turn, so a turn changes the key and a move does not
   } catch {
     return "";
   }
@@ -197,19 +198,34 @@ const keys = new WeakMap<object, string>();
  * `alignKey` with a memo on the floor object. The editor asks for the key of both floors on every render, and a floor is never edited in
  * place (every edit makes a new object, see EditorState.edit), so an object seen before has the same key. Anything that is not an object is not memoised.
  */
-export function alignKeyOf(f: unknown): string {
-  if (typeof f !== "object" || f === null) return alignKey(f);
+export function alignKeyOf(f: unknown, turn: unknown = 0): string {
+  if (typeof f !== "object" || f === null) return alignKey(f, turn);
   let k = keys.get(f);
   if (k === undefined) { k = alignKey(f); keys.set(f, k); }
-  return k;
+  const t = turnOf(turn);
+  return t ? `${k}|turn ${t}` : k;
+}
+
+/** A turn in degrees; anything that is not a finite number reads as 0. */
+const turnOf = (t: unknown): number => (num(t) ? t : 0);
+/** `s` turned by `deg` clockwise on screen about the origin (a turn of 0 returns it untouched). */
+function turnSeg(s: Seg, deg: number): Seg {
+  if (deg === 0) return s;
+  const a = (deg * Math.PI) / 180, c = Math.cos(a), n = Math.sin(a);
+  return [s[0] * c - s[1] * n, s[0] * n + s[1] * c, s[2] * c - s[3] * n, s[2] * n + s[3] * c];
 }
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-/** The translation that lays `upper` best on `lower`, and how well it fits; null when either has nothing to match. Never throws. */
-export function alignFloor(upper: Floor, lower: Floor): AlignResult | null {
+/**
+ * The translation that lays `upper` best on `lower`, and how well it fits; null when either has nothing to match. Never throws.
+ * S29.7: `turn` (degrees, clockwise, about the origin, as `Place.turn`; junk reads as 0) turns the upper floor's lines before
+ * it searches, so `t` is in the lower floor's frame and the place of the upper floor is `{ turn, shift: t }`.
+ */
+export function alignFloor(upper: Floor, lower: Floor, turn: unknown = 0): AlignResult | null {
   try {
-    const us = structure(upper);
+    const deg = turnOf(turn);
+    const us = structure(upper).map((s) => turnSeg(s, deg));
     const ls = structure(lower);
     if (!us.length || !ls.length) return null;
     const total = us.reduce((a, s) => a + len(s), 0);

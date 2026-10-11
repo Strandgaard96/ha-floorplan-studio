@@ -3513,7 +3513,7 @@ Lane draw: the consumers (`src/core/render.ts`, `src/core/scene-build.ts`, `src/
       `tests/card/view-parity.spec.ts`.
 
 Lane writer (`src/editor/state.ts`, `src/core/align.ts`):
-- [ ] S29.6 One pose writer and the session pose (Sonnet, **judgement**: when the exact pose is trusted).
+- [x] S29.6 One pose writer and the session pose (Sonnet, **judgement**: when the exact pose is trusted).
       `EditorState.setPose(key, { rot, off })`: normalises, rounds the rotation to 0.01 and the offset to 0.1 cm, one
       undo step, none when unchanged, deletes each key at 0, refused under Lock plan with `planBlocked`, false beyond
       `COORD_LIMIT`; `setOffset` becomes a wrapper (now 0.1 cm); `addFloor` copies the lowest floor's rotation.
@@ -3526,7 +3526,7 @@ Lane writer (`src/editor/state.ts`, `src/core/align.ts`):
       0.1 cm, the pivot's house point within 0.1 cm at every press; a nudge at view turn 90 moves along the screen
       direction; after an undo the next press starts from the stored pose.
       Files: `src/editor/state.ts`, `tests/editor/floor-offset-state.test.ts`, a new `tests/editor/floor-pose.test.ts`.
-- [ ] S29.7 Align keeps the turn (Sonnet). `alignFloor(upper, lower, turn = 0)` turns the upper floor's lines by `turn`
+- [x] S29.7 Align keeps the turn (Sonnet). `alignFloor(upper, lower, turn = 0)` turns the upper floor's lines by `turn`
       before it searches; the result's `t` is in the lower floor's frame, so the new place is `{ turn, shift: t }`;
       `alignKey` adds the turn. Test: the S27 fixture unchanged at turn 0; the hand-align fixture's first floor with its
       true turn given finds its true shift within 2 cm; a move only keeps the key, a turn changes it; junk turn reads
