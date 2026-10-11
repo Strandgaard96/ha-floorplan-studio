@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, normaliseTurn, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -30,7 +30,7 @@ import type { HaWriter, Labelled } from "./hass-write";
 import { motionLights, openAutomation, schedule, switchControls } from "./automations";
 import { EditorState, emptyLayout, isBlank, loadLayout, newId, polyPts, ptOf, slug, type LooseRef, type PtRef, type Sel, type View } from "./state";
 import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
-import { asideView, inspectorCss, readAlignSteps, writeAlignSteps, type AlignSteps } from "./inspector";
+import { asideView, inspectorCss, parseAlignNumber, readAlignSteps, writeAlignSteps, type AlignSteps } from "./inspector";
 import type { AsideMode } from "./inspector";
 import { ctxMenuCss, ctxMenuView, ctxTargetFor, fitCtxMenu, type CtxTarget } from "./ctx-menu";
 
@@ -848,6 +848,8 @@ export class FloorplanStudioEditor extends LitElement {
     // S7.11: a Scale step takes the next two clicks as its points, raw (no snap: they sit on the image, not the plan), and nothing else.
     if (this.traceScale) { if (this.traceScale.length < 2) { this.traceScale.push(p); this.traceStep(); } return; }
     if (this.draw) { this.drawClick(p, ev.altKey, ev); return; }
+    // Review 29: Align is read-only. A press on the plan only pans (the wheel still zooms); nothing is selected, dragged or marqueed, so no invisible selection can be deleted.
+    if (this.aligning) { this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: 0, moved: false }; capture(); return; }
     // A press elsewhere, or late, is not the second click of that pair; a third press means the user double-clicked on purpose.
     if (this.finished) { if (this.sameDouble(ev) && this.finished.presses === 0) this.finished.presses = 1; else this.finished = null; }
     // The edge reach (8 px) goes first: a thin tv lying flush on a wall must not swallow it with its own padded box.
@@ -1202,6 +1204,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   private onDblClick = (ev: MouseEvent) => {
+    if (this.aligning) return; // Review 29: Align is read-only
     if (this.draw) { this.finishDraw(); return; }
     // The click that finished a shape already did its work; Firefox and Safari still send the dblclick for the pair.
     // The phantom pair is the finishing press plus exactly one more; a deliberate double-click is that press plus two.
@@ -1560,6 +1563,7 @@ export class FloorplanStudioEditor extends LitElement {
    * the signal instead, exactly how a left-button "room" drag already tells a click from a drag (`onUp`'s `d.moved`).
    */
   private openCtxMenuAt(clientX: number, clientY: number) {
+    if (this.aligning) return; // Review 29: the menu selects and deletes; Align is read-only
     const el = (this.renderRoot as unknown as DocumentOrShadowRoot).elementFromPoint(clientX, clientY);
     let hit = hitOf(el);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs") hit = this.edgeNear(this.toSvg({ clientX, clientY })) ?? hit;
@@ -1738,7 +1742,7 @@ export class FloorplanStudioEditor extends LitElement {
     if (t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); this.undo(!ev.shiftKey); return; }
     // S26.10: Ctrl/Cmd+A selects every drawn device on the floor.
-    if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && ev.key.toLowerCase() === "a" && !this.draw && !takesTyping(t)) {
+    if ((ev.metaKey || ev.ctrlKey) && !ev.altKey && !ev.shiftKey && ev.key.toLowerCase() === "a" && !this.draw && !this.aligning && !takesTyping(t)) {
       ev.preventDefault();
       const is = this.drawnDevices();
       if (is.length) { this.selectDevices(is); this.requestUpdate(); }
@@ -1780,6 +1784,7 @@ export class FloorplanStudioEditor extends LitElement {
       return;
     }
     if (ev.key !== "Delete" && ev.key !== "Backspace") return;
+    if (this.aligning) return; // Review 29: Align is read-only, so nothing is deleted from under it
     const s = this.st.sel;
     if (!s) return;
     const del = (fn: (f: Floor) => Floor | void) => { this.commit(fn); this.st.sel = null; this.requestUpdate(); };
@@ -2164,6 +2169,7 @@ export class FloorplanStudioEditor extends LitElement {
   /** Enters draw mode. Whatever was being drawn is dropped; the selection is cleared so no shape looks selected while drawing. */
   startDraw(kind: DrawKind, wall: WallKind = "wall", area?: AreaPreset) {
     if (this.st.planLocked) { this.planFixed(); return; }
+    this.closeAlign(false); // review 29: a draw and Align never run together
     this.draw = new Draw(kind, wall, area);
     this.hover = this.aim = this.rayAim = null;
     this.st.sel = null;
@@ -2634,6 +2640,8 @@ export class FloorplanStudioEditor extends LitElement {
     if (Object.keys(this.st.layout.floors).length < 2) return;
     this.stopDraw(); this.st.sel = null; this.asideMode = "selection"; this.st.confirmDelete = true; this.requestUpdate();
   }
+  /** True while the Align mode is open on the floor being edited: the plan is then read-only (review 29). */
+  private get aligning() { return this.asideMode === "align" && this.alignKey === this.st.floor; }
   /** S27.10: Floors, Align to floor below… opens the Align mode on the current floor; the floor below shows as a ghost while it is open. */
   openAlign() {
     this.closeMenus();
@@ -2673,8 +2681,11 @@ export class FloorplanStudioEditor extends LitElement {
     if (!a || !a.r || !a.next) return;
     if (this.st.setPose(a.key, { rot: a.rot, off: a.next })) { this.changed(`Aligned to ${a.belowTitle}: ${Math.round(a.r.score)} % match`); return; }
     if (this.st.planBlocked) { this.refused(); return; }
-    // Not locked, so the pose was unchanged or out of range: say which (it was always "Already aligned").
-    this.status = a.delta && a.delta[0] === 0 && a.delta[1] === 0 ? "Already aligned" : `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
+    this.poseNone();
+  }
+  /** A pose write that wrote nothing and is not the lock: the pose was already this one ("Already aligned"), or it passes the coordinate limit. */
+  private poseNone() {
+    this.status = this.st.lastPose === "same" ? "Already aligned" : `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
     this.requestUpdate();
   }
   /** S29.11: the stair report for the panel, live from the layout (so it follows every press), and whether Align stairs can run. */
@@ -2693,8 +2704,7 @@ export class FloorplanStudioEditor extends LitElement {
     const pose = poseFromPlace(st.layout, key, bk, r.place);
     if (st.setPose(key, pose)) { this.changed(r.text); return; }
     if (st.planBlocked) { this.refused(); return; }
-    this.status = r.moved < 0.05 && r.turned < 0.005 ? "The stairs already line up" : `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
-    this.requestUpdate();
+    this.poseNone();
   }
   /** S29.9: the two remembered step choices (move in cm, turn in degrees), read from `localStorage` on first use. */
   private stepsNow: AlignSteps | null = null;
@@ -2719,15 +2729,14 @@ export class FloorplanStudioEditor extends LitElement {
   /** A press that wrote nothing: the lock says so; otherwise the pose would pass the coordinate limit. */
   private pressRefused() {
     if (this.st.planBlocked) { this.refused(); return; }
-    this.status = `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
-    this.requestUpdate();
+    this.poseNone();
   }
   /** One of the two offset fields (cm): a number, one undo step; junk or the same value changes nothing and the field shows the layout again. */
   setAlignOffset(axis: 0 | 1, text: string) {
     const a = this.alignPreview();
     if (!a) return;
-    const n = text.trim() === "" ? NaN : Number(text.trim().replace(",", "."));
-    if (!Number.isFinite(n)) { this.status = "Type a number of centimetres"; this.requestUpdate(); return; }
+    const n = parseAlignNumber(text);
+    if (!Number.isFinite(n)) { this.status = "Type a number of centimetres, such as 3,5 or -2.25"; this.requestUpdate(); return; }
     const to: Pt = axis === 0 ? [n, a.cur[1]] : [a.cur[0], n];
     if (this.st.setOffset(a.key, to)) this.changed("Floor offset set"); else this.refused();
   }
@@ -2735,15 +2744,16 @@ export class FloorplanStudioEditor extends LitElement {
   setAlignRotation(text: string) {
     const a = this.alignPreview();
     if (!a) return;
-    const n = text.trim() === "" ? NaN : Number(text.trim().replace(",", "."));
-    if (!Number.isFinite(n)) { this.status = "Type a number of degrees"; this.requestUpdate(); return; }
-    if (this.st.setPose(a.key, { rot: normaliseTurn(n), off: a.cur })) this.changed("Floor rotation set"); else if (this.st.planBlocked) this.refused(); else this.requestUpdate();
+    const n = parseAlignNumber(text);
+    if (!Number.isFinite(n)) { this.status = "Type a number of degrees, such as 3,5 or -2.25"; this.requestUpdate(); return; }
+    // Review 29: about the pivot the Turn buttons use, so the floor's place in the house does not jump; the same angle writes nothing.
+    if (this.st.setRotation(a.key, n, floorPivot(this.st.layout.floors[a.key]))) this.changed("Floor rotation set"); else if (this.st.planBlocked) this.refused(); else this.requestUpdate();
   }
   /** Reset: rotation and offset both to zero, one undo step. */
   resetAlignOffset() { const a = this.alignPreview(); if (a && (a.rot !== 0 || a.cur[0] !== 0 || a.cur[1] !== 0)) { if (this.st.setPose(a.key, { rot: 0, off: [0, 0] })) this.changed("Floor offset and rotation reset"); else this.refused(); } }
   /** S29.10: while Align is open on this floor, the arrows move it and `,` `.` turn it, by the selected steps. Held keys (auto-repeat) do nothing; a text field keeps its keys. */
   private alignKeyDo(ev: KeyboardEvent): boolean {
-    if (this.asideMode !== "align" || this.alignKey !== this.st.floor) return false;
+    if (!this.aligning || this.draw) return false; // review 29: a draw owns its keys ('.' types a length)
     if (ev.defaultPrevented || ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey) return false;
     const dir: Record<string, Pt> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
     const d = dir[ev.key];

@@ -163,7 +163,7 @@ test("an offset beyond the coordinate limit says so, not 'Already aligned' (revi
   expect(await depth(page)).toBe(d0);
 });
 
-test("no Align search runs while a drag is in progress, nor when a device drag ends (review 27, finding 10; S28.12)", async ({ page }) => {
+test("no Align search runs while a drag is in progress, nor when it ends (review 27, finding 10; S28.12; review 29: a press on a device now pans, it does not move it)", async ({ page }) => {
   // a light on the first floor to drag (rooms of the fixture are snapped to their walls and do not move)
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout));
@@ -185,14 +185,15 @@ test("no Align search runs while a drag is in progress, nor when a device drag e
   await page.mouse.move(at!.x, at!.y);
   await page.mouse.down();
   for (let i = 1; i <= 30; i++) await page.mouse.move(at!.x + i * 3, at!.y + i);
-  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).drag?.type, EDITOR), "a drag is in progress").toBe("dev");
+  expect(await page.evaluate((tag) => (document.querySelector(tag) as any).drag?.type, EDITOR), "a drag is in progress, and it is a pan").toBe("pan");
   expect(await searches(), "no search during the drag").toBe(n0);
   await page.mouse.up();
   await expect.poll(() => page.evaluate((tag) => (document.querySelector(tag) as any).drag, EDITOR)).toBeNull();
   await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
-  // S28.12: a light moved, not a wall: what the search reads is the same, so the drag's end does not search either
-  // (a changed wall searches once: the stress test below).
+  // S28.12: what the search reads is the same, so the drag's end does not search either (a changed wall searches once: the stress test below).
   expect(await searches(), "no search for the whole gesture").toBe(n0);
+  // review 29: Align is read-only, so the light did not move
+  expect((await layoutOf(page)).floors.first.devices.find((d: any) => d.entity === "light.drag_me")).toMatchObject({ x: 400, y: 100 });
 });
 
 // S28.12: the memo keys on what the search reads (`alignKey`), not on floor objects, so a nudge and an undo do not search.
