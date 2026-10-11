@@ -104,7 +104,10 @@ test.describe("system tokens on the card host", () => {
       expect(pop["border-top-left-radius"]).toBe("12px");
       expect(pop["font-size"]).toBe("14px");
       expect(pop["box-shadow"], "no black shadow").not.toContain("rgba(0, 0, 0");
-      expect(pop["box-shadow"].split("),").length, "a tight and a soft layer").toBeGreaterThanOrEqual(2);
+      expect(
+        pop["box-shadow"].match(/(?:rgba?|color)\(/g)?.length ?? 0,
+        "a tight and a soft layer",
+      ).toBeGreaterThanOrEqual(2);
       expect((await css(page, ".fp-pop-name", ["font-size", "font-weight"]))["font-size"]).toBe("16px");
       // the panel: same surface radius and shadow as the popup
       const panel = await css(page, ".fp-active", ["border-top-left-radius", "box-shadow"]);
@@ -164,9 +167,17 @@ test.describe("item 16: popup details", () => {
     await boot(page, 900);
     await openPopup(page, 0);
     const thumb = await card(page).evaluate((el) => {
-      const hue = el.shadowRoot!.querySelector(".fp-pop-hue")!;
-      const c = getComputedStyle(hue, "::-webkit-slider-thumb");
-      return { w: c.width, h: c.height, r: c.borderTopLeftRadius };
+      // getComputedStyle cannot read a slider-thumb pseudo-element: read the rule that styles it
+      const sheets = [
+        ...el.shadowRoot!.adoptedStyleSheets,
+        ...[...el.shadowRoot!.querySelectorAll("style")].map((t) => t.sheet!),
+      ];
+      const rule = sheets
+        .flatMap((sh) => [...sh.cssRules])
+        .find(
+          (r) => r instanceof CSSStyleRule && /fp-pop-hue[^,{]*::-webkit-slider-thumb/.test(r.selectorText),
+        ) as CSSStyleRule;
+      return { w: rule.style.width, h: rule.style.height, r: rule.style.borderRadius };
     });
     expect(thumb.w).toBe(thumb.h);
     expect(thumb.r).toBe("50%");

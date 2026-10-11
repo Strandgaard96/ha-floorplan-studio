@@ -295,9 +295,11 @@ test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the w
       baseFill: (() => {
         // UI refactor 17: water is --fp-water mixed 20 % into --fp-bg, a color-mix(), which computed style does not give as rgb().
         const c = document.createElement("canvas").getContext("2d")!;
-        c.fillStyle = "#000";
         c.fillStyle = getComputedStyle(base).fill;
-        return c.fillStyle;
+        c.fillRect(0, 0, 1, 1); // Chromium's canvas keeps a color(srgb …) as written: read the pixel
+        return (
+          "#" + [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)].map((v) => v.toString(16).padStart(2, "0")).join("")
+        );
       })(), // the room's own water colour: untouched, the ring is a stroke only
       ringStroke: rs.stroke,
       ringFillAttr: ring.getAttribute("fill"),

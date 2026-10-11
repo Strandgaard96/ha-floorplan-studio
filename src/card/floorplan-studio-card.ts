@@ -563,7 +563,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-chip-warn { color: var(--fp-warn); font-weight: 600; }
     /* UI refactor 1: folded (where the Overview starts, at every width) the header is one line, the breadcrumb then the chips, and a tap anywhere on it opens the panel. The panel is as wide as that line needs, up to a cap that keeps clear of the control stack on the right; what still does not fit ends in an ellipsis, never cut mid-glyph. */
     .fp-active-folded { width: max-content; max-width: min(360px, calc(100% - 58px)); }
-    .fp-active-folded .fp-active-head { flex-wrap: nowrap; border-bottom: none; cursor: pointer; }
+    .fp-active-folded .fp-active-head { flex-wrap: nowrap; border-bottom: none; cursor: pointer; padding: var(--fp-space-1) var(--fp-space-2); }
     .fp-active-folded .fp-active-title { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fp-active-folded .fp-ov-chips { flex: 1 1 auto; order: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fp-active-folded .fp-active-collapse { order: 2; }

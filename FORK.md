@@ -36,6 +36,10 @@ git diff upstream/main --stat           # files we changed
 - 3D: a room tap is committed after the double-tap window. With the Overview folded, the first tap's pick opened the room
   panel over the point tapped and a double tap could not undo it.
 - The folded Overview hides its breadcrumb below 480 px, so the summary chips (alerts first) keep the one line.
+- A lit water room glows from its full water colour, so a pond stays blue under `room_glow` now that its unlit fill is
+  quiet. The folded Overview header is 4 px padded top and bottom, so it stays one 32 px line with 14 px text.
+- Open: at 375 px a long outdoor name ("Garden pond" in the demo) can end 1.4 px under the control stack
+  (`card-label-bounds.spec.ts`).
 - Tests that pinned the old design (motion red, HA dark walls in the text colour, controls outside View options, a
   two-value 3D inset, the long time format) now pin the new one.
 

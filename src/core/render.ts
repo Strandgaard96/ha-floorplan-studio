@@ -514,6 +514,9 @@ ${THEME_EXTRAS}
    stays blue, just brighter. 25%, the same fraction as --fp-alpha elsewhere, keeps the kind colour recognisable
    (a lit water room reads pale teal, not pale yellow); 50% washed it out almost to the glow colour alone. */
 .room.glow:not([fill]){fill:color-mix(in srgb,var(--fp-glow) 25%,var(--fp-room-fill))}
+/* UI refactor 17: water is drawn quiet (--fp-water-fill is 20 % water in the background), which a warm glow turns beige. A lit
+   pond glows from its full water colour, so it stays blue (CLAUDE.md finding 16). Four classes outrank the rule above. */
+.room.room-water.glow:not([fill]){fill:color-mix(in srgb,var(--fp-glow) 25%,var(--fp-water))}
 /* S7.6: night. The overlay is its own polygon over the room, so it darkens a room's own colour or texture too, and never
    competes with the room's fill rules above. Unlit by default (one class), dark under .night (two), clear again when
    a light in the room is on (three): specificity decides, not source order. Never a pick target (finding 18). */
