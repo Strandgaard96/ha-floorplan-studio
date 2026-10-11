@@ -158,6 +158,9 @@ const RESTORE_MS = 3000;
 export class NoWebGL extends Error {}
 
 const FOV = 40;
+/** Item 11a: the ground is a grid of this many cells a side, solid out to this fraction of each half extent, then fading to nothing at the border. */
+const GROUND_CELLS = 24,
+  GROUND_SOLID = 0.72;
 /** The most opaque a ghost floor below is (S27.7). */
 const GHOST_OPACITY = 0.25;
 /** Copy of the card's `TAP_SLOP_PX` (the chunk imports no card code); a test holds the two equal. */
@@ -778,10 +781,33 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         max: [Math.max(b.max[0], belowBox?.max[0] ?? -Infinity), Math.max(b.max[1], belowBox?.max[1] ?? -Infinity)],
       });
     if (!box || !Number.isFinite(low)) return;
-    const g = new PlaneGeometry(box.x1 - box.x0, box.y1 - box.y0);
+    const g = new PlaneGeometry(box.x1 - box.x0, box.y1 - box.y0, GROUND_CELLS, GROUND_CELLS);
+    // Item 11a: the ground fades to nothing toward its border (per-vertex alpha, a smoothstep over the outer part of each half extent),
+    // so on any page the canvas sits on it has no edge to show: a dark ground on a light card is not a stripe.
+    const pos = g.getAttribute("position"),
+      alpha = new Float32Array(pos.count * 4),
+      hw = (box.x1 - box.x0) / 2,
+      hh = (box.y1 - box.y0) / 2;
+    const edge = (t: number) => {
+      const k = Math.min(1, Math.max(0, (Math.abs(t) - GROUND_SOLID) / (1 - GROUND_SOLID)));
+      return 1 - k * k * (3 - 2 * k);
+    };
+    for (let i = 0; i < pos.count; i++) {
+      alpha.set([1, 1, 1, edge(pos.getX(i) / hw) * edge(pos.getY(i) / hh)], i * 4);
+    }
+    g.setAttribute("color", new BufferAttribute(alpha, 4));
     g.rotateX(-Math.PI / 2); // flat, facing up; plan y runs towards three's +z
     g.translate((box.x0 + box.x1) / 2, low, (box.y0 + box.y1) / 2);
-    const m = new Mesh(g, new MeshLambertMaterial({ color: paintOf("ground", undefined).colour }));
+    const m = new Mesh(
+      g,
+      new MeshLambertMaterial({
+        color: paintOf("ground", undefined).colour,
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
+    m.renderOrder = -1; // under the contact shadows and the ghost floors, which are transparent too
     m.name = "ground";
     m.raycast = () => undefined;
     m.visible = shadeOn;

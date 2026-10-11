@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: the 3D ground fades out toward its border (card UI refactor item 11a)
+
+The canvas is transparent over the card, and the ground was an opaque rectangle 1.5 times the house: on a light Home Assistant
+page with the dark blueprint theme it showed as a dark stripe with white bands above and below. The ground is now a 24 x 24
+grid with a per-vertex alpha, solid out to 72 % of each half extent (the house fills the inner 67 %) and smoothstepped to
+nothing at the border, no depth write, `renderOrder` -1 so the contact shadows and ghost floors still draw over it. It has no
+edge in any theme, day or night; the shade and below-floor ground tests are unchanged.
+
 ## 2026-10-11: 3D labels are chips; a room's readout never outlives its name (card UI refactor items 10, 11b)
 
 3D labels were bare text with a halo, hard to read on a wall or the ground. Room names, readouts and a device's value and

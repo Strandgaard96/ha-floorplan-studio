@@ -18,6 +18,7 @@ git diff upstream/main --stat           # files we changed
 
 ## 2026-10-11: Card UI refactor — 3D (branch `task/ui-3d`)
 
+- The 3D ground fades to transparent toward its border, so it has no visible edge on any page (`view3d.ts` `buildGround`).
 - 3D labels (room names, readouts, device values and names) are chips on the 2D label tag colour. The declutter never keeps a
   room's readout when it drops that room's name.
 - Idle devices in 3D are full markers: lit size, opaque `--fp-disc` disc, thin `--fp-idle` edge, full-opacity glyph at 3:1 or
