@@ -29,6 +29,19 @@ Design note for `EditorState` in `src/editor/state.ts`.
 - **Refused presses** (lock, limit, junk) leave the exact pose alone. A press that rounds to no change (a turn of 0.001) still advances the exact pose, so ten of them add up to a change.
 - **Move.** The direction on screen is turned back by the view turn to give the move in the floor's frame; the offset changes by that move turned by the floor's rotation. **Turn.** `rot' = rot + d`, `off' = off + R(rot)·c - R(rot')·c`, so the pivot's house point is exact.
 - **Align.** `alignToBelow` keeps the floor's turn (S29.7, below).
+## 2026-10-11: S29.4, a floor below turns by its points, not by its `ref`
+
+`SceneOpts.turn` turns every solid in `add`, the one choke point of `scene-build.ts`, before the shift: base, holes and
+the point, each as `placePoint({ turn, shift })`.
+- **What reads points.** Slabs, room fills, walls, stair steps, and every footprint: they are turned with the points.
+- **What reads `ref`.** A crown (tree, shrub, pond lights) is a centre, a size and a `rot`. The centre turns with the point;
+  `rot` gets `+ turn`; size and ids stay. A stair's `faces` (wall normals) turn without the shift. Why: the crown's
+  ellipse axis and a face normal are directions, not places. Turning only the centre would leave a crown looking the
+  old way on a turned house.
+- **Untouched.** `crowns.ts` and `shade.ts` read the solids as given, so they follow with no change. A junk turn reads as 0.
+- **The cache.** The below cache keys on elevation, shift and turn. The card compares `[elevation, shift, turn]`, so a
+  rotation alone redraws.
+- **The card** takes `floorPlace` for the ghost and for `_sync3dBelow`. `floorShift` is no longer imported there.
 
 ## 2026-10-11: S29.2, the pose maths: sign, composition, pivot
 

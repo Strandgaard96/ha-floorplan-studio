@@ -8,6 +8,7 @@ import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTex
 import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
+import { placePoint } from "./floor-stack";
 import { treeShadeSvg } from "./tree";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
@@ -50,8 +51,8 @@ export interface RenderOpts {
    *  rejected. Omitted (the editor), nothing changes. */
   bounds?: { x: number; y: number; w: number; h: number };
   state?: StateOverlay; now?: number; fade?: number; roomGlow?: boolean; editor?: boolean;
-  /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point moved by `shift` (`floorShift`, cm). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
-  ghost?: { floor: Floor; shift: Pt };
+  /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point placed by `placePoint({ turn, shift })` (`floorPlace`; `turn` in degrees clockwise, absent is 0, so a ghost without a turn is drawn exactly as before; a `turn` that is not a finite number within -360..360 draws nothing). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
+  ghost?: { floor: Floor; shift: Pt; turn?: number };
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
@@ -1184,11 +1185,16 @@ export function floorSwitch(keys: readonly string[], from: string, to: string, r
 function ghostMarkup(g: RenderOpts["ghost"]): string {
   const sh = g?.shift as unknown;
   if (!Array.isArray(sh) || sh.length !== 2 || !sh.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)) return "";
+  const turn = (g as { turn?: unknown } | undefined)?.turn;
+  if (turn !== undefined && !(typeof turn === "number" && Number.isFinite(turn) && Math.abs(turn) <= 360)) return "";
+  const place = { turn: turn ?? 0, shift: [sh[0], sh[1]] as Pt };
   const f = g?.floor as unknown as Record<string, unknown> | null | undefined;
   if (typeof f !== "object" || f === null) return "";
-  const at = (p: unknown): string | null =>
-    Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number" && Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0] + sh[0]) <= COORD_LIMIT && Math.abs(p[1] + sh[1]) <= COORD_LIMIT
-      ? `${num(p[0] + sh[0])} ${num(p[1] + sh[1])}` : null;
+  const at = (p: unknown): string | null => {
+    if (!(Array.isArray(p) && typeof p[0] === "number" && typeof p[1] === "number" && Number.isFinite(p[0]) && Number.isFinite(p[1]))) return null;
+    const q = placePoint(place, [p[0], p[1]]);
+    return Math.abs(q[0]) <= COORD_LIMIT && Math.abs(q[1]) <= COORD_LIMIT ? `${num(q[0])} ${num(q[1])}` : null;
+  };
   const ringD = (r: unknown): string | null => {
     if (!Array.isArray(r) || r.length < 3 || r.length > 100_000) return null;
     const q = r.map(at);

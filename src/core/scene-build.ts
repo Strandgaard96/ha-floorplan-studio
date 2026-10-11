@@ -51,6 +51,8 @@ export interface SceneOpts {
   around?: FloorsAround;
   /** cm: moves every solid in plan x and y (S27.7: a floor below drawn at its place in the house). Anything but two finite numbers: none. */
   shift?: Pt;
+  /** Degrees, clockwise on screen: turns every solid about the origin of the plan, before `shift` (S29.4: a floor below drawn at its place in the house, which now has a turn: `placePoint({ turn, shift })`). Anything but a finite number within -360..360: none. */
+  turn?: number;
 }
 
 /** cm. How thick a wall is, by kind (the plan draws 10, and 20 for an external wall; a fence is a thin rail). Centred on its line. */
@@ -152,15 +154,21 @@ export function makeBuildScene(d: SceneDeps): (floor: Floor, opts?: SceneOpts) =
     const solids: Solid[] = [];
     const lift = isObj(opts) && fin(opts.elevation) ? opts.elevation : 0;
     const sh: Pt = isObj(opts) && isPt(opts.shift) && Array.isArray(opts.shift) && opts.shift.length === 2 ? opts.shift : [0, 0];
+    const turn = isObj(opts) && fin(opts.turn) && Math.abs(opts.turn) <= 360 ? opts.turn : 0, tc = turn === 0 ? 1 : Math.cos((turn * Math.PI) / 180), ts = turn === 0 ? 0 : Math.sin((turn * Math.PI) / 180);
+    /** The place of a stored point: R(turn) then the shift. With no turn it is the old `p + shift`, to the last bit. A direction (a wall's normal) is turned and not shifted. */
+    const put = (p: Pt): Pt => (turn === 0 ? [p[0] + sh[0], p[1] + sh[1]] : [p[0] * tc - p[1] * ts + sh[0], p[0] * ts + p[1] * tc + sh[1]]);
+    const aim = (n: Pt): Pt => (turn === 0 ? n : [n[0] * tc - n[1] * ts, n[0] * ts + n[1] * tc]);
     const f = (isObj(floor) ? floor : {}) as Floor;
     /** One choke point: a shape with a non-finite number or no thickness never leaves here. */
     const add = (kind: SolidKind, id: string, tag: string, shape: Shape, ref: SolidRef, paint: Paint) => {
       if (shape.type === "prism") {
         if (shape.base.length < 3 || !shape.base.every(isPt) || !fin(shape.z0) || !fin(shape.z1) || !(shape.z1 > shape.z0)) return;
-        const at = ref.crown ? { ...ref, crown: { ...ref.crown, z0: ref.crown.z0 + lift, z1: ref.crown.z1 + lift } } : ref; // the crown's z range is given without the lift, like the shape
-        const holes = shape.holes?.filter((h) => h.length >= 3 && h.every(isPt)).map((h) => h.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]));
-        solids.push({ id, kind, tag, shape: { type: "prism", base: shape.base.map((p): Pt => [p[0] + sh[0], p[1] + sh[1]]), z0: shape.z0 + lift, z1: shape.z1 + lift, ...(holes?.length ? { holes } : {}) }, ref: at, paint });
-      } else if (isPt(shape.at) && fin(shape.z)) solids.push({ id, kind, tag, shape: { type: "point", at: [shape.at[0] + sh[0], shape.at[1] + sh[1]], z: shape.z + lift }, ref, paint });
+        // the crown's z range is given without the lift, like the shape; its turn (the tree's own `rot`) joins the floor's, and the wall normals turn with it (S29.4)
+        let at = ref.crown ? { ...ref, crown: { ...ref.crown, z0: ref.crown.z0 + lift, z1: ref.crown.z1 + lift, rot: ref.crown.rot + turn } } : ref;
+        if (turn !== 0 && at.faces) at = { ...at, faces: at.faces.map(aim) };
+        const holes = shape.holes?.filter((h) => h.length >= 3 && h.every(isPt)).map((h) => h.map(put));
+        solids.push({ id, kind, tag, shape: { type: "prism", base: shape.base.map(put), z0: shape.z0 + lift, z1: shape.z1 + lift, ...(holes?.length ? { holes } : {}) }, ref: at, paint });
+      } else if (isPt(shape.at) && fin(shape.z)) solids.push({ id, kind, tag, shape: { type: "point", at: put(shape.at), z: shape.z + lift }, ref, paint });
     };
     /** Runs one piece's builder; whatever it throws, the piece is lost and the scene is not. */
     const piece = (fn: () => void) => { try { fn(); } catch (e) { debugOnce("3D scene: a piece of the layout could not be built and was left out", e); } };

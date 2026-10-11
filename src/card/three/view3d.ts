@@ -43,9 +43,8 @@ export interface View3D {
    */
   setFloor(floor: unknown, around?: unknown): void;
   /**
-   * S27.7: the floors below the one `setFloor` drew, under it. Each entry is `{ floor, elevation, shift }`: `elevation` is the floor's
-   * walking surface in the frame of the current floor (cm, negative below it, `floorElevation` differences) and `shift` is `floorShift` (cm,
-   * plan x and y). `mode`: "ghost" (translucent, no depth write), "solid" (their own colours), anything else draws none. They are never
+   * S27.7: the floors below the one `setFloor` drew, under it. Each entry is `{ floor, elevation, shift, turn }`: `elevation` is the floor's
+   * walking surface in the frame of the current floor (cm, negative below it, `floorElevation` differences) and `shift` and `turn` are `floorPlace` (cm in plan x and y, and degrees clockwise: a point of the floor is drawn at `R(turn) · p + shift`; `turn` absent is 0). `mode`: "ghost" (translucent, no depth write), "solid" (their own colours), anything else draws none. They are never
    * picked, never lowered, carry no live state, and are not framed by the camera. Every call replaces the last; `setFloor` keeps them, so
    * the card calls this after it. Junk entries are skipped; it never throws.
    */
@@ -763,26 +762,26 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   // ---- the floors below (S27.7): meshes of their own, outside `clear` and `build`, so the current floor's rebuilds do not touch them.
   const BELOW_MAX = 32;
-  let belowMeshes: Mesh[] = [], belowCrowns: Mesh[] = [], belowArgs: { floors: unknown[]; mode: "ghost" | "solid" } | null = null;
-  /** The scene of a floor below, kept while the floor object, its elevation and its shift stay: a theme change or a repeat call does not build it again. */
+  let belowMeshes: Mesh[] = [], belowSolidList: Solid[] = [], belowCrowns: Mesh[] = [], belowArgs: { floors: unknown[]; mode: "ghost" | "solid" } | null = null;
+  /** The scene of a floor below, kept while the floor object, its elevation, its shift and its turn stay: a theme change or a repeat call does not build it again. */
   const belowPlans = new WeakMap<object, Map<string, Plan3D>>();
-  const belowPlan = (floor: object, elevation: number, shift: unknown): Plan3D => {
-    const key = `${elevation}|${JSON.stringify(shift)}`;
+  const belowPlan = (floor: object, elevation: number, shift: unknown, turn: unknown): Plan3D => {
+    const key = `${elevation}|${JSON.stringify(shift)}|${JSON.stringify(turn)}`;
     let byKey = belowPlans.get(floor);
     if (!byKey) belowPlans.set(floor, (byKey = new Map()));
     let p = byKey.get(key);
-    if (!p) byKey.set(key, (p = buildScene(floor as never, { elevation, shift: shift as never })));
+    if (!p) byKey.set(key, (p = buildScene(floor as never, { elevation, shift: shift as never, turn: turn as never })));
     return p;
   };
   const buildBelow = () => {
-    dispose(belowMeshes); dispose(belowCrowns); dispose(belowShades); belowMeshes = []; belowCrowns = []; belowShades = []; belowLow = Infinity; belowBox = null;
+    dispose(belowMeshes); dispose(belowCrowns); dispose(belowShades); belowMeshes = []; belowSolidList = []; belowCrowns = []; belowShades = []; belowLow = Infinity; belowBox = null;
     if (!belowArgs) { buildGround(); return; }
     const ghost = belowArgs.mode === "ghost";
     for (const e of belowArgs.floors) {
       const f = (e as { floor?: unknown } | null)?.floor, elevation = (e as { elevation?: unknown } | null)?.elevation;
       if (typeof f !== "object" || f === null || typeof elevation !== "number" || !Number.isFinite(elevation)) continue;
       try {
-        const sc = belowPlan(f, elevation, (e as { shift?: unknown }).shift);
+        const sc = belowPlan(f, elevation, (e as { shift?: unknown }).shift, (e as { turn?: unknown }).turn);
         const made = meshesOf((x) => x.kind !== "device", (x) => (x.shape.type === "prism" ? [x.shape.z0, x.shape.z1] : null), sc.solids, false);
         for (const m of made) {
           const mat = m.material as MeshLambertMaterial;
@@ -790,6 +789,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           m.raycast = () => undefined; // never picked
         }
         belowMeshes.push(...made);
+        belowSolidList.push(...sc.solids);
         belowLow = Math.min(belowLow, lowestOf(sc.solids));
         const had = belowBox as { min: number[]; max: number[] } | null;
         belowBox = { min: [Math.min(had?.min[0] ?? Infinity, sc.bounds.min[0]), Math.min(had?.min[1] ?? Infinity, sc.bounds.min[1])], max: [Math.max(had?.max[0] ?? -Infinity, sc.bounds.max[0]), Math.max(had?.max[1] ?? -Infinity, sc.bounds.max[1])] };
@@ -942,7 +942,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       canvas.removeEventListener("webglcontextrestored", onRestored);
       if (restoreTimer !== null) clearTimeout(restoreTimer);
       clear(); // the ring too
-      dispose(belowMeshes); dispose(belowCrowns); dispose(belowShades); belowMeshes = []; belowCrowns = []; belowShades = []; belowArgs = null;
+      dispose(belowMeshes); dispose(belowCrowns); dispose(belowShades); belowMeshes = []; belowSolidList = []; belowCrowns = []; belowShades = []; belowArgs = null;
       freeKeepers();
       pools.dispose();
       glow.dispose();
@@ -989,6 +989,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
             return { transparent: mat.transparent, opacity: mat.opacity, depthWrite: mat.depthWrite, box: [b.min.x, b.min.z, b.min.y, b.max.x, b.max.z, b.max.y] };
           }),
         };
+      },
+      /** S29.4: the solids the floors below's meshes were made from, in the current floor's frame (turned and shifted): kind, tag, the base (or the point), the crown's turn. */
+      belowSolids() {
+        return belowSolidList.map((x) => ({ kind: x.kind, tag: x.tag, base: x.shape.type === "prism" ? x.shape.base : [x.shape.at], rot: x.ref.crown?.rot ?? null }));
       },
       /** S28.7: the crown meshes as drawn (this floor's and the floors below's), each with its instance count, its box in plan terms [x0, y0, z0, x1, y1, z1] over all its instances, and its material. `inScene` counts the ones the scene holds: a floor switch must not leave one behind. */
       crowns() {

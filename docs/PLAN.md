@@ -3488,14 +3488,14 @@ Wave 1, three lanes in parallel after wave 0, each in its own worktree; tasks in
 
 Lane draw: the consumers (`src/core/render.ts`, `src/core/scene-build.ts`, `src/card/three/`,
 `src/card/floorplan-studio-card.ts`):
-- [ ] S29.3 The ghost turns (Sonnet). `RenderOpts.ghost.turn?: number`: each ghost point is `placePoint({ turn, shift })`
+- [x] S29.3 The ghost turns (Sonnet). `RenderOpts.ghost.turn?: number`: each ghost point is `placePoint({ turn, shift })`
       before it is drawn, so 2.5D gets it flat at floor level as today; absent or 0, byte for byte as before; junk turn
       draws nothing. Test: unit, a turned ghost's first outline point is the computed one; a payload name never appears;
       the snapshot without a turn unchanged; Playwright in the card on the fixture's first floor with the ghost on: the
       pixel at the computed screen point of a ghost corner is ghost-coloured and the one 6 px off along the corner's
       bisector is not, at view turn 0 and 90 (fails with the turn ignored). `npm run shots` looked at with a turned ghost.
       Files: `src/core/render.ts`, `tests/core/render-ghost.test.ts`, a new `tests/card/card-ghost-turn.spec.ts`.
-- [ ] S29.4 3D floors below turn (Sonnet, **judgement**: which builders read `ref` instead of points). `SceneOpts.turn?`
+- [x] S29.4 3D floors below turn (Sonnet, **judgement**: which builders read `ref` instead of points). `SceneOpts.turn?`
       turns every solid's base, holes and point about the origin before `shift`; `setBelow` entries carry `turn`; the
       crown matrices and the contact shadows of a floor below follow the turn (a tree's crown ellipse turns with it);
       the below cache keys on the turn. Test: unit, a turned scene's slab corner, a wall end, a stair step corner and a
@@ -3505,7 +3505,7 @@ Lane draw: the consumers (`src/core/render.ts`, `src/core/scene-build.ts`, `src/
       mesh behind; the chunk under its limit.
       Files: `src/core/scene-build.ts`, `src/card/three/view3d.ts`, `src/card/three/crowns.ts`,
       `src/card/three/shade.ts`, `tests/core/scene-shift.test.ts`, `tests/card/card-3d-below.spec.ts`.
-- [ ] S29.5 The card reads the pose (Sonnet). The card's ghost and `_sync3dBelow` call `floorPlace`; `_sync3dBelow`'s
+- [x] S29.5 The card reads the pose (Sonnet). The card's ghost and `_sync3dBelow` call `floorPlace`; `_sync3dBelow`'s
       compare includes the turn. Test: changing only a floor's `rotation` in the card's layout redraws the ghost and
       calls `setBelow` again (fails with the old compare); the ghost-only tap opens nothing on a turned ghost; the card's
       and the editor's ghost path `d` are equal for the same layout and floor (parity, through `renderFloor` in both).
