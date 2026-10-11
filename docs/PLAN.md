@@ -3566,7 +3566,7 @@ Lane studio (`src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/
       ignore `abc`; Reset is one undo step; `guide-controls.spec.ts` follows.
       Files: `src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/guide.ts`, a new
       `tests/editor/align-keys.spec.ts`.
-- [ ] S29.11 Stair report, Align stairs, and the panel at any width (Sonnet). The report rows and Align stairs through
+- [x] S29.11 Stair report, Align stairs, and the panel at any width (Sonnet). The report rows and Align stairs through
       `stairReport` and `stairPlace`, the report live on every press; the panel order of the spec. Test: on the fixture
       the report's numbers match `stairReport` within 1 cm and 0.1 degree and change after a press; Align stairs gives
       the truth within 2 cm and 0.2 degrees in one step with its status text; disabled with no stairs below; at

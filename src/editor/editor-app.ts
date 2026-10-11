@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, normaliseTurn, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, normaliseTurn, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -2675,6 +2675,25 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.st.planBlocked) { this.refused(); return; }
     // Not locked, so the pose was unchanged or out of range: say which (it was always "Already aligned").
     this.status = a.delta && a.delta[0] === 0 && a.delta[1] === 0 ? "Already aligned" : `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
+    this.requestUpdate();
+  }
+  /** S29.11: the stair report for the panel, live from the layout (so it follows every press), and whether Align stairs can run. */
+  alignStairInfo() {
+    const st = this.st, key = this.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+    if (key === null || bk === null) return null;
+    const upper = st.layout.floors[key], lower = st.layout.floors[bk], place = floorPlace(st.layout, key, bk);
+    return { rows: stairReport(upper, lower, place), belowTitle: lower.title || bk, can: stairPlace(upper, lower, place) !== null };
+  }
+  /** Align stairs: the first stair of this floor laid on the first stair below, turn and shift, one undo step; the status says what it did. */
+  alignStairs() {
+    const st = this.st, key = this.alignKey, bk = key === null ? null : floorBelow(st.layout, key);
+    if (key === null || bk === null) return;
+    const r = stairPlace(st.layout.floors[key], st.layout.floors[bk], floorPlace(st.layout, key, bk));
+    if (!r) { this.status = "Both floors need a stair to align"; this.requestUpdate(); return; }
+    const pose = poseFromPlace(st.layout, key, bk, r.place);
+    if (st.setPose(key, pose)) { this.changed(r.text); return; }
+    if (st.planBlocked) { this.refused(); return; }
+    this.status = r.moved < 0.05 && r.turned < 0.005 ? "The stairs already line up" : `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
     this.requestUpdate();
   }
   /** S29.9: the two remembered step choices (move in cm, turn in degrees), read from `localStorage` on first use. */

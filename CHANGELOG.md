@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Studio, Align to floor below: a Stairs section lists each stair of this floor with the nearest stair below (distance and angle, live on every press), and Align stairs lays the first stair on the first stair below in one undo step, saying what it did. Round stairs move and do not turn. On a coarse pointer every Align button is 44 px (a more specific rule had held the Move and step buttons at 32 px).
 - Studio, Align to floor below: the arrow keys move this floor and `,` `.` turn it, by the chosen steps (a held key is one step; a text box keeps its keys; the arrows still pan outside Align). A rotation box takes typed degrees, and Reset zeroes the offset and the rotation in one undo step. Help lists the keys.
 - Studio, Align to floor below: six buttons move this floor up, down, left and right (as drawn on screen, so a turned view still moves the right way) and turn it anticlockwise and clockwise about the centre of its structure, by steps you choose (1, 5, 50 cm; 0.1, 0.5, 1, 3 degrees; the choice is remembered in this browser). One press, one undo step. The floor below is drawn turned as faint lines, the plan shows only a cross at the pivot while the panel is open, and Apply keeps the floor's turn. Fixed on the way: a stored rotation such as 0.1 was written as 0.10000000000002274.
 - 3D: the floors below turn with their `rotation`. Slabs, walls, stairs, crowns and contact shadows are placed by the turn and then the shift; the card gives the view `floorPlace`, so a change of rotation alone redraws the ghost and the floors below.

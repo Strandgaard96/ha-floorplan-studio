@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.11, the stair report and Align stairs in the panel
+
+`src/editor/inspector.ts`, `src/editor/editor-app.ts` (`alignStairInfo`, `alignStairs`).
+- **Report.** `stairReport(upper, lower, floorPlace(layout, key, below))` is read on every render, so every press, key, box, Reset, undo and load updates it. A row reads "Name: 60 cm from Ground stairs, 2.5° off": whole cm, one decimal of degrees; a round stair shows the distance only. No stair on this floor: "No stairs on this floor"; none below: "No stairs on <floor>" and no list.
+- **Align stairs.** `stairPlace` gives the place; `poseFromPlace` turns it into the pose; `setPose` writes it in one undo step. The status is the text `stairPlace` made. Disabled when `stairPlace` is null (a stair missing on either floor). Lock plan refuses it as it does every writer.
+- **A coarse-pointer rule lost to specificity.** The 44 px rule `.align-panel .btn` was outranked by `.align-panel .al-cross .btn` and `.al-row .btn` (32 px), so the Move and step buttons stayed 32 px. The test measured it red first; the rule now names the same selectors and is declared after them. The two boxes get 44 px too.
+- **Panel order** follows the spec: Auto align, Move, Step, Turn, Angle step, who moves, Offset, Rotation, Reset, Stairs.
+
 ## 2026-10-11: S29.10, Align keys, the rotation box and Reset
 
 `src/editor/editor-app.ts` (`alignKeyDo`), `src/editor/inspector.ts`, `src/editor/guide.ts`.

@@ -53,10 +53,11 @@ export const inspectorCss = css`
     .align-panel .al-cross{display:grid;grid-template-columns:repeat(3,minmax(36px,1fr));gap:4px;margin:6px 0}
     .align-panel .al-cross .btn{min-height:32px;padding:2px 4px}
     .align-panel .al-cross .up{grid-column:2} .align-panel .al-cross .left{grid-column:1;grid-row:2} .align-panel .al-cross .right{grid-column:3;grid-row:2} .align-panel .al-cross .down{grid-column:2;grid-row:3}
+    .align-panel .al-stairs{margin:4px 0;padding-left:18px}
     .align-panel .al-row{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
     .align-panel .al-row .btn{flex:1 1 auto;min-width:36px;min-height:32px;padding:2px 6px}
     .align-panel .al-label{font-size:.85em;opacity:.8;margin:6px 0 0}
-    @media (pointer:coarse){.align-panel .btn{min-height:44px;min-width:44px}}
+    @media (pointer:coarse){.align-panel .btn,.align-panel .al-cross .btn,.align-panel .al-row .btn{min-height:44px;min-width:44px} .align-panel input{min-height:44px}}
     .imodes .tab:disabled{opacity:.4;cursor:default}
     /* S22.6: the aside is its own scroll container, as tall as the canvas beside it (same height rule, same floor), so
        a long room panel scrolls inside it and the plan stays put; before, it grew the page and scrolling it moved the plan away. */
@@ -242,7 +243,7 @@ export function alignView(h: FloorplanStudioEditor) {
   };
   const field = (id: string, label: string, axis: 0 | 1) => html`<label for=${id}>${label}</label>
     <input id=${id} type="text" inputmode="decimal" autocomplete="off" .value=${live(String(a.cur[axis]))} @change=${(e: Event) => h.setAlignOffset(axis, (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}>`;
-  const steps = h.alignSteps;
+  const steps = h.alignSteps, stairs = h.alignStairInfo();
   const mv = (id: string, cls: string, label: string, glyph: string, dir: Pt) => html`<button class="btn keep ${cls}" id=${id} aria-label=${label} title=${label} @click=${() => h.moveAlign(dir)}>${glyph}</button>`;
   const turn = (id: string, label: string, glyph: string, sign: 1 | -1) => html`<button class="btn keep" id=${id} aria-label=${label} title=${label} @click=${() => h.turnAlign(sign)}>${glyph}</button>`;
   return html`<div class="imode align-panel" id="alignPanel" role="tabpanel" aria-label="Align to floor below" @keydown=${esc}>
@@ -280,6 +281,11 @@ export function alignView(h: FloorplanStudioEditor) {
     <label for="alignRot">turn (clockwise)</label>
     <input id="alignRot" type="text" inputmode="decimal" autocomplete="off" .value=${live(String(a.rot))} @change=${(e: Event) => h.setAlignRotation((e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}>
     <button class="btn keep" id="alignReset" ?disabled=${a.rot === 0 && a.cur[0] === 0 && a.cur[1] === 0} @click=${() => h.resetAlignOffset()}>Reset</button>
+    <h4 class="pnl-h">Stairs</h4>
+    ${!stairs || !stairs.rows.length ? html`<p id="alignStairsNone">No stairs on this floor</p>`
+      : stairs.rows.every((r) => r.nearest === null) ? html`<p id="alignStairsNone">No stairs on ${stairs.belowTitle}</p>`
+      : html`<ul id="alignStairs" class="al-stairs">${stairs.rows.map((r) => html`<li>${r.name}: ${r.distance === null || !r.nearest ? "no stair below" : html`${Math.round(r.distance)} cm from ${r.nearest.name}${r.angle === null ? nothing : `, ${(Math.round(r.angle * 10) / 10).toFixed(1)}\u00B0 off`}`}</li>`)}</ul>`}
+    <button class="btn keep" id="alignStairsBtn" ?disabled=${!stairs?.can} @click=${() => h.alignStairs()}>Align stairs</button>
   </div>`;
 }
 
