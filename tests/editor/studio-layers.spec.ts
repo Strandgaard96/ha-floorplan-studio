@@ -26,6 +26,13 @@ const screenOf = (page: Page, x: number, y: number) =>
     return { x: q.x, y: q.y };
   }, [EDITOR, x, y] as const);
 
+/** Taps a point of the plan (plan units) where the plan is now: waits for the editor's render, measures, then clicks, with the real mouse. */
+async function tapPlan(page: Page, x: number, y: number) {
+  await page.evaluate((tag) => (document.querySelector(tag) as any).updateComplete, EDITOR);
+  const p = await screenOf(page, x, y);
+  await page.mouse.click(p.x, p.y);
+}
+
 /** A point on the Living floor clear of icons and furniture, and right of the left column at 1440 wide. */
 const LIVING = [420, 260] as const;
 const plan = (page: Page) => page.locator(`${EDITOR} .canvas > svg`);
@@ -247,49 +254,49 @@ test("S24.R8: a click never picks what Layers hides: a small tv piece under hidd
   const furn = plan(page).locator("g.furn");
   await expect(furn).toHaveCount(3);
   const sel = () => page.evaluate((tag) => (document.querySelector(tag) as any).st.sel as { t: string; i: number } | null, EDITOR);
-  const tvAt = await screenOf(page, 420, 209); // in the padded box, 5 cm below the tv's 8 cm body: only the computed pick reaches it
-  const away = await screenOf(page, LIVING[0], LIVING[1] + 40);
+  // Every tap measures the plan where it is at that moment (tapPlan): a layer toggle or a search changes the status line, and on a
+  // font wide enough to wrap the toolbar that changes the toolbar's height and moves the plan under a point measured earlier.
+  const TV = [420, 209] as const; // in the padded box, 5 cm below the tv's 8 cm body: only the computed pick reaches it
+  const AWAY = [LIVING[0], LIVING[1] + 40] as const;
+  const LAMP = [650, 200] as const; // Kitchen light
   await openLayers(page);
   await clickAt(page, `${EDITOR} #layersPanel [data-layer="furniture"]`);
   await expect(furn).toHaveCount(0);
-  await page.mouse.click(tvAt.x, tvAt.y);
+  await tapPlan(page, ...TV);
   expect((await sel())?.t).not.toBe("furn");
   await expect(furn).toHaveCount(0);
   // shown again, the same click picks it: the point is right
   await clickAt(page, `${EDITOR} #layersPanel [data-layer="furniture"]`);
   await expect(furn).toHaveCount(3);
-  await page.mouse.click(tvAt.x, tvAt.y);
+  await tapPlan(page, ...TV);
   expect(await sel()).toEqual({ t: "furn", i: 2 });
   // found by search while hidden: the plan keeps it drawn, so it stays pickable; let go, it is gone and not pickable
   await clickAt(page, `${EDITOR} #layersPanel [data-layer="furniture"]`);
   await expect(furn).toHaveCount(0);
-  await page.mouse.click(away.x, away.y);
+  await tapPlan(page, ...AWAY);
   await page.keyboard.press("/");
   await page.keyboard.type("Proof TV");
   await expect(page.locator(`${EDITOR} fp-search [role="option"]`).first()).toContainText("Proof TV");
   await page.keyboard.press("Enter");
   await expect(furn).toHaveCount(1);
-  const kept = await screenOf(page, 420, 209); // search centred the plan on it; again below the body
-  await page.mouse.click(kept.x, kept.y);
+  await tapPlan(page, ...TV); // search centred the plan on it; again below the body
   expect(await sel()).toEqual({ t: "furn", i: 2 });
   await expect(furn).toHaveCount(1);
-  const away2 = await screenOf(page, LIVING[0], LIVING[1] + 40);
-  await page.mouse.click(away2.x, away2.y);
+  await tapPlan(page, ...AWAY);
   await expect(furn).toHaveCount(0);
-  await page.mouse.click(kept.x, kept.y);
+  await tapPlan(page, ...TV);
   expect((await sel())?.t).not.toBe("furn");
   await expect(furn).toHaveCount(0);
   // a hidden light is not picked either
   await clickAt(page, `${EDITOR} #layersPanel [data-layer="furniture"]`);
   await clickAt(page, `${EDITOR} #layersPanel [data-layer="lights"]`);
   await expect(plan(page).locator("g.dev-light")).toHaveCount(0);
-  const lamp = await screenOf(page, 650, 200); // Kitchen light, wherever the view now is
-  await page.mouse.click(lamp.x, lamp.y);
+  await tapPlan(page, ...LAMP); // wherever the view now is
   expect((await sel())?.t).not.toBe("dev");
   await expect(plan(page).locator("g.dev-light")).toHaveCount(0);
   // shown, the same click picks it: the point is right (a guard: a hidden device has no element to hit)
   await clickAt(page, `${EDITOR} #layersPanel [data-layer="lights"]`);
-  await page.mouse.click(lamp.x, lamp.y);
+  await tapPlan(page, ...LAMP);
   expect((await sel())?.t).toBe("dev");
 });
 
