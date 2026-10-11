@@ -3584,7 +3584,7 @@ Wave 3, in order on `task/s29-hand-align`:
       steps, keys, Reset, stairs), `docs/card.md` (the ghost and floors below follow the turn), the guide, CHANGELOG
       under Unreleased, DECISIONS (one entry per assumption that held and each change from it).
       Files: a new `tests/editor/hand-align-exit.spec.ts`, `src/core/floor-stack.ts`, `src/core/index.ts`, the docs.
-- [ ] S29.13 Shots (Sonnet; the coordinator looks). `npm run shots` gains a turned ghost on the demo's first floor (the
+- [x] S29.13 Shots (Sonnet; the coordinator looks). `npm run shots` gains a turned ghost on the demo's first floor (the
       page sets a rotation, as the ghost shots set an offset; `demo/layout.json` is not touched) and the 3D fixture with
       floors below solid; the coordinator opens them in blueprint, light and ha-dark and the Align panel at 1280 and
       380, dark and light, and lists what each shows.
