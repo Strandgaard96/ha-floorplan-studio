@@ -113,7 +113,7 @@ export interface View3D {
   /** The walls mode: "full", "cut" (the walls facing the camera drop to `lowWall`) or "low" (all of them do). */
   setWalls(mode: string): void;
   /** A panel covers the left and the right part of the view (fractions of its width): frame the house in the free part. */
-  setInset(left: number, right: number): void;
+  setInset(left: number, right: number, top?: number): void;
   /** What is under this point of the page (client coordinates), or null: the same answer a tap there gets. */
   pick(clientX: number, clientY: number): Pick | null;
   /** The picked room (its index on the floor) gets a dashed ring along its outline, just above its floor; null removes it. A room with no floor of its own (a zone) gets none. */
@@ -247,7 +247,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     markers: InstancedMesh | null = null,
     ring: LineLoop | null = null;
   let ringRoom: number | null = null,
-    inset: [number, number] = [0, 0];
+    inset: [number, number, number] = [0, 0, 0];
   const raycaster = new Raycaster();
   let wallMeshes: Mesh[] = [],
     bodies: WallBody[] = [],
@@ -320,8 +320,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     camera.far = orbit.framing * FAR_PLANES;
     camera.lookAt(orbit.target[0], orbit.target[1], orbit.target[2]);
     const { w, h } = size(),
-      shift = orbit.shift;
-    if (shift !== 0) camera.setViewOffset(w, h, -shift * w, 0, w, h);
+      shift = orbit.shift,
+      shiftY = orbit.shiftY;
+    if (shift !== 0 || shiftY !== 0) camera.setViewOffset(w, h, -shift * w, -shiftY * h, w, h);
     else camera.clearViewOffset();
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld(true);
@@ -1422,7 +1423,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       else {
         const { w, h } = size();
         orbit = new Orbit(bounds, w / h, FOV, opts.turnDeg);
-        orbit.setInset(inset[0], inset[1]); // a new floor keeps the room the list takes
+        orbit.setInset(inset[0], inset[1], inset[2]); // a new floor keeps the room the list takes
         framed = true;
       }
       if (!orbit.finite) {
@@ -1455,11 +1456,11 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       walls = m;
       want(); // the next frame decides, and rebuilds if the set changed
     },
-    setInset(left, right) {
-      const key = `${Math.max(0, +left || 0).toFixed(3)},${Math.max(0, +right || 0).toFixed(3)}`;
+    setInset(left, right, top = 0) {
+      const key = `${Math.max(0, +left || 0).toFixed(3)},${Math.max(0, +right || 0).toFixed(3)},${Math.max(0, +top || 0).toFixed(3)}`;
       if (key === container.dataset.inset) return; // the card says it after every render: the same inset is no frame
-      inset = [left, right];
-      orbit.setInset(left, right);
+      inset = [left, right, top];
+      orbit.setInset(left, right, top);
       container.dataset.inset = key;
       want();
     },
@@ -1587,6 +1588,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     };
     testHook = {
       project,
+      /** The house's box in plan terms (the shown floor's bounds, what the first view frames): [x0, y0, z0, x1, y1, z1]. */
+      bounds: () => (plan ? [...plan.bounds.min, ...plan.bounds.max] : null),
       /** Where the middle of the top of a solid (a device `kind` "device" with its index, say) is on the screen, or null. */
       where(kind: string, index: number) {
         const sol = plan?.solids.find((x) => x.kind === kind && x.ref.index === index);

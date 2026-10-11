@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: the first 3D view frames the house box in the free area (card UI refactor item 11)
+
+The fit was a sphere round the house at 0.85 of its radius, so a long low house left a band at the top and the toolbar sat
+on the picture. `Orbit.fitDistance` now projects the box's eight corners from the first view (its azimuth, polar, the
+vertical field and the aspect) and bisects the distance until the box fills 85 % of the free part along the tighter
+axis. The free part is the view less the Active list (left, right) and the toolbar (new `top` inset, read by the card
+from `.fp-zoom`); `shift` and the new `shiftY` slide the picture to centre the box in it. Floors below are not in the
+box: the spec says the house, and a ghost floor under it may run past the margin. Zoom 1 now means the new fit, so a
+camera stored before this release restores a little nearer or further.
+
 ## 2026-10-11: a piece built from parts casts one contact shadow (fork, upstream 0.26.2 sync)
 
 Upstream's 3D contact shadows (S28.8) give each furniture solid a patch. This fork draws a table, sofa, bed and the
