@@ -213,6 +213,33 @@ test.describe("S29.5 the card's ghost reads the pose", () => {
     expect(await ghostPath(page)).toBe(want);
   });
 
+  // Review 29, finding 6: the Studio's Align ghost (the `ghostOpts` path) and the card's ghost, both opened on the same layout, are the same markup,
+  // not each only equal to a reference made in the test. A drift in one of the two readers of `floorPlace` fails here.
+  test("the Studio's Align ghost and the card's ghost are the same markup on the same turned layout", async ({ page, context }) => {
+    const l = turned();
+    await bootWith(page, l);
+    const cardMarkup = await ghosts(page).first().evaluate((g) => g.outerHTML);
+    expect(cardMarkup).toContain("<path");
+    const ed = await context.newPage();
+    await ed.setViewportSize({ width: 1280, height: 900 });
+    await ed.goto("/standalone.html");
+    await expect(ed.locator("floorplan-studio-editor svg polygon[data-r]").first()).toBeVisible();
+    await ed.locator("#fixPlan").uncheck();
+    await ed.evaluate((x) => { (document.querySelector("floorplan-studio-editor") as any).layout = x; }, l);
+    await ed.locator('.chip[data-f="first"]').click();
+    await ed.locator("#mFloors > summary").click();
+    await ed.locator("#alignFloor").click();
+    await expect(ed.locator("#alignPanel")).toBeVisible();
+    const studio = ed.locator("floorplan-studio-editor svg g.ghost");
+    await expect(studio).toHaveCount(1);
+    const studioMarkup = await studio.first().evaluate((g) => g.outerHTML);
+    // both are drawn by renderFloor from the same floorPlace; the card and the Studio may use different scales, so compare the geometry after rounding to whole cm
+    const norm = (m: string) => m.replace(/-?\d+\.\d+/g, (n) => String(Math.round(Number(n))));
+    expect(studioMarkup.replace(/\s+/g, " ")).toContain("<path");
+    expect(norm(studioMarkup)).toBe(norm(cardMarkup));
+    await ed.close();
+  });
+
   test("changing only the rotation of a floor redraws the ghost", async ({ page }) => {
     const l = structuredClone(demo);
     await bootWith(page, l);
