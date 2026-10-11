@@ -115,6 +115,39 @@ test.describe("3D view: taps on devices", () => {
     expect(await ring(page)).toBe(""); // a device never picks a room
   });
 
+  test("a missed tap on the floor, then the device within the double-tap window: its popup opens and no room is picked (Opus review 1)", async ({
+    page,
+  }) => {
+    await boot(page);
+    await settled(page);
+    const d = (await where(page, "device", 0))!;
+    // a floor point under 24 px from the light: the "missed it" tap
+    let miss: Where | null = null;
+    for (const [dx, dy] of [
+      [0, 22],
+      [0, -22],
+      [22, 0],
+      [-22, 0],
+      [16, 16],
+      [-16, 16],
+      [16, -16],
+      [-16, -16],
+    ]) {
+      const q = { x: d.x + dx, y: d.y + dy };
+      if (((await picks(page, q)) as { type?: string } | null)?.type === "room") {
+        miss = q;
+        break;
+      }
+    }
+    expect(miss, "a room point beside the light").not.toBeNull();
+    await page.mouse.click(miss!.x, miss!.y);
+    await page.mouse.click(d.x, d.y); // well inside 350 ms and 24 px
+    await expect(card(page).locator("css=.fp-pop")).toBeVisible();
+    await page.waitForTimeout(450); // past the window: the missed tap's room pick was cancelled
+    await expect(card(page).locator("css=.fp-pop")).toBeVisible();
+    expect(await ring(page)).toBe("");
+  });
+
   test("a hold on a light opens its more-info and does not toggle", async ({ page }) => {
     await boot(page);
     const p = (await where(page, "device", 0))!;

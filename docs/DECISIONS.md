@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: a 3D room tap is committed after the double-tap window (UI refactor, integration and Opus review)
+
+With the Overview folded, a room tap's pick opens the room panel, which can open over the point tapped, so a double tap
+could not undo it. The pick now waits `DOUBLE_TAP_MS` (350 ms): a second tap within the window and 24 px puts the pick back;
+a device tap cancels it and opens the device's popup (the "missed, try again" tap must never be swallowed); a floor or pick
+change in the window makes it stale. Room picks in 3D are 350 ms slower; device taps are not delayed.
+
 ## 2026-10-11: one type scale, spacing scale, two radii and two shadows (UI refactor, items 12 to 16)
 
 The card's chrome used eleven font sizes (10, 11, 12, 13, 14, 16 px and three `em` sizes), spacings of 2, 6, 10 and 14 px, radii of

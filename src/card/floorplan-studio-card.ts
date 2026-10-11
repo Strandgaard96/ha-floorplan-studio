@@ -2141,23 +2141,21 @@ export class FloorplanStudioCard extends LitElement {
         last = null;
         return;
       }
-      const now = performance.now();
-      // The second tap of a double tap undoes the first's pick before anything else is asked: the first tap's pick can open the
-      // room panel, which insets the view and slides the picture, so the second may now land on a marker (UI refactor: the
-      // Overview starts folded, so a pick is what opens it).
-      if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
-        drop();
-        this._closePopup();
-        this._restorePick(last.before);
-        last = null;
-        return;
-      }
       const p = this._pick3d({ clientX: s.x, clientY: s.y, timeStamp: -1 } as PointerEvent);
       if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked" || p.type === "piece")) {
+        drop(); // a device tap right after a missed tap (the "try again" tap) opens its popup and cancels the room pick
         last = null;
         return;
       } // its own thing, never a pick
       this._closePopup(); // a tap on anything else is an outside tap
+      const now = performance.now();
+      // The room pick is deferred (below), so a double tap's second tap only has to cancel it and put the pick back.
+      if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
+        drop();
+        this._restorePick(last.before);
+        last = null;
+        return;
+      }
       last = {
         t: now,
         x: e.clientX,
@@ -2167,8 +2165,13 @@ export class FloorplanStudioCard extends LitElement {
       if (!this._activeListVisible()) return;
       const room = p?.type === "room" ? p.index : null;
       drop();
+      // The index is a room of the floor tapped: if the floor or the pick changed in the window (a pill, a row), the tap is stale.
+      const floorAt = this._floorKey(),
+        pickAt = this._pickedRoom,
+        pickedFloorAt = this._pickedFloor;
       pending = setTimeout(() => {
         pending = null;
+        if (this._floorKey() !== floorAt || this._pickedRoom !== pickAt || this._pickedFloor !== pickedFloorAt) return;
         if (!this._activeListVisible()) return;
         this._pickRoom(room !== null && this._picked() !== room ? room : null);
       }, DOUBLE_TAP_MS);

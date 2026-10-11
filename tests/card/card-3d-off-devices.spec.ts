@@ -184,3 +184,39 @@ for (const [name, theme, vars, dark] of THEMES) {
     });
   });
 }
+
+// Opus review 3: the idle-disc rule must not paint over the unavailable mark (S23.5): its dashed --fp-warn ring, no disc.
+test("an unavailable device keeps its dashed warn ring in 3D, not the idle disc", async ({ page }) => {
+  await serve(page);
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.goto(`${ORIGIN}/harness.html`);
+  await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+  await page.evaluate(
+    ([config, states]) => {
+      const el = document.getElementById("card") as any;
+      el.setConfig(config);
+      el.hass = { states, themes: { darkMode: false }, callService: () => undefined };
+      return el.updateComplete;
+    },
+    [
+      { layout: structuredClone(demo), floor: "ground", view: "3d", theme: "light", active_list: false },
+      { ...STATES, "light.demo_living": st("unavailable") },
+    ] as const,
+  );
+  await drawn(page);
+  const r = await holder(page).evaluate((root) => {
+    const halo = root.querySelector<SVGElement>(".fp3-ic g.dev.unavailable .halo");
+    if (!halo) return null;
+    const probe = document.createElement("span");
+    root.appendChild(probe);
+    probe.style.color = "var(--fp-warn)";
+    const warn = getComputedStyle(probe).color;
+    probe.remove();
+    const h = getComputedStyle(halo);
+    return { stroke: h.stroke, warn, dash: h.strokeDasharray, fillOpacity: h.fillOpacity };
+  });
+  expect(r, "an unavailable icon is drawn").not.toBeNull();
+  expect(r!.stroke).toBe(r!.warn);
+  expect(r!.dash).not.toBe("none");
+  expect(r!.fillOpacity).toBe("0");
+});

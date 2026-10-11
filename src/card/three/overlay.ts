@@ -65,8 +65,8 @@ const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:no
 .fp3-dev,.fp3-rm{position:absolute;left:0;top:0;will-change:transform}
 .fp3-dev{width:0;height:0}
 .fp3-ic{position:absolute;left:-${ICON_PX / 2}px;top:-${ICON_PX / 2}px;width:${ICON_PX}px;height:${ICON_PX}px;overflow:visible}
-.fp3-ic g.dev:not(.on):not(.danger) .halo{fill:var(--fp-disc);fill-opacity:1;stroke:var(--fp-idle);stroke-width:1}
-.fp3-ic g.dev:not(.on):not(.danger) path{fill-opacity:1}
+.fp3-ic g.dev:not(.on):not(.danger):not(.unavailable) .halo{fill:var(--fp-disc);fill-opacity:1;stroke:var(--fp-idle);stroke-width:1}
+.fp3-ic g.dev:not(.on):not(.danger):not(.unavailable) path{fill-opacity:1}
 .fp3-dv,.fp3-dn{position:absolute;left:0;transform:translateX(-50%);white-space:nowrap;font:12px/1.2 var(--fp-font,system-ui,sans-serif)}
 .fp3-dv{top:${ICON_PX / 2 + 1}px}
 .fp3-dn{top:${ICON_PX / 2 + 1 + CHIP_STEP}px}
