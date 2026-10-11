@@ -109,25 +109,30 @@ in `prompts/`, then fixed in the editor.
   value that is not a finite number in range, `migrate` drops it. Schema stays v2.
 
 **Floors (S27).** The floor below is the key before this one in `floors` order, the order `floorElevation` stacks;
-the lowest floor has none. `floorShift(layout, from, to)` is what to add to a point of `from` to draw it on `to`
-(`from.offset - to.offset`).
+the lowest floor has none. `floorPlace(layout, from, to)` (0.27.0, replacing `floorShift`) returns `{ turn, shift }`: what to
+do to a stored point `p` of `from` to draw it in the stored frame of `to`, `p' = R(turn) · p + shift`, with
+`turn = rotation(from) - rotation(to)` and `shift = R(-rotation(to)) · (offset(from) - offset(to))`. With no rotations
+it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown key, read as identity.
 
 - **Align.** `alignFloor(upper, lower)` finds the translation that lays `upper` on `lower`, in stored coordinates, and
   a score: the share of the upper floor's structure length (outline edges and external walls, else room edges),
   sampled every 10 cm, within 5 cm of the lower floor's after the move. Under 50 % is "weak". The Studio's Align tab
   (Floors, Align to floor below) shows it and Apply writes `lower.offset + t`, rounded to whole cm, as one undo step;
   Lock plan refuses it.
-- **Hand align (planned, 0.27.0).** A floor gets `rotation` beside `offset` (degrees, clockwise, about its stored
-  origin, before the offset); one helper, `floorPlace`, turns and shifts a floor into another's frame for the ghost and
-  the 3D floors below, and a floor shown alone stays in its own frame. In the Studio's Align panel, buttons and keys move the
-  floor (1, 5 or 50 cm) and turn it about its centre (0.1, 0.5, 1 or 3 degrees), one undo step per press; a stair
-  report and Align stairs help. Offsets are stored to 0.1 cm, rotations to 0.01 degree. Design and acceptance criteria: `docs/specs/hand-align.md`. Not built yet.
-- **Ghost floor.** The floor below drawn as faint lines (`--fp-ghost`) under the shown one, at its relative offset: no
+- **Hand align (0.27.0).** A floor has `rotation` beside `offset` (degrees, clockwise, about its stored origin, before
+  the offset). `floorPlace` turns and shifts a floor into another's frame; the ghost and the 3D floors below use it, and
+  a floor shown alone stays in its own frame. The Studio's Align panel moves the floor with four buttons and the arrow
+  keys (1, 5 or 50 cm) and turns it about its centre with two buttons and `,` `.` (0.1, 0.5, 1 or 3 degrees), one undo
+  step per press; boxes take a typed offset and rotation, Reset zeroes both, a stair report lists how far each stair lies
+  from the one below, and Align stairs lays the floor's first stair on the first stair below. Offsets are stored to
+  0.1 cm, rotations to 0.01 degree. Align to floor below keeps the floor's turn and searches translation only (the angle
+  search is planned for 0.28.0). Design and acceptance criteria: `docs/specs/hand-align.md`.
+- **Ghost floor.** The floor below drawn as faint lines (`--fp-ghost`) under the shown one, at its place (the floors' offsets and rotations, `floorPlace`): no
   fills, devices, text or hit targets, drawn by `renderFloor` so the editor and the card cannot differ. It lies under the night veil (S28), so
   an unlit room darkens it with the floor and a lit room keeps it as by day. Studio: View,
   Floor below (off, kept in the browser). Card: `ghost_floor: true` and the Floor below button.
 - **Floors below in 3D.** Card `floors_below: off | ghost | solid` and a Floors below select beside Walls. Each lower
-  floor at its own elevation and offset; never picked, not framed by the camera, no live state.
+  floor at its own elevation, turn and offset; never picked, not framed by the camera, no live state.
 - **Floor switch.** In 2D and 2.5D the new floor's plan fades in from 16 px in the direction of travel over 220 ms
   (`data-switch`, `fp-floor-in-up`, `fp-floor-in-down`); 3D cuts. `prefers-reduced-motion: reduce`: no animation.
 - `room.kind`: room, garden, pavement, fill, terrace, structure, zone, water.

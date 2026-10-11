@@ -30,7 +30,7 @@ export type { TreeShape } from "./tree";
 export { HEAT_FROM, HEAT_TO, PLUG_ACTIVE_WATTS, findPowerSensor, heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
 export type { PowerCandidate } from "./power";
 export * from "./stairs";
-export { composePlace, floorBelow, floorPivot, floorPlace, floorPose, floorShift, floorsBelow, invertPlace, normaliseTurn, placePoint, poseFromPlace } from "./floor-stack";
+export { composePlace, floorBelow, floorPivot, floorPlace, floorPose, floorsBelow, invertPlace, normaliseTurn, placePoint, poseFromPlace } from "./floor-stack";
 export type { Place, Pose } from "./floor-stack";
 export { stairAxis, stairPlace, stairReport } from "./hand-align";
 export type { StairAxis, StairPlaceResult, StairRow } from "./hand-align";

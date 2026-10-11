@@ -27,12 +27,6 @@ function offsetOf(layout: Layout, key: string): Pt {
   return Array.isArray(o) && o.length === 2 && o.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT) ? [o[0], o[1]] : [0, 0];
 }
 
-/** Centimetres to add to a point of floor `from` to draw it on floor `to`: `from.offset - to.offset`. */
-export function floorShift(layout: Layout, from: string, to: string): Pt {
-  const a = offsetOf(layout, from), b = offsetOf(layout, to);
-  return [a[0] - b[0], a[1] - b[1]];
-}
-
 // ---------------------------------------------------------------------------------------------------------------------
 // S29.2: pose helpers. Design note (the full text is in docs/DECISIONS.md, 2026-10-11 "S29.2").
 //
@@ -77,7 +71,7 @@ export function placePoint(place: Place, p: Pt): Pt {
   return [r[0] + place.shift[0], r[1] + place.shift[1]];
 }
 
-/** What to do to a stored point of `from` to draw it in the stored frame of `to`. With both rotations 0 it is `{ turn: 0, shift: floorShift(from, to) }` exactly. */
+/** What to do to a stored point of `from` to draw it in the stored frame of `to`. With both rotations 0 it is `{ turn: 0, shift: from.offset - to.offset }` exactly. */
 export function floorPlace(layout: Layout, from: string, to: string): Place {
   const a = floorPose(layout, from), b = floorPose(layout, to);
   return { turn: a.rot - b.rot, shift: turned([a.off[0] - b.off[0], a.off[1] - b.off[1]], -b.rot) };

@@ -127,7 +127,7 @@ test.describe("3D view: floors below (S27.7)", () => {
 });
 
 // S27.14: the card gives the view its floors below: `floors_below` in YAML, a Floors below select beside Walls, kept per viewer. The
-// card calls `setBelow` with `floorsBelow`, the `floorElevation` differences and `floorShift`. What is drawn is read back through the
+// card calls `setBelow` with `floorsBelow`, the `floorElevation` differences and `floorPlace`. What is drawn is read back through the
 // view's test hook, as above, so the card's numbers are tested at the pixel end, not by spying on the call.
 const EDITOR_URL = "file://" + process.cwd() + "/tests/card/config-editor-harness.html";
 const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
@@ -216,7 +216,7 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
     await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0);
   });
 
-  test("the floor's offset moves the floor below: the card passes floorShift", async ({ page }) => {
+  test("the floor's offset moves the floor below: the card passes the shift (floorPlace)", async ({ page }) => {
     const lows = async (layout: unknown) => {
       await bootCard(page, { floors_below: "solid" }, layout);
       await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);

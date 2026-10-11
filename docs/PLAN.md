@@ -3576,7 +3576,7 @@ Lane studio (`src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/
       Files: `src/editor/inspector.ts`, `src/editor/editor-app.ts`, a new `tests/editor/align-stairs.spec.ts`.
 
 Wave 3, in order on `task/s29-hand-align`:
-- [ ] S29.12 Exit test and docs (Sonnet; the docs part may go to Haiku). `hand-align-exit.spec.ts`: load the fixture in
+- [x] S29.12 Exit test and docs (Sonnet; the docs part may go to Haiku). `hand-align-exit.spec.ts`: load the fixture in
       the Studio, Align stairs on the ground and then on the first floor with real clicks, Save; the card with
       `floors_below: solid` on the first floor: each floor's stair footprint corners within 2 cm of the one below's in
       the hook's bounds; the card's ghost corner pixel test as S29.3. `floorShift` removed from core, and a unit test

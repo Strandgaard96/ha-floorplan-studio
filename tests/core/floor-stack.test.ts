@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { floorBelow, floorsBelow, floorShift, floorPose, floorPlace, floorPivot, placePoint, invertPlace, composePlace, poseFromPlace, normaliseTurn, migrate, validate } from "../../src/core";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { floorBelow, floorsBelow, floorPose, floorPlace, floorPivot, placePoint, invertPlace, composePlace, poseFromPlace, normaliseTurn, migrate, validate } from "../../src/core";
 import type { Layout, Pt } from "../../src/core";
 import { stairBlocks } from "../../src/core/solids";
 import houseJson from "../fixtures/hand-align-house.json";
@@ -23,31 +25,31 @@ describe("floor stack helpers (S27.3)", () => {
     expect(floorsBelow(l, "ground")).toEqual([]);
     expect(floorsBelow(l, "nope")).toEqual([]);
   });
-  it("floorShift is from.offset - to.offset, asymmetric", () => {
+  it("the shift is from.offset - to.offset, asymmetric", () => {
     const l = house();
-    expect(floorShift(l, "ground", "first")).toEqual([130, 33]);
-    expect(floorShift(l, "first", "ground")).toEqual([-130, -33]);
-    expect(floorShift(l, "attic", "first")).toEqual([30, -7]);
-    expect(floorShift(l, "first", "first")).toEqual([0, 0]);
+    expect(floorPlace(l, "ground", "first").shift).toEqual([130, 33]);
+    expect(floorPlace(l, "first", "ground").shift).toEqual([-130, -33]);
+    expect(floorPlace(l, "attic", "first").shift).toEqual([30, -7]);
+    expect(floorPlace(l, "first", "first").shift).toEqual([0, 0]);
   });
   it("an unknown key reads as offset [0, 0]", () => {
     const l = house();
-    expect(floorShift(l, "nope", "first")).toEqual([30, -7]);
-    expect(floorShift(l, "ground", "nope")).toEqual([100, 40]);
+    expect(floorPlace(l, "nope", "first").shift).toEqual([30, -7]);
+    expect(floorPlace(l, "ground", "nope").shift).toEqual([100, 40]);
   });
   it("junk offsets read as [0, 0] and never throw", () => {
     const l = house();
     for (const bad of ["1,2", [1], [1, 2, 3], [NaN, 0], [0, Infinity], [2e7, 0], null, {}, 5, ["1", "2"]]) {
       l.floors.first.offset = bad;
-      expect(floorShift(l, "ground", "first")).toEqual([100, 40]);
-      expect(floorShift(l, "first", "attic")).toEqual([0, 0]);
+      expect(floorPlace(l, "ground", "first").shift).toEqual([100, 40]);
+      expect(floorPlace(l, "first", "attic").shift).toEqual([0, 0]);
     }
   });
   it("never throws on a broken layout", () => {
     for (const l of [null, undefined, 5, {}, { floors: null }, { floors: [] }, { floors: { a: null, b: 5 } }] as any[]) {
       expect(floorBelow(l, "a")).toBeNull();
       expect(floorsBelow(l, "b")).toEqual(l?.floors && typeof l.floors === "object" && !Array.isArray(l.floors) ? ["a"] : []);
-      expect(floorShift(l, "a", "b")).toEqual([0, 0]);
+      expect(floorPlace(l, "a", "b").shift).toEqual([0, 0]);
     }
   });
   it("a floor whose key is __proto__ is an ordinary floor", () => {
@@ -58,12 +60,12 @@ describe("floor stack helpers (S27.3)", () => {
     expect(floorBelow(l, "up")).toBe("__proto__");
     expect(floorsBelow(l, "up")).toEqual(["__proto__"]);
     expect(floorBelow(l, "__proto__")).toBeNull();
-    expect(floorShift(l, "__proto__", "up")).toEqual([4, 5]);
-    expect(floorShift(l, "up", "__proto__")).toEqual([-4, -5]);
+    expect(floorPlace(l, "__proto__", "up").shift).toEqual([4, 5]);
+    expect(floorPlace(l, "up", "__proto__").shift).toEqual([-4, -5]);
   });
   it("a plain object with an inherited toString key is not a floor", () => {
     const l = house();
-    expect(floorShift(l, "toString", "first")).toEqual([30, -7]);
+    expect(floorPlace(l, "toString", "first").shift).toEqual([30, -7]);
     expect(floorBelow(l, "constructor")).toBeNull();
   });
 });
@@ -148,11 +150,16 @@ describe("floorPlace (S29.2)", () => {
     expect(p.turn).toBe(0);
     close(p.shift, [0, 0]);
   });
-  it("both rotations 0 gives floorShift exactly, with turn 0 (the S27.3 cases)", () => {
+  it("both rotations 0 gives turn 0 and the offset difference exactly (the S27.3 cases)", () => {
     const l = house();
-    for (const [a, b] of [["ground", "first"], ["first", "ground"], ["attic", "first"], ["first", "first"], ["nope", "first"], ["ground", "nope"]]) {
-      expect(floorPlace(l, a, b)).toEqual({ turn: 0, shift: floorShift(l, a, b) });
-    }
+    const want: [string, string, Pt][] = [["ground", "first", [130, 33]], ["first", "ground", [-130, -33]], ["attic", "first", [30, -7]], ["first", "first", [0, 0]], ["nope", "first", [30, -7]], ["ground", "nope", [100, 40]]];
+    for (const [a, b, shift] of want) expect(floorPlace(l, a, b), `${a} to ${b}`).toEqual({ turn: 0, shift });
+  });
+  it("floorShift is gone: nothing in src/ names it", () => {
+    const hits: string[] = [];
+    const walk = (dir: string) => { for (const n of readdirSync(dir)) { const p = join(dir, n); if (statSync(p).isDirectory()) walk(p); else if (/\.(ts|js|mjs)$/.test(n) && readFileSync(p, "utf8").includes("floorShift")) hits.push(p); } };
+    walk("src");
+    expect(hits).toEqual([]);
   });
   it("junk on either floor reads as identity and never throws", () => {
     const l: any = { floors: { a: pose("3", [10, 0]), b: pose(NaN, [0, 4]), c: pose(5, [1, 1]) } };

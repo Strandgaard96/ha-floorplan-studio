@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-11: S29.12, the exit test, `floorShift` removed, the docs
+
+`tests/editor/hand-align-exit.spec.ts`, `src/core/floor-stack.ts`, `src/core/index.ts`, SPEC, editor.md, card.md, the guide, CHANGELOG.
+- **The exit test** drives the Studio with real clicks: Align stairs on the ground (against the basement), then on the first floor (against the ground), File, Save, and the saved file must validate. The card then reads that file. In 3D with `floors_below: solid` each footprint corner of the stair above has a stair block of the floor below within 2 cm: the basement under the ground; on the first floor, blocks of both floors under it on every corner; and the ground alone (basement taken out) on the first. The control: the unaligned fixture misses at some corner. In 2D with the ghost on, two walls of the ground's wing are checked on the screen (ghost-coloured on the wall, nothing 6 px off it).
+- **The expected corners are the stairs as drawn, not the stored points.** The fixture's stairs carry a `rot` (357.5, 356 degrees), so a stair's corners are its points turned about their centre. The first draft of the test compared against the raw points and missed by 7.5 cm at every corner; the saved poses were right (rotation 1.5, offset [24.2, 67.4], which the truth gives to 0.1).
+- **The ghost is checked on the wing's long walls, not on its corners.** The card fits the first floor's plan, so the wing's corners at y 900 lie outside the card and are cut off; the first floor paints over every wall that lies under it. The two long walls of the wing (x 0 and x 600 on the ground) are outside the first floor's wall and inside the card for part of their length: a point of each is picked there. This supersedes S29.3's "corner" wording for the exit test only; S29.3 keeps its corners by shifting the floor.
+- **`floorShift` is removed** from core and the exports. `floorPlace` with both rotations 0 gives turn 0 and the offset difference, which the old tests now state as numbers. A unit test reads every `.ts`, `.js` and `.mjs` file under `src/` and fails on the word.
+- **Docs.** SPEC (`floorPlace`, the hand align paragraph no longer "planned"), editor.md (the Align panel, top to bottom), card.md (ghost and floors below follow the turn), the Line the floors up step of the guide, CHANGELOG.
+- **Assumptions that held:** Align stairs on the ground first, then the first floor, because the first floor's place reads the ground's pose; buttons not dragging; one undo step per press. Nothing in S29.1 to S29.11 had to be changed by this task.
+
 ## 2026-10-11: S29.11, the stair report and Align stairs in the panel
 
 `src/editor/inspector.ts`, `src/editor/editor-app.ts` (`alignStairInfo`, `alignStairs`).
