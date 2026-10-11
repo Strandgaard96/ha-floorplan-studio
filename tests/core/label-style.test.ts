@@ -92,7 +92,7 @@ describe("S23.1: one label style", () => {
       }),
       { scale: 1 },
     );
-    expect(attr(text(html, "Lawn"), "style")).toBe("--fp-under:var(--fp-garden)");
+    expect(attr(text(html, "Lawn"), "style")).toBe("--fp-under:var(--fp-garden-fill)");
     expect(attr(text(html, "Den"), "style")).toBe("--fp-under:var(--fp-room-empty)");
     expect(attr(text(html, "Nook"), "style")).toBe("--fp-under:var(--fp-room-empty)"); // a zone has no fill: the room under it
   });

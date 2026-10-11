@@ -16,6 +16,12 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-11: Card UI refactor — system (branch `task/ui-system`)
+
+- Outdoor kinds (garden, terrace, pavement, water) are drawn quiet: `--fp-<kind>-fill` mixes the kind colour into the
+  background, closer to it than an unpainted room in every theme. The plan, the room-name surface (`--fp-under`) and the 3D
+  ground read the fill tokens; trees keep the raw kind colour. Solarized's outdoor hexes were darkened to fit.
+
 ## 2026-10-11: Card UI refactor — integration fixes (branch `task/ui-refactor`)
 
 - 3D: a change of the view's aspect keeps the camera's zoom against the new framing (`Orbit.setAspect`). The card's height

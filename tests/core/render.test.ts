@@ -553,7 +553,9 @@ describe("zones and water", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.room-zone:not\(\[fill\]\)\{[^}]*fill:none\}/);
     expect(html).toMatch(new RegExp(`<polygon data-r="${wi}" class="[^"]*\\bwater\\b[^"]*"`));
     expect(FLOORPLAN_CSS).toMatch(/--fp-water:#[0-9a-f]{3,8}/i);
-    expect(FLOORPLAN_CSS).toMatch(/\.room-water:not\(\[fill\]\)\{[^}]*fill:var\(--fp-water\)/);
+    expect(FLOORPLAN_CSS).toMatch(
+      /\.room-water:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-water-fill\)[^}]*fill:var\(--fp-room-fill\)/,
+    );
     // Too wide at 20 (scale 0.5) for a 120 zone: shrunk until it fits inside it, padding and all (S23.3), never under 12 (6k).
     const size = Number(html.match(/<text class="lbl zone"[^>]*font-size="([\d.]+)"[^>]*>Reading corner<\/text>/)![1]);
     expect(size).toBeLessThan(14.29);
@@ -1449,9 +1451,13 @@ describe("garden and pavement (S1.14)", () => {
     const html = renderFloor(ground, base);
     expect(html).toContain('class="room room-garden"');
     expect(html).toContain('class="room room-pavement"');
-    expect(FLOORPLAN_CSS).toMatch(/\.room-garden:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-garden\)[^}]*\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.room-terrace:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-terrace\)[^}]*\}/);
-    expect(FLOORPLAN_CSS).toMatch(/\.room-pavement:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-pavement\)[^}]*\}/);
+    expect(FLOORPLAN_CSS).toMatch(/\.room-garden:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-garden-fill\)[^}]*\}/);
+    expect(FLOORPLAN_CSS).toMatch(
+      /\.room-terrace:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-terrace-fill\)[^}]*\}/,
+    );
+    expect(FLOORPLAN_CSS).toMatch(
+      /\.room-pavement:not\(\[fill\]\)\{[^}]*--fp-room-fill:var\(--fp-pavement-fill\)[^}]*\}/,
+    );
     expect(FLOORPLAN_CSS).not.toContain("--fp-outdoor");
     for (const [v, c] of [
       ["garden", "#9db98a"],

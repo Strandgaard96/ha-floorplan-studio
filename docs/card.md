@@ -549,6 +549,12 @@ mode, which the card ignores.
   `light` or `midnight` (by `hass.themes.darkMode`) for anything your
   dashboard's theme doesn't define.
 
+Outdoor areas (garden, terrace, pavement, water) are drawn quieter than an
+indoor room in every theme: each fills from `--fp-garden-fill`,
+`--fp-terrace-fill`, `--fp-pavement-fill` or `--fp-water-fill`, its kind colour
+mixed into the background, so a large lawn does not outweigh the house. A room
+with a colour or texture of its own is never touched.
+
 ## What a device looks like, on and off
 
 Every device sits on a white disc, above rooms and their names. An idle
