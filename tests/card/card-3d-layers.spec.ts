@@ -20,6 +20,7 @@ interface Live {
   bodies: { index: number; type: string; visible: boolean }[];
   pools: { visible: boolean }[];
   lifted: number[];
+  ballsCulled: boolean | null;
 }
 const live = (page: Page) =>
   page.evaluate(() => (window as unknown as { __fp3d: { live(): unknown } }).__fp3d.live()) as Promise<Live>;
@@ -193,4 +194,56 @@ test("Review focus 1: a tap where a hidden light hangs does not reach the light"
   await page.mouse.click(p!.x, p!.y);
   await page.waitForTimeout(500);
   await expect(card(page).locator('css=.fp-pop[aria-label="Living light"]')).toHaveCount(0);
+});
+
+test("Review: the ball mesh is never frustum-culled, so a ball shown again after a hidden first frame draws", async ({
+  page,
+}) => {
+  // three computes an InstancedMesh's bounding sphere once; a ball scaled to nothing on the first frame (a family hidden from
+  // memory, or a floor switch) left a stale sphere that culled the balls once shown again. The mesh opts out, as pools and
+  // crowns do. Read from the test hook: the pixel case needs a camera far from the origin and a hidden first frame.
+  await boot(page);
+  await hide(page, "lights");
+  await expect.poll(async () => (await live(page)).ballsCulled).toBe(false);
+});
+
+test("Review: in 3D, Layers neither counts nor changes Furniture (L4: its stored state is kept)", async ({ page }) => {
+  const stored = () =>
+    page.evaluate(() =>
+      Object.entries(localStorage)
+        .filter(([k]) => k.startsWith("fp-view:"))
+        .map(([, v]) => (JSON.parse(v).layers ?? []) as string[]),
+    );
+  await boot(page, "2d");
+  await hide(page, "furniture");
+  await viewControl(page).selectOption("3d");
+  await drawn(page);
+  await expect(toggle(page)).toHaveText("Layers"); // furniture is drawn in 3D, so nothing is hidden here
+  // Alt-click Lights: every other device family goes, furniture keeps its own state (hidden here, from 2D)
+  const p = await card(page).evaluate((el) => {
+    const t = el.shadowRoot!.querySelector('.fp-ov-layers button.fp-layer[data-layer="lights"]')!;
+    const r = t.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.keyboard.down("Alt");
+  await page.mouse.click(p.x, p.y);
+  await page.keyboard.up("Alt");
+  await expect.poll(async () => (await stored())[0]?.includes("furniture")).toBe(true);
+  // and with furniture shown, a solo in 3D does not hide it
+  await clickOn(page, '.fp-ov-layers button.fp-layer[data-layer="lights"]'); // back to all shown (but furniture)
+  await viewControl(page).selectOption("2d");
+  await clickOn(page, '.fp-ov-layers button.fp-layer[data-layer="furniture"]'); // show furniture in 2D
+  await expect.poll(async () => (await stored())[0]?.includes("furniture")).toBe(false);
+  await viewControl(page).selectOption("3d");
+  await drawn(page);
+  const q = await card(page).evaluate((el) => {
+    const t = el.shadowRoot!.querySelector('.fp-ov-layers button.fp-layer[data-layer="lights"]')!;
+    const r = t.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.keyboard.down("Alt");
+  await page.mouse.click(q.x, q.y);
+  await page.keyboard.up("Alt");
+  await expect.poll(async () => (await stored())[0]?.length ?? 0).toBeGreaterThan(0);
+  expect((await stored())[0]).not.toContain("furniture");
 });

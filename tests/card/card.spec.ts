@@ -954,10 +954,10 @@ test.describe("S7.4 zoom and pan", () => {
             return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
           }),
         );
-        // The three View segments and View options; the menu's Labels, Device names and Floor below toggles; and the stack's zoom in,
-        // out, Fit and the rotate pair (Reset view is hidden at the start, UI refactor 4): all twelve must read, so each is held to the
-        // same contrast.
-        expect(got.length, `${theme} dark=${dark}`).toBe(12);
+        // The three View segments and View options; the menu's Labels, Device names, Cover art, Temperature colours (S29) and Floor
+        // below toggles; and the stack's zoom in, out, Fit and the rotate pair (Reset view is hidden at the start, UI refactor 4): all
+        // fourteen must read, so each is held to the same contrast.
+        expect(got.length, `${theme} dark=${dark}`).toBe(14);
         for (const g of got) {
           expect(g.disp).not.toBe("none");
           expect(ratio(rgbOf(g.bg), rgbOf(g.fg)), `${theme} dark=${dark}`).toBeGreaterThanOrEqual(3);

@@ -874,6 +874,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         pts.length,
       ),
       at = new Matrix4();
+    // S29 review: a ball Layers hides is scaled to nothing, and three computes an instanced mesh's bounding sphere once. Hidden on
+    // the first frame, that sphere went stale and culled the balls once shown again. One mesh: never culled, as pools and crowns.
+    m.frustumCulled = false;
     pts.forEach((sol, i) => {
       if (sol.shape.type !== "point") return;
       at.makeTranslation(sol.shape.at[0], sol.shape.z, sol.shape.at[1]);
@@ -1836,6 +1839,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           })),
           bodies: devBodies.map(body),
           pieces: pieceBodies.map((b) => ({ index: b.index, on: b.on, colour: hexOf(b.mat.color) })),
+          ballsCulled: markers ? markers.frustumCulled : null,
           balls: ballIdx.map((di, k) => {
             markers?.getColorAt(k, c);
             return { index: di, colour: hexOf(c), shown: ballShown[k] ?? true };

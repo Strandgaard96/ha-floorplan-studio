@@ -142,15 +142,20 @@ describe("a temp icon carries its own heat (H5)", () => {
     expect(bad).not.toContain("halo heat");
   });
   it("the plug ramp is untouched: a plug keeps --fp-heat, gets no --fp-temp-t, and no theme redefines --fp-heat-*", () => {
+    // S29 review: the plug draws through a linked power sensor, so --fp-heat is really written; with temperature colours on, the
+    // plug's group carries its own ramp value and no --fp-temp-t.
     const plug = ground.devices.findIndex((d) => d.type === "plug");
+    const entity = ground.devices[plug]!.entity;
     const svg = renderFloor(ground, {
       scale: 1,
-      state: { [ground.devices[plug]!.entity]: st("on") } as never,
+      state: { [entity]: st("on"), "sensor.s29_plug_power": st("500", "W") } as never,
       tempColors: [16, 26],
       plugHeat: [0, 2000],
-      powerLinks: {},
+      powerLinks: { [entity]: "sensor.s29_plug_power" },
     });
-    expect(svg.match(new RegExp(`<g data-x="${plug}"[^>]*>`))![0]).not.toContain("--fp-temp-t");
+    const g = svg.match(new RegExp(`<g data-x="${plug}"[^>]*>`))![0];
+    expect(g).toContain("--fp-heat:0.25");
+    expect(g).not.toContain("--fp-temp-t");
     expect(FLOORPLAN_CSS.match(/--fp-heat-mid:/g)).toHaveLength(1);
     expect(FLOORPLAN_CSS).toContain("--fp-heat-cool:#2f86c9;--fp-heat-mid:#f0a020;--fp-heat-hot:#d63a2a");
   });

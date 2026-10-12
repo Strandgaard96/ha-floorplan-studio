@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: Sprint 29 review fixes: balls never culled, furniture untouched by 3D Layers
+
+Opus review of Sprint 29. (1) A ball Layers hides is scaled to nothing, and three computes an instanced mesh's bounding sphere
+once: hidden on the first frame (a family hidden from memory, a floor switch), the stale sphere culled the balls once shown
+again. The ball mesh is never frustum-culled, as pools and crowns are. (2) In live 3D the Layers button counted a hidden
+furniture family that 3D still draws ("Layers · 1 hidden" with nothing hidden), and an Alt-click solo there hid furniture,
+which then showed in 2D. In 3D furniture is not counted, and a click or a solo keeps its stored state. (3) The test that
+guards the plug ramp now gives the plug a power sensor, so `--fp-heat` is really written and checked.
+
 ## 2026-10-12: one capturing error listener for cover art (Sprint 29)
 
 The spec put a capturing `error` listener on the plan `<svg>` and another on the 3D overlay root. Both live in the card's

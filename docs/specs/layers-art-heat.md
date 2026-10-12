@@ -1,7 +1,7 @@
 # Layers in 3D, cover art, temperature colours
 
-Status: spec, 2026-10-12 (Sprint 29), revised after review (Fable), heatmap
-simplified to temperature pills (Diego). Not built.
+Status: built, 2026-10-12 (Sprint 29, 0.27.0). Revised after review (Fable), heatmap simplified to
+temperature pills (Diego). What the build decided beyond this text is in `docs/DECISIONS.md` (2026-10-12 entries).
 
 ## Goal
 

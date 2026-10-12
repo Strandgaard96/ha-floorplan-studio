@@ -3973,7 +3973,9 @@ export class FloorplanStudioCard extends LitElement {
    *  with All floors in a 260 px sheet. Folded by default: the sheet covers no more of the plan. Also in live 3D (S29), where Furniture stays drawn. */
   private _layersToggle() {
     if (!this._floor()) return nothing;
-    const n = this._hiddenLayers.length;
+    // S29 review: in live 3D furniture is drawn whatever Layers says, so it is not counted there.
+    const in3d = this._shows3d();
+    const n = this._hiddenLayers.filter((id) => !(in3d && id === "furniture")).length;
     return html`<button type="button" class="fp-layers-toggle" aria-expanded=${this._layersOpen ? "true" : "false"} title=${layersSummary(this._hiddenLayers) || "Hide or show families on the plan"} @click=${() => {
       this._layersOpen = !this._layersOpen;
       this.requestUpdate();
@@ -3992,10 +3994,13 @@ export class FloorplanStudioCard extends LitElement {
       hidden = this._hiddenLayers,
       k = this._keptHere();
     const word = (id: LayerId) => (LAYERS.find((l) => l.id === id)?.label ?? id).toLowerCase();
+    // S29 review (L4): in 3D a click or a solo never changes furniture's stored state; it keeps what 2D set.
+    const keepFurniture = (next: LayerId[]): LayerId[] =>
+      in3d ? [...next.filter((id) => id !== "furniture"), ...hidden.filter((id) => id === "furniture")] : next;
     const chips = LAYERS.filter((l) => n[l.id] > 0).map((l) => {
       const shown = !hidden.includes(l.id),
         off = in3d && l.id === "furniture";
-      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} ?disabled=${off} title=${off ? "Furniture hides in 2D only" : `${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id))}>${l.label}</button>`;
+      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} ?disabled=${off} title=${off ? "Furniture hides in 2D only" : `${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(keepFurniture(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id)))}>${l.label}</button>`;
     });
     const note = k && !(in3d && k.fam === "furniture");
     return html`${this._layersOpen ? html`<div class="fp-layer-chips">${chips}</div>` : nothing}${note ? html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>` : nothing}`;
