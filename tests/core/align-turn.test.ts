@@ -195,3 +195,54 @@ describe("refinePlace (S30.3)", () => {
     }
   });
 });
+
+// ---- S30.5: the exact line index -------------------------------------------------------------------------------------
+import { buildLineIndex, linesNear, REFINE_REACH } from "../../src/core/align";
+
+describe("line index (S30.5)", () => {
+  const dist = (x: number, y: number, s: number[]) => {
+    const dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy, u = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - s[0]) * dx + (y - s[1]) * dy) / l2));
+    return Math.hypot(s[0] + dx * u - x, s[1] + dy * u - y);
+  };
+  const randomLines = (seed: number, n: number, extent: number) => {
+    const r = seeded(seed), out: [number, number, number, number][] = [];
+    for (let i = 0; i < n; i++) { const x = r() * extent, y = r() * extent; out.push([x, y, x + (r() - 0.5) * 300, y + (r() - 0.5) * 300]); }
+    return out;
+  };
+
+  it("lists, for every point, every line within the reach, in the lines' own order (a superset of the scan's answer)", () => {
+    for (const [seed, extent] of [[1, 3000], [2, 900], [3, 20000]]) {
+      const lines = randomLines(seed, 400, extent), idx = buildLineIndex(lines), r = seeded(seed + 100);
+      for (let q = 0; q < 1500; q++) {
+        const x = (r() * 1.2 - 0.1) * extent, y = (r() * 1.2 - 0.1) * extent, got = linesNear(idx, x, y);
+        expect(got, "a bucket grid is built for finite lines").not.toBeNull();
+        const set = new Set(got!);
+        lines.forEach((s, i) => { if (dist(x, y, s) < REFINE_REACH) expect(set.has(i), `line ${i} at ${dist(x, y, s).toFixed(2)} cm from ${x.toFixed(1)}, ${y.toFixed(1)}`).toBe(true); });
+        expect([...got!].sort((p, c) => p - c)).toEqual([...got!]);
+      }
+    }
+  });
+
+  it("looks at a few lines, not all of them: on a floor of 600 lines the mean list is under 5 %", () => {
+    const lines = randomLines(7, 600, 30000), idx = buildLineIndex(lines), r = seeded(8);
+    let total = 0;
+    for (let q = 0; q < 2000; q++) total += linesNear(idx, r() * 30000, r() * 30000)!.length;
+    expect(total / 2000).toBeLessThan(0.05 * lines.length);
+  });
+
+  it("a point outside the lines' box has none within reach, and an empty floor and hostile numbers never throw", () => {
+    const idx = buildLineIndex([[0, 0, 100, 0], [100, 0, 100, 100]]);
+    expect(linesNear(idx, -500, 40)).toEqual([]);
+    expect(linesNear(idx, 50, 5000)).toEqual([]);
+    expect(linesNear(idx, 50, 3)).toContain(0); // a cell lists every line that can be near, so a neighbour in the same cell is listed too
+    const empty = buildLineIndex([]);
+    expect(linesNear(empty, 1, 1)).toEqual([]);
+    for (const segs of [[[-1e308, -1e308, 1e308, 1e308]], [[0, 0, 1e308, 0], [5, 5, 6, 6]], [[NaN, 0, 1, 1]], [[Infinity, 0, 1, 1]]] as number[][][]) {
+      const h = buildLineIndex(segs as never);
+      expect(() => linesNear(h, 3, 3)).not.toThrow();
+      // Whatever it cannot index it answers with null: the caller then scans every line.
+      const got = linesNear(h, 3, 3);
+      expect(got === null || Array.isArray(got)).toBe(true);
+    }
+  });
+});

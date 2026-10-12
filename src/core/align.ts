@@ -30,7 +30,8 @@ export interface AlignResult {
 
 export const NEAR = 5;
 export const WEAK_BELOW = 50;
-const STEP = 10, MAX_SAMPLES = 1500, MAX_LOWER = 800, MAX_CORNERS = 64, COARSE = 48, TOP = 3, REFINE_ROUNDS = 40, MAX_REFINED = 16, REFINE_REACH = 25, TIE = 1;
+export const REFINE_REACH = 25;
+const STEP = 10, MAX_SAMPLES = 1500, MAX_LOWER = 800, MAX_CORNERS = 64, COARSE = 48, TOP = 3, REFINE_ROUNDS = 40, MAX_REFINED = 16, TIE = 1;
 /** The rough pass sees 48 samples, so one sample is about 2 points: its tie window is 4, or a near corner that the full samples tie with the far ones is cut. */
 const COARSE_TIE = 4, SHORTLIST = 10, MAX_SHORT = 40;
 
@@ -85,28 +86,79 @@ function d2(px: number, py: number, s: Seg): number {
   return ex * ex + ey * ey;
 }
 
+/**
+ * S30.5: the exact line index. A bucket grid on the lower floor's lines: cells at least 2 * `REFINE_REACH` wide and at most 1024 a side, each
+ * cell listing, in the lines' own order, every line that can be within `REFINE_REACH` of a point in it (a line is put in every cell
+ * its path touches, and in the eight cells round each). A distance query then reads one cell's list instead of every line, and the
+ * answer is the same bit for bit: the nearest line is the first of the nearest in the same order, and "within `NEAR`" does not depend on order.
+ * What cannot be indexed (no lines, or numbers so large that a cell has no size) has `cells: null`, and a query scans every line.
+ */
+interface Lines { segs: Seg[]; x0: number; y0: number; cs: number; nx: number; ny: number; cells: Map<number, number[]> | null }
+const NO_LINES: number[] = [];
+const MAX_CELLS_SIDE = 1024;
+
+export function buildLineIndex(segs: Seg[]): Lines {
+  const scan: Lines = { segs, x0: 0, y0: 0, cs: 1, nx: 0, ny: 0, cells: null };
+  if (!segs.length) return { ...scan, cells: new Map() };
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const s of segs) { x0 = Math.min(x0, s[0], s[2]); x1 = Math.max(x1, s[0], s[2]); y0 = Math.min(y0, s[1], s[3]); y1 = Math.max(y1, s[1], s[3]); }
+  x0 -= REFINE_REACH + 1; y0 -= REFINE_REACH + 1; x1 += REFINE_REACH + 1; y1 += REFINE_REACH + 1;
+  const cs = Math.max(2 * REFINE_REACH, (x1 - x0) / MAX_CELLS_SIDE, (y1 - y0) / MAX_CELLS_SIDE);
+  if (![x0, y0, x1, y1, cs].every(Number.isFinite)) return scan;
+  const nx = Math.ceil((x1 - x0) / cs) + 1, ny = Math.ceil((y1 - y0) / cs) + 1, cells = new Map<number, number[]>();
+  segs.forEach((s, i) => {
+    // Walk the line in steps of a quarter cell: a point within the reach of the line is within 31.25 cm of a step, under one cell, so its cell is next to that step's.
+    const n = Math.max(1, Math.ceil(len(s) / (cs / 4)));
+    let last = -1;
+    for (let k = 0; k <= n; k++) {
+      const u = k / n, cx = Math.floor((s[0] + (s[2] - s[0]) * u - x0) / cs), cy = Math.floor((s[1] + (s[3] - s[1]) * u - y0) / cs), here = cy * nx + cx;
+      if (here === last) continue;
+      last = here;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+        const gx = cx + a, gy = cy + b;
+        if (gx < 0 || gy < 0 || gx >= nx || gy >= ny) continue;
+        const key = gy * nx + gx, c = cells.get(key);
+        if (!c) cells.set(key, [i]); else if (c[c.length - 1] !== i) c.push(i);
+      }
+    }
+  });
+  return { segs, x0, y0, cs, nx, ny, cells };
+}
+
+/** The indexes of the lines that can be within `REFINE_REACH` of (x, y), in the lines' order; null when the lines are not indexed (scan them all). */
+export function linesNear(L: Lines, x: number, y: number): number[] | null {
+  if (!L.cells) return null;
+  const cx = Math.floor((x - L.x0) / L.cs), cy = Math.floor((y - L.y0) / L.cs);
+  if (!(cx >= 0 && cy >= 0 && cx < L.nx && cy < L.ny)) return NO_LINES;
+  return L.cells.get(cy * L.nx + cx) ?? NO_LINES;
+}
+
 /** Percent of the sample weight that lies within `NEAR` of a line, after moving by (tx, ty). */
-function scoreAt(samples: Sample[], lines: Seg[], tx: number, ty: number): number {
+function scoreAt(samples: Sample[], L: Lines, tx: number, ty: number): number {
   let hit = 0, all = 0;
-  const lim = NEAR * NEAR;
+  const lim = NEAR * NEAR, lines = L.segs;
   for (const p of samples) {
     all += p.w;
-    const x = p.x + tx, y = p.y + ty;
-    for (let i = 0; i < lines.length; i++) if (d2(x, y, lines[i]) <= lim) { hit += p.w; break; }
+    const x = p.x + tx, y = p.y + ty, ids = linesNear(L, x, y);
+    if (ids) { for (let k = 0; k < ids.length; k++) if (d2(x, y, lines[ids[k]]) <= lim) { hit += p.w; break; } }
+    else for (let i = 0; i < lines.length; i++) if (d2(x, y, lines[i]) <= lim) { hit += p.w; break; }
   }
   return all === 0 ? 0 : (100 * hit) / all;
 }
 
+/** The squared distance to the nearest line within `REFINE_REACH` of (x, y) (`REFINE_REACH` squared when none), and which line (-1 for none); the first of equals wins. */
+function nearest(L: Lines, x: number, y: number): [number, number] {
+  const lines = L.segs, ids = linesNear(L, x, y);
+  let bd = REFINE_REACH * REFINE_REACH, bi = -1;
+  if (ids) { for (let k = 0; k < ids.length; k++) { const d = d2(x, y, lines[ids[k]]); if (d < bd) { bd = d; bi = ids[k]; } } }
+  else for (let i = 0; i < lines.length; i++) { const d = d2(x, y, lines[i]); if (d < bd) { bd = d; bi = i; } }
+  return [bd, bi];
+}
+
 /** Mean distance, in cm, from a sample to its nearest line (capped at `REFINE_REACH`), by weight, after moving by (tx, ty). */
-function residual(samples: Sample[], lines: Seg[], tx: number, ty: number): number {
+function residual(samples: Sample[], L: Lines, tx: number, ty: number): number {
   let sum = 0, all = 0;
-  const lim = REFINE_REACH * REFINE_REACH;
-  for (const p of samples) {
-    const x = p.x + tx, y = p.y + ty;
-    let bd = lim;
-    for (let i = 0; i < lines.length; i++) { const d = d2(x, y, lines[i]); if (d < bd) bd = d; }
-    sum += p.w * Math.sqrt(bd); all += p.w;
-  }
+  for (const p of samples) { sum += p.w * Math.sqrt(nearest(L, p.x + tx, p.y + ty)[0]); all += p.w; }
   return all === 0 ? 0 : sum / all;
 }
 
@@ -121,18 +173,16 @@ interface Fit { t: Pt; score: number; res: number }
  * sample is within `NEAR`, so a step is kept when the score is no lower and the mean residual is smaller: that is what
  * takes a floor 4 cm off to 0.
  */
-function refine(samples: Sample[], lines: Seg[], t: Pt): Fit {
-  let best: Fit = { t, score: scoreAt(samples, lines, t[0], t[1]), res: residual(samples, lines, t[0], t[1]) };
+function refine(samples: Sample[], L: Lines, t: Pt): Fit {
+  let best: Fit = { t, score: scoreAt(samples, L, t[0], t[1]), res: residual(samples, L, t[0], t[1]) };
   let tx = t[0], ty = t[1];
-  const lim = REFINE_REACH * REFINE_REACH;
   for (let round = 0; round < REFINE_ROUNDS; round++) {
     const rows: { ax: number; ay: number; d: number; w: number }[] = [];
     for (const p of samples) {
       const x = p.x + tx, y = p.y + ty;
-      let bd = lim, bi = -1;
-      for (let i = 0; i < lines.length; i++) { const d = d2(x, y, lines[i]); if (d < bd) { bd = d; bi = i; } }
+      const bi = nearest(L, x, y)[1];
       if (bi < 0) continue;
-      const s = lines[bi], dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy;
+      const s = L.segs[bi], dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy;
       if (l2 === 0) continue;
       const u = Math.max(0, Math.min(1, ((x - s[0]) * dx + (y - s[1]) * dy) / l2));
       // Toward the nearest point of the line: along the normal, or toward the end when the sample is past it. A sample
@@ -159,9 +209,9 @@ function refine(samples: Sample[], lines: Seg[], t: Pt): Fit {
     const mx = (ayy * bx - axy * by) / det, my = (axx * by - axy * bx) / det;
     if (!Number.isFinite(mx) || !Number.isFinite(my) || (Math.abs(mx) < 0.05 && Math.abs(my) < 0.05)) break;
     tx += mx; ty += my;
-    const sc = scoreAt(samples, lines, tx, ty);
+    const sc = scoreAt(samples, L, tx, ty);
     if (sc < best.score) continue;
-    const res = residual(samples, lines, tx, ty);
+    const res = residual(samples, L, tx, ty);
     if (sc > best.score || res <= best.res) best = { t: [tx, ty], score: sc, res };
   }
   return best;
@@ -230,57 +280,63 @@ export function alignShift(upper: Floor, lower: Floor, turn: unknown = 0): Align
     const us = structure(upper).map((s) => turnSeg(s, deg));
     const ls = structure(lower);
     if (!us.length || !ls.length) return null;
-    const total = us.reduce((a, s) => a + len(s), 0);
-    const step = Math.max(STEP, total / MAX_SAMPLES);
-    const samples = sampleLines(us, step);
-    const lines = longest(ls, MAX_LOWER);
-    const coarseLines = longest(ls, 150);
-    const stride = Math.max(1, Math.ceil(samples.length / COARSE));
-    const coarse = samples.filter((_, i) => i % stride === 0);
-
-    // Candidate moves, deduplicated to the whole cm.
-    const seen = new Set<string>(["0,0"]);
-    const cands: Pt[] = [[0, 0]];
-    const uc = corners(us), lc = corners(ls);
-    for (const a of uc) for (const b of lc) {
-      const t: Pt = [b[0] - a[0], b[1] - a[1]], k = `${Math.round(t[0])},${Math.round(t[1])}`;
-      if (!seen.has(k)) { seen.add(k); cands.push(t); }
-    }
-    const ranked = cands.map((t) => ({ t, s: scoreAt(coarse, coarseLines, t[0], t[1]) }));
-    ranked.sort((a, b) => b.s - a.s);
-    // The rough pass is noisy (one sample is about 2 points), so the best SHORTLIST by it, and any within COARSE_TIE,
-    // are scored again on the fit samples before the cut. Then: refine every candidate that ties the best of those,
-    // the smallest moves first (at most MAX_REFINED), and the best few others. Taking them in generation order would
-    // let the corner list decide which tie gets looked at.
-    const fitSamples = samples.length > 1000 ? samples.filter((_, i) => i % Math.ceil(samples.length / 1000) === 0) : samples;
-    const fitLines = longest(ls, 600);
-    const move = (c: Pt) => Math.hypot(c[0], c[1]);
-    const short = ranked.filter((c, i) => i < SHORTLIST || c.s >= ranked[0].s - COARSE_TIE).slice(0, MAX_SHORT)
-      .map((c) => ({ t: c.t, s: scoreAt(fitSamples, fitLines, c.t[0], c.t[1]) }))
-      .sort((a, b) => b.s - a.s);
-    const tied = short.filter((c) => c.s >= short[0].s - TIE).sort((a, b) => move(a.t) - move(b.t)).slice(0, MAX_REFINED);
-    const picked = [...tied, ...short.filter((c) => c.s < short[0].s - TIE).slice(0, Math.max(0, TOP - tied.length))];
-
-    const finals = picked.map((c) => refine(fitSamples, fitLines, c.t));
-    // The no-move case is always in the running, as is its refinement.
-    finals.push(refine(fitSamples, fitLines, [0, 0]));
-    for (const f of finals) {
-      const x = round1(f.t[0]), y = round1(f.t[1]);
-      f.score = scoreAt(samples, lines, x, y);
-      f.res = residual(fitSamples, fitLines, x, y);
-    }
-    const top = Math.max(...finals.map((f) => f.score));
-    // Among the fits that tie: the smaller move wins, but moves less than 2 * NEAR apart are one answer, and in it the
-    // fit with the smallest mean residual wins (a floor 4 cm off scores 100 where it stands, and still has to move).
-    const tie = finals.filter((f) => f.score >= top - TIE).sort((a, b) => move(a.t) - move(b.t));
-    const near = tie.filter((f) => Math.hypot(f.t[0] - tie[0].t[0], f.t[1] - tie[0].t[1]) <= 2 * NEAR);
-    const pick = near.sort((a, b) => a.res - b.res || move(a.t) - move(b.t))[0];
-    const t: Pt = [round1(pick.t[0]) + 0, round1(pick.t[1]) + 0];
-    const score = Math.round(pick.score * 10) / 10;
-    return { t, score, weak: score < WEAK_BELOW };
+    const r = shiftSearch(us, lowerOf(ls));
+    return { t: r.t, score: r.score, weak: r.score < WEAK_BELOW };
   } catch {
     return null;
   }
+}
+
+/** The lower floor's lines as the search reads them, each set indexed once: the same for every turn of the upper floor. */
+interface Lower { ls: Seg[]; lines: Lines; coarse: Lines; fit: Lines }
+const lowerOf = (ls: Seg[]): Lower => ({ ls, lines: buildLineIndex(longest(ls, MAX_LOWER)), coarse: buildLineIndex(longest(ls, 150)), fit: buildLineIndex(longest(ls, 600)) });
+
+/** 0.27.0's translation search of the upper floor's lines `us` (already turned) on the lower floor: the best move, its score to 0.1, and the unrounded score, the mean residual and the samples it used. */
+function shiftSearch(us: Seg[], low: Lower) {
+  const total = us.reduce((a, s) => a + len(s), 0);
+  const step = Math.max(STEP, total / MAX_SAMPLES);
+  const samples = sampleLines(us, step);
+  const stride = Math.max(1, Math.ceil(samples.length / COARSE));
+  const coarse = samples.filter((_, i) => i % stride === 0);
+
+  // Candidate moves, deduplicated to the whole cm.
+  const seen = new Set<string>(["0,0"]);
+  const cands: Pt[] = [[0, 0]];
+  const uc = corners(us), lc = corners(low.ls);
+  for (const a of uc) for (const b of lc) {
+    const t: Pt = [b[0] - a[0], b[1] - a[1]], k = `${Math.round(t[0])},${Math.round(t[1])}`;
+    if (!seen.has(k)) { seen.add(k); cands.push(t); }
+  }
+  const ranked = cands.map((t) => ({ t, s: scoreAt(coarse, low.coarse, t[0], t[1]) }));
+  ranked.sort((a, b) => b.s - a.s);
+  // The rough pass is noisy (one sample is about 2 points), so the best SHORTLIST by it, and any within COARSE_TIE,
+  // are scored again on the fit samples before the cut. Then: refine every candidate that ties the best of those,
+  // the smallest moves first (at most MAX_REFINED), and the best few others. Taking them in generation order would
+  // let the corner list decide which tie gets looked at.
+  const fitSamples = samples.length > 1000 ? samples.filter((_, i) => i % Math.ceil(samples.length / 1000) === 0) : samples;
+  const move = (c: Pt) => Math.hypot(c[0], c[1]);
+  const short = ranked.filter((c, i) => i < SHORTLIST || c.s >= ranked[0].s - COARSE_TIE).slice(0, MAX_SHORT)
+    .map((c) => ({ t: c.t, s: scoreAt(fitSamples, low.fit, c.t[0], c.t[1]) }))
+    .sort((a, b) => b.s - a.s);
+  const tied = short.filter((c) => c.s >= short[0].s - TIE).sort((a, b) => move(a.t) - move(b.t)).slice(0, MAX_REFINED);
+  const picked = [...tied, ...short.filter((c) => c.s < short[0].s - TIE).slice(0, Math.max(0, TOP - tied.length))];
+
+  const finals = picked.map((c) => refine(fitSamples, low.fit, c.t));
+  // The no-move case is always in the running, as is its refinement.
+  finals.push(refine(fitSamples, low.fit, [0, 0]));
+  for (const f of finals) {
+    const x = round1(f.t[0]), y = round1(f.t[1]);
+    f.score = scoreAt(samples, low.lines, x, y);
+    f.res = residual(fitSamples, low.fit, x, y);
+  }
+  const top = Math.max(...finals.map((f) => f.score));
+  // Among the fits that tie: the smaller move wins, but moves less than 2 * NEAR apart are one answer, and in it the
+  // fit with the smallest mean residual wins (a floor 4 cm off scores 100 where it stands, and still has to move).
+  const tie = finals.filter((f) => f.score >= top - TIE).sort((a, b) => move(a.t) - move(b.t));
+  const near = tie.filter((f) => Math.hypot(f.t[0] - tie[0].t[0], f.t[1] - tie[0].t[1]) <= 2 * NEAR);
+  const pick = near.sort((a, b) => a.res - b.res || move(a.t) - move(b.t))[0];
+  const t: Pt = [round1(pick.t[0]) + 0, round1(pick.t[1]) + 0];
+  return { t, score: Math.round(pick.score * 10) / 10, rawScore: pick.score, res: pick.res, samples, fitSamples };
 }
 
 /** S30.2, until S30.4 gives `alignFloor` the search of the turn: the editor still calls it with a turn, and gets the translation search of 0.27.0. */
@@ -417,13 +473,8 @@ export function refinePlace(samples: Sample[], lines: Seg[], place: Place, opts:
   try {
     const base = list(samples).filter((q): q is Sample => typeof q === "object" && q !== null && num(q.x) && num(q.y) && num(q.w) && q.w > 0);
     const segs = list(lines).filter((l): l is Seg => Array.isArray(l) && l.length === 4 && l.every(num));
-    const free = opts.turn !== false, lim = REFINE_REACH * REFINE_REACH;
-    const nearest = (x: number, y: number): [number, number] => {
-      let bd = lim, bi = -1;
-      for (let i = 0; i < segs.length; i++) { const d = d2(x, y, segs[i]); if (d < bd) { bd = d; bi = i; } }
-      return [bd, bi];
-    };
-    const measure = (cur: Sample[]) => ({ score: scoreAt(cur, segs, 0, 0), res: residual(cur, segs, 0, 0) });
+    const free = opts.turn !== false, L = buildLineIndex(segs);
+    const measure = (cur: Sample[]) => ({ score: scoreAt(cur, L, 0, 0), res: residual(cur, L, 0, 0) });
     let p = start, cur = placed(base, p);
     let best = { place: p, ...measure(cur) }, rounds = 0;
     for (; rounds < REFINE_ROUNDS; rounds++) {
@@ -436,7 +487,7 @@ export function refinePlace(samples: Sample[], lines: Seg[], place: Place, opts:
       lever = Math.sqrt(lever / sw);
       const rows: { ax: number; ay: number; at: number; d: number; w: number }[] = [];
       for (const q of cur) {
-        const bi = nearest(q.x, q.y)[1];
+        const bi = nearest(L, q.x, q.y)[1];
         if (bi < 0) continue;
         const s = segs[bi], dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy;
         if (l2 === 0) continue;
