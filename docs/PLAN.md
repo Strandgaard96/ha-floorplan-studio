@@ -3778,7 +3778,7 @@ Wave 3, in order on `task/s30-align-angles`:
       no pose (the turn line and the other-turn line showing) and after Apply, at 1280 and 380, in blueprint, light and
       ha-dark. The coordinator opens them and lists what each shows.
       Files: `scripts/shots.mjs`.
-- [ ] S30.11 Verify (Sonnet): `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line;
+- [x] S30.11 Verify (Sonnet): `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line;
       new tests `--repeat-each=10`; the S30.5 budget numbers read on their own; the exit test walked by hand once in the
       Studio; each S30.4 group run once with the turn search removed (`alignFloor` = `alignShift`) to see it fail, then
       restored.
