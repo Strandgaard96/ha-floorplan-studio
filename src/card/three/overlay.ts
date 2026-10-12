@@ -76,7 +76,9 @@ const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:no
 .fp3-val{font-weight:400;font-size:12px}
 .fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:opacity .12s linear}
 .fp3-ov .fp3-lose{opacity:0}
-@media (prefers-reduced-motion:reduce){.fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:none}}`;
+@media (prefers-reduced-motion:reduce){.fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:none}}
+.fp3-val .val-pill{display:inline-block;padding:0 4px;margin:0 -2px;border-radius:999px;background:color-mix(in srgb,var(--fp-temp) 35%,transparent)}
+.fp3-ic g.dev:not(.on):not(.danger):not(.unavailable) .halo.heat{stroke:var(--fp-temp);stroke-width:2}`;
 
 /** The least contrast (WCAG ratio) the idle glyph and the disc's edge keep against the disc: 3 is the rule, this leaves a margin. */
 const INK_RATIO = 3.3;
@@ -322,11 +324,16 @@ export function createOverlay(container: HTMLElement) {
         it.area = info?.area ?? 0;
         if (it.at[0] !== lr.at[0] || it.at[2] !== lr.at[1]) dirty = true;
         it.at = [lr.at[0], a[1], lr.at[1]];
-        const sig = `${lr.name}\u0000${lr.readout}`;
+        const sig = `${lr.name}\u0000${lr.readout}\u0000${lr.heat ?? ""}`;
         if (sig !== it.sig) {
           it.sig = sig;
           it.name.textContent = lr.name;
-          it.val.textContent = lr.readout;
+          // S29 (H6): the temperature on a pill whose colour the card's stylesheet mixes from --fp-temp-t; the rest stays plain text.
+          if (lr.heat !== null && lr.heat !== undefined && lr.temp) {
+            const pill = text("val-pill", lr.temp);
+            pill.style.setProperty("--fp-temp-t", String(lr.heat));
+            it.val.replaceChildren(pill, ...(lr.rest ? [document.createTextNode(` · ${lr.rest}`)] : []));
+          } else it.val.textContent = lr.readout;
           it.name.hidden = !lr.name;
           it.val.hidden = !lr.readout;
           sizes.delete(it.el);

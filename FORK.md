@@ -16,6 +16,10 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: Sprint 29, temperature pill in 3D (branch `task/s29`)
+
+- `LiveRoom` carries `temp`, `rest`, `heat`; the overlay draws `span.val-pill` and its own idle ring rule.
+
 ## 2026-10-12: Sprint 29, temperature pill in 2D (branch `task/s29`)
 
 - `renderFloor` draws `rect.val-pill` and `tspan.val-t` for a room's temperature, sized by `textEm` (a per-character width

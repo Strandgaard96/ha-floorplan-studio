@@ -154,3 +154,20 @@ describe("liveOf: Layers (S29, L1-L3)", () => {
       expect(() => live(on, ground, { hiddenLayers: h as never, keep: { t: 5, i: "x" } as never })).not.toThrow();
   });
 });
+
+describe("liveOf: a room's temperature for the 3D pill (S29, H6)", () => {
+  const f = structuredClone(ground);
+  Object.assign(f.rooms[0], { temps: ["s.t"], humidity: ["s.h"] });
+  const s = { "s.t": st("18.5", { unit_of_measurement: "°C" }), "s.h": st("48", { unit_of_measurement: "%" }) };
+  it("carries the temperature, the rest and the heat; the readout is unchanged", () => {
+    expect(live(s, f, { tempColors: [16, 26] }).rooms[0]).toMatchObject({
+      temp: "18.5 °C",
+      rest: "48 %",
+      heat: 0.25,
+      readout: "18.5 °C · 48 %",
+    });
+  });
+  it("no tempColors is no heat", () => {
+    expect(live(s, f).rooms[0]!.heat).toBeNull();
+  });
+});

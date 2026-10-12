@@ -26,6 +26,7 @@ export type LiveDeps = Pick<
   | "polyCentre"
   | "roomAt"
   | "roomReadout"
+  | "roomReadoutParts"
   | "ROOM_OWNS"
 > &
   Pick<typeof import("./solids"), "pieceDevice"> &
@@ -67,6 +68,10 @@ export interface LiveRoom {
   name: string;
   at: Pt;
   readout: string;
+  /** S29 (H6): the temperature text, the rest (humidity), and the scale's t (0..1, 0.01 steps) or null. */
+  temp: string;
+  rest: string;
+  heat: number | null;
   motion: { radar: boolean; on: boolean; v: number; pulseAge: number | null } | null;
 }
 export interface Live3D {
@@ -101,6 +106,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
     polyCentre,
     roomAt,
     roomReadout,
+    roomReadoutParts,
     ROOM_OWNS,
     doorStateOf,
     fxScale,
@@ -213,10 +219,15 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         if (!p || typeof r !== "object") return null;
         const m = motion.triggered.get(i),
           owns = ROOM_OWNS[r.kind];
+        // S29 (H6): the parts by the plan's own function, so the 3D pill and the 2D one cannot differ.
+        const parts = owns ? roomReadoutParts(r, o.state, o.tempColors) : null;
         return {
           name: typeof r.name === "string" && r.kind !== "structure" ? r.name : "",
           at: polyCentre(p),
           readout: owns ? roomReadout(r, o.state) : "",
+          temp: parts?.temp ?? "",
+          rest: parts?.rest ?? "",
+          heat: parts?.heat ?? null,
           motion: m ? { radar: m.radar, on: m.on, v: m.v, pulseAge: motion.pulsing.get(i) ?? null } : null,
         };
       } catch (e) {

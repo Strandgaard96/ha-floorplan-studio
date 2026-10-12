@@ -28,6 +28,7 @@ import {
   polyCentre,
   roomAt,
   roomReadout,
+  roomReadoutParts,
   ROOM_OWNS,
 } from "./render";
 import { resolveStairDirection } from "./stairs";
@@ -118,6 +119,7 @@ export const liveDeps: LiveDeps = {
   polyCentre,
   roomAt,
   roomReadout,
+  roomReadoutParts,
   ROOM_OWNS,
   doorStateOf,
   fxScale,
