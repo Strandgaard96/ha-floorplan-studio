@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: temperature colours are --fp-temp-*, mixed in CSS (Sprint 29)
+
+The spec first named the tokens `--fp-heat-cold/mid/hot` and the per-element colour `--fp-heat`. Both collide with the plug ramp:
+`--fp-heat-mid` and `--fp-heat-hot` are fixed hues there (S14.8) and `--fp-heat` is a plug's 0..1 draw, read by
+`.dev-plug.on[style*="--fp-heat"]`. The temperature tokens are `--fp-temp-cold`, `--fp-temp-mid` and `--fp-temp-hot`, per
+theme. Core writes a number, `--fp-temp-t` (0..1, rounded to 0.01), and one rule (`.val-pill,.halo.heat`) mixes the colour:
+a theme token can be one of Home Assistant's own variables, which JS cannot read. Units: °C and no unit are °C, °F is
+converted, any other unit gives no colour (the text is unchanged).
+
 ## 2026-10-12: the phone room sheet is an accordion and drops the "Active here" list
 
 Field report: in a room with the lights group open, the Security group could not be reached on a phone. Measured at 375 x 640

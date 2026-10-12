@@ -173,6 +173,11 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-dev-vacuum:${devFor("vacuum")}`,
     // S9.4: speaker is a fixed blue in every theme, the same exception TV is (S9.3) — never derived from the role's own accent.
     `--fp-dev-speaker:#2c7fb8`,
+    // S29 (H3): the temperature scale. Fixed hues per light or dark kind, like the TV and speaker blues: a one-accent theme must still
+    // read cold from hot. Mid is the neutral the pill passes through.
+    `--fp-temp-cold:${roles.dark ? "#5fa8e8" : "#2f78b8"}`,
+    `--fp-temp-mid:${roles.dark ? "#8b8578" : "#9a958b"}`,
+    `--fp-temp-hot:${roles.dark ? "#f0604d" : "#c8412f"}`,
     `--fp-halo:${roles.fg}`,
     `--fp-alpha:.25`,
     `--fp-disc:${roles.fg}`,

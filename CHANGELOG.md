@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Temperature colours, groundwork: three per-theme tokens (`--fp-temp-cold`, `-mid`, `-hot`) and the card keys `temp_colors`, `heat_min`, `heat_max` (default on, 17 and 25 °C). Nothing is drawn with them yet.
 - Phone: in the room sheet (card narrower than 480 px) the device groups are an accordion, so opening Security with Lights open shows the motion sensor instead of leaving it 900 px down a 235 px window; the opened group scrolls to the top. The duplicate "Active here" list is not drawn in the sheet. Wide cards are unchanged.
 
 ## 0.26.2 - 2026-10-11

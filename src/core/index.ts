@@ -118,6 +118,8 @@ export {
 } from "./room-info";
 export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } from "./room-info";
 export { meanText, readingText, stateText } from "./state-text";
+export { HEAT_MAX, HEAT_MIN, celsiusOf, heatBounds, heatT, meanValue } from "./readings";
+export type { MeanValue } from "./readings";
 export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } from "./search";
 export type { SearchEntry, SearchIndex } from "./search";
 export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";

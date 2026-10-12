@@ -23,6 +23,9 @@ describe("theme-roles (S4.21)", () => {
     // Every LIGHT_TOKENS/MIDNIGHT_TOKENS key must exist here too, or a generated theme silently falls back to nothing
     // for that property (CLAUDE.md finding: a rule checker cannot see a missing token, only a computed-style read can).
     const wanted = [
+      "--fp-temp-cold",
+      "--fp-temp-mid",
+      "--fp-temp-hot",
       "--fp-ink",
       "--fp-bg",
       "--fp-room",

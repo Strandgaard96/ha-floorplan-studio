@@ -21,7 +21,7 @@ import { treeShadeSvg } from "./tree";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
 import { heatRange, plugThreshold, powerHeat, wattsOf } from "./power";
-import { meanReading } from "./readings";
+import { celsiusOf, heatBounds, heatT, meanReading, meanValue } from "./readings";
 import { badges } from "./rollup";
 import { attentionDevices, type AttentionSource } from "./attention";
 // S24.R: the one rule for what Layers leaves out; the Studio's pick asks it too.
@@ -115,6 +115,10 @@ export interface RenderOpts {
   powerLinks?: Record<string, string>;
   /** S14.8: draw range [from, to] in watts. A plug that is on and has a readable power sensor then carries `--fp-heat` (0 idle .. 1 hot) and the stylesheet tints it. Absent, nothing is written and the markup is as before. Junk is the default range; see `heatRange`. */
   plugHeat?: [number, number];
+  /** S29 (H2-H5): the temperature colour scale [cold, hot] in °C (`heatBounds`). A room's readout puts its temperature on a
+   *  pill and a temp icon wears a ring, both carrying `--fp-temp-t` (0..1) that the stylesheet turns into a colour. Omitted
+   *  (the editor, or the card's switch off), nothing is written and the markup is byte for byte as before. */
+  tempColors?: readonly [number, number];
   /** S25.5: a stack of devices fanned out. Each entry moves device `i`'s icon to `at` (plan units), with a leader line to its true
    *  spot, a pin there and its name beside it. The card computes the spots (`spiderLayout`) and passes them while a ring is open.
    *  Junk entries (an unknown index, a point that is not finite), a hidden device and a device with no spot are skipped.
@@ -245,7 +249,7 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#b5389a;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
 --fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#b5389a;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
---fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
+--fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact);--fp-temp-cold:#2f78b8;--fp-temp-mid:#9a958b;--fp-temp-hot:#c8412f`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
    buttons) keeps the same hex as light: each already clears 4.5:1 against its fixed on-dark/on-light text token, so
@@ -260,7 +264,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#e86ad0;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
 --fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#e86ad0;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
---fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact)`;
+--fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact);--fp-temp-cold:#5fa8e8;--fp-temp-mid:#8b8578;--fp-temp-hot:#f0604d`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
 // foreground colour for text/icons/detail, one line colour for the measurement grid, and one accent for anything "on" or
@@ -365,7 +369,7 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#0d3b48;--fp-terrace:#0d3d4a;--fp-pavement:#0a3a4a;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#6c71c4;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#0f3f5c;--fp-fill:#073642;--fp-fill-line:#586e75;
 --fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#6c71c4;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
---fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5`;
+--fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5;--fp-temp-cold:#268bd2;--fp-temp-mid:#657b83;--fp-temp-hot:#dc322f`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
    nothing. Not mapped, on purpose: primary, danger, warn. HA's error and warning colours fail 4.5:1 against the fixed white or dark text on our
@@ -466,6 +470,9 @@ export const FLOORPLAN_CSS = `
 /* S14.8: the colour a plug runs through as its draw rises. Fixed hues, the same in every theme (not the theme's accent, which a one-accent theme makes orange and so
    leaves nothing to ramp to), declared before the themes so a theme can override them. */
 :host,.fp,[data-theme]{--fp-heat-cool:#2f86c9;--fp-heat-mid:#f0a020;--fp-heat-hot:#d63a2a}
+/* S29 (H3): a room's temperature pill and a temp icon's ring. renderFloor writes --fp-temp-t (0..1); 0 to .5 mixes cold into mid,
+   .5 to 1 mid into hot, the plug ramp's shape (S14.8). The --fp-temp-* tokens are per theme; the plug's --fp-heat-* stay fixed. */
+.val-pill,.halo.heat{--fp-temp:color-mix(in srgb,color-mix(in srgb,var(--fp-temp-cold) calc((1 - min(var(--fp-temp-t) * 2,1)) * 100%),var(--fp-temp-mid)) calc((1 - max(var(--fp-temp-t) * 2 - 1,0)) * 100%),var(--fp-temp-hot))}
 /* S24.4 (S23.F3): outdoor names take the theme's own text unless the theme says otherwise (only solarized does). Set on every theme
    group, not left to a fallback, so a group nested in a solarized one does not inherit solarized's ink. */
 :host,.fp,[data-theme]{--fp-text-out:var(--fp-text)}
@@ -1377,11 +1384,40 @@ export function attachedTest(f: Floor): (d: Device) => boolean {
     return !!k && attached[k].has(d.entity);
   };
 }
+/** S29 (H4, H6): a room's readout in parts: the mean temperature, the rest (humidity), and where the temperature sits on
+ *  `bounds` (0..1, rounded to 0.01), or null with no bounds, no temperature or a unit that is not a temperature. */
+export interface ReadoutParts {
+  temp: string;
+  rest: string;
+  heat: number | null;
+}
+export function roomReadoutParts(
+  r: Floor["rooms"][number],
+  state: StateOverlay | undefined,
+  bounds?: readonly [number, number],
+): ReadoutParts {
+  const temps = roomList(r, "temps"),
+    temp = meanReading(temps, state),
+    rest = meanReading(roomList(r, "humidity"), state);
+  let heat: number | null = null;
+  if (bounds && temp) {
+    const [min, max] = heatBounds(bounds[0], bounds[1]),
+      t = heatT(celsiusOf(meanValue(temps, state)), min, max);
+    heat = t === null ? null : Math.round(t * 100) / 100;
+  }
+  return { temp, rest, heat };
+}
 /** S11.1: the readout of a room's own sensors: the mean temperature and humidity, as the plan prints them under the room's name. "" when nothing is readable. */
 export function roomReadout(r: Floor["rooms"][number], state: StateOverlay | undefined): string {
-  return [meanReading(roomList(r, "temps"), state), meanReading(roomList(r, "humidity"), state)]
-    .filter(Boolean)
-    .join(" · ");
+  const { temp, rest } = roomReadoutParts(r, state);
+  return [temp, rest].filter(Boolean).join(" · ");
+}
+/** S29 (H5): a temp icon's place on the scale, from its own state; null for any other type, no `tempColors` or no reading. */
+export function deviceHeat(d: Device, o: RenderOpts): number | null {
+  if (d?.type !== "temp" || !o.tempColors) return null;
+  const [min, max] = heatBounds(o.tempColors[0], o.tempColors[1]),
+    t = heatT(celsiusOf(meanValue([d.entity], o.state)), min, max);
+  return t === null ? null : Math.round(t * 100) / 100;
 }
 /** `layout.colors` as the custom properties the plan sets on a group (known types, strict colours only), so a device keeps its own colour. */
 export function deviceColourVars(colors: RenderOpts["colors"]): string[] {
@@ -1543,6 +1579,9 @@ export function deviceMarkup(
       style.push(`--fp-heat:${num(heat)}`, `--fp-dev-ink:${inkVar(heatColour(heat))}`);
     }
   }
+  // S29 (H5): a temp icon's place on the comfort scale; the stylesheet's `.halo.heat` rule turns it into the ring's colour.
+  const heat = deviceHeat(d, o);
+  if (heat !== null) style.push(`--fp-temp-t:${num(heat)}`);
   // S14.3: the effect size, a fraction the rings and waves read (`--fp-fx`, default 1 in the stylesheet). Written only when it
   // changes something, so a layout that never sets it is drawn byte for byte as before.
   if (drawsEffect(d) && fxScale(d) !== 1) style.push(`--fp-fx:${num(fxScale(d))}`);
@@ -1580,7 +1619,7 @@ export function deviceMarkup(
       ? `<circle class="siren-ring" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="siren-ring w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-  const icon = `${ping}${wave}${siren}<circle class="halo" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}${gone}`;
+  const icon = `${ping}${wave}${siren}<circle class="halo${heat !== null ? " heat" : ""}" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}${gone}`;
   return { cls, base, style, icon, s };
 }
 

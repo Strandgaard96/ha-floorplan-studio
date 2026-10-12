@@ -42,6 +42,7 @@ import {
   floorSwitch,
   deviceColourVars,
   plugThreshold,
+  heatBounds,
   heatRange,
   pieceDevice,
   HEAT_FROM,
@@ -171,6 +172,11 @@ export interface FloorplanStudioCardConfig {
   /** S14.8: a plug that is on is tinted from idle to hot by its draw, between these two wattages (default 0 and 2000). Both must be numbers with from < to, else the default pair. See docs/card.md, Plugs. */
   plug_heat_from?: number;
   plug_heat_to?: number;
+  /** S29: `false` draws no temperature colours (the readout's pill, a temp icon's ring); anything else is on (default). The View options' Temperature colours button changes it for one viewer. */
+  temp_colors?: boolean;
+  /** S29: the comfort scale in °C, blue at `heat_min` (17), neutral half way, red at `heat_max` (25). Two numbers with min below max; anything else is 17 and 25. */
+  heat_min?: number;
+  heat_max?: number;
   room_glow?: boolean;
   layout?: Layout;
   layout_url?: string;
@@ -1383,6 +1389,10 @@ export class FloorplanStudioCard extends LitElement {
   private _plugHeat(): [number, number] {
     return heatRange([this._config.plug_heat_from ?? HEAT_FROM, this._config.plug_heat_to ?? HEAT_TO]);
   }
+  /** S29 (H2, S3): the temperature colour scale handed to both views, or undefined when the colours are off. Untrusted YAML: only a real `false` is off. */
+  private _tempColors(): [number, number] | undefined {
+    return this._config.temp_colors !== false ? heatBounds(this._config.heat_min, this._config.heat_max) : undefined;
+  }
 
   /**
    * Plug entity -> power sensor, for plugs with no `power` in the layout: the one `sensor.*` of device class `power`
@@ -2060,6 +2070,7 @@ export class FloorplanStudioCard extends LitElement {
         fade: this._config.fade,
         plugWatts: plugThreshold(this._config.plug_watts),
         plugHeat: this._plugHeat(),
+        tempColors: this._tempColors(),
         powerLinks: this._powerLinks(),
         roomGlow: this._config.room_glow,
         night: this._night(),
@@ -4057,6 +4068,7 @@ export class FloorplanStudioCard extends LitElement {
           fade: this._config.fade,
           plugWatts: plugThreshold(this._config.plug_watts),
           plugHeat: this._plugHeat(),
+          tempColors: this._tempColors(),
           powerLinks: this._powerLinks(),
           roomGlow: this._config.room_glow,
           theme: this._theme(),

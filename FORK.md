@@ -16,6 +16,11 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: Sprint 29, temperature scale (branch `task/s29`)
+
+- `meanValue`, `heatT`, `heatBounds`, `celsiusOf` in `src/core/readings.ts`; `roomReadoutParts`, `deviceHeat`, the `--fp-temp-*`
+  tokens and their mixing rule in `src/core/render.ts` and `theme-roles.ts`; card keys `temp_colors`, `heat_min`, `heat_max`.
+
 ## 2026-10-12: Phone room sheet — accordion, no duplicate list (branch `task/sheet-fold`)
 
 - On a card narrower than 480 px the room panel's device groups are an accordion (opening one folds the others and scrolls it to
