@@ -90,11 +90,11 @@ export function alignSummary(result: unknown, place: unknown, pivot: unknown): A
   return { score, alt: altWords(r), move: moveWords(r, placeOf(place), pair(pivot)) };
 }
 
-/** Apply's status line: "Aligned to Ground: 82 % match, turned 4.0°". The turn is the change, signed (clockwise positive), left out under 0.05. */
+/** Apply's status line: "Aligned to Ground: 82 % match, turned 4.0° clockwise" (or "anticlockwise", as the panel says it). The turn is the change, left out under 0.05. */
 export function alignStatus(result: unknown, place: unknown, belowName: unknown): string {
   const r = usable(result);
   if (!r) return "Nothing to match";
   const name = typeof belowName === "string" && belowName ? belowName : "the floor below";
   const turn = turnChange(r, placeOf(place));
-  return `Aligned to ${name}: ${percent(r.score)} % match${turn ? `, turned ${deg1(turn)}°` : ""}`;
+  return `Aligned to ${name}: ${percent(r.score)} % match${turn ? `, turned ${deg1(Math.abs(turn))}° ${turn > 0 ? "clockwise" : "anticlockwise"}` : ""}`;
 }

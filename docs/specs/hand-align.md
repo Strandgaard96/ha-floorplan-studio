@@ -291,10 +291,11 @@ the histograms sum integers (the tests may allow 0.01 degree and 0.1 cm). No ran
     point above the answer);
   - `#alignMove`: the change from the current place: "Turn 4.0° clockwise, move the centre 34 cm right, 12 cm up". The
     move is the floor's pivot (`floorPivot`) in the floor below's frame; the turn the short way; no turn words under
-    0.05 degree; "Already aligned" when nothing changes.
+    0.05 degree; "Already aligned" when nothing changes. The words "right", "left", "up" and "down" are in the floor below's
+    frame, not the screen's: when the floor below is itself turned, "right" is not right on the screen (known, left as is).
 - Apply stays a button whatever the score, disabled only when nothing would change. It writes
   `poseFromPlace(layout, key, below, { turn, shift: t })` through `setPose`: one undo step; the status says "Aligned to
-  Ground: 82 % match, turned 4.0°". The exact session pose starts again from the stored one, as after any writer.
+  Ground: 82 % match, turned 4.0° clockwise" (anticlockwise for the other way: the panel's words). The exact session pose starts again from the stored one, as after any writer.
 - Hand align stays: Move, Turn, the boxes, Reset and Align stairs work before and after Apply, as in 0.27.0.
 
 ### The memo

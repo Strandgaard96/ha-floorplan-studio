@@ -61,7 +61,7 @@ test("the ground from no pose says the turn and the other turn; Apply writes bot
   expect(err, `worst outline corner ${err} cm from the truth`).toBeLessThan(2);
   expect(Math.abs((await rotationOf(page, "ground"))! - GROUND_TO_BASEMENT.turn)).toBeLessThan(0.2);
   expect(await depth(page)).toBe(d0 + 1);
-  await expect(page.locator("#status")).toHaveText(/^Aligned to Basement: 68 % match, turned -2\.5°$/);
+  await expect(page.locator("#status")).toHaveText(/^Aligned to Basement: 68 % match, turned 2\.5° anticlockwise$/);
   await expect(page.locator("#alignMove")).toHaveText("Already aligned");
   await expect(page.locator("#alignApply")).toBeDisabled();
   await page.locator("#undo").click();

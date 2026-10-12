@@ -97,7 +97,7 @@ describe("alignSummary (S30.6)", () => {
   it("a name with markup is plain text in the status, untouched", () => {
     const name = `"><script>alert(1)</script>`;
     const s = alignStatus(res({ turn: 4, score: 81.9 }), ID, name);
-    expect(s).toBe(`Aligned to ${name}: 82 % match, turned 4.0°`);
+    expect(s).toBe(`Aligned to ${name}: 82 % match, turned 4.0° clockwise`);
     // the only place a name goes is the status; the summary lines carry none
     const sum = alignSummary(res({ turn: 4, alt: { turn: -176, score: 80 } }), ID, [0, 0]);
     expect(all(sum)).not.toContain("<");
@@ -106,9 +106,9 @@ describe("alignSummary (S30.6)", () => {
 
 describe("alignStatus (S30.6)", () => {
   it("says the match and the turn it made", () => {
-    expect(alignStatus(res({ turn: 4, score: 81.9 }), ID, "Ground")).toBe("Aligned to Ground: 82 % match, turned 4.0°");
-    expect(alignStatus(res({ turn: -2.5, score: 68.4 }), ID, "Ground")).toBe("Aligned to Ground: 68 % match, turned -2.5°");
-    expect(alignStatus(res({ turn: -177, score: 90 }), { turn: 180, shift: [0, 0] }, "Ground")).toBe("Aligned to Ground: 90 % match, turned 3.0°");
+    expect(alignStatus(res({ turn: 4, score: 81.9 }), ID, "Ground")).toBe("Aligned to Ground: 82 % match, turned 4.0° clockwise");
+    expect(alignStatus(res({ turn: -2.5, score: 68.4 }), ID, "Ground")).toBe("Aligned to Ground: 68 % match, turned 2.5° anticlockwise");
+    expect(alignStatus(res({ turn: -177, score: 90 }), { turn: 180, shift: [0, 0] }, "Ground")).toBe("Aligned to Ground: 90 % match, turned 3.0° clockwise");
   });
   it("leaves the turn out when it did not turn", () => {
     expect(alignStatus(res({ turn: 10.02, score: 50.5 }), { turn: 10, shift: [0, 0] }, "Ground")).toBe("Aligned to Ground: 51 % match");
