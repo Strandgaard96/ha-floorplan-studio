@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Core: `refinePlace` refines the turn and the shift together (robust weighted least squares, linearised about the placed lines' centre, the turn moving at most 2 degrees), so a candidate turn a fraction of a degree off ends within 0.05 degree and 0.5 cm.
 - Core: `turnCandidates(upper, lower)` lists the turns worth searching, from the two floors' wall directions (modulo 90 degrees, 0.25 degree bins, at most 13 candidates); `alignShift` is 0.27.0's translation search under its new name. Test helper `tests/fixtures/align-turn.ts`.
 
 ## 0.27.0 - 2026-10-11

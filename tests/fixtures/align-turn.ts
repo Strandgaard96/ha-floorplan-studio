@@ -70,3 +70,9 @@ export function cornerError(structure: Pt[], got: TestPlace, truth: TestPlace): 
   for (const p of structure) { const a = placePt(got, p), b = placePt(truth, p); worst = Math.max(worst, Math.hypot(a[0] - b[0], a[1] - b[1])); }
   return worst;
 }
+
+/** `a` first, then `b`: `compose(a, b)(p) = b(a(p))`. */
+export const composePlace = (a: TestPlace, b: TestPlace): TestPlace => {
+  const s = turnPt(a.shift, b.turn);
+  return { turn: a.turn + b.turn, shift: [s[0] + b.shift[0], s[1] + b.shift[1]] };
+};

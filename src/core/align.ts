@@ -1,4 +1,5 @@
 import type { Floor, Pt } from "./schema";
+import type { Place } from "./floor-stack";
 
 /**
  * S27.4: where to lay one floor on the floor below it. Translation only, in the floors' stored coordinates.
@@ -16,7 +17,7 @@ import type { Floor, Pt } from "./schema";
  */
 
 export type Seg = [number, number, number, number];
-type Sample = { x: number; y: number; w: number };
+export type Sample = { x: number; y: number; w: number };
 
 export interface AlignResult {
   /** cm to add to a point of the upper floor to lay it on the lower one, to 0.1 cm. */
@@ -62,7 +63,7 @@ export function structure(f: unknown): Seg[] {
 const len = (s: Seg) => Math.hypot(s[2] - s[0], s[3] - s[1]);
 
 /** Points along every line, one per `step` cm (at the middle of each piece), each weighing the length it stands for. */
-function sampleLines(segs: Seg[], step: number): Sample[] {
+export function sampleLines(segs: Seg[], step: number): Sample[] {
   const out: Sample[] = [];
   for (const s of segs) {
     const l = len(s), n = Math.max(1, Math.round(l / step));
@@ -370,5 +371,114 @@ export function turnCandidates(upper: unknown, lower: unknown): number[] {
     return [...out].sort((a, b) => a - b);
   } catch {
     return [0];
+  }
+}
+
+// ---- S30.3: joint refinement of the turn and the shift ------------------------------------------------------------------------
+
+const PLACE_TURN_CAP = 2, PLACE_STOP = 0.05, DEG = Math.PI / 180;
+
+/** The samples (in the upper floor's stored frame) put through a place: turn about the origin, then shift. */
+function placed(base: Sample[], p: Place): Sample[] {
+  const a = p.turn * DEG, c = Math.cos(a), s = Math.sin(a);
+  return base.map((q) => ({ x: q.x * c - q.y * s + p.shift[0], y: q.x * s + q.y * c + p.shift[1], w: q.w }));
+}
+
+/** Solves the 3 by 3 system `M x = b`; null when it is singular. */
+function solve3(M: number[][], b: number[]): number[] | null {
+  const A = M.map((r, i) => [...r, b[i]]);
+  for (let c = 0; c < 3; c++) {
+    let p = c;
+    for (let r = c + 1; r < 3; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    if (Math.abs(A[p][c]) < 1e-300) return null;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let r = 0; r < 3; r++) if (r !== c) { const f = A[r][c] / A[c][c]; for (let k = c; k < 4; k++) A[r][k] -= f * A[c][k]; }
+  }
+  return [A[0][3] / A[0][0], A[1][3] / A[1][1], A[2][3] / A[2][2]];
+}
+
+export interface PlaceFit { place: Place; score: number; res: number; rounds: number }
+
+/**
+ * S30.3: `refine` for the turn too. Robust weighted least squares in the shift (x, y) and the turn together, from `place`: `samples`
+ * are the upper floor's points in its stored frame, `lines` the lower floor's structure. The weights are `refine`'s: each sample pulls
+ * toward its nearest line within reach, weight `w / (1 + (d / c)^2)^2`, `c` the per-axis median distance, at least 2 cm.
+ *
+ * The turn is the unknown scaled by the lever (the weighted RMS distance of the placed samples from their centre), so the three
+ * unknowns are all in cm and the normal equations are balanced. It is linearised about the placed samples' weighted centre, recomputed
+ * every round: about the origin, a floor far from [0, 0] would couple the turn with a large shift and crawl. The turn moves at most
+ * `PLACE_TURN_CAP` degrees from where it started (this refines, it does not search). A step is kept when the score is no lower and the
+ * residual no larger (as `refine`). Stops when every component of the step is under `PLACE_STOP` cm (the turn as its move at the lever)
+ * or after `REFINE_ROUNDS`. With `turn: false` the turn is held (the shift refit after the turn is rounded). One sample has no lever,
+ * so the turn stays. Never throws; junk input gives back the place, made finite.
+ */
+export function refinePlace(samples: Sample[], lines: Seg[], place: Place, opts: { turn?: boolean } = {}): PlaceFit {
+  const start: Place = { turn: turnOf(place?.turn), shift: pt(place?.shift) ? [place.shift[0], place.shift[1]] : [0, 0] };
+  try {
+    const base = list(samples).filter((q): q is Sample => typeof q === "object" && q !== null && num(q.x) && num(q.y) && num(q.w) && q.w > 0);
+    const segs = list(lines).filter((l): l is Seg => Array.isArray(l) && l.length === 4 && l.every(num));
+    const free = opts.turn !== false, lim = REFINE_REACH * REFINE_REACH;
+    const nearest = (x: number, y: number): [number, number] => {
+      let bd = lim, bi = -1;
+      for (let i = 0; i < segs.length; i++) { const d = d2(x, y, segs[i]); if (d < bd) { bd = d; bi = i; } }
+      return [bd, bi];
+    };
+    const measure = (cur: Sample[]) => ({ score: scoreAt(cur, segs, 0, 0), res: residual(cur, segs, 0, 0) });
+    let p = start, cur = placed(base, p);
+    let best = { place: p, ...measure(cur) }, rounds = 0;
+    for (; rounds < REFINE_ROUNDS; rounds++) {
+      let sw = 0, cx = 0, cy = 0;
+      for (const q of cur) { sw += q.w; cx += q.w * q.x; cy += q.w * q.y; }
+      if (!(sw > 0)) break;
+      cx /= sw; cy /= sw;
+      let lever = 0;
+      for (const q of cur) lever += q.w * ((q.x - cx) ** 2 + (q.y - cy) ** 2);
+      lever = Math.sqrt(lever / sw);
+      const rows: { ax: number; ay: number; at: number; d: number; w: number }[] = [];
+      for (const q of cur) {
+        const bi = nearest(q.x, q.y)[1];
+        if (bi < 0) continue;
+        const s = segs[bi], dx = s[2] - s[0], dy = s[3] - s[1], l2 = dx * dx + dy * dy;
+        if (l2 === 0) continue;
+        const u = Math.max(0, Math.min(1, ((q.x - s[0]) * dx + (q.y - s[1]) * dy) / l2));
+        const vx = s[0] + dx * u - q.x, vy = s[1] + dy * u - q.y, r = Math.hypot(vx, vy);
+        let ax: number, ay: number, d: number;
+        if (r < 1e-9) { const l = Math.sqrt(l2); ax = -dy / l; ay = dx / l; d = 0; } else { ax = vx / r; ay = vy / r; d = r; }
+        // A turn clockwise on screen moves the point (x, y) about the centre by (-(y - cy), x - cx) per radian.
+        rows.push({ ax, ay, at: ax * -(q.y - cy) + ay * (q.x - cx), d, w: q.w });
+      }
+      if (!rows.length) break;
+      const med = (a: number[]) => (a.length ? a.sort((m, n) => m - n)[a.length >> 1] : 0);
+      const kx = Math.max(2, med(rows.filter((r) => Math.abs(r.ax) >= Math.abs(r.ay)).map((r) => r.d)));
+      const ky = Math.max(2, med(rows.filter((r) => Math.abs(r.ax) < Math.abs(r.ay)).map((r) => r.d)));
+      const M = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0];
+      let all = 0;
+      for (const r of rows) {
+        const c = Math.abs(r.ax) >= Math.abs(r.ay) ? kx : ky, w = r.w / (1 + (r.d / c) ** 2) ** 2;
+        const v = [r.ax, r.ay, free && lever > 0 ? r.at / lever : 0];
+        for (let i = 0; i < 3; i++) { b[i] += w * v[i] * r.d; for (let j = 0; j < 3; j++) M[i][j] += w * v[i] * v[j]; }
+        all += w;
+      }
+      for (let i = 0; i < 3; i++) M[i][i] += 1e-9 * all; // keeps a direction that nothing constrains at zero move
+      const x = solve3(M, b);
+      if (!x) break;
+      const mx = x[0], my = x[1];
+      let dth = free && lever > 0 ? x[2] / lever / DEG : 0;
+      if (!Number.isFinite(dth) || !Number.isFinite(mx) || !Number.isFinite(my)) break;
+      dth = Math.max(start.turn - PLACE_TURN_CAP, Math.min(start.turn + PLACE_TURN_CAP, p.turn + dth)) - p.turn;
+      if (Math.abs(mx) < PLACE_STOP && Math.abs(my) < PLACE_STOP && Math.abs(dth * DEG) * lever < PLACE_STOP) break;
+      // Turn by dth about the centre (cx, cy), then move by (mx, my): in terms of the place, the turn adds and the shift turns with it.
+      const a = dth * DEG, co = Math.cos(a), si = Math.sin(a);
+      const sx = cx - (cx * co - cy * si) + mx, sy = cy - (cx * si + cy * co) + my;
+      p = { turn: p.turn + dth, shift: [p.shift[0] * co - p.shift[1] * si + sx, p.shift[0] * si + p.shift[1] * co + sy] };
+      cur = placed(base, p);
+      const m = measure(cur);
+      if (m.score < best.score) continue;
+      if (m.score > best.score || m.res <= best.res) best = { place: p, ...m };
+    }
+    const ok = Number.isFinite(best.place.turn) && pt(best.place.shift);
+    return ok ? { ...best, rounds } : { place: start, score: 0, res: 0, rounds };
+  } catch {
+    return { place: start, score: 0, res: 0, rounds: 0 };
   }
 }

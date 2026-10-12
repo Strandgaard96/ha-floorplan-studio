@@ -2,8 +2,8 @@
 import { describe, it, expect } from "vitest";
 import hand from "../fixtures/hand-align-house.json";
 import house from "../fixtures/align-house.json";
-import { turnCandidates, MAX_TURN_CANDIDATES } from "../../src/core/align";
-import { blank, rect, turnedFloor, nearestTurn, squareHouse, plusHouse, noLines, seeded } from "../fixtures/align-turn";
+import { turnCandidates, refinePlace, sampleLines, structure, MAX_TURN_CANDIDATES } from "../../src/core/align";
+import { blank, rect, turnedFloor, nearestTurn, squareHouse, plusHouse, noLines, seeded, composePlace, placeAbout, invertPlace, placePt, type TestPlace } from "../fixtures/align-turn";
 import type { Floor, Layout, Pt } from "../../src/core/schema";
 
 const h = hand as unknown as Layout, a = house as unknown as Layout;
@@ -98,5 +98,100 @@ describe("turnCandidates (S30.2)", () => {
 
   it("rect helper sanity (the square house is square)", () => {
     expect(squareHouse().outline).toEqual(rect(100, 100, 700, 700));
+  });
+});
+
+// ---- S30.3: joint refinement of turn and shift ------------------------------------------------------------------------
+
+describe("refinePlace (S30.3)", () => {
+  // The truth for an upper floor that is `lowerFloor` put through `placeAbout(deg, ABOUT, shift)` and then laid on `lowerFloor` is the inverse;
+  // for the align-house first floor, whose lower floor is the ground, the stored shift of the first floor comes first.
+  const FIRST_ON_GROUND: TestPlace = { turn: 0, shift: [-137.4, 61.7] };
+  const cases: { name: string; upper: Floor; lower: Floor; truth: TestPlace }[] = (() => {
+    const out: { name: string; upper: Floor; lower: Floor; truth: TestPlace }[] = [];
+    const pl = placeAbout(3.4, ABOUT, [41, -17]);
+    const t1 = turnedFloor(a.floors.first, 3.4, ABOUT, [41, -17]);
+    out.push({ name: "align-house first on the ground, turned 3.4", upper: t1.floor, lower: a.floors.ground, truth: composePlace(invertPlace(pl), FIRST_ON_GROUND) });
+    const r = blank(rect(0, 0, 800, 400)), t2 = turnedFloor(r, -2.7, [120, 60], [-33, 21]);
+    out.push({ name: "plain rectangle, turned -2.7", upper: t2.floor, lower: r, truth: t2.truth });
+    const far = blank(rect(20000, 15000, 20800, 15400)), t3 = turnedFloor(far, 5.3, [20400, 15200], [12, -9]);
+    out.push({ name: "plain rectangle 25 m from the origin, turned 5.3", upper: t3.floor, lower: far, truth: t3.truth });
+    return out;
+  })();
+  const samplesOf = (f: Floor) => sampleLines(structure(f), 10);
+  /** The worst distance, in cm, between where `got` and where `truth` put the floor's structure points. */
+  const worst = (f: Floor, got: TestPlace, truth: TestPlace) => structure(f).flatMap((s) => [[s[0], s[1]], [s[2], s[3]]] as Pt[]).reduce((m, p) => {
+    const x = placePt(got, p), y = placePt(truth, p); return Math.max(m, Math.hypot(x[0] - y[0], x[1] - y[1]));
+  }, 0);
+  /** A start that is `dt` degrees and `[dx, dy]` cm off the truth where the floor lies: the error is a turn about the lower floor's centre, then a move. (A turn error about the origin of a floor 25 m away would be 260 cm of displacement.) */
+  const off = (truth: TestPlace, lower: Floor, dt: number, dx: number, dy: number): TestPlace => {
+    const pts = structure(lower).flatMap((s) => [[s[0], s[1]], [s[2], s[3]]] as Pt[]), xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+    const centre: Pt = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+    return composePlace(truth, placeAbout(dt, centre, [dx, dy]));
+  };
+
+  for (const c of cases) {
+    it(`${c.name}: from 0.6 degree and 8 cm off, in both directions of each error, it ends within 0.05 degree and 0.5 cm`, () => {
+      for (const [dt, sx, sy] of [[0.6, 1, 1], [-0.6, -1, -1], [0.6, 1, -1], [-0.6, -1, 1]]) {
+        const start = off(c.truth, c.lower, dt, sx * 6.4, sy * 4.8);
+        const r = refinePlace(samplesOf(c.upper), structure(c.lower), start);
+        expect(Math.abs(r.place.turn - c.truth.turn), `${dt} ${sx} ${sy}`).toBeLessThan(0.05);
+        expect(worst(c.upper, r.place, c.truth), `${dt} ${sx} ${sy}`).toBeLessThan(0.5);
+        expect(r.rounds, "the linearisation about the centre converges in a few rounds").toBeLessThanOrEqual(8);
+      }
+    });
+
+    it(`${c.name}: a start at the truth stays within 0.01 degree and 0.1 cm`, () => {
+      const r = refinePlace(samplesOf(c.upper), structure(c.lower), c.truth);
+      expect(Math.abs(r.place.turn - c.truth.turn)).toBeLessThan(0.01);
+      expect(worst(c.upper, r.place, c.truth)).toBeLessThan(0.1);
+    });
+
+    it(`${c.name}: with the turn unknown removed (shift only) it cannot take out a turn error`, () => {
+      const start = off(c.truth, c.lower, 0.6, 6.4, 4.8);
+      const r = refinePlace(samplesOf(c.upper), structure(c.lower), start, { turn: false });
+      expect(r.place.turn).toBe(start.turn);
+      expect(worst(c.upper, r.place, c.truth)).toBeGreaterThan(2);
+    });
+
+    it(`${c.name}: the turn moves by at most the cap (2 degrees) from where it started`, () => {
+      const start = off(c.truth, c.lower, 5, 3, -2);
+      const r = refinePlace(samplesOf(c.upper), structure(c.lower), start);
+      expect(Math.abs(r.place.turn - start.turn)).toBeLessThanOrEqual(2 + 1e-9);
+    });
+  }
+
+  it("one sample (no lever) leaves the turn alone", () => {
+    const lower = structure(blank(rect(0, 0, 800, 400)));
+    const r = refinePlace([{ x: 300, y: 3, w: 10 }], lower, { turn: 0.6, shift: [0, 2] });
+    expect(r.place.turn).toBe(0.6);
+  });
+
+  it("one wall on one wall turned 0.6 degree is found", () => {
+    const lower: Floor = { ...blank(), walls: [{ id: "w", a: [100, 100], b: [700, 130], kind: "external" } as never] };
+    const upper = turnedFloor(lower, 0.6, [400, 115]).floor;
+    const r = refinePlace(samplesOf(upper), structure(lower), { turn: 0, shift: [0, 0] });
+    expect(Math.abs(r.place.turn - -0.6)).toBeLessThan(0.05);
+  });
+
+  it("the score and residual of the answer never get worse than the start's (as refine)", () => {
+    const c = cases[0], start = off(c.truth, c.lower, 0.6, 6.4, 4.8), s = samplesOf(c.upper), l = structure(c.lower);
+    const r = refinePlace(s, l, start), r0 = refinePlace(s, l, start, { turn: true }) /* same call twice: deterministic */;
+    expect(r).toEqual(r0);
+    expect(r.score).toBeGreaterThanOrEqual(0);
+    expect(r.score).toBeLessThanOrEqual(100);
+    expect(r.res).toBeLessThan(5);
+  });
+
+  it("junk never throws and gives a finite place", () => {
+    const good = samplesOf(cases[1].upper), lines = structure(cases[1].lower);
+    const junkSamples: unknown[] = [[], null, "x", [{ x: NaN, y: 1, w: 1 }], [{ x: 1, y: Infinity, w: 1 }], [{ x: 1, y: 2, w: -3 }], [{ x: 1, y: 2 }], [null, 5], 5];
+    const junkLines: unknown[] = [[], null, [[NaN, 0, 1, 1]], [[0, 0, 0, 0]], [[1, 2, 3]], "x"];
+    const junkPlaces: unknown[] = [null, {}, { turn: NaN, shift: [0, 0] }, { turn: "4", shift: [0, 0] }, { turn: 1, shift: "x" }, { turn: 1, shift: [NaN, 0] }, { turn: 1e308, shift: [1e308, -1e308] }];
+    for (const s of [...junkSamples, good]) for (const l of [...junkLines, lines]) for (const p of [...junkPlaces, { turn: 0, shift: [0, 0] }]) {
+      let r: ReturnType<typeof refinePlace> | undefined;
+      expect(() => { r = refinePlace(s as never, l as never, p as never); }).not.toThrow();
+      expect(Number.isFinite(r!.place.turn) && Number.isFinite(r!.place.shift[0]) && Number.isFinite(r!.place.shift[1])).toBe(true);
+    }
   });
 });

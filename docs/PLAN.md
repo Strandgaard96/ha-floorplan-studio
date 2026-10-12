@@ -3666,7 +3666,7 @@ a new `tests/fixtures/align-turn.ts`):
       reverse order give the same array.
       Files: `src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, `tests/core/align-turn.test.ts`,
       `tests/fixtures/align-turn.ts`.
-- [ ] S30.3 Joint refinement of turn and shift (Sonnet, **judgement**: the linearisation point and the weights).
+- [x] S30.3 Joint refinement of turn and shift (Sonnet, **judgement**: the linearisation point and the weights).
       `refinePlace(samples, lines, place)` as S30.1 says: robust weighted least squares in turn and shift together,
       linearised about the samples' weighted centre, the same weights as `refine`, the turn moved by at most the note's
       cap, kept only when the score is no lower and the residual smaller (as `refine`). Test, failing first: from a start
