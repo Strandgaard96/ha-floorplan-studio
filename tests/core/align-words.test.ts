@@ -118,3 +118,14 @@ describe("alignStatus (S30.6)", () => {
     expect(alignStatus(res(), ID, undefined as any)).toBe("Aligned to the floor below: 82 % match");
   });
 });
+
+describe("Opus review: an alt with no usable turn is dropped", () => {
+  it("NaN, junk or missing numbers in alt never read as 0.0 degrees", () => {
+    for (const alt of [{ turn: NaN, score: 70 }, { turn: "x", score: 70 }, { turn: 90 }, { turn: 90, score: NaN }, { score: 70 }, {}]) {
+      const s = alignSummary(res({ turn: 4, score: 70, alt }), ID, [0, 0]);
+      expect(s.alt, JSON.stringify(alt)).toBeNull();
+    }
+    expect(alignSummary(res({ turn: 4, score: 70, alt: { turn: 93, score: 70 } }), ID, [0, 0]).alt).not.toBeNull();
+    expect(alignStatus(res({ alt: { turn: NaN, score: 1 } }), ID, "Ground")).toBe("Aligned to Ground: 82 % match");
+  });
+});

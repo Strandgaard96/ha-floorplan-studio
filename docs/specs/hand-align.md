@@ -221,7 +221,8 @@ stored frame is `{ turn, shift: t }`, the turn about the upper floor's stored or
 100, the share of the upper floor's structure within `NEAR` of the lower's at that place); `weak` is `score < WEAK_BELOW`
 (50, unchanged); `alt` is null or `{ turn, score }` of the best fit whose turn differs from the chosen one by more than
 `SAME_TURN` (2 degrees) and whose score is at least the chosen one's minus `ALT_WITHIN`; it may score higher (a far fit
-that missed `FAR_MARGIN`). Nothing here throws.
+that missed `FAR_MARGIN`). When the answer is weak, an alt that is weak too is dropped: the alt must score at least
+`WEAK_BELOW` itself. Nothing here throws, and an entry of `fits` that is not a fit (null, NaN) is ignored.
 
 ### The search
 
@@ -267,7 +268,8 @@ that missed `FAR_MARGIN`). Nothing here throws.
   depends on the order the lines come in.
 - `alt` is reported whatever the tiers: the best merged fit more than `SAME_TURN` away from the answer, scoring at least
   the answer's score minus `ALT_WITHIN` (5), by the same tie order. A symmetric floor therefore never gets a confident
-  answer: it is `weak`, or it carries `alt`. The words say "fits better" instead of "fits about as well" when `alt`
+  answer: it is `weak`, or it carries `alt` (a weak answer carries one only if the alt is not weak: for two unrelated floors both
+  guesses are weak, and the panel says one weak match, not two). The words say "fits better" instead of "fits about as well" when `alt`
   scores more than `TIE` above the answer.
 - With `from` the floor's current turn, a floor that was turned 180 degrees on purpose stays there; Auto align offers to
   turn it back only when that fits 25 points better. `from` 184 gives -176 (the result is in (-180, 180]).

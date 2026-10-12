@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import hand from "../fixtures/hand-align-house.json";
 import house from "../fixtures/align-house.json";
-import { turnCandidates, refinePlace, sampleLines, structure, MAX_TURN_CANDIDATES, buildLineIndex, linesNear, REFINE_REACH, alignFloor, alignShift, alignCandidates, chooseAlign, type AlignFit } from "../../src/core/align";
+import { turnCandidates, refinePlace, sampleLines, structure, MAX_TURN_CANDIDATES, buildLineIndex, linesNear, REFINE_REACH, alignFloor, alignShift, alignCandidates, chooseAlign, WEAK_BELOW, type AlignFit } from "../../src/core/align";
 import { blank, rect, turnedFloor, nearestTurn, squareHouse, plusHouse, noLines, seeded, starFloor, cornerError, composePlace, placeAbout, invertPlace, placePt, type TestPlace } from "../fixtures/align-turn";
 import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
 import { circle, heavyStress } from "../fixtures/align-golden";
@@ -360,6 +360,8 @@ describe("alignFloor searches the turn (S30.4)", () => {
       const g = seeded(seed * 7919), r = alignFloor(starFloor(g), starFloor(g))!;
       expect(r, `seed ${seed}`).not.toBeNull();
       expect(r.weak || r.alt !== null, `seed ${seed}: ${JSON.stringify(r)}`).toBe(true);
+      // Opus review: a weak answer is not made less weak by an alt that is weak too (two bad guesses are not a choice).
+      if (r.weak && r.alt) expect(r.alt.score, `seed ${seed}: ${JSON.stringify(r)}`).toBeGreaterThanOrEqual(WEAK_BELOW);
     }
   });
 
@@ -446,7 +448,11 @@ describe("chooseAlign (S30.4): the small tier, the far tier, ties and alt", () =
   });
   it("a weak far fit never wins by margin, and a small answer that is weak says so", () => {
     const r = chooseAlign([fit(4, 10), fit(120, 45)], 0)!;
-    expect(r).toMatchObject({ turn: 4, score: 10, weak: true, alt: { turn: 120, score: 45 } });
+    expect(r).toMatchObject({ turn: 4, score: 10, weak: true, alt: null }); // Opus review: 45 is weak too, so it is no alt
+    // ... but a weak answer with an alt that is not weak keeps it: the far fit is the better lead.
+    expect(chooseAlign([fit(4, 40), fit(-100, 60)], 0)).toMatchObject({ turn: 4, score: 40, weak: true, alt: { turn: -100, score: 60 } });
+    expect(chooseAlign([fit(4, 40), fit(-100, 50)], 0)!.alt).toEqual({ turn: -100, score: 50 });
+    expect(chooseAlign([fit(4, 40), fit(-100, 49.9)], 0)!.alt).toBeNull();
   });
   it("small tier is within 10 degrees of from, the circle wrapped: from 184 reads -176 as near", () => {
     expect(chooseAlign([fit(-176, 70), fit(4, 90)], 184)).toMatchObject({ turn: -176, alt: { turn: 4, score: 90 } });
@@ -502,5 +508,19 @@ describe("time budget (S30.5)", () => {
 
   it("alignShift on the stress pair stays under 200 ms", () => {
     expect(slower(() => alignShift(S.floors[keys[1]], S.floors[keys[0]]))).toBeLessThan(200);
+  });
+});
+
+describe("Opus review: chooseAlign never throws", () => {
+  const fit = (turn: number, score: number): AlignFit => ({ turn, t: [0, 0], score, res: 5 });
+  it("junk entries are dropped, and a list of only junk gives null", () => {
+    for (const junk of [[null], [{}], [undefined], [5, "x"], [{ turn: NaN, t: [0, 0], score: 50, res: 1 }], [{ turn: 0, t: null, score: 50, res: 1 }], [{ turn: 0, t: [0, NaN], score: 50, res: 1 }]]) {
+      expect(() => chooseAlign(junk as never, 0), JSON.stringify(junk)).not.toThrow();
+      expect(chooseAlign(junk as never, 0), JSON.stringify(junk)).toBeNull();
+    }
+  });
+  it("a good fit beside junk is still the answer, and the junk is never its alt", () => {
+    const r = chooseAlign([null, { turn: NaN, t: [0, 0], score: 99, res: 1 }, fit(3, 70)] as never, 0)!;
+    expect(r).toMatchObject({ turn: 3, score: 70, alt: null });
   });
 });

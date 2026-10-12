@@ -44,7 +44,7 @@ const percent = (x: unknown): number => Math.max(0, Math.min(100, Math.round(num
 function usable(r: unknown): AlignChoice | null {
   if (!r || typeof r !== "object") return null;
   const o = r as any;
-  const alt = o.alt && typeof o.alt === "object" ? { turn: num(o.alt.turn), score: num(o.alt.score) } : null;
+  const a = o.alt, alt = a && typeof a === "object" && Number.isFinite(a.turn) && Number.isFinite(a.score) ? { turn: a.turn as number, score: a.score as number } : null;
   return { turn: num(o.turn), t: pair(o.t), score: num(o.score), weak: o.weak === true, alt };
 }
 

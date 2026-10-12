@@ -606,22 +606,28 @@ export function alignCandidates(upper: unknown, lower: unknown): AlignFit[] | nu
  * S30.4: the choice among `fits`, given the turn the floor has now (`from`, degrees; junk reads as 0). The small tier is the fits within
  * `SMALL_TURN` of `from` (the circle wrapped), the far tier the rest. A far fit wins only if it scores at least `FAR_MARGIN` above the best
  * small one and is not weak. In a tier, scores within `TIE` of the best tie: the turn nearer `from` wins, then the smaller move, the smaller
- * residual, the smaller turn. `alt` is the best fit more than `SAME_TURN` from the answer scoring at least the answer minus `ALT_WITHIN`.
- * The turn is in (-180, 180]. Does not change `fits`. Null for no fits.
+ * residual, the smaller turn. `alt` is the best fit more than `SAME_TURN` from the answer scoring at least the answer minus `ALT_WITHIN`;
+ * when the answer is weak the alt must not be weak itself (two weak guesses are not a choice). Entries that are not fits (null, NaN) are
+ * ignored, and the function never throws. The turn is in (-180, 180]. Does not change `fits`. Null for no fits.
  */
 export function chooseAlign(fits: AlignFit[] | null, from: unknown = 0): AlignAnswer | null {
-  if (!Array.isArray(fits) || !fits.length) return null;
-  const f0 = fromOf(from), move = (t: Pt) => Math.hypot(t[0], t[1]);
-  const pickIn = (xs: AlignFit[]): AlignFit | null => {
-    if (!xs.length) return null;
-    const top = Math.max(...xs.map((x) => x.score));
-    return xs.filter((x) => x.score >= top - TIE)
-      .sort((a, b) => gapOf(a.turn, f0) - gapOf(b.turn, f0) || move(a.t) - move(b.t) || a.res - b.res || a.turn - b.turn)[0];
-  };
-  const bs = pickIn(fits.filter((x) => gapOf(x.turn, f0) <= SMALL_TURN)), bf = pickIn(fits.filter((x) => gapOf(x.turn, f0) > SMALL_TURN));
-  const ans = bs && bf ? (bf.score >= bs.score + FAR_MARGIN && bf.score >= WEAK_BELOW ? bf : bs) : (bs ?? bf)!;
-  const alt = pickIn(fits.filter((x) => gapOf(x.turn, ans.turn) > SAME_TURN && x.score >= ans.score - ALT_WITHIN));
-  return { turn: ans.turn, t: ans.t, score: ans.score, weak: ans.score < WEAK_BELOW, alt: alt ? { turn: alt.turn, score: alt.score } : null };
+  try {
+    const good = Array.isArray(fits) ? fits.filter((f) => !!f && typeof f === "object" && Number.isFinite(f.turn) && Number.isFinite(f.score) && Number.isFinite(f.res) && pt(f.t)) : [];
+    if (!good.length) return null;
+    const f0 = fromOf(from), move = (t: Pt) => Math.hypot(t[0], t[1]);
+    const pickIn = (xs: AlignFit[]): AlignFit | null => {
+      if (!xs.length) return null;
+      const top = Math.max(...xs.map((x) => x.score));
+      return xs.filter((x) => x.score >= top - TIE)
+        .sort((a, b) => gapOf(a.turn, f0) - gapOf(b.turn, f0) || move(a.t) - move(b.t) || a.res - b.res || a.turn - b.turn)[0];
+    };
+    const bs = pickIn(good.filter((x) => gapOf(x.turn, f0) <= SMALL_TURN)), bf = pickIn(good.filter((x) => gapOf(x.turn, f0) > SMALL_TURN));
+    const ans = bs && bf ? (bf.score >= bs.score + FAR_MARGIN && bf.score >= WEAK_BELOW ? bf : bs) : (bs ?? bf)!;
+    const alt = pickIn(good.filter((x) => gapOf(x.turn, ans.turn) > SAME_TURN && x.score >= ans.score - ALT_WITHIN && (ans.score >= WEAK_BELOW || x.score >= WEAK_BELOW)));
+    return { turn: ans.turn, t: ans.t, score: ans.score, weak: ans.score < WEAK_BELOW, alt: alt ? { turn: alt.turn, score: alt.score } : null };
+  } catch {
+    return null;
+  }
 }
 
 /**

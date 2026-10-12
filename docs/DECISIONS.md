@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: Opus review of Sprint 30: a weak answer's alt must not be weak (Sonnet)
+
+Supersedes the `alt` rule of S30.1 and S30.8 ("any other fit within 5 points of the answer"). Two unrelated floors gave a weak
+answer and a weak alt, and the panel offered "a turn that fits about as well (24 %)": two bad guesses read as a choice. Now
+`chooseAlign` keeps an alt only if `ans.score >= WEAK_BELOW || alt.score >= WEAK_BELOW`. A 40 % answer with a 60 % far fit keeps
+its alt (a better lead); a 10 % answer with a 45 % fit does not. `chooseAlign` also ignores entries that are not fits and never
+throws, as `alignCandidates` does; `alignSummary` drops an alt whose turn or score is not a number (it read "0.0 degrees").
+The golden file `tests/fixtures/align-golden.json` changed on the 20 star cases only, and only in `alt` (now null); a script
+compared every other field.
+
 ## 2026-10-12: S30.9 exit test and docs (Sonnet)
 
 `tests/editor/align-turn-exit.spec.ts`: hand-align house, no pose; real clicks on Align, Apply for the ground then the first
