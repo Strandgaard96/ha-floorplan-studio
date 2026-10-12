@@ -1113,8 +1113,17 @@ try {
         await page.locator("floorplan-studio-card").locator(".fp-tip").waitFor();
       } else {
         await page.mouse.click(at.x, at.y);
-        await page.locator("floorplan-studio-card").locator(".fp-pop").waitFor();
-        if (s.tap2) {
+        // A tap that opens no popup is a finding, not a crash: the remaining shots still render and the error is listed.
+        const popped = await page
+          .locator("floorplan-studio-card")
+          .locator(".fp-pop")
+          .waitFor({ timeout: 5000 })
+          .then(
+            () => true,
+            () => false,
+          );
+        if (!popped) errors.push(`${s.name}: a tap on icon ${i} opened no popup`);
+        else if (s.tap2) {
           await page.locator("floorplan-studio-card").locator(".fp-pop-do").click();
           await page.locator("floorplan-studio-card").locator(".fp-pop-confirm, .fp-pop-cancel").first().waitFor();
         }
