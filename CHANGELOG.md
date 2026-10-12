@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.27.0 - 2026-10-12
 
 - View options has Cover art and Temperature colours; each is remembered per viewer and Reset view returns to the YAML (`media_art`, `temp_colors`). The card editor has both, and the two bounds.
 - Cover art in the card, 2D and 3D: an image that cannot load is replaced by the icon, and a new picture is tried again.
