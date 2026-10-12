@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: Layers in 3D: hidden devices are not tappable; a ball is scaled to nothing (Sprint 29)
+
+A device whose family is hidden is a null slot in the live state (as a room's own sensor is). The view then drops its overlay
+icon, ball, body and lamp pool and wall glow; a lit lamp still lifts its room. The spec did not say what a tap at its spot
+does: the picker's proxy ball and the body would still have opened its popup, unlike 2D, so `Picker.pick` skips such
+devices and the ray reads whatever is behind (a room, or furniture). Balls are one instanced mesh, so a hidden one is scaled
+to nothing. Baked contact shadows under a hidden body stay (they are built with the scene). A device that cannot be read is a
+null slot too and now loses its ball; that is junk input.
+
 ## 2026-10-12: cover art follows the entity, and its far dot is a plain dot (Sprint 29)
 
 Art shows only while the media player's own state is `playing`; each grouped speaker is read on its own. Music Assistant can

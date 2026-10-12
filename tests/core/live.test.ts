@@ -116,3 +116,41 @@ describe("liveOf", () => {
     expect(live({}).labels).toBe(true);
   });
 });
+
+describe("liveOf: Layers (S29, L1-L3)", () => {
+  const on = { "light.demo_living": st("on"), "light.demo_kitchen": st("on") };
+  it("a hidden family is a null slot; its lit lamps still lift their rooms", () => {
+    const l = live(on, ground, { hiddenLayers: ["lights"] });
+    expect(l.devices[0]).toBeNull();
+    expect(l.devices[1]).toBeNull();
+    expect(l.devices[4]).not.toBeNull(); // the living temperature sensor: another family
+    expect(l.lights.map((x) => x.device)).toEqual([0, 1]);
+  });
+  it("keep draws one thing of a hidden family (a device found by search)", () => {
+    const l = live(on, ground, { hiddenLayers: ["lights"], keep: { t: "dev", i: 1 } });
+    expect(l.devices[0]).toBeNull();
+    expect(l.devices[1]).not.toBeNull();
+  });
+  it("furniture is not hidden in 3D", () => {
+    const f = structuredClone(ground);
+    f.furniture.push({
+      id: "tv",
+      symbol: "tv",
+      x: 100,
+      y: 100,
+      rot: 0,
+      w: 120,
+      h: 10,
+      entity: "media_player.tv",
+    } as never);
+    const s = { "media_player.tv": st("on") };
+    expect(live(s, f, { hiddenLayers: ["furniture"] }).pieces).toEqual(live(s, f).pieces);
+  });
+  it("no family hidden is byte for byte as before", () => {
+    expect(JSON.stringify(live(on, ground, { hiddenLayers: [] }))).toBe(JSON.stringify(live(on)));
+  });
+  it("junk hiddenLayers and keep never throw", () => {
+    for (const h of [null, 5, "lights", [{}], ["__proto__"]])
+      expect(() => live(on, ground, { hiddenLayers: h as never, keep: { t: 5, i: "x" } as never })).not.toThrow();
+  });
+});

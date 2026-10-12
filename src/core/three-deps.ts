@@ -56,6 +56,7 @@ import {
 } from "./solids";
 import { DEVICE_TYPES, fxScale, ROOM_KINDS, WALL_KINDS } from "./schema";
 import { doorStateOf } from "./door-state";
+import { layerHides } from "./layers";
 import { textureTile } from "./textures";
 import { treeShape } from "./tree";
 import type { LiveDeps } from "./live-build";
@@ -120,6 +121,7 @@ export const liveDeps: LiveDeps = {
   ROOM_OWNS,
   doorStateOf,
   fxScale,
+  layerHides,
 };
 export const textureDeps = { texture: textureTile };
 export type TextureDeps = typeof textureDeps;

@@ -280,6 +280,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   }[] = [];
   let ballIdx: number[] = [],
     ballRest: Color[] = [],
+    ballAt: [number, number, number][] = [],
+    ballShown: boolean[] = [],
     anchors: Anchors = { devices: new Map(), rooms: new Map() };
   const overlay = createOverlay(container),
     pools = createPools(scene),
@@ -840,6 +842,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     pieceBodies = [];
     ballIdx = [];
     ballRest = [];
+    ballAt = [];
+    ballShown = [];
     rings.dispose(retire);
     roomShapes = [];
     roomSolid.clear();
@@ -875,6 +879,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       at.makeTranslation(sol.shape.at[0], sol.shape.z, sol.shape.at[1]);
       m.setMatrixAt(i, at);
       ballIdx.push(sol.ref.index as number);
+      ballAt.push([sol.shape.at[0], sol.shape.z, sol.shape.at[1]]);
+      ballShown.push(true);
       ballRest.push(paintOf(sol.paint.role, sol.paint.color).colour);
       m.setColorAt(i, ballRest[i]);
     });
@@ -1136,18 +1142,33 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       driver = paintOf("driver-on", undefined).colour,
       off = paintOf("driver-off", undefined).colour;
     for (const b of devBodies) {
-      const d = L.devices[b.index] ?? null;
+      // S29 (L2): a device Layers hides (a null slot) has no body, and nothing on it lights up.
+      const d = L.devices[b.index] ?? null,
+        show = L.devices[b.index] !== null;
+      b.mesh.visible = show;
+      for (const m of b.lit) m.visible = show;
       if (b.type === "heater") b.mat.color.copy(d && d.state === "on" ? heat : b.rest);
       b.on = b.type === "tv" ? !!d && d.state === "on" : b.type === "speaker" ? !!d && d.playing : false;
       for (const m of b.lit) (m.material as MeshBasicMaterial).color.copy(b.on ? (b.type === "tv" ? on : driver) : off);
     }
   }
-  /** A ball is the colour its icon is drawn in (the card's stylesheet decides, as in 2D), faded toward the backdrop by the icon's opacity. */
+  /** A ball is the colour its icon is drawn in (the card's stylesheet decides, as in 2D), faded toward the backdrop by the icon's
+   *  opacity. S29 (L2): a device Layers hides (a null slot) has no ball: it is scaled to nothing, and comes back with its family. */
   function applyBalls() {
     if (!markers) return;
-    const back = paintOf("backdrop", undefined).colour,
-      c = new Color();
+    const L = liveNow ?? EMPTY,
+      back = paintOf("backdrop", undefined).colour,
+      c = new Color(),
+      m4 = new Matrix4();
+    let moved = false;
     ballIdx.forEach((di, k) => {
+      const show = L.devices[di] !== null;
+      if (show !== ballShown[k]) {
+        ballShown[k] = show;
+        const p = ballAt[k]!;
+        markers!.setMatrixAt(k, show ? m4.makeTranslation(p[0], p[1], p[2]) : m4.makeScale(0, 0, 0));
+        moved = true;
+      }
       const f = overlay.fill(di),
         css = f ? resolveColour(probe, f.css) : null;
       if (css === null || !f) {
@@ -1158,6 +1179,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (f.opacity < 1) c.lerp(back, 1 - Math.max(0, f.opacity));
       markers!.setColorAt(k, c);
     });
+    if (moved) markers.instanceMatrix.needsUpdate = true;
     if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
   }
   const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1215,7 +1237,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
     const b = plan?.bounds,
       centre: [number, number] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
-    const here = lit.filter((l) => roomSolid.has(l.room));
+    const here = lit.filter((l) => roomSolid.has(l.room) && L.devices[l.device] !== null); // S29 (L2): a hidden lamp lifts its room (above) but casts no pool or wall glow
     pools.set(
       pickLights(here, centre, MAX_POOLS).map((l) => {
         const r = roomSolid.get(l.room)!;
@@ -1503,7 +1525,16 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       );
       const o = raycaster.ray.origin,
         d = raycaster.ray.direction; // three's frame to the plan's: (x, y, z) -> (x, z, y)
-      return picker.pick({ o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] }, (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT));
+      return picker.pick(
+        { o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] },
+        (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT),
+        // S29: a device Layers hides is not there to tap; the ray reads what is under it.
+        (sol) =>
+          sol.kind === "device" &&
+          typeof sol.ref.index === "number" &&
+          !!liveNow &&
+          liveNow.devices[sol.ref.index] === null,
+      );
     },
     setRing(room) {
       const next = typeof room === "number" && Number.isFinite(room) ? room : null;
@@ -1789,6 +1820,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           type: b.type,
           colour: hexOf(b.mat.color),
           emissive: b.on && b.lit[0] ? hexOf((b.lit[0].material as MeshBasicMaterial).color) : "#000000",
+          visible: b.mesh.visible,
         });
         const c = new Color();
         return {
@@ -1806,7 +1838,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           pieces: pieceBodies.map((b) => ({ index: b.index, on: b.on, colour: hexOf(b.mat.color) })),
           balls: ballIdx.map((di, k) => {
             markers?.getColorAt(k, c);
-            return { index: di, colour: hexOf(c), shown: true };
+            return { index: di, colour: hexOf(c), shown: ballShown[k] ?? true };
           }),
           pools: pools.info(),
           glow: glow.info(),

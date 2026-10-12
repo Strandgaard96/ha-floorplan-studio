@@ -30,7 +30,8 @@ export type LiveDeps = Pick<
 > &
   Pick<typeof import("./solids"), "pieceDevice"> &
   Pick<typeof import("./door-state"), "doorStateOf"> &
-  Pick<typeof import("./schema"), "fxScale">;
+  Pick<typeof import("./schema"), "fxScale"> &
+  Pick<typeof import("./layers"), "layerHides">;
 
 export interface LiveLight {
   device: number;
@@ -103,6 +104,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
     ROOM_OWNS,
     doorStateOf,
     fxScale,
+    layerHides,
   } = d;
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
   const ringOf = (r: { pts?: unknown } | null | undefined): Pt[] | null =>
@@ -170,6 +172,9 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
             ...(fxScale(d) !== 1 ? { scale: fxScale(d) } : {}),
           });
         }
+        // S29 (L1, L2): a family Layers hides draws nothing in 3D either: the slot is null, as for a room's own sensor. A lit lamp
+        // stays in `lights`, so its room is still lifted (the 2D room glow stays too); the view drops its pool and wall glow.
+        if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) out[i] = null;
       } catch (e) {
         debugOnce("3D live state: a device could not be read and draws nothing", e);
       }

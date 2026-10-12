@@ -2084,6 +2084,8 @@ export class FloorplanStudioCard extends LitElement {
         showNames: this._names(),
         mediaArt: this._mediaArt(),
         around: floorsAroundKey(this._layout!, this._floorKey()!),
+        hiddenLayers: this._hiddenLayers, // S29 (L1, L3): the families Layers hides, and a found thing kept anyway
+        keep: this._keptHere(),
       },
       now,
     );
@@ -3927,9 +3929,9 @@ export class FloorplanStudioCard extends LitElement {
 
   /** The Layers button in the tools row: it unfolds the chips, and counts what is hidden ("Layers · 2 hidden"), with the
    *  Studio's sentence as its title ("Layers: lights hidden"), so a folded sheet still tells. Short, so it shares a line
-   *  with All floors in a 260 px sheet. Folded by default: the sheet covers no more of the plan. Not in live 3D. */
+   *  with All floors in a 260 px sheet. Folded by default: the sheet covers no more of the plan. Also in live 3D (S29), where Furniture stays drawn. */
   private _layersToggle() {
-    if (!this._floor() || this._shows3d()) return nothing;
+    if (!this._floor()) return nothing;
     const n = this._hiddenLayers.length;
     return html`<button type="button" class="fp-layers-toggle" aria-expanded=${this._layersOpen ? "true" : "false"} title=${layersSummary(this._hiddenLayers) || "Hide or show families on the plan"} @click=${() => {
       this._layersOpen = !this._layersOpen;
@@ -3938,20 +3940,24 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** One text chip per family with something on the floor on show (`layerCounts`); pressed means shown. A click hides or
-   *  shows the family, Alt-click shows it alone (again: all). Not in live 3D, which draws every family. Then, unfolded or
+   *  shows the family, Alt-click shows it alone (again: all). In live 3D too (S29); there the Furniture chip is disabled. Then, unfolded or
    *  not, the note for a thing located under a hidden family, with Show for that family. */
   private _layerChips() {
     const f = this._floor();
-    if (!f || this._shows3d()) return nothing;
+    if (!f) return nothing;
+    // S29 (L4): in live 3D furniture is solids in the canvas and is not hidden; its chip is disabled there and its stored state kept.
+    const in3d = this._shows3d();
     const n = layerCounts(f),
       hidden = this._hiddenLayers,
       k = this._keptHere();
     const word = (id: LayerId) => (LAYERS.find((l) => l.id === id)?.label ?? id).toLowerCase();
     const chips = LAYERS.filter((l) => n[l.id] > 0).map((l) => {
-      const shown = !hidden.includes(l.id);
-      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} title=${`${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id))}>${l.label}</button>`;
+      const shown = !hidden.includes(l.id),
+        off = in3d && l.id === "furniture";
+      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} ?disabled=${off} title=${off ? "Furniture hides in 2D only" : `${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id))}>${l.label}</button>`;
     });
-    return html`${this._layersOpen ? html`<div class="fp-layer-chips">${chips}</div>` : nothing}${k ? html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>` : nothing}`;
+    const note = k && !(in3d && k.fam === "furniture");
+    return html`${this._layersOpen ? html`<div class="fp-layer-chips">${chips}</div>` : nothing}${note ? html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>` : nothing}`;
   }
 
   private _setLayers(next: LayerId[]): void {

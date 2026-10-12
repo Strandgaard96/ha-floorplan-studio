@@ -16,6 +16,11 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: Sprint 29, Layers in 3D (branch `task/s29`)
+
+- `liveOf` applies `layerHides`; `view3d.ts` hides balls, bodies, pools and glow for null slots and skips them in
+  `Picker.pick`; the card shows the chips in 3D.
+
 ## 2026-10-12: Sprint 29, cover art markup (branch `task/s29`)
 
 - `artUrl` in `src/core/schema.ts`; `deviceMarkup` draws `image.art` with a per-device clip; `.art` rules in `FLOORPLAN_CSS`;
