@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Cover art in the card, 2D and 3D: an image that cannot load is replaced by the icon, and a new picture is tried again.
 - 3D: a room's temperature is on the same coloured pill as in 2D, and a temperature icon wears the same ring.
 - A room's temperature on the plan sits on a pill coloured by a fixed comfort scale: blue at `heat_min` (17 °C), neutral half way, red at `heat_max` (25 °C); a temperature icon gets a ring in the same colour. The text is unchanged. `temp_colors: false` turns it off.
 - Layers work in 3D: hiding a family takes its icons, balls, bodies and lamp pools off the 3D view, and a tap there no longer reaches them. The room's light lift stays. Furniture is not hidden in 3D; its chip is disabled there.

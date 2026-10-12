@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: one capturing error listener for cover art (Sprint 29)
+
+The spec put a capturing `error` listener on the plan `<svg>` and another on the 3D overlay root. Both live in the card's
+shadow root, and a capturing listener there sees every `<image>` failing under it, so there is one, added in
+`connectedCallback` and removed in `disconnectedCallback`. Only an `image.art` counts. The failed set holds 64 hrefs, oldest
+dropped; a dropped href is tried again.
+
 ## 2026-10-12: the temperature pill is sized per character, and its text has no outline (Sprint 29)
 
 The plan sized the pill like the room-name tag, 0.6 em per character. Rendered, that overstated "21.7 °C · 48 %" by a fifth

@@ -260,7 +260,14 @@ monLayout.floors.ground.devices.push({
   y: 300,
 });
 Object.assign(STATES.off, { "media_player.demo_tv_living": "off", "media_player.demo_sonos": "idle" });
-Object.assign(STATES.on, { "media_player.demo_tv_living": "on", "media_player.demo_sonos": "playing" });
+Object.assign(STATES.on, {
+  "media_player.demo_tv_living": "on",
+  // S29 (A7): a fake proxy token; the route below answers a cover image.
+  "media_player.demo_sonos": [
+    "playing",
+    { entity_picture_local: "/api/media_player_proxy/media_player.demo_sonos?token=FAKE&cache=shots" },
+  ],
+});
 Object.assign(STATES.gone, { "media_player.demo_tv_living": "unavailable", "media_player.demo_sonos": "unavailable" });
 // S18.12: a tv, speaker and computer piece with an entity (tracking it) beside the same three without one, in the Kitchen.
 // Idle, the linked ones must read blue and the plain ones grey; on, linked ones go amber (and the tv and speaker send waves).
@@ -572,6 +579,12 @@ if (args.has("--polish")) {
                   return route.fulfill({
                     contentType: "text/html",
                     body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${t.page};${t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`,
+                  });
+                // S29 (A7): the media proxy answers a fake cover, so the shots show cover art.
+                if (url.pathname.startsWith("/api/media_player_proxy/"))
+                  return route.fulfill({
+                    contentType: "image/svg+xml",
+                    body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><defs><linearGradient id="g" x2="1" y2="1"><stop offset="0" stop-color="#e94"/><stop offset="1" stop-color="#638"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/><circle cx="32" cy="32" r="9" fill="#fff"/></svg>',
                   });
                 const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
                 if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
@@ -1252,6 +1265,12 @@ try {
         return route.fulfill({
           contentType: "text/html",
           body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=shots"></script><body style="margin:0;padding:12px;background:${s.t.page};${s.t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`,
+        });
+      // S29 (A7): the media proxy answers a fake cover, so the shots show cover art.
+      if (url.pathname.startsWith("/api/media_player_proxy/"))
+        return route.fulfill({
+          contentType: "image/svg+xml",
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><defs><linearGradient id="g" x2="1" y2="1"><stop offset="0" stop-color="#e94"/><stop offset="1" stop-color="#638"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/><circle cx="32" cy="32" r="9" fill="#fff"/></svg>',
         });
       const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
       if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });

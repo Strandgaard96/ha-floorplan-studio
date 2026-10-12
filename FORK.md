@@ -16,6 +16,11 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: Sprint 29, cover art in the card (branch `task/s29`)
+
+- One capturing `error` listener on the card's shadow root keeps a bounded set of failed art hrefs (`ART_FAILED_MAX` 64),
+  passed to both views as `artFailed`; the shots serve a fake cover.
+
 ## 2026-10-12: Sprint 29, temperature pill in 3D (branch `task/s29`)
 
 - `LiveRoom` carries `temp`, `rest`, `heat`; the overlay draws `span.val-pill` and its own idle ring rule.

@@ -290,6 +290,8 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /** Below this card width the Active list starts folded: it would cover the plan. */
 const ACTIVE_FOLD_BELOW_PX = 480;
+/** S29 (A6): the most failed cover-art hrefs remembered; state is untrusted and can churn URLs. */
+const ART_FAILED_MAX = 64;
 /** UI refactor 2: in 3D a popup keeps clear of a square this many px on a side, centred on the tap that opened it (the device's screen point). */
 const POPUP_3D_ANCHOR_PX = 48;
 /** How many summary chips the Overview header spells out before the rest become "+N more". */
@@ -695,6 +697,26 @@ export class FloorplanStudioCard extends LitElement {
   private _hiddenLayers: LayerId[] = [];
   /** What search or a row tap located under a hidden family: drawn anyway (`keep`) on its floor, with a note and Show. */
   private _kept: { floor: string; t: "dev" | "furn"; i: number; fam: LayerId } | null = null;
+  /** S29 (A6): cover-art hrefs that failed to load, oldest first. Such a speaker draws its glyph; a new href is tried again. */
+  private _artFailed = new Set<string>();
+  /** S29 (A6): an `<image>`'s `error` does not bubble; one capturing listener on the shadow root sees the plan's and the 3D overlay's.
+   *  Tested by tag and namespace, not `instanceof SVGImageElement`: jsdom has no such class. */
+  private _onArtError = (e: Event): void => {
+    const t = e.target;
+    if (
+      !(t instanceof Element) ||
+      t.localName !== "image" ||
+      t.namespaceURI !== "http://www.w3.org/2000/svg" ||
+      !t.classList.contains("art")
+    )
+      return;
+    const href = t.getAttribute("href");
+    if (!href || this._artFailed.has(href)) return;
+    this._artFailed.add(href);
+    while (this._artFailed.size > ART_FAILED_MAX)
+      this._artFailed.delete(this._artFailed.values().next().value as string);
+    this.requestUpdate();
+  };
   /** Whether the layer chips are unfolded (the Layers button). Not remembered: folded is where a sheet starts. */
   private _layersOpen = false;
   /** S24.8 (F1): the search's entries, built once per layout and state source, not per keystroke (`<fp-search>` indexes on a new array). */
@@ -1297,6 +1319,7 @@ export class FloorplanStudioCard extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.renderRoot.addEventListener("error", this._onArtError, true); // S29 (A6): a failed cover image
     // S2.7: programmatically focusable (not in the tab order) so the card itself can take focus back after the
     // cover dialog closes, without adding a stop no keyboard user would otherwise want. Set here, not in the
     // constructor: the custom element spec forbids gaining attributes during construction (jsdom enforces this
@@ -1467,6 +1490,7 @@ export class FloorplanStudioCard extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.renderRoot.removeEventListener("error", this._onArtError, true);
     this._stopTimer();
     if (this._pulseTimer !== null) {
       globalThis.clearTimeout(this._pulseTimer);
@@ -2083,6 +2107,7 @@ export class FloorplanStudioCard extends LitElement {
         labels: this._labels(),
         showNames: this._names(),
         mediaArt: this._mediaArt(),
+        artFailed: this._artFailed,
         around: floorsAroundKey(this._layout!, this._floorKey()!),
         hiddenLayers: this._hiddenLayers, // S29 (L1, L3): the families Layers hides, and a found thing kept anyway
         keep: this._keptHere(),
@@ -4094,6 +4119,7 @@ export class FloorplanStudioCard extends LitElement {
           labels: this._labels(),
           showNames: this._names(),
           mediaArt: this._mediaArt(),
+          artFailed: this._artFailed,
           around: floorsAroundKey(this._layout!, this._floorKey()!),
           selectedRoom: this._picked() ?? undefined,
           hiddenLayers: this._hiddenLayers,

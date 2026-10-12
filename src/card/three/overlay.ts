@@ -4,7 +4,8 @@
 // and 2D and 3D cannot differ. The whole layer is `pointer-events:none`: the canvas under it takes every pointer, and a tap on
 // an icon is answered by `hit()` through the same `pick` a tap anywhere else gets (DECISIONS S12.5). Nothing is imported from
 // core at run time (types only). Every string that reaches the DOM goes through textContent or setAttribute, never markup,
-// except the icon's inner SVG, which core builds from its own inlined table (CLAUDE.md finding 2).
+// except the icon's inner SVG, which core builds from its own inlined table (CLAUDE.md finding 2). The icon may hold one outside
+// value, a cover-art href; core lets only a same-origin path through (`artUrl`) and escapes it.
 import type { Live3D } from "../../core/live";
 import type { RoomKind } from "../../core/schema";
 import { declutter, type Box } from "./declutter";
