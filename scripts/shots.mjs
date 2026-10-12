@@ -604,6 +604,36 @@ try {
     shots.push(name);
     await ctx.close();
   }
+  // S30.10: the Align panel on the hand-align house's ground floor from no pose: the turn line and the other-turn line showing ("preview"),
+  // then after a real click on Apply ("applied": Already aligned, Apply disabled). 1280 and 380 px, blueprint, light and ha-dark.
+  for (const state of ["preview", "applied"]) for (const width of [1280, 380]) for (const [theme, scheme, label] of [["blueprint", "light", "blueprint"], ["light", "light", "light"], ["ha", "dark", "ha-dark"]]) {
+    const name = `editor-align-turn-${state}-${label}-${width}px`;
+    const ctx = await browser.newContext({ viewport: { width, height: 800 }, colorScheme: scheme, reducedMotion: "reduce" });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
+    await page.addInitScript((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
+    await page.goto(pathToFileURL(resolve(EDITOR)).href);
+    await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
+    await page.evaluate((l) => { document.querySelector("floorplan-studio-editor").layout = l; }, handHouse);
+    await page.locator("#fixPlan").uncheck();
+    await page.locator('.chip[data-f="ground"]').click();
+    await page.locator("#mFloors > summary").click(); await page.locator("#alignFloor").click(); await page.locator("#alignPanel").waitFor();
+    await page.locator("#alignScore").waitFor();
+    if (state === "preview") {
+      if (!/^Turn 2\.5° anticlockwise/.test(await page.locator("#alignMove").innerText())) errors.push(`${name}: no turn line`);
+      if (!/half turn/.test(await page.locator("#alignAlt").innerText())) errors.push(`${name}: no other-turn line`);
+    } else {
+      const b = page.locator("#alignApply"); await b.scrollIntoViewIfNeeded();
+      const r = await b.boundingBox(); await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+      await page.locator("#status").filter({ hasText: "Aligned to" }).waitFor();
+      if ((await page.locator("#alignMove").innerText()) !== "Already aligned") errors.push(`${name}: not Already aligned after Apply`);
+    }
+    await page.locator("#alignPanel").scrollIntoViewIfNeeded();
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
+    shots.push(name);
+    await ctx.close();
+  }
 } finally {
   await browser.close();
 }

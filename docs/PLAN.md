@@ -3774,7 +3774,7 @@ Wave 3, in order on `task/s30-align-angles`:
       the 0.28.0 note), `docs/editor.md` (Auto align: what it says, the other-turn line, Apply), the guide, the README
       state table, CHANGELOG under Unreleased, DECISIONS (one entry per assumption that held and each change from it).
       Files: a new `tests/editor/align-turn-exit.spec.ts`, `src/editor/guide.ts`, the docs.
-- [ ] S30.10 Shots (Sonnet; the coordinator looks). `npm run shots` gains the Align panel on the hand-align ground from
+- [x] S30.10 Shots (Sonnet; the coordinator looks). `npm run shots` gains the Align panel on the hand-align ground from
       no pose (the turn line and the other-turn line showing) and after Apply, at 1280 and 380, in blueprint, light and
       ha-dark. The coordinator opens them and lists what each shows.
       Files: `scripts/shots.mjs`.
