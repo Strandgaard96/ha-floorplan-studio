@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { live } from "./live-keep";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
-import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignFloor, alignKeyOf, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
+import { COORD_LIMIT, DEFAULT_MOTION_FADE_S, alignCandidates, chooseAlign, alignSummary, alignStatus, alignKeyOf, stairPlace, stairReport, floorBelow, floorPivot, floorPlace, floorPose, floorSwitch, poseFromPlace, detailFor, type DetailMode, DEVICE_COLOURS, FLOORPLAN_CSS, UI_ICONS, MAX_LAYOUT_BYTES, applyHaNames, furnitureForType, areaMove, availableEntities, inside, FURNITURE, FURNITURE_SYMBOLS, UNLINKED_TYPES, dist, edgeRooms, groupKind, insertPoint, nearestEdge, polys, renderFloor, floorsAroundKey, rotateAbout, snapPoint, snapped, stitch, validate, viewBoxFor, wallWidthAt, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer } from "../core";
 import type { AddCandidate, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, StateOverlay, Trace, WallKind } from "../core";
 import { MAX_ZOOM, panBy } from "../card/viewport";
 import { ROTATION_STEP, easeInOut, normaliseRotation, shortestDelta } from "../card/view-state";
@@ -209,9 +209,9 @@ export class FloorplanStudioEditor extends LitElement {
   linkOff = new Set<string>();
   /** S27.10: the key of the floor the Align mode was opened on (null when closed), and its memoised preview. */
   alignKey: string | null = null;
-  /** How many times the Align preview has run `alignFloor` (a test reads it: a drag must not search on every pointer move). */
+  /** How many times the Align preview has run `alignCandidates` (a test reads it: a drag must not search on every pointer move). */
   alignSearches = 0;
-  private alignMemo: { key: string; r: ReturnType<typeof alignFloor> } | null = null;
+  private alignMemo: { key: string; fits: ReturnType<typeof alignCandidates> } | null = null;
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
   private scenePos: { x: number; y: number } | null = null;
@@ -2670,27 +2670,30 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.asideMode === "align") this.asideMode = "selection";
     if (update) this.requestUpdate();
   }
-  /** The Align mode's numbers, from the live layout: the floor below, the best move (S27.4, memoised per pair of floor objects, so a hass update does not search again), and the pose Apply would write. The search keeps the floor's turn (S29.7), so a turned floor previews its own best offset. */
+  /**
+   * The Align mode's numbers, from the live layout: the floor below, the answer (S30.8), the panel's lines, and the pose Apply would write.
+   * The expensive part, `alignCandidates`, reads only the two floors' structure, so it is memoised on `alignKeyOf` of both (no turn: a nudge,
+   * a turn press and an undo make new objects with the same structure and do not search). The cheap part, `chooseAlign`, reads the floor's
+   * current turn and runs on every render.
+   */
   alignPreview() {
     const st = this.st, key = this.alignKey;
     const bk = key === null ? null : floorBelow(st.layout, key);
     if (key === null || bk === null) return null;
     const upper = st.layout.floors[key], lower = st.layout.floors[bk];
     const place = floorPlace(st.layout, key, bk);
-    // S28.12: keyed on what the search reads (`alignKey`), not on the floor objects: a nudge or an undo makes new objects with the same structure. S29.9: the key holds the turn, so a move does not search and a turn does.
-    const k = `${alignKeyOf(upper, place.turn)}#${alignKeyOf(lower)}`;
-    if (!this.alignMemo || this.alignMemo.key !== k) { this.alignSearches++; this.alignMemo = { key: k, r: alignFloor(upper, lower, place.turn) }; }
-    const r = this.alignMemo.r, pose = floorPose(st.layout, key), cur = pose.off;
-    const to = r ? poseFromPlace(st.layout, key, bk, { turn: place.turn, shift: r.t }) : null;
-    const tenth = (n: number) => Math.round(n * 10) / 10 + 0;
-    const next: Pt | null = to ? [tenth(to.off[0]), tenth(to.off[1])] : null;
-    return { key, belowKey: bk, belowTitle: lower.title || bk, r, cur, rot: pose.rot, next, delta: next ? ([tenth(next[0] - cur[0]), tenth(next[1] - cur[1])] as Pt) : null };
+    const k = `${alignKeyOf(upper)}#${alignKeyOf(lower)}`;
+    if (!this.alignMemo || this.alignMemo.key !== k) { this.alignSearches++; this.alignMemo = { key: k, fits: alignCandidates(upper, lower) }; }
+    const r = chooseAlign(this.alignMemo.fits, place.turn), pose = floorPose(st.layout, key);
+    const to = r ? poseFromPlace(st.layout, key, bk, { turn: r.turn, shift: r.t }) : null;
+    const belowTitle = lower.title || bk;
+    return { key, belowKey: bk, belowTitle, r, place, cur: pose.off, rot: pose.rot, to, words: r ? alignSummary(r, place, floorPivot(upper)) : null, status: r ? alignStatus(r, place, belowTitle) : "" };
   }
-  /** Apply: the best pose in one undo step; the floor keeps its turn and only the offset changes. */
+  /** Apply: the best pose, turn and offset, in one undo step (`setPose`). */
   applyAlign() {
     const a = this.alignPreview();
-    if (!a || !a.r || !a.next) return;
-    if (this.st.setPose(a.key, { rot: a.rot, off: a.next })) { this.changed(`Aligned to ${a.belowTitle}: ${Math.round(a.r.score)} % match`); return; }
+    if (!a || !a.r || !a.to) return;
+    if (this.st.setPose(a.key, a.to)) { this.changed(a.status); return; }
     if (this.st.planBlocked) { this.refused(); return; }
     this.poseNone();
   }

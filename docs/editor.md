@@ -30,7 +30,11 @@ Left to right:
   Align lays this floor over the one below it. It needs a floor below, and Lock plan refuses it. The faint lines are the
   floor below, drawn while Align is open; the floor you are aligning stays where it is on screen, so Move right sends
   the faint lines left (the panel says so). The Inspector's panel, top to bottom:
-  - **Auto align**: the score and the move in words; Apply writes the offset and keeps the floor's turn (one undo step).
+  - **Auto align**: the score, then the change in words ("Turn 2.5° anticlockwise, move the centre 38 cm left, 90 cm
+    down"). When another turn fits about as well, one more line names it ("A half turn (177.5°) fits about as well
+    (68 %). Check the plan before you apply it."); it is never applied for you. Apply writes the turn and the offset
+    (one undo step; disabled and reading "Already aligned" when nothing would change). A move, a turn press or an undo
+    does not search again; a changed wall does.
   - **Move**: four buttons, up, left, right, down as drawn on screen (a turned view still moves the right way), by the
     **Step** you pick: 1, 5 (default) or 50 cm.
   - **Turn**: anticlockwise and clockwise about the floor's centre, by the **Angle step**: 0.1, 0.5 (default), 1 or 3

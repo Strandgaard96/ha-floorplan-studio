@@ -186,14 +186,14 @@ centres when the floors are right. Hence a button, not something automatic.
 - A pose with junk in the file: `migrate` dropped it; the panel shows 0.
 - Lock plan: every button and key is refused with the Unlock offer; nothing moves.
 - A `hass` update between presses changes nothing in the panel or the exact pose.
-- The memoised Align search does not run on a press: its key holds the relative turn, so a move does not search and a
-  turn searches once (it reads the turn).
+- The memoised Align search does not run on a press. (Superseded by "The memo" in Sprint 30 below: the key holds the two
+  floors' structure and no turn, so a move and a turn press both run no search; only a structure edit on either floor does.)
 - `prefers-reduced-motion`: nothing here animates.
 
 ## Sprint 30 (0.28.0): Align searches angles
 
-Planned 2026-10-11 (`docs/PLAN.md`, Sprint 30). The constants below marked "S30.1" are proposals; the S30.1 design note
-fixes them, with the probe numbers, and changes this section in the same commit if it must.
+Planned 2026-10-11 (`docs/PLAN.md`, Sprint 30). The constants were fixed by the S30.1 design note on 2026-10-12, with
+the probe numbers and a reason each (`docs/DECISIONS.md`).
 
 ### Why
 
@@ -208,9 +208,9 @@ other by a few degrees, so it scores about 20 %. The fixture reproduces it: the 
   `{ t, score, weak } | null`. Unchanged answers.
 - `turnCandidates(upper, lower)`: the candidate turns, degrees.
 - `refinePlace(samples, lines, place)`: the joint refinement (internal; exported for its test).
-- `alignCandidates(upper, lower)`: every candidate turn searched and the best refined; a list of fits
-  `{ turn, t, score, res }`, or null when either floor has no structure line. Reads the two floors' structure in their
-  stored frames and nothing else: no pose, no current turn.
+- `alignCandidates(upper, lower)`: every candidate turn searched and every fit refined; a list of fits
+  `{ turn, t, score, res }`, merged (below) and sorted by turn, or null when either floor has no structure line. Reads
+  the two floors' structure in their stored frames and nothing else: no pose, no current turn.
 - `chooseAlign(fits, from = 0)`: picks one (below) and returns `{ turn, t, score, weak, alt } | null`.
 - `alignFloor(upper, lower, from = 0)` = `chooseAlign(alignCandidates(upper, lower), from)`. Its third argument changes
   meaning: in 0.27.0 the search was held at that turn; now it is the floor's current turn, which the choice prefers.
@@ -220,46 +220,65 @@ The result: `turn` in (-180, 180], to 0.01 degree; `t` to 0.1 cm; the place of t
 stored frame is `{ turn, shift: t }`, the turn about the upper floor's stored origin, as S29.7; `score` as before (0 to
 100, the share of the upper floor's structure within `NEAR` of the lower's at that place); `weak` is `score < WEAK_BELOW`
 (50, unchanged); `alt` is null or `{ turn, score }` of the best fit whose turn differs from the chosen one by more than
-1 degree and whose score is within `ALT_WITHIN` of it. Nothing here throws.
+`SAME_TURN` (2 degrees) and whose score is at least the chosen one's minus `ALT_WITHIN`; it may score higher (a far fit
+that missed `FAR_MARGIN`). When the answer is weak, an alt that is weak too is dropped: the alt must score at least
+`WEAK_BELOW` itself. Nothing here throws, and an entry of `fits` that is not a fit (null, NaN) is ignored.
 
 ### The search
 
-1. Structure lines of both floors in stored frames (`structure`, unchanged).
-2. Direction histograms: each line's direction modulo 90 degrees, weighted by its length; lines shorter than 20 cm do
-   not count (S30.1). Bins of 0.25 degree, smoothed by a triangle of plus or minus 1 degree (S30.1). Modulo 90 because a
-   house's walls run in two directions at a right angle: one peak stands for both.
-3. Circular cross-correlation of the two histograms; its local maxima of at least half the highest, at most 3, each
-   sharpened to a fraction of a bin. Each peak `θ` in (-45, 45] gives four candidates, `θ`, `θ + 90`, `θ + 180`,
-   `θ - 90`; 0 is always a candidate. At most 13. A circle (a flat histogram) still gives at most 3 peaks.
-4. Each candidate turn: the translation search of `alignShift` on the upper floor's lines turned by it. To keep the time
-   budget, a cheap pass may rank the candidates first and send only some to the full search, but which ones must not
-   depend on `from` (the memo below holds the candidates for every `from`): S30.1 decides how, for example the best of
-   each of the four families of a peak, or a distance grid that makes every full search cheap.
-5. The best few fits (S30.1: 3, and the best of the small tier about 0) refined jointly: robust weighted least squares
-   in turn and shift, linearised for a small turn about the samples' weighted centre, the weights of `refine`; the turn
-   moves at most 2 degrees in all (it refines, it does not search); a step is kept when the score is no lower and the
-   mean residual smaller. Then every fit is scored on all samples at its rounded turn and shift.
+1. Structure lines of both floors in stored frames (`structure`, unchanged), in a canonical order: each line from its
+   smaller end (x, then y), the list sorted by its four numbers.
+2. Direction histograms: each line's direction modulo 90 degrees, weighted by its length in whole cm; every line counts, however
+   short (a floor drawn with a click every 15 cm has no long line). Bins of 0.25 degree; a line's weight is split between its two nearest bins, in integers, so the
+   sums do not depend on line order. Modulo 90 because a house's walls run in two directions at a right angle: one peak
+   stands for both.
+3. Circular cross-correlation of the two histograms, smoothed by a triangle of plus or minus 1 degree; its local maxima
+   of at least half the highest, at least 2 degrees apart, at most 3, each sharpened by a parabola within half a bin.
+   Each peak `θ` in (-45, 45] gives four candidates, `θ`, `θ + 90`, `θ + 180`, `θ - 90`; 0 is always a candidate. Each
+   rounded to 0.01 degree, -180 read as 180, deduplicated, sorted. At most 13. A circle (a flat histogram) still gives
+   at most 3 peaks.
+4. Each candidate turn: the full translation search of `alignShift` on the upper floor's lines turned by it. No triage:
+   any ranking cheaper than the full search can drop the true turn, and the full search is cheap with the exact line
+   index (time budget, below). So the fits do not depend on `from`.
+5. Every fit refined jointly (`refinePlace`): robust weighted least squares in shift x, shift y and turn, the turn scaled
+   by the lever (the samples' weighted RMS radius about their centre) so all three are in cm; linearised about the
+   placed samples' weighted centre, recomputed each round; the weights of `refine`, `w / (1 + (d / c)^2)^2` with `c`
+   the per-axis median distance, at least 2 cm; the turn at most 2 degrees from where it started (it refines, it does
+   not search); a step is kept when the score is no lower and the mean residual no larger; stop when every component of
+   the step is under 0.05 cm (the turn as its move at the lever), or after 40 rounds.
+6. Rounding: the turn to 0.01 degree, then the shift refit at that turn (turn held), starting from the shift that keeps
+   the floor's centre where the refined place put it (the turn is about the stored origin, so on a floor far from
+   [0, 0] a small rounding of the turn moves the floor far); the shift to 0.1 cm. Then every fit is scored on all
+   samples at its rounded turn and shift.
+7. Merge: fits within `SAME_TURN` (2 degrees) of each other are one answer. Inside it, the fits within `TIE` of its best
+   score, then the smallest mean residual. Two candidates that refine to nearly the same turn would otherwise compete on
+   a few tenths of a point.
 
 ### The choice (how a wrong half turn or quarter turn is avoided, and how ties break)
 
 - The small tier: fits whose turn is within `SMALL_TURN` (10 degrees) of `from`. The far tier: the rest.
-- The best of the small tier is the answer unless a far fit scores at least `FAR_MARGIN` (15) points more and is not
+- The best of the small tier is the answer unless a far fit scores at least `FAR_MARGIN` (25) points more and is not
   weak. Why: Diego's floors are off by a few degrees; a half or quarter turn ties on any symmetric outline (the fixture
-  shows 81.9 against 81.3), and a turn far from where the floor is drawn needs clear evidence. A plan traced sideways
-  is still found: an L-shaped floor at 93 degrees scores far higher there than anywhere near 0.
-- Inside a tier, a tie (within 1 point) goes to the turn nearer `from`, then to the 0.27.0 rule for the move (the
-  smaller move; moves within 2 · `NEAR` are one answer and the smallest mean residual wins), then to the smaller turn
-  value. Every sort has a full key, so the answer never depends on the order the lines come in.
-- `alt` is reported whatever the tiers: the best fit more than 1 degree away from the answer within `ALT_WITHIN` (5)
-  points. A symmetric floor therefore never gets a confident answer: it is `weak`, or it carries `alt`.
+  shows 81.9 against 81.3), and a turn far from where the floor is drawn needs clear evidence. 25, not 15: a quarter
+  turn of a small rectangle in a corner of a large one fits three sides against the true two and wins by up to 22.6
+  points. A plan traced sideways is still found when the evidence is clear (the `align-house` L at 93 wins by 43.7);
+  when it is not (a near-rectangle at 93, 21 to 24 points), the answer stays near `from` and `alt` names the far fit.
+- Inside a tier, a tie (within `TIE`, 1 point, of the best) goes to the turn nearer `from`, then to the smaller move,
+  then to the smaller mean residual, then to the smaller turn value. Every sort has a full key, so the answer never
+  depends on the order the lines come in.
+- `alt` is reported whatever the tiers: the best merged fit more than `SAME_TURN` away from the answer, scoring at least
+  the answer's score minus `ALT_WITHIN` (5), by the same tie order. A symmetric floor therefore never gets a confident
+  answer: it is `weak`, or it carries `alt` (a weak answer carries one only if the alt is not weak: for two unrelated floors both
+  guesses are weak, and the panel says one weak match, not two). The words say "fits better" instead of "fits about as well" when `alt`
+  scores more than `TIE` above the answer.
 - With `from` the floor's current turn, a floor that was turned 180 degrees on purpose stays there; Auto align offers to
-  turn it back only when that fits 15 points better.
+  turn it back only when that fits 25 points better. `from` 184 gives -176 (the result is in (-180, 180]).
 
 ### Determinism
 
 The same two floors give the same result, deep equal, on every run. Another start vertex of the outline, the walls in
-another order or reversed, the rooms shuffled: the same within 0.01 degree and 0.1 cm. No randomness; seeded only in
-tests.
+another order or reversed, the rooms shuffled: deep equal too, because the lines are put in canonical order first and
+the histograms sum integers (the tests may allow 0.01 degree and 0.1 cm). No randomness; seeded only in tests.
 
 ### Weak evidence: never applied silently
 
@@ -268,13 +287,15 @@ tests.
 - The panel's Auto align block, from `alignSummary` (`src/core/align-words.ts`):
   - `#alignScore`: "82 % match", or, when weak, "Weak match: 20 %. Check the plan before you apply it" (as today);
   - `#alignAlt`, only with `alt`: "A half turn (-176.0°) fits about as well (81 %). Check the plan before you apply
-    it." ("A quarter turn" near plus or minus 90, else "A turn of 7.5°");
+    it." ("A quarter turn" near plus or minus 90, else "A turn of 7.5°"; "fits better" when `alt` scores more than 1
+    point above the answer);
   - `#alignMove`: the change from the current place: "Turn 4.0° clockwise, move the centre 34 cm right, 12 cm up". The
     move is the floor's pivot (`floorPivot`) in the floor below's frame; the turn the short way; no turn words under
-    0.05 degree; "Already aligned" when nothing changes.
+    0.05 degree; "Already aligned" when nothing changes. The words "right", "left", "up" and "down" are in the floor below's
+    frame, not the screen's: when the floor below is itself turned, "right" is not right on the screen (known, left as is).
 - Apply stays a button whatever the score, disabled only when nothing would change. It writes
   `poseFromPlace(layout, key, below, { turn, shift: t })` through `setPose`: one undo step; the status says "Aligned to
-  Ground: 82 % match, turned 4.0°". The exact session pose starts again from the stored one, as after any writer.
+  Ground: 82 % match, turned 4.0° clockwise" (anticlockwise for the other way: the panel's words). The exact session pose starts again from the stored one, as after any writer.
 - Hand align stays: Move, Turn, the boxes, Reset and Align stairs work before and after Apply, as in 0.27.0.
 
 ### The memo
@@ -290,9 +311,14 @@ key with the turn, which existed because the 0.27.0 search read the turn. `align
 Measured in vitest, the slower of two runs: each consecutive floor pair of `stress-layout.json`, as stored and with the
 upper floor turned 7.3 degrees about its centre, under 600 ms; the stress first floor with 300 short external walls on
 it and on the ground (the heavy floor of `align-mode.spec.ts`), under 600 ms; the 10 000-point circle under 8000 ms (as
-today). In the Studio, opening Align on the heavy floor shows the score within 1500 ms. On 2026-10-11 the translation
-search alone took about 4 ms on a stress pair and 40 to 80 ms on the heavy floor, so 13 full searches do not fit
-without the triage or a faster score.
+today). In the Studio, opening Align on the heavy floor shows the score within 1500 ms.
+
+How it fits (S30.1, 2026-10-12): an exact line index on the lower floor's lines. A bucket grid, cells at least
+2 · `REFINE_REACH` (50 cm) wide and at most 1024 a side; each cell lists every line that can be within `REFINE_REACH`
+of a point in it, in the lines' own order. A distance query reads one cell's list instead of every line, and every
+answer is bit for bit the same as the scan. Probe on an Apple M5: the heavy floor's full search 32 ms with the index,
+311 ms without; forced to 13 candidates, 212 against 2413 ms. Split for the slowest case: candidates under 5 ms,
+searches under 400, refinement under 100, scoring and merging under 50.
 
 ### Non-goals (0.28.0)
 
@@ -306,12 +332,13 @@ differently on Diego's floors; Align stairs stays a button); scale; a worker thr
     half turn.
 14. Turned by each of -9.70, -6.20, -3.30, -1.10, -0.35, 0.40, 1.80, 4.00, 7.30 and 9.95 degrees about `[370, -120]`, the
     `align-house` first floor and both hand-align floors align within 0.2 degree and 2 cm at every outline corner; the L
-    turned 23.00, -31.00 and 93.00 degrees is found too.
-15. A symmetric square house never gets a confident answer (`weak` false with `alt` null); two unrelated random floors
-    are weak or carry `alt`, for 20 seeds; a noisy copy (4 cm jitter, 15 stray lines) aligns within 0.5 degree and 5 cm.
-16. `from` is honoured: the first floor with `from` 184 stays at 184; with 0 it goes to 4.
+    turned 23.00, -31.00 and 93.00 degrees on a copy of itself is found too (the `align-house` rectangle at 93 has a
+    half-turn twin that fits as well: either, with `alt` naming the other).
+15. A symmetric square house never gets a confident answer (`weak` false with `alt` null); two unrelated random star
+    polygons are weak or carry `alt`, for 20 seeds (random orthogonal houses share real corners and may fit); a noisy copy (4 cm jitter, 15 stray lines) aligns within 0.5 degree and 5 cm.
+16. `from` is honoured: the first floor with `from` 184 stays at 184 (returned as -176); with 0 it goes to 4.
 17. No lines on either floor: null and "Nothing to match"; junk floors and junk `from` never throw.
-18. The result is deep equal on a second run, and within 0.01 degree and 0.1 cm with the lines in another order.
+18. The result is deep equal on a second run, and with the lines in another order.
 19. Every 0.27.0 `alignFloor` test still passes with turn 0, and `alignShift` gives 0.27.0's answers.
 20. The time budget above holds.
 21. In the Studio, with real clicks: the panel says the turn and the other turn, Apply writes turn and offset in one undo

@@ -183,7 +183,7 @@ test("the selected step reads differently from the others (computed style), and 
   await expect(page.locator("#alignPanel")).toContainText("This floor moves. The floor below (faint lines) is drawn moving the other way.");
 });
 
-test("a turned floor previews and applies with its turn kept (Apply goes through setPose)", async ({ page }) => {
+test("a floor stored at the right turn applies with that turn (Apply goes through setPose; S30.8: the turn is the search's answer)", async ({ page }) => {
   await setup(page, (l) => { l.floors.first.rotation = FIRST_TO_GROUND.turn; });
   await openAlign(page);
   const d0 = await depth(page);

@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import type { Layout } from "../../src/core/schema";
+import { seeded, starFloor } from "../fixtures/align-turn";
 
 // S27.10: Floors, Align to floor below… opens the Align mode of the Inspector, with the floor below drawn as a ghost.
 // The fixture is a ground floor and a first floor over one wing, shifted by [137.4, -61.7], so the move is [-137.4, 61.7].
@@ -30,12 +31,12 @@ test("Align opens with the ghost on, names the floor below, the score and the mo
   await expect(page.locator('aside [role=tab][data-mode="align"]')).toHaveAttribute("aria-selected", "true");
   await expect(page.locator("#alignPanel")).toContainText("Ground");
   await expect(page.locator("#alignScore")).toHaveText(/^(9\d|100) % match$/);
-  await expect(page.locator("#alignMove")).toHaveText(/^13[67] cm left, 6[12] cm down$/);
+  await expect(page.locator("#alignMove")).toHaveText(/^Move the centre 13[67] cm left, 6[12] cm down$/);
   await expect(page.locator(`${EDITOR} svg g.ghost`)).toHaveCount(1);
   expect(await offsetOf(page, "first")).toBeUndefined(); // a preview writes nothing
 });
 
-test("Apply writes the offset in one undo step, says so, and one Undo clears it", async ({ page }) => {
+test("Apply writes the pose in one undo step, says so, and one Undo clears it", async ({ page }) => {
   const d0 = await depth(page);
   await openAlign(page);
   await page.locator("#alignApply").click();
@@ -64,18 +65,22 @@ test("under Lock plan Apply is refused, writes nothing, and offers Unlock; then 
 });
 
 test("a weak match says so, and Apply still works", async ({ page }) => {
-  await page.evaluate((tag) => {
-    const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), f = l.floors.first;
-    // a square turned 30 degrees: no edge of it runs along a wall of the ground floor
-    const c = Math.cos(Math.PI / 6) * 300, s = Math.sin(Math.PI / 6) * 300;
-    f.outline = [[1000, 1000], [1000 + c, 1000 + s], [1000 + c - s, 1000 + s + c], [1000 - s, 1000 + c]];
+  await page.evaluate(([tag, STAR]) => {
+    const el = document.querySelector(tag as string) as any, l = JSON.parse(JSON.stringify(el.layout)), f = l.floors.first, g = l.floors.ground;
+    // S30.8: the turn search fits any square to a house, even one turned 30 degrees (52 %), so a lower floor that no turn can fit stands
+    // in: a seeded random star polygon with a few stray walls (S30.4's "no answer" case), nothing like the orthogonal square above it.
+    f.outline = [[1000, 1000], [1260, 1150], [1110, 1410], [850, 1260]];
     f.owk = ["wall", "wall", "wall", "wall"]; f.rooms = []; f.walls = []; f.doors = []; f.openings = []; f.stairs = []; f.devices = []; f.furniture = []; f.unlinked = []; f.extras = [];
+    g.outline = STAR.outline; g.owk = STAR.outline.map(() => "wall"); g.walls = STAR.walls; g.rooms = []; g.doors = []; g.openings = []; g.stairs = []; g.devices = []; g.furniture = []; g.unlinked = []; g.extras = [];
     el.layout = l;
-  }, EDITOR);
+  }, [EDITOR, starFloor(seeded(2))] as const);
   await page.locator('.chip[data-f="first"]').click();
   await openAlign(page);
   await expect(page.locator("#alignScore")).toContainText("Weak");
   await expect(page.locator("#alignApply")).toBeEnabled();
+  const d0 = await depth(page);
+  await page.locator("#alignApply").click();
+  expect(await depth(page)).toBe(d0 + 1);
 });
 
 test("the offset fields nudge it, one undo step per change, and Reset deletes the key", async ({ page }) => {
