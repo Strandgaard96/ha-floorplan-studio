@@ -2,6 +2,23 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: S30.8 the Align panel shows and applies the turn (Sonnet)
+
+`alignPreview` memoises `alignCandidates` on `alignKeyOf(upper)#alignKeyOf(lower)`, with no turn: the search does not read the
+floor's current turn, so a turn press, a move and an undo reuse it. `chooseAlign(fits, place.turn)` and `alignSummary` run on
+every render (cheap). `alignSearches` counts the searches. Apply writes `poseFromPlace(..., { turn, shift })` through `setPose`
+(one undo step, none when the rounded pose is the stored one, refused under Lock plan) with `alignStatus`. Calls the plan left open:
+- Apply is disabled when the summary's move reads "Already aligned" (under 0.05 degree and half a centimetre), not when the
+  offset alone is unchanged as before; it stays enabled for a weak match.
+- `#alignAlt` has no rule of its own (a plain `<p>` of the panel), so there is no computed-style pair.
+- Changed meaning in the old specs: "a turn searches once" (S29.9, the key held the turn) is gone with its premise; a turn
+  press does not search now. "a turned floor previews and applies with its turn kept" became "a floor stored at the right
+  turn applies with that turn": the turn is the search's answer, not a kept one. `#alignMove` now starts "Move the centre".
+- "A weak match says so, and Apply still works" failed on this base: the search turns its 30 degree square into a 52 %
+  match. Its lower floor is now a seeded random star polygon (`starFloor(seeded(2))`, 8 %), which no turn fits.
+- Seen, not changed (core's choice, S30.4): on that star floor the answer scores 8 % (weak) and `alt` scores 14 %, so the
+  panel reads "A turn of 28.7° fits better (14 %)" under a weak answer. The tier rule keeps the small turn; it is honest.
+
 ## 2026-10-12: S30.6 the panel's words (Sonnet)
 
 `src/core/align-words.ts`. Pure text from the result `{ turn, t, score, weak, alt }`; it declares that shape itself and
