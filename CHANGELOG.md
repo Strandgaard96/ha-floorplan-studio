@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.28.0 - 2026-10-12
 
 - Editor state: `alignToBelow` applies the turn the search finds, preferring a small change from the floor's current turn; one undo step, none when the pose is unchanged, refused under Lock plan. On the hand-align house, Align then Apply on the ground and the first floor lands every outline corner within 2 cm and the turn within 0.2 degree.
 - Core: `alignFloor(upper, lower, from = 0)` now searches the turn too. It tries every candidate turn, refines turn and shift together, and returns `{ turn, t, score, weak, alt }`: a far turn (more than 10 degrees from `from`) wins only by 25 points and not weak, ties go to the turn nearer `from`, and `alt` names the best other turn that fits nearly as well. `alignCandidates` and `chooseAlign` are exported. Callers that passed a turn now pass it as `from`.
