@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Core: `turnCandidates(upper, lower)` lists the turns worth searching, from the two floors' wall directions (modulo 90 degrees, 0.25 degree bins, at most 13 candidates); `alignShift` is 0.27.0's translation search under its new name. Test helper `tests/fixtures/align-turn.ts`.
+
 ## 0.27.0 - 2026-10-11
 
 - Studio, Align to floor below (review fixes): a typed offset or rotation that would pass the coordinate limit now says so in the status line instead of reverting silently.

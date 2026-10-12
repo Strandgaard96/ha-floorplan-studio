@@ -3652,7 +3652,7 @@ Wave 1, after S30.1. Two lanes in parallel, each in its own worktree; tasks insi
 
 Lane search (`src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, a new `tests/core/align-turn.test.ts`,
 a new `tests/fixtures/align-turn.ts`):
-- [ ] S30.2 Candidate turns from direction histograms (Sonnet, **judgement**: the circular correlation and its peaks).
+- [x] S30.2 Candidate turns from direction histograms (Sonnet, **judgement**: the circular correlation and its peaks).
       0.27.0's `alignFloor(upper, lower, turn)` is renamed `alignShift` (same code, same answers); the S29.7 tests move to
       it unchanged. `turnCandidates(upper, lower)` returns the candidate turns in degrees, as S30.1 fixed them: each
       correlation peak `θ` in (-45, 45] and `θ ± 90`, `θ + 180`, plus 0; sorted, deduplicated, at most the cap; `[0]` for

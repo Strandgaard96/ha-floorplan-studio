@@ -219,10 +219,11 @@ const round1 = (n: number) => Math.round(n * 10) / 10;
 
 /**
  * The translation that lays `upper` best on `lower`, and how well it fits; null when either has nothing to match. Never throws.
+ * S30.2: this is 0.27.0's `alignFloor`, renamed; the same code and the same answers. `alignFloor` is the search of the turn too (S30.4).
  * S29.7: `turn` (degrees, clockwise, about the origin, as `Place.turn`; junk reads as 0) turns the upper floor's lines before
  * it searches, so `t` is in the lower floor's frame and the place of the upper floor is `{ turn, shift: t }`.
  */
-export function alignFloor(upper: Floor, lower: Floor, turn: unknown = 0): AlignResult | null {
+export function alignShift(upper: Floor, lower: Floor, turn: unknown = 0): AlignResult | null {
   try {
     const deg = turnOf(turn);
     const us = structure(upper).map((s) => turnSeg(s, deg));
@@ -278,5 +279,96 @@ export function alignFloor(upper: Floor, lower: Floor, turn: unknown = 0): Align
     return { t, score, weak: score < WEAK_BELOW };
   } catch {
     return null;
+  }
+}
+
+/** S30.2, until S30.4 gives `alignFloor` the search of the turn: the editor still calls it with a turn, and gets the translation search of 0.27.0. */
+export const alignFloor = alignShift;
+
+// ---- S30.2: candidate turns from direction histograms (constants and reasons: docs/DECISIONS.md, S30.1) ----------------------
+
+const HIST_BIN = 0.25, HIST_SMOOTH = 1, HIST_MIN_LEN = 20, HIST_PEAKS = 3, HIST_PEAK_FRACTION = 0.5, HIST_PEAK_APART = 2, MAX_WEIGHT = 1e6;
+/** 0, and four turns for each of at most three peaks. */
+export const MAX_TURN_CANDIDATES = 1 + 4 * HIST_PEAKS;
+
+/** Each line from its smaller end (x, then y), the list sorted by its four numbers: the same lines in any order or direction give the same list. */
+function canonical(segs: Seg[]): Seg[] {
+  return segs.map((s) => (s[0] < s[2] || (s[0] === s[2] && s[1] < s[3]) ? s : ([s[2], s[3], s[0], s[1]] as Seg)))
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2] || a[3] - b[3]);
+}
+
+/**
+ * Length per direction modulo 90 degrees (a house's walls run in two directions at a right angle, so one peak stands for both),
+ * in bins of `HIST_BIN`, a line's weight split between its two nearest bins. Weights are integers (whole cm, at most `MAX_WEIGHT`),
+ * so the sums do not depend on the order the lines are added. Lines under `HIST_MIN_LEN` do not count.
+ */
+function histogram(segs: Seg[]): number[] {
+  const nb = Math.round(90 / HIST_BIN), h = new Array<number>(nb).fill(0);
+  for (const s of segs) {
+    const l = len(s);
+    if (!Number.isFinite(l) || l < HIST_MIN_LEN) continue;
+    const w = Math.min(Math.round(l), MAX_WEIGHT);
+    const deg = (Math.atan2(s[3] - s[1], s[2] - s[0]) * 180) / Math.PI, f = ((((deg % 90) + 90) % 90)) / HIST_BIN, k = Math.floor(f), part = Math.round(w * (f - k));
+    h[k % nb] += w - part;
+    h[(k + 1) % nb] += part;
+  }
+  return h;
+}
+
+/** Circular cross-correlation: `c[k]` is how well the upper floor's directions turned by `k` bins lie on the lower floor's, smoothed by a triangle of plus or minus `HIST_SMOOTH` degrees. */
+function correlation(hu: number[], hl: number[]): number[] {
+  const nb = hu.length, c = new Array<number>(nb).fill(0);
+  for (let k = 0; k < nb; k++) { let sum = 0; for (let j = 0; j < nb; j++) if (hu[j]) sum += hu[j] * hl[(j + k) % nb]; c[k] = sum; }
+  const r = Math.round(HIST_SMOOTH / HIST_BIN), out = new Array<number>(nb).fill(0);
+  for (let k = 0; k < nb; k++) { let sum = 0; for (let j = -r; j <= r; j++) sum += (r + 1 - Math.abs(j)) * c[(k + j + nb) % nb]; out[k] = sum; }
+  return out;
+}
+
+/** `d` degrees as the equal turn in (-45, 45]. */
+const wrap45 = (d: number) => { let m = d % 90; if (m > 45) m -= 90; if (m <= -45) m += 90; return m; };
+/** `d` degrees as the equal turn in (-180, 180]. */
+const wrap180 = (d: number) => { const m = d % 360; return m > 180 ? m - 360 : m <= -180 ? m + 360 : m; };
+const round2 = (n: number) => Math.round(n * 100) / 100 + 0;
+
+/** Local maxima of the correlation, at least half the highest and 2 degrees apart, at most three, each sharpened by a parabola through its neighbours (within half a bin). Highest first, ties by the smaller angle. */
+function peaks(c: number[]): number[] {
+  const nb = c.length, max = Math.max(...c);
+  if (!(max > 0) || !Number.isFinite(max)) return [];
+  const found: { at: number; v: number }[] = [];
+  for (let k = 0; k < nb; k++) {
+    const a = c[(k - 1 + nb) % nb], b = c[k], d = c[(k + 1) % nb];
+    if (b >= a && b > d && b >= HIST_PEAK_FRACTION * max) {
+      const den = a - 2 * b + d, dk = den < 0 ? Math.max(-0.5, Math.min(0.5, (a - d) / (2 * den))) : 0;
+      found.push({ at: wrap45((k + dk) * HIST_BIN), v: b });
+    }
+  }
+  found.sort((p, q) => q.v - p.v || Math.abs(p.at) - Math.abs(q.at) || p.at - q.at);
+  const out: number[] = [];
+  for (const p of found) {
+    if (out.length >= HIST_PEAKS) break;
+    if (out.some((o) => Math.abs(wrap45(o - p.at)) < HIST_PEAK_APART)) continue;
+    out.push(p.at);
+  }
+  return out;
+}
+
+/**
+ * S30.2: the turns worth a full search, in degrees. The upper floor's structure directions (modulo 90) are correlated with the
+ * lower floor's; each peak `θ` in (-45, 45] gives `θ`, `θ + 90`, `θ + 180` and `θ - 90`, and 0 is always a candidate. Rounded to 0.01 degree,
+ * -180 read as 180, deduplicated, sorted: at most `MAX_TURN_CANDIDATES`. `[0]` for junk or a floor with no lines. Reads the stored
+ * structure only, so it does not depend on any current turn; the same floors give the same array whatever order their lines come in. Never throws.
+ */
+export function turnCandidates(upper: unknown, lower: unknown): number[] {
+  try {
+    const us = canonical(structure(upper)), ls = canonical(structure(lower));
+    if (!us.length || !ls.length) return [0];
+    const out = new Set<number>([0]);
+    for (const at of peaks(correlation(histogram(us), histogram(ls)))) for (const q of [0, 90, 180, -90]) {
+      const d = round2(wrap180(at + q));
+      if (Number.isFinite(d)) out.add(d === -180 ? 180 : d);
+    }
+    return [...out].sort((a, b) => a - b);
+  } catch {
+    return [0];
   }
 }

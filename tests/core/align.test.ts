@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import demo from "../../demo/layout.json";
 import stress from "../fixtures/stress-layout.json";
 import house from "../fixtures/align-house.json";
-import { alignFloor, alignKey, alignKeyOf } from "../../src/core/align";
+import { alignFloor, alignShift, alignKey, alignKeyOf } from "../../src/core/align";
 import { validate } from "../../src/core/schema";
 import type { Floor, Layout } from "../../src/core/schema";
 
@@ -264,16 +264,16 @@ describe("alignKeyOf", () => {
 import hand from "../fixtures/hand-align-house.json";
 import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
 
-describe("alignFloor with a turn (S29.7)", () => {
+describe("alignShift: translation at a given turn (S29.7, 0.27.0's alignFloor)", () => {
   const l = hand as unknown as Layout;
 
   it("turn 0 and no turn are the same answer as before", () => {
-    const a = alignFloor(l.floors.ground, l.floors.basement), b = alignFloor(l.floors.ground, l.floors.basement, 0);
+    const a = alignShift(l.floors.ground, l.floors.basement), b = alignShift(l.floors.ground, l.floors.basement, 0);
     expect(b).toEqual(a);
   });
 
   it("the first floor, given its true turn of 4 degrees, finds its true shift within 2 cm", () => {
-    const r = alignFloor(l.floors.first, l.floors.ground, FIRST_TO_GROUND.turn)!;
+    const r = alignShift(l.floors.first, l.floors.ground, FIRST_TO_GROUND.turn)!;
     expect(r).not.toBeNull();
     expect(Math.abs(r.t[0] - FIRST_TO_GROUND.shift[0])).toBeLessThan(2);
     expect(Math.abs(r.t[1] - FIRST_TO_GROUND.shift[1])).toBeLessThan(2);
@@ -281,22 +281,22 @@ describe("alignFloor with a turn (S29.7)", () => {
   });
 
   it("the ground, given its true turn of -2.5 degrees, finds its true shift within 2 cm", () => {
-    const r = alignFloor(l.floors.ground, l.floors.basement, GROUND_TO_BASEMENT.turn)!;
+    const r = alignShift(l.floors.ground, l.floors.basement, GROUND_TO_BASEMENT.turn)!;
     expect(Math.abs(r.t[0] - GROUND_TO_BASEMENT.shift[0])).toBeLessThan(2);
     expect(Math.abs(r.t[1] - GROUND_TO_BASEMENT.shift[1])).toBeLessThan(2);
   });
 
   it("the turn is read: the wrong turn does not find the true shift", () => {
-    const r = alignFloor(l.floors.first, l.floors.ground, 0)!;
+    const r = alignShift(l.floors.first, l.floors.ground, 0)!;
     const bad = Math.hypot(r.t[0] - FIRST_TO_GROUND.shift[0], r.t[1] - FIRST_TO_GROUND.shift[1]);
     expect(bad > 2 || r.score < 70).toBe(true);
   });
 
   it("junk turns read as 0 and never throw", () => {
-    const zero = alignFloor(l.floors.ground, l.floors.basement, 0);
+    const zero = alignShift(l.floors.ground, l.floors.basement, 0);
     for (const j of [NaN, Infinity, -Infinity, "4", null, undefined, [4], {}, 1e308]) {
-      expect(() => alignFloor(l.floors.ground, l.floors.basement, j as never), String(j)).not.toThrow();
-      if (typeof j !== "number" || !Number.isFinite(j)) expect(alignFloor(l.floors.ground, l.floors.basement, j as never)).toEqual(zero);
+      expect(() => alignShift(l.floors.ground, l.floors.basement, j as never), String(j)).not.toThrow();
+      if (typeof j !== "number" || !Number.isFinite(j)) expect(alignShift(l.floors.ground, l.floors.basement, j as never)).toEqual(zero);
     }
   });
 
