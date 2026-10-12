@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: the temperature pill is sized per character, and its text has no outline (Sprint 29)
+
+The plan sized the pill like the room-name tag, 0.6 em per character. Rendered, that overstated "21.7 °C · 48 %" by a fifth
+(digits, the narrow no-break space and the middle dot are narrow) and, the line being centred, put the pill well left of its
+number. `textEm` estimates per character, between DejaVu Sans and Roboto; a Chromium test keeps it within 10 % of the measured
+length. The readout's outline (a thick stroke in the plan colour, for legibility on the floor) painted over the pill's top
+half, so the temperature on a pill has none (`.val .val-t{stroke:none}`); the rest of the line keeps it.
+
 ## 2026-10-12: Layers in 3D: hidden devices are not tappable; a ball is scaled to nothing (Sprint 29)
 
 A device whose family is hidden is a null slot in the live state (as a room's own sensor is). The view then drops its overlay

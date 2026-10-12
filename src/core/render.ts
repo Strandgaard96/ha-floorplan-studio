@@ -758,6 +758,10 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
+/* S29 (H3-H5): the temperature pill sits behind the readout at a fixed share over the plan; the text keeps its own colour. A temp icon's
+   ring is its stroke only (its disc is untouched); g.dev outranks .dev.on .halo. Never a click target (finding 18: a class rule).
+   On the pill the temperature drops the readout's outline, which would paint over the pill's top half; the pill is its contrast. */
+.val-pill{fill:var(--fp-temp);fill-opacity:.35;stroke:none;pointer-events:none} .val .val-t{stroke:none} g.dev .halo.heat{stroke:var(--fp-temp);stroke-width:2;vector-effect:non-scaling-stroke}
 /* S25.5: a fanned stack. Leader, pin and name never take a click (finding 18: class rules); a member stays drawn at far. */
 .spider-leader{stroke:var(--fp-text);stroke-opacity:.6;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .spider-pin{fill:var(--fp-text);fill-opacity:.8;pointer-events:none}
 .spider-lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;font-family:var(--fp-font);font-weight:500;pointer-events:none}
@@ -1421,6 +1425,27 @@ export function roomReadout(r: Floor["rooms"][number], state: StateOverlay | und
   const { temp, rest } = roomReadoutParts(r, state);
   return [temp, rest].filter(Boolean).join(" · ");
 }
+/** S29 (H4): a text's width in em, estimated per character for the readout's pill (core draws markup and cannot measure). Between
+ *  DejaVu Sans and Roboto (Home Assistant's font), within 10 % of either for a readout (tests/card/temp-pill-width.spec.ts); a flat
+ *  0.6 em, the name tag's rule, overstated "21.7 °C · 48 %" by a fifth and pushed the pill off its number. */
+const EM: Record<string, number> = {
+  ".": 0.3,
+  ",": 0.3,
+  "-": 0.35,
+  "\u2212": 0.6,
+  " ": 0.3,
+  "\u202F": 0.2,
+  "°": 0.45,
+  "·": 0.3,
+  "%": 0.9,
+  C: 0.68,
+  F: 0.58,
+};
+export function textEm(s: string): number {
+  let w = 0;
+  for (const ch of String(s)) w += EM[ch] ?? 0.6; // digits and other letters
+  return w;
+}
 /** S29 (H5): a temp icon's place on the scale, from its own state; null for any other type, no `tempColors` or no reading. */
 export function deviceHeat(d: Device, o: RenderOpts): number | null {
   if (d?.type !== "temp" || !o.tempColors) return null;
@@ -1730,8 +1755,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   const now = o.now ?? Date.now();
   // S11.1: sensors that belong to a room. Layout and state are untrusted: a list that is not a list is empty, a state is
   // read only if it is the overlay's own, and a reading counts only if it is a plain finite number.
-  const listOf = roomList,
-    isAttached = attachedTest(f);
+  const isAttached = attachedTest(f);
   /** An attached sensor draws no icon; the editor keeps it, so it can still be selected and moved (DECISIONS, S11.1). */
   const iconHidden = (d: Device) => !o.editor && isAttached(d);
   // 2.5D: the projection in the frame of the plan group. The screen-up lift is turned back by the plan's own turn, so
@@ -2513,12 +2537,13 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
   });
 
   // S11.1: the readout of a room's own sensors, a small line under its name (or at its anchor when it has none). Placed like
-  // every other text, so it moves off a name or an icon; nothing readable draws nothing, never "NaN".
+  // every other text, so it moves off a name or an icon; nothing readable draws nothing, never "NaN". S29 (H4): with
+  // `tempColors`, the temperature is its own tspan on a pill (`--fp-temp-t`), sized by `textEm`; the text is
+  // character for character as before, and a room with no temperature draws exactly today's markup.
   f.rooms.forEach((r, i) => {
     if (!showText || !ROOM_OWNS[r.kind]) return;
-    const text = [meanReading(listOf(r, "temps"), o.state), meanReading(listOf(r, "humidity"), o.state)]
-      .filter(Boolean)
-      .join(" · ");
+    const { temp, rest, heat } = roomReadoutParts(r, o.state, o.tempColors);
+    const text = [temp, rest].filter(Boolean).join(" · ");
     if (!text) return;
     const lab = nameAt[i],
       base = lab?.at ?? centroid(r.pts),
@@ -2530,8 +2555,12 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
       vs,
       text,
     );
+    const head = `<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">`;
+    if (heat === null || !temp) return void out.push(`${head}${esc(text)}</text>`);
+    const h = vs + 2 * kt;
     out.push(
-      `<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">${esc(text)}</text>`,
+      `<rect class="val-pill" data-rp="${i}"${up(vx, vy)} x="${num(vx - (textEm(text) * vs) / 2 - 2 * kt)}" y="${num(vy - 0.75 * vs - kt)}" width="${num(textEm(temp) * vs + 4 * kt)}" height="${num(h)}" rx="${num(h / 2)}" style="--fp-temp-t:${num(heat)}"/>`,
+      `${head}<tspan class="val-t">${esc(temp)}</tspan>${rest ? esc(` · ${rest}`) : ""}</text>`,
     );
   });
 

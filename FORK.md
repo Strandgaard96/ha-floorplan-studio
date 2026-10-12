@@ -16,6 +16,11 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: Sprint 29, temperature pill in 2D (branch `task/s29`)
+
+- `renderFloor` draws `rect.val-pill` and `tspan.val-t` for a room's temperature, sized by `textEm` (a per-character width
+  table); `.val-pill`, `.val .val-t` and `.halo.heat` rules.
+
 ## 2026-10-12: Sprint 29, Layers in 3D (branch `task/s29`)
 
 - `liveOf` applies `layerHides`; `view3d.ts` hides balls, bodies, pools and glow for null slots and skips them in

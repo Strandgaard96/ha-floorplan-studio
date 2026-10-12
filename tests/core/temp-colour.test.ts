@@ -155,3 +155,32 @@ describe("a temp icon carries its own heat (H5)", () => {
     expect(FLOORPLAN_CSS).toContain("--fp-heat-cool:#2f86c9;--fp-heat-mid:#f0a020;--fp-heat-hot:#d63a2a");
   });
 });
+
+describe("the 2D readout pill (H4)", () => {
+  const f = structuredClone(ground);
+  Object.assign(f.rooms[0], { temps: ["s.t"], humidity: ["s.h"] });
+  Object.assign(f.rooms[6], { humidity: ["s.p"] }); // Garden pond: humidity only
+  const s = { "s.t": st("16", "°C"), "s.h": st("48", "%"), "s.p": st("80", "%") };
+  it("a room with a temperature draws a pill and its text in a tspan, the text unchanged", () => {
+    const svg = renderFloor(f, { scale: 1, state: s as never, tempColors: [16, 26] });
+    expect(svg).toMatch(
+      /<rect class="val-pill" data-rp="0"[^>]* style="--fp-temp-t:0"\/>\s*<text class="val" data-rv="0"/,
+    );
+    expect(svg).toContain('<tspan class="val-t">16 °C</tspan> · 48 %</text>');
+    expect(svg).not.toContain('data-rp="6"');
+  });
+  it("no tempColors, or no temperature anywhere, is byte for byte as before", () => {
+    expect(renderFloor(f, { scale: 1, state: s as never })).not.toContain("val-pill");
+    const g = structuredClone(f);
+    g.rooms[0].temps = [];
+    g.devices = g.devices.filter((d) => d.type !== "temp");
+    expect(renderFloor(g, { scale: 1, state: s as never, tempColors: [16, 26] })).toBe(
+      renderFloor(g, { scale: 1, state: s as never }),
+    );
+  });
+  it("labels off draws no pill", () => {
+    expect(renderFloor(f, { scale: 1, state: s as never, tempColors: [16, 26], labels: false })).not.toContain(
+      "val-pill",
+    );
+  });
+});
