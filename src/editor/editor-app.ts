@@ -209,7 +209,7 @@ export class FloorplanStudioEditor extends LitElement {
   linkOff = new Set<string>();
   /** S27.10: the key of the floor the Align mode was opened on (null when closed), and its memoised preview. */
   alignKey: string | null = null;
-  /** How many times the Align preview has run `alignFloor` (a test reads it: a drag must not search on every pointer move). */
+  /** How many times the Align preview has run `alignCandidates` (a test reads it: a drag must not search on every pointer move). */
   alignSearches = 0;
   private alignMemo: { key: string; fits: ReturnType<typeof alignCandidates> } | null = null;
   placeType: DeviceType | null = null;

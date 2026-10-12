@@ -96,6 +96,27 @@ test("a Turn press, ten Move presses and ten undos run no search; a moved wall r
   expect(await searches(page), "a moved corner").toBe(n0 + 1);
 });
 
+test("an edit on the floor below, with Align open on the ground, runs a new search; an edit that keeps its structure does not", async ({ page }) => {
+  // Opus review: the memo key holds both floors. Nothing tested the lower half, so dropping it from the key left a stale answer.
+  await setup(page, "ground");
+  await openAlign(page);
+  const n0 = await searches(page);
+  expect(n0, "opening the mode searched once").toBe(1);
+  // The same hook as the test above, aimed at the basement (the floor below the ground) while Align stays open on the ground.
+  const editBelow = (fn: string) => page.evaluate(([tag, body]) => {
+    const el = document.querySelector(tag as string) as any;
+    el.st.floor = "basement";
+    try { el.st.edit(new Function("f", body as string)); } finally { el.st.floor = "ground"; }
+    el.requestUpdate();
+  }, [EDITOR, fn] as const);
+  await editBelow("f.title = 'Cellar';"); // not structure: the same key
+  await frame(page);
+  expect(await searches(page), "a title is not structure").toBe(n0);
+  await editBelow("f.outline[0] = [f.outline[0][0] + 9, f.outline[0][1]];");
+  await frame(page);
+  expect(await searches(page), "a moved corner of the floor below").toBe(n0 + 1);
+});
+
 test("a floor stored at the other turn keeps it: no turn words, only the move, and the first turn is the other-turn line", async ({ page }) => {
   // Stored at -176 the small tier is -176 itself (the prior), so the answer keeps the turn and names 4 as the other one.
   await setup(page, "first", (l) => { l.floors.first.rotation = -176; });

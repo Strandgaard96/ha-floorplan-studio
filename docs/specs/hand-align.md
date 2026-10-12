@@ -186,8 +186,8 @@ centres when the floors are right. Hence a button, not something automatic.
 - A pose with junk in the file: `migrate` dropped it; the panel shows 0.
 - Lock plan: every button and key is refused with the Unlock offer; nothing moves.
 - A `hass` update between presses changes nothing in the panel or the exact pose.
-- The memoised Align search does not run on a press: its key holds the relative turn, so a move does not search and a
-  turn searches once (it reads the turn).
+- The memoised Align search does not run on a press. (Superseded by "The memo" in Sprint 30 below: the key holds the two
+  floors' structure and no turn, so a move and a turn press both run no search; only a structure edit on either floor does.)
 - `prefers-reduced-motion`: nothing here animates.
 
 ## Sprint 30 (0.28.0): Align searches angles

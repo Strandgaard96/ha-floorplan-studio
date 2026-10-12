@@ -230,8 +230,9 @@ function corners(segs: Seg[]): Pt[] {
 
 /**
  * S28.12: what `alignFloor` reads of a floor, as a string: the structure lines in stored coordinates, and `owk`. The
- * offset, the title and everything else are left out (the turn the lines are searched at is added, S29.7), so a nudge or an undo (a new floor object, the same structure)
- * gives the same key and the editor does not search again. Never throws; junk gives a key too.
+ * offset, the title and everything else are left out, so a nudge or an undo (a new floor object, the same structure) gives the same key and
+ * the editor does not search again. `turn` (S29.7, for `alignShift`, which reads it) is added when not 0; the editor's memo passes none
+ * since Sprint 30, because `alignCandidates` does not read the floor's current turn. Never throws; junk gives a key too.
  */
 export function alignKey(f: unknown, turn: unknown = 0): string {
   try {
