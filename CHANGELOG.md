@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Core: `alignSummary` and `alignStatus` word the Align panel (match, weak, the other fit, the change from the current place, Apply's status). Not wired to the panel yet.
+
 ## 0.27.0 - 2026-10-11
 
 - Studio, Align to floor below (review fixes): a typed offset or rotation that would pass the coordinate limit now says so in the status line instead of reverting silently.

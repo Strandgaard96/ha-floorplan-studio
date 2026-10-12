@@ -2,6 +2,20 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: S30.6 the panel's words (Sonnet)
+
+`src/core/align-words.ts`. Pure text from the result `{ turn, t, score, weak, alt }`; it declares that shape itself and
+does not read `align.ts`. `alignSummary(result, place, pivot)` gives `{ score, alt, move }`; `alignStatus(result, place,
+belowName)` gives Apply's line. Calls the spec left open, decided here:
+- The move is the pivot's own: `placePoint(new, pivot) - placePoint(current, pivot)`. Up is smaller y, as on screen.
+  Whole cm; a part under half a centimetre is left out; nothing left reads "Already aligned".
+- The turn is the change from the current place, the short way (`normaliseTurn`), clockwise positive; not shown under 0.05.
+- `alt` is named by its turn relative to the answer: within 10 degrees of 180 "A half turn", of 90 "A quarter turn",
+  else "A turn of 7.5°" (the size, no side). Half and quarter show alt's own turn in brackets, as the spec's example does.
+  "fits better" when alt scores more than 1 point above the answer.
+- The status turn is the change, signed ("turned -2.5°" for anticlockwise), and left out when there is none.
+- No result: "Nothing to match", no alt, empty move. A junk number reads as 0; a name is plain text, never escaped here.
+
 ## 2026-10-12: S30.1 design note: Align searches the turn (Opus)
 
 `docs/specs/hand-align.md` (Sprint 30), `docs/PLAN.md` (S30.1 ticked, S30.2 to S30.5 reworded). No product code. A
