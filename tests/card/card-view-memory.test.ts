@@ -12,6 +12,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 import { THEMES, planPivot, renderFloor, rotateAbout, viewBoxFor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
+import { openViewMenu } from "./view-menu";
 
 const L = demo as unknown as Layout;
 const lastOpts = () => (renderFloor as unknown as Mock).mock.calls.at(-1)![1] as RenderOpts;
@@ -35,6 +36,7 @@ async function mount(
   document.body.appendChild(el);
   el.setConfig({ layout, floor: "ground", ...config } as FloorplanStudioCardConfig);
   await el.updateComplete;
+  await openViewMenu(el); // UI refactor 3: the look controls these tests drive live in the View options menu
   return el;
 }
 const q = <T extends Element>(el: FloorplanStudioCard, sel: string) => el.shadowRoot!.querySelector<T>(sel);
@@ -46,8 +48,19 @@ const click = async (el: FloorplanStudioCard, label: string) => {
 const vb = (el: FloorplanStudioCard) =>
   q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number) as [number, number, number, number];
 const themeSelect = (el: FloorplanStudioCard) => q<HTMLSelectElement>(el, 'select[aria-label="Theme"]');
-const viewSelect = (el: FloorplanStudioCard) => q<HTMLSelectElement>(el, 'select[aria-label="View"]');
-const choose = async (el: FloorplanStudioCard, s: HTMLSelectElement, value: string) => {
+// UI refactor 3: View is a segmented control. `viewSelect` is its group; `choose` on it clicks the segment with that value.
+const viewSelect = (el: FloorplanStudioCard) => q<HTMLElement>(el, '[role="group"][aria-label="View"]');
+const SEG = { "2d": "2D", "2.5d": "2.5D", "3d": "3D" } as const;
+const viewNow = (el: FloorplanStudioCard) =>
+  Object.entries(SEG).find(
+    ([, l]) => viewSelect(el)!.querySelector(`button[aria-pressed="true"]`)?.textContent?.trim() === l,
+  )?.[0];
+const choose = async (el: FloorplanStudioCard, s: HTMLSelectElement | HTMLElement, value: string) => {
+  if (!(s instanceof HTMLSelectElement)) {
+    [...s.querySelectorAll("button")].find((b) => b.textContent!.trim() === SEG[value as keyof typeof SEG])!.click();
+    await el.updateComplete;
+    return;
+  }
   s.value = value;
   s.dispatchEvent(new Event("change", { bubbles: true }));
   await el.updateComplete;
@@ -298,7 +311,7 @@ describe("the card remembers its view", () => {
     expect(lastOpts().theme).toBe("light");
     expect(lastOpts().labels).toBe(false);
     expect(b.getAttribute("data-theme")).toBe("light");
-    expect(viewSelect(b)!.value).toBe("2.5d");
+    expect(viewNow(b)).toBe("2.5d");
     expect(themeSelect(b)!.value).toBe("light");
   });
 
@@ -526,13 +539,14 @@ describe("Reset view", () => {
     expect(((seen.at(-1)! % 360) + 360) % 360).toBe(0);
   });
 
-  it("is disabled when nothing differs from the config, enabled after a change", async () => {
+  // UI refactor 4: hidden (not disabled) while nothing differs from the config; the card-shell test also pins the focus rule.
+  it("is hidden when nothing differs from the config, shown after a change", async () => {
     const el = await mount();
-    expect(btn(el, "Reset view")!.disabled).toBe(true);
+    expect(btn(el, "Reset view")!.hidden).toBe(true);
     await click(el, "Rotate right");
-    expect(btn(el, "Reset view")!.disabled).toBe(false);
+    expect(btn(el, "Reset view")!.hidden).toBe(false);
     await click(el, "Reset view");
-    expect(btn(el, "Reset view")!.disabled).toBe(true);
+    expect(btn(el, "Reset view")!.hidden).toBe(true);
   });
 
   it("the Fit button stays and fits only: rotation and theme are untouched", async () => {
@@ -766,5 +780,55 @@ describe("the ghost floor: YAML default and the viewer's choice (S27.13)", () =>
     localStorage.setItem(k, v.replace('"ghost":true', '"ghost":"yes"'));
     await mount({ floor: "first" });
     expect(ghostOf()).toBeUndefined();
+  });
+});
+
+describe("Cover art and Temperature colours: YAML default and the viewer's choice (S29, AC 11, AC 16)", () => {
+  it("each button toggles its option, is remembered, and the pick wins over YAML; Reset view goes back to YAML", async () => {
+    const a = await mount();
+    expect(btn(a, "Cover art")!.getAttribute("aria-pressed")).toBe("true");
+    expect(btn(a, "Temperature colours")!.getAttribute("aria-pressed")).toBe("true");
+    await click(a, "Cover art");
+    await click(a, "Temperature colours");
+    expect(lastOpts().mediaArt).toBe(false);
+    expect(lastOpts().tempColors).toBeUndefined();
+    a.remove();
+    const b = await mount(); // a reload: the stored picks
+    expect(lastOpts().mediaArt).toBe(false);
+    expect(lastOpts().tempColors).toBeUndefined();
+    await click(b, "Reset view");
+    expect(lastOpts().mediaArt).toBe(true);
+    expect(lastOpts().tempColors).toEqual([17, 25]);
+    expect(stored()).toEqual([]);
+  });
+  it("YAML false starts off; junk YAML is on; the YAML bounds reach renderFloor and bad ones are 17 and 25", async () => {
+    const off = await mount({ media_art: false, temp_colors: false });
+    expect(lastOpts().mediaArt).toBe(false);
+    expect(lastOpts().tempColors).toBeUndefined();
+    expect(btn(off, "Cover art")!.getAttribute("aria-pressed")).toBe("false");
+    off.remove();
+    const junk = await mount({ media_art: "no" as never, temp_colors: 0 as never, heat_min: 30, heat_max: 20 });
+    expect(lastOpts().mediaArt).toBe(true);
+    expect(lastOpts().tempColors).toEqual([17, 25]);
+    junk.remove();
+    await mount({ heat_min: 16, heat_max: 26 });
+    expect(lastOpts().tempColors).toEqual([16, 26]);
+  });
+  it("Reset view does not touch Layers (S4)", async () => {
+    const a = await mount();
+    (a as unknown as { _hiddenLayers: string[] })._hiddenLayers = ["lights"];
+    await click(a, "Cover art");
+    await click(a, "Reset view");
+    expect(lastOpts().hiddenLayers).toEqual(["lights"]);
+  });
+  it("a YAML change starts a clean memory: the four keys join the storage key", async () => {
+    const a = await mount();
+    await click(a, "Cover art");
+    a.remove();
+    for (const k of [{ media_art: true }, { temp_colors: true }, { heat_min: 16 }, { heat_max: 26 }]) {
+      await mount(k);
+      expect(lastOpts().mediaArt, JSON.stringify(k)).toBe(true);
+      document.body.innerHTML = "";
+    }
   });
 });

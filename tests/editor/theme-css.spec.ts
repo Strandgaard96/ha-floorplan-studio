@@ -67,7 +67,8 @@ test("S2.12: theme ha reads Home Assistant's variables, falls back to plain ligh
   });
   expect(await stroke(page, "haWall")).toBe("rgb(10, 20, 30)");
   expect(await bg(page, "haBg")).toBe("rgb(40, 50, 60)");
-  expect(await stroke(page, "haDarkWall")).toBe("rgb(10, 20, 30)");
+  // UI refactor item 7: in dark mode the wall is a mid grey mixed from HA's text and card colours, not the text itself.
+  expect(await stroke(page, "haDarkWall")).not.toBe("rgb(10, 20, 30)");
   // The other themes ignore them.
   expect(await stroke(page, "bpWall")).toBe(DARK.wall);
   expect(await bg(page, "lightBg")).toBe(LIGHT.bg);

@@ -272,3 +272,90 @@ describe("Orbit state and restore: the camera a floor is left with (S14.4)", () 
     expect(o.state()).toEqual(first);
   });
 });
+
+// UI refactor item 11: the first view frames the house's own box (its eight corners as the camera sees them), not a sphere round it.
+// `fill` projects the corners the way the view does (look-at the target, vertical field `fov`, picture slid by `shift` and `shiftY`)
+// and returns the screen box as fractions of the view's width and height, y down.
+function fill(o: Orbit, b: { min: number[]; max: number[] }, aspect: number, fov = 40) {
+  const s = Math.sin(o.polar) * o.distance,
+    cam = [
+      o.target[0] + s * Math.sin(o.azimuth),
+      o.target[1] + Math.cos(o.polar) * o.distance,
+      o.target[2] + s * Math.cos(o.azimuth),
+    ],
+    f = [o.target[0] - cam[0], o.target[1] - cam[1], o.target[2] - cam[2]],
+    fl = Math.hypot(f[0], f[1], f[2]),
+    fw = f.map((v) => v / fl),
+    r = [fw[2] * -1, 0, fw[0]], // cross(forward, up) for up = (0, 1, 0)
+    rl = Math.hypot(r[0], r[2]),
+    rr = [r[0] / rl, 0, r[2] / rl],
+    u = [rr[1] * fw[2] - rr[2] * fw[1], rr[2] * fw[0] - rr[0] * fw[2], rr[0] * fw[1] - rr[1] * fw[0]],
+    t = Math.tan((fov * Math.PI) / 360);
+  let x0 = Infinity,
+    x1 = -Infinity,
+    y0 = Infinity,
+    y1 = -Infinity;
+  for (const px of [b.min[0], b.max[0]])
+    for (const py of [b.min[1], b.max[1]])
+      for (const pz of [b.min[2], b.max[2]]) {
+        const q = [px - cam[0], pz - cam[1], py - cam[2]], // plan (x, y, z up) to three (x, z, y)
+          depth = q[0] * fw[0] + q[1] * fw[1] + q[2] * fw[2],
+          nx = (q[0] * rr[0] + q[1] * rr[1] + q[2] * rr[2]) / (depth * t * aspect),
+          ny = (q[0] * u[0] + q[1] * u[1] + q[2] * u[2]) / (depth * t);
+        x0 = Math.min(x0, nx);
+        x1 = Math.max(x1, nx);
+        y0 = Math.min(y0, ny);
+        y1 = Math.max(y1, ny);
+      }
+  const dx = o.shift * 2,
+    dy = -o.shiftY * 2; // the picture slides right by shift * width, down by shiftY * height (NDC is 2 across)
+  return { left: (x0 + dx + 1) / 2, right: (x1 + dx + 1) / 2, top: (1 - (y1 + dy)) / 2, bottom: (1 - (y0 + dy)) / 2 };
+}
+
+describe("Orbit framing of the house box (item 11)", () => {
+  const houses = [
+    { min: [0, 0, 0], max: [1000, 800, 250] },
+    { min: [0, 0, 0], max: [1400, 400, 250] },
+    { min: [0, 0, -275], max: [600, 900, 520] },
+  ];
+  for (const b of houses)
+    for (const aspect of [0.6, 1.5, 2.4])
+      for (const [l, r, top] of [
+        [0, 0, 0],
+        [0, 0, 0.12],
+        [0.3, 0, 0.1],
+        [0, 0.25, 0.15],
+      ])
+        it(`fills 85 % of the free area and stays inside: box ${b.max.join("x")} aspect ${aspect} inset ${l}/${r}/${top}`, () => {
+          const o = new Orbit(b as never, aspect, 40, 0);
+          o.setInset(l, r, top);
+          const s = fill(o, b, aspect),
+            freeW = 1 - l - r,
+            freeH = 1 - top,
+            fw = (s.right - s.left) / freeW,
+            fh = (s.bottom - s.top) / freeH;
+          expect(Math.max(fw, fh), "limiting axis").toBeGreaterThan(0.83);
+          expect(Math.max(fw, fh), "limiting axis").toBeLessThan(0.87);
+          expect(s.left).toBeGreaterThanOrEqual(l);
+          expect(s.right).toBeLessThanOrEqual(1 - r);
+          expect(s.top).toBeGreaterThanOrEqual(top);
+          expect(s.bottom).toBeLessThanOrEqual(1);
+          // centred in the free area
+          expect((s.left + s.right) / 2).toBeCloseTo(l + freeW / 2, 2);
+          expect((s.top + s.bottom) / 2).toBeCloseTo(top + freeH / 2, 2);
+        });
+  it("reset returns to the same framing after a drag, a zoom and a pan", () => {
+    const o = new Orbit(houses[0] as never, 1.5, 40, 0);
+    o.setInset(0, 0, 0.1);
+    const was = { d: o.distance, t: [...o.target], p: o.polar, a: o.azimuth, sy: o.shiftY };
+    o.rotate(50, 20);
+    o.zoom(0.5);
+    o.pan(30, 30, 600);
+    o.reset();
+    expect(o.distance).toBeCloseTo(was.d, 6);
+    expect(o.target).toEqual(was.t);
+    expect(o.polar).toBeCloseTo(was.p, 9);
+    expect(o.azimuth).toBeCloseTo(was.a, 9);
+    expect(o.shiftY).toBe(was.sy);
+  });
+});

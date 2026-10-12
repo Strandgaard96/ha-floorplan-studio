@@ -38,7 +38,8 @@ export {
   parseDetailMode,
 } from "./detail";
 export type { DetailLevel, DetailMode } from "./detail";
-export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups } from "./spider";
+export { SPIDER_GAP_PX, SPIDER_MAX, SPIDER_MIN_R_PX, STACK_PX, spiderLayout, stackGroups, tagWidth } from "./spider";
+export type { SpiderSize } from "./spider";
 export { DEVICE_ICONS, DEVICE_TYPE_LABELS, FURNITURE, UI_ICONS } from "./icons";
 export * from "./render";
 export { badges, floorRollups, roomRollup } from "./rollup";
@@ -108,6 +109,7 @@ export {
   filterToRoom,
   formatAge,
   formatChanged,
+  formatSince,
   relayText,
   floorSummary,
   lampOffEntities,
@@ -116,6 +118,8 @@ export {
 } from "./room-info";
 export type { InfoHass, InfoRow, RoomDeviceRow, RoomSensorRow, RoomSummary } from "./room-info";
 export { meanText, readingText, stateText } from "./state-text";
+export { HEAT_MAX, HEAT_MIN, celsiusOf, heatBounds, heatT, meanValue } from "./readings";
+export type { MeanValue } from "./readings";
 export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } from "./search";
 export type { SearchEntry, SearchIndex } from "./search";
 export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";

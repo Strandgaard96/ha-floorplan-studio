@@ -2969,8 +2969,8 @@ test("S23.1: a zone's plan label is solid like a room's, and smaller", async ({ 
       });
   const zone = await style("svg text.lbl.zone[data-rl]"),
     room = await style("svg text.lbl:not(.zone):not(.out)[data-rl]");
-  expect([zone.opacity, zone.weight]).toEqual(["1", "500"]);
-  expect([room.opacity, room.weight]).toEqual(["1", "500"]);
+  expect([zone.opacity, zone.weight]).toEqual(["1", "600"]);
+  expect([room.opacity, room.weight]).toEqual(["1", "600"]);
   expect(zone.size).toBeLessThanOrEqual(room.size);
 });
 
@@ -5662,7 +5662,10 @@ test("S1.46: room, zone, device and extra names and the edge length are dark gre
   );
   expect(names.length).toBeGreaterThan(8); // rooms, the zone, device names, the extra
   for (const [t, fill, stroke, under] of names) {
-    if (under) expectNear(fill, mix92("rgb(58, 58, 58)", under), String(t)); // a room's name: mixed into the room
+    // a room's name: mixed into the room. An outdoor kind's surface is itself a color-mix() (UI refactor 17), which a custom
+    // property reports unresolved: its name is only checked to differ from the plain text colour.
+    if (under && /^(var|color-mix)\(/.test(under)) expect(fill, String(t)).not.toBe("rgb(58, 58, 58)");
+    else if (under) expectNear(fill, mix92("rgb(58, 58, 58)", under), String(t));
     else expect(fill, String(t)).toBe("rgb(58, 58, 58)"); // a device's or an extra's name: the plain text colour
     expect(stroke, String(t)).toBe("rgb(255, 255, 255)");
   }
@@ -6112,10 +6115,26 @@ test("Opus review CSS pair: each room kind has its own fill; fill is hatched; zo
       .locator(`svg polygon.room-${k}`)
       .first()
       .evaluate((e) => getComputedStyle(e).fill);
-  expect(await fill("garden")).toBe(rgb("#9db98a"));
-  expect(await fill("terrace")).toBe(rgb("#cdb094"));
-  expect(await fill("pavement")).toBe(rgb("#c9c6bf"));
-  expect(await fill("water")).toBe(rgb("#a9cfe3"));
+  // UI refactor 17: an outdoor kind is its token mixed into --fp-bg (#f4f0e6 here) so it is quieter than a room: garden 30 %,
+  // terrace 30 %, pavement 33 %, water 20 %. Computed style of a color-mix() is not rgb(), so read it through a canvas.
+  const near = async (k: string, hex: string) => {
+    const got = await page
+      .locator(`svg polygon.room-${k}`)
+      .first()
+      .evaluate((e) => {
+        // Chromium's canvas keeps a color(srgb …) as written: paint one pixel and read it back
+        const c = document.createElement("canvas").getContext("2d")!;
+        c.fillStyle = getComputedStyle(e).fill;
+        c.fillRect(0, 0, 1, 1);
+        return [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+      });
+    const ch = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    got.forEach((v, i) => expect(Math.abs(v - ch(hex)[i]), `${k} ${got} vs ${hex}`).toBeLessThanOrEqual(1));
+  };
+  await near("garden", "#dae0ca");
+  await near("terrace", "#e8ddcd");
+  await near("pavement", "#e6e2d9");
+  await near("water", "#e5e9e5");
   expect(await fill("zone")).toBe("none");
   expect(await fill("fill")).toContain("#fp-hatch");
   // the hatch pattern paints with the two fill variables
@@ -6177,7 +6196,7 @@ test("Opus review CSS pair: the palette variables equal DEVICE_COLOURS, camera a
     });
   expect(vars).toEqual({
     light: "#e0a800",
-    motion: "#d64545",
+    motion: "#b5389a", // UI refactor item 6: motion has its own colour, not alert red
     contact: "#d64545",
     heater: "#e8801a",
     climate: "#e8801a",
@@ -6264,10 +6283,10 @@ test("Opus review CSS pair: a motion sensor that went off still fades: the fill 
           .map((n) => Math.round(+n * 255))
       : c.match(/\d+/g)!.map(Number);
   const idle = chan(await fillAt("0", false));
-  expect(chan(await fillAt("1", false))).toEqual([255, 138, 31]); // fully faded in: blueprint's motion colour collapses to the single accent
+  expect(chan(await fillAt("1", false))).toEqual([255, 95, 200]); // fully faded in: blueprint's motion colour (#ff5fc8 in its roles, UI refactor item 6)
   const half = chan(await fillAt("0.5", false));
   expect(half).not.toEqual(idle);
-  expect(half).not.toEqual([255, 138, 31]);
+  expect(half).not.toEqual([255, 95, 200]);
   // on: the glyph is the ink on the disc, whatever the fade (g.dev.on path outranks .dev.dev-motion path, finding 10)
   expect(chan(await fillAt("0.5", true))).toEqual(chan(await fillAt("1", true)));
   expect(chan(await fillAt("1", true))).not.toEqual([255, 138, 31]);
@@ -6626,8 +6645,8 @@ test("Opus review CSS pair: S2.9 a device wears its colour when it is on (--fp-d
       (e as SVGElement).style.removeProperty("--fp-fade");
       return r;
     });
-  expect(motion.devVar).toBe("#d64545");
-  expect(motion.haloFill).toBe(rgb("#d64545"));
+  expect(motion.devVar).toBe("#b5389a"); // UI refactor item 6
+  expect(motion.haloFill).toBe(rgb("#b5389a"));
 });
 
 // S23.5: unavailable is no longer a 45 % ghost but its own mark; the colour rule must still never paint over it.

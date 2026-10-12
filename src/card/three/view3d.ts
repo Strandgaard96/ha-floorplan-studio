@@ -113,7 +113,7 @@ export interface View3D {
   /** The walls mode: "full", "cut" (the walls facing the camera drop to `lowWall`) or "low" (all of them do). */
   setWalls(mode: string): void;
   /** A panel covers the left and the right part of the view (fractions of its width): frame the house in the free part. */
-  setInset(left: number, right: number): void;
+  setInset(left: number, right: number, top?: number): void;
   /** What is under this point of the page (client coordinates), or null: the same answer a tap there gets. */
   pick(clientX: number, clientY: number): Pick | null;
   /** The picked room (its index on the floor) gets a dashed ring along its outline, just above its floor; null removes it. A room with no floor of its own (a zone) gets none. */
@@ -158,6 +158,9 @@ const RESTORE_MS = 3000;
 export class NoWebGL extends Error {}
 
 const FOV = 40;
+/** Item 11a: the ground is a grid of this many cells a side, solid out to this fraction of each half extent, then fading to nothing at the border. */
+const GROUND_CELLS = 24,
+  GROUND_SOLID = 0.72;
 /** The most opaque a ghost floor below is (S27.7). */
 const GHOST_OPACITY = 0.25;
 /** Copy of the card's `TAP_SLOP_PX` (the chunk imports no card code); a test holds the two equal. */
@@ -247,7 +250,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     markers: InstancedMesh | null = null,
     ring: LineLoop | null = null;
   let ringRoom: number | null = null,
-    inset: [number, number] = [0, 0];
+    inset: [number, number, number] = [0, 0, 0];
   const raycaster = new Raycaster();
   let wallMeshes: Mesh[] = [],
     bodies: WallBody[] = [],
@@ -277,6 +280,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   }[] = [];
   let ballIdx: number[] = [],
     ballRest: Color[] = [],
+    ballAt: [number, number, number][] = [],
+    ballShown: boolean[] = [],
     anchors: Anchors = { devices: new Map(), rooms: new Map() };
   const overlay = createOverlay(container),
     pools = createPools(scene),
@@ -320,8 +325,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     camera.far = orbit.framing * FAR_PLANES;
     camera.lookAt(orbit.target[0], orbit.target[1], orbit.target[2]);
     const { w, h } = size(),
-      shift = orbit.shift;
-    if (shift !== 0) camera.setViewOffset(w, h, -shift * w, 0, w, h);
+      shift = orbit.shift,
+      shiftY = orbit.shiftY;
+    if (shift !== 0 || shiftY !== 0) camera.setViewOffset(w, h, -shift * w, -shiftY * h, w, h);
     else camera.clearViewOffset();
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld(true);
@@ -777,10 +783,33 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         max: [Math.max(b.max[0], belowBox?.max[0] ?? -Infinity), Math.max(b.max[1], belowBox?.max[1] ?? -Infinity)],
       });
     if (!box || !Number.isFinite(low)) return;
-    const g = new PlaneGeometry(box.x1 - box.x0, box.y1 - box.y0);
+    const g = new PlaneGeometry(box.x1 - box.x0, box.y1 - box.y0, GROUND_CELLS, GROUND_CELLS);
+    // Item 11a: the ground fades to nothing toward its border (per-vertex alpha, a smoothstep over the outer part of each half extent),
+    // so on any page the canvas sits on it has no edge to show: a dark ground on a light card is not a stripe.
+    const pos = g.getAttribute("position"),
+      alpha = new Float32Array(pos.count * 4),
+      hw = (box.x1 - box.x0) / 2,
+      hh = (box.y1 - box.y0) / 2;
+    const edge = (t: number) => {
+      const k = Math.min(1, Math.max(0, (Math.abs(t) - GROUND_SOLID) / (1 - GROUND_SOLID)));
+      return 1 - k * k * (3 - 2 * k);
+    };
+    for (let i = 0; i < pos.count; i++) {
+      alpha.set([1, 1, 1, edge(pos.getX(i) / hw) * edge(pos.getY(i) / hh)], i * 4);
+    }
+    g.setAttribute("color", new BufferAttribute(alpha, 4));
     g.rotateX(-Math.PI / 2); // flat, facing up; plan y runs towards three's +z
     g.translate((box.x0 + box.x1) / 2, low, (box.y0 + box.y1) / 2);
-    const m = new Mesh(g, new MeshLambertMaterial({ color: paintOf("ground", undefined).colour }));
+    const m = new Mesh(
+      g,
+      new MeshLambertMaterial({
+        color: paintOf("ground", undefined).colour,
+        vertexColors: true,
+        transparent: true,
+        depthWrite: false,
+      }),
+    );
+    m.renderOrder = -1; // under the contact shadows and the ghost floors, which are transparent too
     m.name = "ground";
     m.raycast = () => undefined;
     m.visible = shadeOn;
@@ -813,6 +842,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     pieceBodies = [];
     ballIdx = [];
     ballRest = [];
+    ballAt = [];
+    ballShown = [];
     rings.dispose(retire);
     roomShapes = [];
     roomSolid.clear();
@@ -843,11 +874,16 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         pts.length,
       ),
       at = new Matrix4();
+    // S29 review: a ball Layers hides is scaled to nothing, and three computes an instanced mesh's bounding sphere once. Hidden on
+    // the first frame, that sphere went stale and culled the balls once shown again. One mesh: never culled, as pools and crowns.
+    m.frustumCulled = false;
     pts.forEach((sol, i) => {
       if (sol.shape.type !== "point") return;
       at.makeTranslation(sol.shape.at[0], sol.shape.z, sol.shape.at[1]);
       m.setMatrixAt(i, at);
       ballIdx.push(sol.ref.index as number);
+      ballAt.push([sol.shape.at[0], sol.shape.z, sol.shape.at[1]]);
+      ballShown.push(true);
       ballRest.push(paintOf(sol.paint.role, sol.paint.color).colour);
       m.setColorAt(i, ballRest[i]);
     });
@@ -1109,18 +1145,33 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       driver = paintOf("driver-on", undefined).colour,
       off = paintOf("driver-off", undefined).colour;
     for (const b of devBodies) {
-      const d = L.devices[b.index] ?? null;
+      // S29 (L2): a device Layers hides (a null slot) has no body, and nothing on it lights up.
+      const d = L.devices[b.index] ?? null,
+        show = L.devices[b.index] !== null;
+      b.mesh.visible = show;
+      for (const m of b.lit) m.visible = show;
       if (b.type === "heater") b.mat.color.copy(d && d.state === "on" ? heat : b.rest);
       b.on = b.type === "tv" ? !!d && d.state === "on" : b.type === "speaker" ? !!d && d.playing : false;
       for (const m of b.lit) (m.material as MeshBasicMaterial).color.copy(b.on ? (b.type === "tv" ? on : driver) : off);
     }
   }
-  /** A ball is the colour its icon is drawn in (the card's stylesheet decides, as in 2D), faded toward the backdrop by the icon's opacity. */
+  /** A ball is the colour its icon is drawn in (the card's stylesheet decides, as in 2D), faded toward the backdrop by the icon's
+   *  opacity. S29 (L2): a device Layers hides (a null slot) has no ball: it is scaled to nothing, and comes back with its family. */
   function applyBalls() {
     if (!markers) return;
-    const back = paintOf("backdrop", undefined).colour,
-      c = new Color();
+    const L = liveNow ?? EMPTY,
+      back = paintOf("backdrop", undefined).colour,
+      c = new Color(),
+      m4 = new Matrix4();
+    let moved = false;
     ballIdx.forEach((di, k) => {
+      const show = L.devices[di] !== null;
+      if (show !== ballShown[k]) {
+        ballShown[k] = show;
+        const p = ballAt[k]!;
+        markers!.setMatrixAt(k, show ? m4.makeTranslation(p[0], p[1], p[2]) : m4.makeScale(0, 0, 0));
+        moved = true;
+      }
       const f = overlay.fill(di),
         css = f ? resolveColour(probe, f.css) : null;
       if (css === null || !f) {
@@ -1131,6 +1182,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       if (f.opacity < 1) c.lerp(back, 1 - Math.max(0, f.opacity));
       markers!.setColorAt(k, c);
     });
+    if (moved) markers.instanceMatrix.needsUpdate = true;
     if (markers.instanceColor) markers.instanceColor.needsUpdate = true;
   }
   const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1188,7 +1240,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     }
     const b = plan?.bounds,
       centre: [number, number] = b ? [(b.min[0] + b.max[0]) / 2, (b.min[1] + b.max[1]) / 2] : [0, 0];
-    const here = lit.filter((l) => roomSolid.has(l.room));
+    const here = lit.filter((l) => roomSolid.has(l.room) && L.devices[l.device] !== null); // S29 (L2): a hidden lamp lifts its room (above) but casts no pool or wall glow
     pools.set(
       pickLights(here, centre, MAX_POOLS).map((l) => {
         const r = roomSolid.get(l.room)!;
@@ -1422,7 +1474,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       else {
         const { w, h } = size();
         orbit = new Orbit(bounds, w / h, FOV, opts.turnDeg);
-        orbit.setInset(inset[0], inset[1]); // a new floor keeps the room the list takes
+        orbit.setInset(inset[0], inset[1], inset[2]); // a new floor keeps the room the list takes
         framed = true;
       }
       if (!orbit.finite) {
@@ -1455,11 +1507,11 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       walls = m;
       want(); // the next frame decides, and rebuilds if the set changed
     },
-    setInset(left, right) {
-      const key = `${Math.max(0, +left || 0).toFixed(3)},${Math.max(0, +right || 0).toFixed(3)}`;
+    setInset(left, right, top = 0) {
+      const key = `${Math.max(0, +left || 0).toFixed(3)},${Math.max(0, +right || 0).toFixed(3)},${Math.max(0, +top || 0).toFixed(3)}`;
       if (key === container.dataset.inset) return; // the card says it after every render: the same inset is no frame
-      inset = [left, right];
-      orbit.setInset(left, right);
+      inset = [left, right, top];
+      orbit.setInset(left, right, top);
       container.dataset.inset = key;
       want();
     },
@@ -1476,7 +1528,16 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       );
       const o = raycaster.ray.origin,
         d = raycaster.ray.direction; // three's frame to the plan's: (x, y, z) -> (x, z, y)
-      return picker.pick({ o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] }, (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT));
+      return picker.pick(
+        { o: [o.x, o.z, o.y], d: [d.x, d.z, d.y] },
+        (sol) => wallZ(sol, lowered, CUT_WALL_HEIGHT),
+        // S29: a device Layers hides is not there to tap; the ray reads what is under it.
+        (sol) =>
+          sol.kind === "device" &&
+          typeof sol.ref.index === "number" &&
+          !!liveNow &&
+          liveNow.devices[sol.ref.index] === null,
+      );
     },
     setRing(room) {
       const next = typeof room === "number" && Number.isFinite(room) ? room : null;
@@ -1587,6 +1648,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     };
     testHook = {
       project,
+      /** The house's box in plan terms (the shown floor's bounds, what the first view frames): [x0, y0, z0, x1, y1, z1]. */
+      bounds: () => (plan ? [...plan.bounds.min, ...plan.bounds.max] : null),
       /** Where the middle of the top of a solid (a device `kind` "device" with its index, say) is on the screen, or null. */
       where(kind: string, index: number) {
         const sol = plan?.solids.find((x) => x.kind === kind && x.ref.index === index);
@@ -1760,6 +1823,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           type: b.type,
           colour: hexOf(b.mat.color),
           emissive: b.on && b.lit[0] ? hexOf((b.lit[0].material as MeshBasicMaterial).color) : "#000000",
+          visible: b.mesh.visible,
         });
         const c = new Color();
         return {
@@ -1775,9 +1839,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           })),
           bodies: devBodies.map(body),
           pieces: pieceBodies.map((b) => ({ index: b.index, on: b.on, colour: hexOf(b.mat.color) })),
+          ballsCulled: markers ? markers.frustumCulled : null,
           balls: ballIdx.map((di, k) => {
             markers?.getColorAt(k, c);
-            return { index: di, colour: hexOf(c), shown: true };
+            return { index: di, colour: hexOf(c), shown: ballShown[k] ?? true };
           }),
           pools: pools.info(),
           glow: glow.info(),

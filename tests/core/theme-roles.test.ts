@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rolesToTokens, type ThemeRoles } from "../../src/core/theme-roles";
+import { MOTION_DEFAULT, rolesToTokens, type ThemeRoles } from "../../src/core/theme-roles";
 
 const tokenPairs = (css: string) =>
   new Map(
@@ -23,6 +23,9 @@ describe("theme-roles (S4.21)", () => {
     // Every LIGHT_TOKENS/MIDNIGHT_TOKENS key must exist here too, or a generated theme silently falls back to nothing
     // for that property (CLAUDE.md finding: a rule checker cannot see a missing token, only a computed-style read can).
     const wanted = [
+      "--fp-temp-cold",
+      "--fp-temp-mid",
+      "--fp-temp-hot",
       "--fp-ink",
       "--fp-bg",
       "--fp-room",
@@ -144,10 +147,16 @@ describe("theme-roles (S4.21)", () => {
     const t = tokenPairs(rolesToTokens(BASE));
     expect(t.get("--fp-on")).toBe(BASE.accent);
     expect(t.get("--fp-dev-light")).toBe(BASE.accent);
-    expect(t.get("--fp-dev-motion")).toBe(BASE.accent);
+    // Motion is the one type with a role of its own: not the accent, not red (UI refactor, item 6).
+    expect(t.get("--fp-dev-motion")).toBe(MOTION_DEFAULT[BASE.dark ? "dark" : "light"]);
+    expect(t.get("--fp-dev-motion")).not.toBe(BASE.accent);
+    expect(tokenPairs(rolesToTokens({ ...BASE, motion: "#12ab34" })).get("--fp-dev-motion")).toBe("#12ab34");
+    expect(
+      tokenPairs(rolesToTokens({ ...BASE, motion: "#12ab34", devices: { motion: "#222222" } })).get("--fp-dev-motion"),
+    ).toBe("#222222");
     const overridden = tokenPairs(rolesToTokens({ ...BASE, devices: { light: "#123456" } }));
     expect(overridden.get("--fp-dev-light")).toBe("#123456"); // the override
-    expect(overridden.get("--fp-dev-motion")).toBe(BASE.accent); // every other type still collapses
+    expect(overridden.get("--fp-dev-motion")).toBe(MOTION_DEFAULT[BASE.dark ? "dark" : "light"]); // motion keeps its own role
   });
 
   it("camera and outdoor/garden device tints are a neutral shade, not the accent: they are static icon tints, never gated by .on", () => {

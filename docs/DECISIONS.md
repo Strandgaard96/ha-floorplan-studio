@@ -2,6 +2,165 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: Sprint 29 review fixes: balls never culled, furniture untouched by 3D Layers
+
+Opus review of Sprint 29. (1) A ball Layers hides is scaled to nothing, and three computes an instanced mesh's bounding sphere
+once: hidden on the first frame (a family hidden from memory, a floor switch), the stale sphere culled the balls once shown
+again. The ball mesh is never frustum-culled, as pools and crowns are. (2) In live 3D the Layers button counted a hidden
+furniture family that 3D still draws ("Layers · 1 hidden" with nothing hidden), and an Alt-click solo there hid furniture,
+which then showed in 2D. In 3D furniture is not counted, and a click or a solo keeps its stored state. (3) The test that
+guards the plug ramp now gives the plug a power sensor, so `--fp-heat` is really written and checked.
+
+## 2026-10-12: one capturing error listener for cover art (Sprint 29)
+
+The spec put a capturing `error` listener on the plan `<svg>` and another on the 3D overlay root. Both live in the card's
+shadow root, and a capturing listener there sees every `<image>` failing under it, so there is one, added in
+`connectedCallback` and removed in `disconnectedCallback`. Only an `image.art` counts. The failed set holds 64 hrefs, oldest
+dropped; a dropped href is tried again.
+
+## 2026-10-12: the temperature pill is sized per character, and its text has no outline (Sprint 29)
+
+The plan sized the pill like the room-name tag, 0.6 em per character. Rendered, that overstated "21.7 °C · 48 %" by a fifth
+(digits, the narrow no-break space and the middle dot are narrow) and, the line being centred, put the pill well left of its
+number. `textEm` estimates per character, between DejaVu Sans and Roboto; a Chromium test keeps it within 10 % of the measured
+length. The readout's outline (a thick stroke in the plan colour, for legibility on the floor) painted over the pill's top
+half, so the temperature on a pill has none (`.val .val-t{stroke:none}`); the rest of the line keeps it.
+
+## 2026-10-12: Layers in 3D: hidden devices are not tappable; a ball is scaled to nothing (Sprint 29)
+
+A device whose family is hidden is a null slot in the live state (as a room's own sensor is). The view then drops its overlay
+icon, ball, body and lamp pool and wall glow; a lit lamp still lifts its room. The spec did not say what a tap at its spot
+does: the picker's proxy ball and the body would still have opened its popup, unlike 2D, so `Picker.pick` skips such
+devices and the ray reads whatever is behind (a room, or furniture). Balls are one instanced mesh, so a hidden one is scaled
+to nothing. Baked contact shadows under a hidden body stay (they are built with the scene). A device that cannot be read is a
+null slot too and now loses its ball; that is junk input.
+
+## 2026-10-12: cover art follows the entity, and its far dot is a plain dot (Sprint 29)
+
+Art shows only while the media player's own state is `playing`; each grouped speaker is read on its own. Music Assistant can
+report a stale `idle` while playing (seen 2026-10-09); the card follows the entity and does not work around it. The clip id is
+`fp-art-<device index>`, so `deviceMarkup` takes the index (art is drawn only when it is given). At `far` the art, its ring
+and the hidden glyph are all undone, so the far dot is the same filled disc as any on device. Tests use a generic LAN
+address, never the maintainer's.
+
+## 2026-10-12: temperature colours are --fp-temp-*, mixed in CSS (Sprint 29)
+
+The spec first named the tokens `--fp-heat-cold/mid/hot` and the per-element colour `--fp-heat`. Both collide with the plug ramp:
+`--fp-heat-mid` and `--fp-heat-hot` are fixed hues there (S14.8) and `--fp-heat` is a plug's 0..1 draw, read by
+`.dev-plug.on[style*="--fp-heat"]`. The temperature tokens are `--fp-temp-cold`, `--fp-temp-mid` and `--fp-temp-hot`, per
+theme. Core writes a number, `--fp-temp-t` (0..1, rounded to 0.01), and one rule (`.val-pill,.halo.heat`) mixes the colour:
+a theme token can be one of Home Assistant's own variables, which JS cannot read. Units: °C and no unit are °C, °F is
+converted, any other unit gives no colour (the text is unchanged).
+
+## 2026-10-12: the phone room sheet is an accordion and drops the "Active here" list
+
+Field report: in a room with the lights group open, the Security group could not be reached on a phone. Measured at 375 x 640
+with nine lights and a motion sensor: the sheet (45 % of the card) shows a 235 px body that holds 1140 px (head 24, facts 78,
+Lights off 32, scenes 28, filter bar 27, "Active here" list 214, Devices label 19, device groups 660). Security's header sat
+about 900 px down. Touch scrolling worked; there was just too much above and between. So, only while the room panel is a sheet
+(card narrower than `ACTIVE_FOLD_BELOW_PX`, 480 px):
+
+- The room's device groups are an accordion. Opening a folded group folds every other group of that list, so at most one is open;
+  folding a group just folds it. The opened header is scrolled to the top of the body (the list is padded underneath when the
+  last group is too short to reach the top). A room that opens with several groups unfolded from storage is left as stored; the
+  accordion acts on the next opening. The fold state is still the stored one, per card. Wide cards keep independent folds.
+- The "Active here" block (filter bar and list) is not rendered: every device in it is already listed under Devices. This holds
+  for the floor scope too. Wide cards still show it.
+
+## 2026-10-11: a 3D room tap is committed after the double-tap window (UI refactor, integration and Opus review)
+
+With the Overview folded, a room tap's pick opens the room panel, which can open over the point tapped, so a double tap
+could not undo it. The pick now waits `DOUBLE_TAP_MS` (350 ms): a second tap within the window and 24 px puts the pick back;
+a device tap cancels it and opens the device's popup (the "missed, try again" tap must never be swallowed); a floor or pick
+change in the window makes it stale. Room picks in 3D are 350 ms slower; device taps are not delayed.
+
+## 2026-10-11: one type scale, spacing scale, two radii and two shadows (UI refactor, items 12 to 16)
+
+The card's chrome used eleven font sizes (10, 11, 12, 13, 14, 16 px and three `em` sizes), spacings of 2, 6, 10 and 14 px, radii of
+3, 4, 6, 8 and 10 px and four hand-written shadows, three of them `rgba(0, 0, 0, …)`. Now:
+
+- Type is 12 (secondary text, badges, group headings), 14 (rows, body, buttons in dialogs and the popup, the Overview title) and
+  16 (the popup's name and an open room's name). The View options menu rows went from 12 to 14 because they are rows. The
+  Overview header stays 14, not 16: it is one folded line that must hold the chips on a phone.
+- Spacing is `--fp-space-1..5` (4, 8, 12, 16, 24), radii `--fp-radius-control` (6) and `--fp-radius-surface` (12) plus a pill,
+  shadows `--fp-shadow-sm` (controls) and `--fp-shadow-lg` (panel, popup, dialog, tooltip, View options menu), a tight and a soft
+  layer each, mixed from `--fp-ink`. All sit on the card host; `<fp-search>` reads them with the old value as fallback. The dialog's
+  scrim is the background colour at 70 %, not black. Touch targets did not shrink: popup buttons 44 px, coarse-pointer chips 40 px.
+- A shadow mixed from the ink is a light glow on a dark theme. It is faint (12 to 24 %) and the surfaces are lighter than the
+  background there, so it reads as a soft lift, not a halo; look at it on blueprint before changing the percentages.
+- Panel hierarchy: section headings (Devices, Active …, Attention …, Active in this room) are 12 px, 600, capitals, in `--fp-ink`;
+  group headings (Lights, Climate …) are 12 px, 500, mixed case, in `--fp-text`. A fact's label is 12 px `--fp-text`, its value
+  14 px `--fp-ink`.
+- Plan labels (same draw path in the editor): a room name is 14 px on the screen, an outdoor or zone name 12, semibold; a
+  room's sensor readout and the room badges 12. The label fitter still shrinks a name to fit down to 7 px, as before.
+  In 3D the name chip is 14 px semibold, a device's value and name chip 12.
+
+## 2026-10-11: outdoor kinds are drawn quiet (UI refactor, item 17)
+
+On the live card the garden was larger than the house and filled at full strength (brownish-mauve on the HA light theme), so
+the grass outweighed the rooms the card is for. Garden, terrace, pavement and water now fill from `--fp-garden-fill` and its
+siblings: `color-mix(in srgb, <kind colour> 30/30/33/20 %, var(--fp-bg))`. The kind colour stays as it was (trees and the
+crowns mix from it); only the ground is quiet. In a role theme the ramp puts these kinds a step past a room, so the shares are
+chosen so each is nearer the background than the unpainted room (a test iterates every fixed-hex theme and checks the WCAG
+ratio against the background) and still above 1.02, with four different hexes. Solarized's own garden, terrace, pavement and
+water hexes were darkened, because its room is already only 5 units off the background. Why a mix and not new ramp
+positions: the mix works in the `ha` theme too, where the background is the user's own and only the CSS knows it. Limit: in
+role themes the four kinds differ by about one lightness step, so the name on the room, not the shade, says which is which.
+
+## 2026-10-11: far dots carry their glyph (UI refactor, item 5)
+
+At far detail a device that is drawn (on, danger, unavailable, needs attention) was a plain coloured dot, so a lamp, a lock and a speaker were told apart by colour only. The dot now keeps the glyph: the disc is `scale(.64)` (was .5, so the glyph is readable) and the glyph `scale(.5)` about the icon's centre (`transform-origin:12px 12px`, `transform-box:view-box`), so its corners lie inside the dot (checked from `getBoundingClientRect`). Which devices are drawn at far is unchanged, and so is the attention dot's 1.5 px ink outline. Ink: an on dot and a danger dot already carry a 4.5:1 ink for their solid disc (`--fp-dev-ink`, `--fp-danger-ink`, S23.4), which now shows; an unavailable device had no solid disc (a dashed warn ring) so its dot is the board colour with the glyph in `--fp-ink`; an attention dot (warn fill) takes `--fp-on-light`. Measured in Chromium for every device type in light, midnight, blueprint, solarized and ha: at least 3:1. A cleaning vacuum's spin animates `transform` and replaced the shrink, so the glyph spilled out of its dot (found by a flaky test, 3 of 10 runs; finding 13); at far the spin holds still. Tests, failing first (17 of 29): the old "glyph gone" assertions inverted, plus the contrast and containment cases.
+
+## 2026-10-11: one red: motion gets its own colour (UI refactor, item 6)
+
+The Hall in `card-ground-on-light.png` had five reds: the room's motion line, the motion sensor's disc and ring, the siren's rings and dots, the open-door hatch and the badge counts. Red now means an alert: an open door or window and a contact, a lock or vibration sensor, an armed or sounding alarm, a siren (`--fp-open-door`, `--fp-dev-contact`, `--fp-danger`; unavailable keeps the colour it has). Motion is a role of its own: `ThemeRoles.motion` (default `#b5389a` on a light base, `#e86ad0` on a dark one; `devices.motion` still wins), written to `--fp-motion` and `--fp-dev-motion`, which the motion icon, its ring, a room's motion line and the badge count all read. Per theme: light, ha and midnight take the default pair; solarized takes its violet `#6c71c4` (the radar's colour, so presence reads as one family there); blueprint `#ff5fc8`, slate `#9c2f86`, terminal `#ff5fd0`, coffee `#e07ab8`, a-team `#e05cc0`, beach-house `#a8327f`, cyberpunk `#ff2bd6`, and cyan `#4fd8ff` for space (accent purple) and carpenter-brut (accent pink-red). Each is at least 40 degrees of hue from the theme's light colour and 3:1 on the room. One outline per alert: a motion icon that is on and lights its room's motion line draws no `.ping` ring (`motionRooms` returns `lit`, `deviceMarkup` takes `quiet`); a motion sensor outside every room, and a contact, keep theirs. Tests, failing first (13 colour cases, 4 per-type cases, 1 ring case): `tests/card/one-red.spec.ts` renders every theme and iterates the whole `DEVICE_TYPES` union (finding 17), so a new type fails until it is decided to be an alert or not. Two alert hexes remain (`#d64545` for open/contact, `#b02a2a` for danger): `--fp-danger` is also button chrome with a 4.5:1 text pair, so it was not merged into the lighter one.
+
+## 2026-10-11: HA dark walls are mid grey (UI refactor, item 7)
+
+In the `ha` theme in dark mode `--fp-wall` and `--fp-wall-external` were Home Assistant's text colour (`#e1e1e1` in HA's own dark), so walls were near white: 13:1 on the board, the loudest thing on the plan, louder than any device. They are now `color-mix(in srgb, <primary-text-color> 55 %, <card-background-color>)` (external 68 %), so they still follow the user's theme. With HA's dark variables that is `#888` (wall) and a lighter grey (external): wall 4.8:1 on the board, 4.2:1 on the room fill, never under 4:1 on garden, terrace or pavement; the external wall is 6.7:1; the text stays 13:1. Measured in Chromium for every theme (`tests/card/wall-contrast.spec.ts`, failing first on "ha/dark wall is mid grey", 0.75 luminance): every theme's walls are at least 3:1 on room, board, garden, terrace and pavement (lowest beach-house 3.85 on the room fill). The same fault elsewhere: none. In the light themes (light, ha/light) the wall is the dark text colour, as a dark wall on paper should be; midnight, blueprint, terminal and the rest use a shade of their base that sits under their ink (blueprint 5.9 against ink 16.5). Solarized draws walls in its ink, which is itself quiet (5.6:1); its external wall is Solarized's cream (13.9:1), louder than its text, but it is that palette's own choice and not white-on-dark in the HA sense, so it is left as is.
+
+## 2026-10-11: the stack fan clears the discs it draws (UI refactor, item 8)
+
+At close zoom the fan's members sat on top of each other. Cause, confirmed by a failing Playwright test first (6 of 6 cases at zoom 3 and 6 failed on "disc 0 / disc 1"): `spiderLayout` sized the ring in screen px (40 px radius, 44 px apart), but an icon disc is 32k plan units, so it grows with the zoom. At 6x a disc is 235 px across and the ring was 44 px. `spiderLayout` now takes the drawn size (`SpiderSize`: disc px, widest name tag px, font px) and widens the ring from its old minimum until no disc or name tag lies on another disc or tag (3 px of air), so it holds at near, mid and far. The old fixed ring is the floor, so a small disc fans exactly as before. The card passes `disc = 32k/unit`, with the same `k` renderFloor draws with, and a tag width estimated from the longest member name. A ring too big for the view still centres and clips rather than shrinking: a fan that is readable and cut by the card edge beats one that overlaps. `renderFloor` decides a tag's side with a 1e-6 tolerance so the top and bottom members do not flip with float noise; the layout uses the same rule.
+## 2026-10-11: the 3D ground fades out toward its border (card UI refactor item 11a)
+
+The canvas is transparent over the card, and the ground was an opaque rectangle 1.5 times the house: on a light Home Assistant
+page with the dark blueprint theme it showed as a dark stripe with white bands above and below. The ground is now a 24 x 24
+grid with a per-vertex alpha, solid out to 72 % of each half extent (the house fills the inner 67 %) and smoothstepped to
+nothing at the border, no depth write, `renderOrder` -1 so the contact shadows and ghost floors still draw over it. It has no
+edge in any theme, day or night; the shade and below-floor ground tests are unchanged.
+
+## 2026-10-11: 3D labels are chips; a room's readout never outlives its name (card UI refactor items 10, 11b)
+
+3D labels were bare text with a halo, hard to read on a wall or the ground. Room names, readouts and a device's value and
+name are now chips on the colour the 2D plan gives its labels (`--fp-outline`, `.lbl-tag`), 3 px radius, 1 x 5 px padding.
+The declutter measures each chip's own box (a room's name and readout are two chips of their own width, 2 px apart; a
+device's value and name step 17 px). Live on Magnus's house the living room showed its readout with no name: a marker
+over the name dropped it, the readout beside it did not meet the marker. After the greedy pass a readout is now dropped
+whenever its room's name was.
+
+## 2026-10-11: idle devices are full markers in 3D (card UI refactor item 9)
+
+Magnus: devices that are off are not noise; the 3D view is for controlling them. An idle icon was a glyph at .7 opacity on
+a disc at 0 opacity, over a small translucent ball. The 3D overlay layer (`overlay.ts` only; 2D keeps its quiet look) now
+gives every idle, non-alert device the lit marker's size, an opaque `--fp-disc` disc with a 1 px `--fp-idle` edge, and the
+glyph at full opacity. The theme's idle colours (`--fp-idle`, `--fp-dev-camera`, `--fp-dev-garden`) are measured against
+the disc on this layer and pushed toward black or white until they keep 3.3:1 (blueprint's idle grey was 2.93:1 on its
+light disc). Hit radius was already the same for both (`HIT_PX`), and a test now holds it.
+
+## 2026-10-11: the first 3D view frames the house box in the free area (card UI refactor item 11)
+
+The fit was a sphere round the house at 0.85 of its radius, so a long low house left a band at the top and the toolbar sat
+on the picture. `Orbit.fitDistance` now projects the box's eight corners from the first view (its azimuth, polar, the
+vertical field and the aspect) and bisects the distance until the box fills 85 % of the free part along the tighter
+axis. The free part is the view less the Active list (left, right) and the toolbar (new `top` inset, read by the card
+from `.fp-zoom`); `shift` and the new `shiftY` slide the picture to centre the box in it. Floors below are not in the
+box: the spec says the house, and a ghost floor under it may run past the margin. Zoom 1 now means the new fit, so a
+camera stored before this release restores a little nearer or further.
+## 2026-10-11: card UI refactor, shell (branch `task/ui-shell`)
+
+Spec: `docs/specs/card-ui-refactor.md`, Shell 1 to 4 and 1a to 1d. Magnus: "Fix all. But devices that are off are not noise. The 3D view is meant to be a way to control lights and other entities." (1) The Overview starts folded at every width, as one line with the breadcrumb and the chips; a tap anywhere on the line opens it. The open or folded pick keeps the Overview's own storage key (`fp-active-panel:`, `chosen` and `collapsed`), which is already per viewer; a second key in the view memory would have made Reset view and the panel disagree. The old width rule (open from 480 px up) is gone. An open room or floor panel keeps its chips on one line and its body scrolls with scroll shadows, so a row is never cut without a sign that more follows. (2) The popup is placed against the opening device's own box (2D) or a 48 px box round the tap (3D, which has no projection in production code): beside it, right or left with more room first, then above or below, else cut to the room and scrolling; under 480 px it stays the full-width sheet, above or below only. (3) The toolbar is the View segmented control and a View options button; the other look controls are in the menu at every width. The config has no key that withholds a view, so all three are offered; the control draws what `_viewsOffered` returns. The old select's "ignores a junk value" guard has no counterpart on buttons. (4) Reset view carries `hidden`, with an explicit `display:none` rule (a class rule beat the browser's), and focus moves to the last visible stack button when it hides itself. (1a) The default `detail` is `full`; the kiosk and no-Detail-button special case is gone with it, and `auto` is opt-in. (1b) A pill of another floor only switches; the floor panel opens when the pill of the floor shown is tapped. (1c) A unit is appended to numeric states only (`readingText`). (1d) Motion rows read "off since 19:55" today or "off since 10 Oct 19:55", the full timestamp in a title.
+
 ## 2026-10-11: a piece built from parts casts one contact shadow (fork, upstream 0.26.2 sync)
 
 Upstream's 3D contact shadows (S28.8) give each furniture solid a patch. This fork draws a table, sofa, bed and the

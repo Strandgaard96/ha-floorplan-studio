@@ -278,3 +278,11 @@ describe("S25.8: the stored detail mode", () => {
       expect(parseStoredView({ v: 1, detail: d, labels: false }, ok, [])).toEqual({ labels: false });
   });
 });
+
+describe("parseStoredView: S29 Cover art and Temperature colours", () => {
+  it("art and heat are kept only as booleans", () => {
+    expect(parse({ v: 1, art: false, heat: true })).toMatchObject({ art: false, heat: true });
+    const junk = parse({ v: 1, art: "no", heat: 0 });
+    expect("art" in junk || "heat" in junk).toBe(false);
+  });
+});

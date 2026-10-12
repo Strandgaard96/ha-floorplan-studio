@@ -5,6 +5,7 @@ import {
   SPIDER_MAX,
   STACK_PX,
   spiderLayout,
+  tagWidth,
   stackGroups,
   DETAIL_LABELS,
   DETAIL_MODES,
@@ -41,6 +42,7 @@ import {
   floorSwitch,
   deviceColourVars,
   plugThreshold,
+  heatBounds,
   heatRange,
   pieceDevice,
   HEAT_FROM,
@@ -50,6 +52,8 @@ import {
   deviceInfo,
   filterToRoom,
   formatChanged,
+  formatSince,
+  readingText,
   roomSummary,
   attention,
   deviceCentre,
@@ -95,7 +99,7 @@ import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
 import { lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
-import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
+import { POPUP_CSS, placeNear, popupTemplate, type Anchor, type PopupSubject, type SliderKind } from "./popup-ui";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
 // second built file (PLAN block interface).
@@ -168,6 +172,11 @@ export interface FloorplanStudioCardConfig {
   /** S14.8: a plug that is on is tinted from idle to hot by its draw, between these two wattages (default 0 and 2000). Both must be numbers with from < to, else the default pair. See docs/card.md, Plugs. */
   plug_heat_from?: number;
   plug_heat_to?: number;
+  /** S29: `false` draws no temperature colours (the readout's pill, a temp icon's ring); anything else is on (default). The View options' Temperature colours button changes it for one viewer. */
+  temp_colors?: boolean;
+  /** S29: the comfort scale in °C, blue at `heat_min` (17), neutral half way, red at `heat_max` (25). Two numbers with min below max; anything else is 17 and 25. */
+  heat_min?: number;
+  heat_max?: number;
   room_glow?: boolean;
   layout?: Layout;
   layout_url?: string;
@@ -227,12 +236,14 @@ export interface FloorplanStudioCardConfig {
   walls?: WallsMode;
   /** Degrees the plan starts turned, on top of the layout's own `rotate`. Rounded to a multiple of 45 and wrapped to 0..359; junk is 0. The two buttons next to the zoom buttons turn it in steps of 45 for as long as the card is on screen, and the card remembers where it was left. */
   rotation?: number;
-  /** How much of the plan is drawn at a zoom (docs/card.md, Detail): `"auto"` follows the zoom, `"full"` always draws everything, `"minimal"` always draws rooms and what needs attention. Unset (or anything else) is `"auto"`, except where the viewer can neither zoom nor reach the Detail button (kiosk, or `active_list: false` with `zoom: false`): there it is `"full"`, so no idle device is unreachable. The Detail button in the Overview changes it for one viewer, and the card remembers the pick. */
+  /** How much of the plan is drawn at a zoom (docs/card.md, Detail): `"auto"` follows the zoom, `"full"` always draws everything, `"minimal"` always draws rooms and what needs attention. Unset (or anything else) is `"full"`: an idle device is a control, so none is left out until `detail: auto` is asked for. The Detail button in the Overview changes it for one viewer, and the card remembers the pick. */
   detail?: DetailMode;
   /** `true` draws the floor below as faint lines under the shown floor, at its place in the house (the floors' `offset`s); anything but `true` is off (default). The Floor below button in the view controls changes it for one viewer, and the card remembers the pick. The lowest floor has none. */
   ghost_floor?: boolean;
   /** How the 3D view draws the floors under the shown one (docs/card.md): `"off"` (default), `"ghost"` translucent, `"solid"` in their own colours. Anything else is `"off"`. A Floors below select next to Walls in 3D changes it for one viewer, and the card remembers the pick. */
   floors_below?: BelowMode;
+  /** S29: `false` shows a playing speaker's icon instead of its cover art; anything else shows the art (default). The View options' Cover art button changes it for one viewer. */
+  media_art?: boolean;
 }
 
 /** The Floor below button's icon: Material Design Icons "layers-outline", 24x24 (inlined, no runtime import: CLAUDE.md finding 9). */
@@ -279,6 +290,10 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /** Below this card width the Active list starts folded: it would cover the plan. */
 const ACTIVE_FOLD_BELOW_PX = 480;
+/** S29 (A6): the most failed cover-art hrefs remembered; state is untrusted and can churn URLs. */
+const ART_FAILED_MAX = 64;
+/** UI refactor 2: in 3D a popup keeps clear of a square this many px on a side, centred on the tap that opened it (the device's screen point). */
+const POPUP_3D_ANCHOR_PX = 48;
 /** How many summary chips the Overview header spells out before the rest become "+N more". */
 const CHIPS_SHOWN = 4;
 /** Two taps closer than this in time and space are a double-tap. */
@@ -420,7 +435,7 @@ export class FloorplanStudioCard extends LitElement {
        fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
        the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
        than cropped or stretched. */
-    :host { display: block; position: relative; height: 100%; }
+    :host { display: block; position: relative; height: 100%; --fp-space-1: 4px; --fp-space-2: 8px; --fp-space-3: 12px; --fp-space-4: 16px; --fp-space-5: 24px; --fp-radius-control: 6px; --fp-radius-surface: 12px; --fp-radius-pill: 999px; --fp-shadow-sm: 0 1px 2px color-mix(in srgb, var(--fp-ink) 22%, transparent), 0 2px 6px color-mix(in srgb, var(--fp-ink) 12%, transparent); --fp-shadow-lg: 0 2px 4px color-mix(in srgb, var(--fp-ink) 20%, transparent), 0 8px 24px color-mix(in srgb, var(--fp-ink) 24%, transparent); }
     /* S8.3: hui-panel-view gives the card no definite height either, so the plan grew by width past the bottom of
        the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
     :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
@@ -429,15 +444,15 @@ export class FloorplanStudioCard extends LitElement {
        indefinite height it sizes like the svg, in a fixed row it fills it). */
     .fp-3d { position: relative; width: 100%; height: 100%; display: block; }
     /* One line, over the plan, when 3D cannot run: why, and that 2D is what is shown. */
-    .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: 4px 8px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; }
+    .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: var(--fp-space-1) var(--fp-space-2); font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); }
     p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
        renderFloor draws and is positioned over it instead. */
     /* Opus review finding 13: the active-devices panel below (also z-index: 1, and later in DOM order, so it
        would otherwise win ties) can be dragged to sit right under this row; the floor chips must still take the
        click, not the panel behind — or in front of, without this — them. */
-    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: 6px; }
-    .fp-floors button { font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: var(--fp-space-2); }
+    .fp-floors button { font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-pill); box-shadow: var(--fp-shadow-sm); padding: var(--fp-space-1) var(--fp-space-3); cursor: pointer; }
     /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
        one attribute serves both the visual state and the accessible one, no added "(current)" text). */
@@ -447,14 +462,14 @@ export class FloorplanStudioCard extends LitElement {
     /* S24.7: a floor with a triggered alarm. After the pressed rule, so the shown floor keeps the warn border too; the count
        sits on a warn badge in --fp-on-light, readable on the pressed pill's ink and on the plain one alike. */
     .fp-floors button.fp-floor-alarm { border-color: var(--fp-warn); }
-    .fp-floor-alarm .fp-floor-count { background: var(--fp-warn); color: var(--fp-on-light); border-radius: 999px; padding: 0 5px; font-weight: 600; }
+    .fp-floor-alarm .fp-floor-count { background: var(--fp-warn); color: var(--fp-on-light); border-radius: var(--fp-radius-pill); padding: 0 var(--fp-space-1); font-weight: 600; }
     /* S2.7: the cover confirm dialog is card chrome too (same reasoning as .fp-floors above) — it acts on the
        real home, so it sits over the whole card, not only the plan. */
-    .fp-dialog-backdrop { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.35); }
-    .fp-dialog { background: var(--fp-room); color: var(--fp-ink); border-radius: 8px; padding: 16px 20px; min-width: 200px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
-    .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
+    .fp-dialog-backdrop { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--fp-bg) 70%, transparent); }
+    .fp-dialog { background: var(--fp-room); color: var(--fp-ink); border-radius: var(--fp-radius-surface); padding: var(--fp-space-4) var(--fp-space-5); min-width: 200px; box-shadow: var(--fp-shadow-lg); }
+    .fp-dialog p { margin: 0 0 var(--fp-space-3); font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
-    .fp-dialog-actions button { font: 13px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
+    .fp-dialog-actions button { font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); box-shadow: var(--fp-shadow-sm); padding: var(--fp-space-2) var(--fp-space-3); cursor: pointer; }
     /* S7.4: the view controls are card chrome, the same colours as the floor chips, in the other top corner.
        Like the studio: a horizontal toolbar (.fp-zoom) for the look controls and a vertical stack (.fp-stack) for
        zoom, fit, rotate and reset, just below it. .fp-viewonly is the toolbar when zoom is off, not .fp-zoom, so
@@ -465,8 +480,26 @@ export class FloorplanStudioCard extends LitElement {
     .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
     .fp-stack { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-direction: column; gap: 4px; }
     .fp-stack.fp-stack-row { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; left: 8px; }
-    .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); box-shadow: var(--fp-shadow-sm); cursor: pointer; }
     .fp-zoom button:disabled, .fp-viewonly button:disabled, .fp-stack button:disabled { opacity: 0.45; cursor: default; }
+    /* UI refactor 4: Reset view carries [hidden] until the view differs; the class rule above sets display:flex and would beat the browser's own hidden rule, so say it here. */
+    .fp-stack button[hidden] { display: none; }
+    /* UI refactor 3: the View segmented control, one pill of three joined buttons; the one on show is filled. */
+    .fp-seg { display: flex; }
+    .fp-zoom .fp-seg button, .fp-viewonly .fp-seg button { width: auto; min-width: 36px; padding: 0 8px; font: 600 12px/1 var(--fp-font, system-ui, sans-serif); border-radius: 0; }
+    .fp-seg button + button { margin-left: -1px; }
+    .fp-seg button:first-child { border-radius: var(--fp-radius-control) 0 0 var(--fp-radius-control); }
+    .fp-seg button:last-child { border-radius: 0 var(--fp-radius-control) var(--fp-radius-control) 0; }
+    .fp-zoom .fp-seg button[aria-pressed="true"], .fp-viewonly .fp-seg button[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); box-shadow: none; z-index: 1; }
+    /* The View options menu: a popover under the toolbar, a labelled row for each look control. It stands left of the control stack (28 px and a gap), so the zoom and rotate buttons stay reachable while it is open. */
+    .fp-zoom:has(.fp-view-menu), .fp-viewonly:has(.fp-view-menu) { z-index: 2; }
+    .fp-view-menu { position: absolute; top: calc(100% + 4px); right: 36px; display: flex; flex-direction: column; gap: var(--fp-space-2); box-sizing: border-box; width: max-content; min-width: 200px; max-width: calc(100vw - 32px); max-height: 60vh; overflow-y: auto; padding: var(--fp-space-2); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-surface); box-shadow: var(--fp-shadow-lg); }
+    .fp-vm-row { display: flex; align-items: center; justify-content: space-between; gap: var(--fp-space-3); font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
+    .fp-vm-row > span { flex: 0 0 auto; }
+    .fp-zoom .fp-view-menu select, .fp-viewonly .fp-view-menu select { flex: 1 1 auto; min-width: 0; max-width: 150px; }
+    .fp-zoom .fp-view-menu input[type="range"], .fp-viewonly .fp-view-menu input[type="range"] { flex: 1 1 auto; min-width: 0; max-width: 120px; }
+    .fp-zoom .fp-view-menu button, .fp-viewonly .fp-view-menu button { width: 100%; justify-content: flex-start; gap: var(--fp-space-2); padding: 0 var(--fp-space-2); font: 14px/1 var(--fp-font, system-ui, sans-serif); box-shadow: none; }
+    .fp-view-menu button b { width: 14px; text-align: center; font-weight: 700; }
     /* A toggle that is on wears the primary ring; one that is off is a plain button. Dimming it read as disabled. */
     .fp-zoom button[aria-pressed="true"], .fp-viewonly button[aria-pressed="true"] { border-color: var(--fp-primary); box-shadow: inset 0 0 0 1px var(--fp-primary); }
     .fp-zoom svg, .fp-viewonly svg, .fp-stack svg { width: 14px; height: 14px; }
@@ -475,7 +508,7 @@ export class FloorplanStudioCard extends LitElement {
        rules, .extra, .door-hit), which an inherited value on the svg alone would lose to. */
     svg.fp-turning, svg.fp-turning * { pointer-events: none; }
     .fp-zoom input[type="range"], .fp-viewonly input[type="range"] { width: 72px; height: 28px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
-    .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 4px; font: 13px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 var(--fp-space-1); font: 14px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); cursor: pointer; }
     /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
        a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
        any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
@@ -489,10 +522,10 @@ export class FloorplanStudioCard extends LitElement {
     /* S10.4: the chooser lists one button per entity, column layout (unlike the cover/vacuum row of verbs), each
        row left-aligned since it carries a name, not a short verb; Cancel stays a separate, right-aligned row like
        every other dialog's own Cancel. */
-    .fp-chooser-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .fp-chooser-list { display: flex; flex-direction: column; gap: var(--fp-space-2); margin-bottom: var(--fp-space-3); }
     /* Review fix: a row wears the same button look as Cancel (it had the browser's default white box), the name
        on the left and the live state on the right, muted, so the list reads as "which one, and what is it doing". */
-    .fp-chooser-list button { display: flex; justify-content: space-between; gap: 12px; text-align: left; font: 13px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+    .fp-chooser-list button { display: flex; justify-content: space-between; gap: 12px; text-align: left; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); padding: var(--fp-space-2) var(--fp-space-3); cursor: pointer; }
     .fp-chooser-list button .state { opacity: 0.7; white-space: nowrap; }
     .fp-chooser-dialog .fp-dialog-actions { justify-content: flex-end; }
     /* S9.5: the active-devices panel, card chrome like .fp-floors/.fp-zoom above (CLAUDE.md finding 8 — nothing here
@@ -501,23 +534,25 @@ export class FloorplanStudioCard extends LitElement {
        off-screen (S9.5 spec). */
     /* Opus review finding 5: min(200px, 45%) instead of a flat 200px, so a narrow (phone-width) card gets a panel
        that fits it rather than one that is most of the card's own width at 200px on a ~380px card. */
-    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
-    .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 8px; cursor: grab; touch-action: none; user-select: none; font: 600 12px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
+    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-surface); box-shadow: var(--fp-shadow-lg); }
+    .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--fp-space-1) var(--fp-space-2); padding: var(--fp-space-2); cursor: grab; touch-action: none; user-select: none; font: 600 14px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
     .fp-active-title { flex: 1; }
     .fp-active-count { font-weight: 400; color: var(--fp-text); }
-    .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 4px; }
-    .fp-active-body { overflow-y: auto; padding: 4px 8px 8px; }
-    .fp-active-group-label { font: 600 10px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 6px; }
+    .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: var(--fp-space-1); }
+    .fp-active-body { overflow-y: auto; overscroll-behavior: contain; min-height: 0; padding: 4px 8px 8px; background: linear-gradient(var(--fp-room) 30%, transparent) 0 0 / 100% 24px no-repeat local, linear-gradient(transparent, var(--fp-room) 70%) 0 100% / 100% 24px no-repeat local, radial-gradient(farthest-side at 50% 0, color-mix(in srgb, var(--fp-ink) 30%, transparent), transparent) 0 0 / 100% 8px no-repeat scroll, radial-gradient(farthest-side at 50% 100%, color-mix(in srgb, var(--fp-ink) 30%, transparent), transparent) 0 100% / 100% 8px no-repeat scroll; }
+    .fp-active-group-label { font: 500 12px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); margin-top: var(--fp-space-2); }
+    /* UI refactor 15: a section heading (Devices) outranks the group headings under it (Lights, Climate …): ink, 600, capitals. */
+    .fp-active-group-label.fp-section-label { font-weight: 600; color: var(--fp-ink); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-active-group-label:first-child { margin-top: 0; }
     /* S14.6: a category header is a button (keyboard, aria-expanded); it keeps the label's look. */
-    button.fp-cat { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; text-align: left; border: none; background: transparent; padding: 0 2px; cursor: pointer; border-radius: 4px; }
+    button.fp-cat { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 28px; text-align: left; border: none; background: transparent; padding: 0 var(--fp-space-1); cursor: pointer; border-radius: var(--fp-radius-control); }
     button.fp-cat:hover, button.fp-cat:focus-visible { background: var(--fp-idle); }
     .fp-cat-name { flex: 1; min-width: 0; }
     .fp-cat-chev { flex: 0 0 10px; }
-    .fp-active-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); padding: 4px 2px; cursor: pointer; border-radius: 4px; }
+    .fp-active-row { display: flex; align-items: center; gap: var(--fp-space-2); width: 100%; text-align: left; border: none; background: transparent; color: inherit; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); padding: var(--fp-space-1); cursor: pointer; border-radius: var(--fp-radius-control); }
     .fp-active-row:hover, .fp-active-row:focus-visible { background: var(--fp-idle); }
     .fp-active-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: var(--fp-active-row-color, var(--fp-ink)); }
-    .fp-active-empty { margin: 4px 2px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
+    .fp-active-empty { margin: var(--fp-space-1); font: 14px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* S11.3/S11.4: the room section and the details under a row. Same card chrome and tokens as the list above. */
     .fp-active.fp-room-open { width: min(260px, 70%); }
     /* S14 review: on a card narrower than ACTIVE_FOLD_BELOW_PX an open room panel is a short sheet, not a column down the card: at most 45% of the card high, its body scrolling, and docked on the half opposite the picked room (class set in _positionActivePanelNow) so that room stays in view. */
@@ -527,33 +562,37 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active.fp-sheet.fp-dock-over { top: 8px; z-index: 2; }
     .fp-item { display: flex; flex-wrap: wrap; align-items: center; }
     .fp-item .fp-active-row { flex: 1 1 0; width: auto; min-width: 0; }
-    .fp-row-state { margin-left: auto; padding-left: 6px; flex: 0 0 auto; white-space: nowrap; font-size: 11px; color: var(--fp-text); overflow-wrap: anywhere; text-align: right; }
+    .fp-row-state { margin-left: auto; padding-left: var(--fp-space-2); flex: 0 0 auto; white-space: nowrap; font-size: 12px; color: var(--fp-text); overflow-wrap: anywhere; text-align: right; }
     .fp-active-row.fp-off svg { opacity: 0.6; }
-    .fp-room-facts > div { display: flex; gap: 6px; }
-    .fp-room-facts dt { flex: 0 0 88px; color: var(--fp-text); }
-    .fp-room-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .fp-room-facts > div { display: flex; gap: var(--fp-space-2); align-items: baseline; }
+    .fp-room-facts dt { flex: 0 0 88px; color: var(--fp-text); font-size: 12px; }
+    .fp-room-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; color: var(--fp-ink); font-size: 14px; }
     /* S24.7: the Overview. The header's chips sit under the title; the alerts chip in the warn colour. */
     .fp-crumb { font-weight: 400; color: var(--fp-text); }
-    .fp-ov-chips { flex: 0 0 100%; font: 400 11px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
+    .fp-ov-chips { flex: 0 0 100%; font: 400 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     .fp-chip-warn { color: var(--fp-warn); font-weight: 600; }
-    /* Folded, the header is one line so it covers as little plan as before S24.7; the crumb goes, the chips end in an ellipsis. */
-    .fp-active-folded .fp-active-head { flex-wrap: nowrap; }
-    .fp-active-folded .fp-active-title { flex: 0 0 auto; }
-    .fp-active-folded .fp-crumb { display: none; }
+    /* UI refactor 1: folded (where the Overview starts, at every width) the header is one line, the breadcrumb then the chips, and a tap anywhere on it opens the panel. The panel is as wide as that line needs, up to a cap that keeps clear of the control stack on the right; what still does not fit ends in an ellipsis, never cut mid-glyph. */
+    .fp-active-folded { width: max-content; max-width: min(360px, calc(100% - 58px)); }
+    .fp-active-folded .fp-active-head { flex-wrap: nowrap; border-bottom: none; cursor: pointer; padding: var(--fp-space-1) var(--fp-space-2); }
+    .fp-active-folded .fp-active-title { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fp-active-folded .fp-ov-chips { flex: 1 1 auto; order: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fp-active-folded .fp-active-collapse { order: 2; }
+    /* On a phone the folded line gives its room to the summary chips (alerts first); the breadcrumb comes back on a wider card. */
+    .fp-active-folded.fp-active-narrow .fp-crumb { display: none; }
+    /* An open room or floor section keeps one chips line too (a wrapping one made the sheet's head three lines tall and left the body one and a half rows). */
+    .fp-room-open .fp-ov-chips { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .fp-ov-search:empty { display: none; }
     /* S24.8: the search at the top of the sheet; its list drops over the rows below. */
-    .fp-ov-search { margin: 2px 0 6px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); }
+    .fp-ov-search { margin: 0 0 var(--fp-space-2); font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
     /* S24.8: one row of tools: Turn off on this floor…, Layers, All floors. */
-    .fp-ov-scopes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
+    .fp-ov-scopes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--fp-space-2); margin-bottom: var(--fp-space-2); }
     .fp-ov-scopes .fp-floor-off { margin-right: auto; }
     /* S24.8: the layer chips, one per family, unfolded by the Layers button; and the note for a kept thing. */
     .fp-ov-layers:empty { display: none; }
-    .fp-ov-layers { margin: 0 0 6px; }
+    .fp-ov-layers { margin: 0 0 var(--fp-space-2); }
     .fp-layer-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-    .fp-ov-detail { margin: 0 0 6px; }
-    .fp-layer, .fp-layers-toggle, .fp-detail, .fp-detail-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
+    .fp-ov-detail { margin: 0 0 var(--fp-space-2); }
+    .fp-layer, .fp-layers-toggle, .fp-detail, .fp-detail-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 12px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: var(--fp-radius-pill); padding: var(--fp-space-1) var(--fp-space-2); cursor: pointer; min-height: 24px; }
     .fp-layer[aria-pressed="false"] { border-style: dashed; text-decoration: line-through; }
     .fp-detail[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
     .fp-layers-toggle[aria-expanded="true"], .fp-detail-toggle[aria-expanded="true"] { border-color: var(--fp-ink); }
@@ -561,21 +600,21 @@ export class FloorplanStudioCard extends LitElement {
     .fp-layer-note { margin: 4px 0 0; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-floor-off:disabled { opacity: 0.5; cursor: default; }
     .fp-floor-off:disabled:hover { border-color: var(--fp-idle); }
-    .fp-ov-scope { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 10px; cursor: pointer; min-height: 24px; }
+    .fp-ov-scope { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 12px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: var(--fp-radius-pill); padding: var(--fp-space-1) var(--fp-space-3); cursor: pointer; min-height: 24px; }
     .fp-ov-scope[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
     .fp-ov-section + .fp-ov-section { margin-top: 8px; }
-    .fp-ov-head { font: 600 11px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
+    .fp-ov-head { font: 600 12px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-ov-attn .fp-ov-head { color: var(--fp-warn); }
     .fp-ov-row { align-items: flex-start; }
     .fp-ov-row svg, .fp-ov-mark { margin-top: 1px; }
-    .fp-ov-mark { flex: 0 0 16px; width: 16px; text-align: center; color: var(--fp-warn); font-size: 13px; line-height: 16px; }
+    .fp-ov-mark { flex: 0 0 16px; width: 16px; text-align: center; color: var(--fp-warn); font-size: 14px; line-height: 16px; }
     .fp-ov-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
     .fp-ov-name { overflow-wrap: anywhere; }
-    .fp-ov-where { font-size: 10px; color: var(--fp-text); display: flex; gap: 4px; flex-wrap: wrap; }
-    .fp-row-floor { border: 1px solid var(--fp-idle); border-radius: 4px; padding: 0 3px; line-height: 1.3; }
+    .fp-ov-where { font-size: 12px; color: var(--fp-text); display: flex; gap: 4px; flex-wrap: wrap; }
+    .fp-row-floor { border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); padding: 0 var(--fp-space-1); line-height: 1.3; }
     .fp-ov-row .fp-row-state { white-space: normal; max-width: 45%; }
     .fp-ov-age { white-space: nowrap; }
-    .fp-ov-hint { margin: 8px 2px 0; font: 10px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
+    .fp-ov-hint { margin: var(--fp-space-2) var(--fp-space-1) 0; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* One target per row, finger-sized on a touch screen (S24.7). */
     @media (pointer: coarse) { .fp-active-row { min-height: 40px; } }
     /* A finger needs about 40 px: the pill chips and the floor-off buttons are 24 to 32 px for a mouse. */
@@ -585,26 +624,26 @@ export class FloorplanStudioCard extends LitElement {
     /* Not fp-locate: that is the plan's own ring (render.ts), and one name in one shadow root means one wins (S24.R7). */
     @keyframes fp-pulse-ring { 0% { opacity: 1; box-shadow: 0 0 0 0 var(--fp-primary); } 100% { opacity: 0.6; box-shadow: 0 0 0 10px transparent; } }
     @media (prefers-reduced-motion: reduce) { .fp-pulse { animation: none; } }
-    .fp-room { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--fp-idle); }
-    .fp-room-head { display: flex; align-items: center; gap: 6px; font: 600 13px/1.3 var(--fp-font, system-ui, sans-serif); }
+    .fp-room { padding-bottom: var(--fp-space-2); margin-bottom: var(--fp-space-2); border-bottom: 1px solid var(--fp-idle); }
+    .fp-room-head { display: flex; align-items: center; gap: var(--fp-space-2); font: 600 16px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-room-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-    .fp-room-clear { flex: 0 0 24px; width: 24px; height: 24px; border: none; background: transparent; color: inherit; font: 14px/1 var(--fp-font, system-ui, sans-serif); border-radius: 4px; cursor: pointer; }
+    .fp-room-clear { flex: 0 0 24px; width: 24px; height: 24px; border: none; background: transparent; color: inherit; font: 14px/1 var(--fp-font, system-ui, sans-serif); border-radius: var(--fp-radius-control); cursor: pointer; }
     .fp-room-clear:hover, .fp-room-clear:focus-visible { background: var(--fp-idle); }
     /* S20.1: the same look as a scene button, with classes of its own so the Scenes section's tests and counts stay about scenes. */
-    .fp-alloff-row { margin: 2px 0 6px; display: flex; flex-wrap: wrap; gap: 6px; }
-    .fp-alloff, .fp-floor-off { min-height: 32px; padding: 0 10px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; }
+    .fp-alloff-row { margin: 0 0 var(--fp-space-2); display: flex; flex-wrap: wrap; gap: var(--fp-space-2); }
+    .fp-alloff, .fp-floor-off { min-height: 32px; padding: 0 var(--fp-space-3); font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); cursor: pointer; }
     .fp-alloff:hover, .fp-alloff:focus-visible, .fp-floor-off:hover, .fp-floor-off:focus-visible { border-color: var(--fp-primary); }
     /* S24.8: the floor-off checklist. A long list scrolls inside the dialog; the buttons stay. */
     .fp-off-dialog { display: flex; flex-direction: column; max-width: min(360px, calc(100% - 32px)); max-height: calc(100% - 32px); box-sizing: border-box; }
-    .fp-off-list { overflow-y: auto; margin: 0 0 14px; min-height: 0; }
+    .fp-off-list { overflow-y: auto; margin: 0 0 var(--fp-space-3); min-height: 0; }
     .fp-off-group { border: none; margin: 0 0 8px; padding: 0; }
     .fp-off-group legend { padding: 0; font: 600 12px/1.6 var(--fp-font, system-ui, sans-serif); }
-    .fp-off-row { display: flex; align-items: center; gap: 8px; min-height: 32px; font: 13px/1.3 var(--fp-font, system-ui, sans-serif); cursor: pointer; }
+    .fp-off-row { display: flex; align-items: center; gap: var(--fp-space-2); min-height: 32px; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); cursor: pointer; }
     .fp-off-row input { width: 18px; height: 18px; margin: 0; flex: 0 0 auto; accent-color: var(--fp-primary); }
-    .fp-off-via { font-size: 11px; color: var(--fp-text); }
-    .fp-room-facts { margin: 4px 0 6px; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); }
-    .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
-    .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
+    .fp-off-via { font-size: 12px; color: var(--fp-text); }
+    .fp-room-facts { margin: var(--fp-space-1) 0 var(--fp-space-2); font: 12px/1.4 var(--fp-font, system-ui, sans-serif); }
+    .fp-filter { display: flex; align-items: center; gap: var(--fp-space-2); font: 600 12px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); text-transform: uppercase; letter-spacing: 0.04em; }
+    .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 12px/1.4 var(--fp-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0; border-radius: var(--fp-radius-control); padding: var(--fp-space-1) var(--fp-space-2); cursor: pointer; }
     .fp-show-all:hover, .fp-show-all:focus-visible { background: var(--fp-idle); }
   `,
     POPUP_CSS,
@@ -651,6 +690,9 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedDetail: DetailMode | null = null;
   /** S27.13: the Floor below button's pick; `null` leaves the card's YAML `ghost_floor` in charge. */
   private _pickedGhost: boolean | null = null;
+  /** S29: Cover art and Temperature colours in View options; `null` means the config's own. */
+  private _pickedArt: boolean | null = null;
+  private _pickedHeat: boolean | null = null;
   /** S27.14: the Floors below select's pick (3D); `null` leaves the card's YAML `floors_below` in charge. */
   private _pickedBelow: BelowMode | null = null;
   /** Whether the Detail choices are unfolded. Not remembered, like `_layersOpen`. */
@@ -658,6 +700,26 @@ export class FloorplanStudioCard extends LitElement {
   private _hiddenLayers: LayerId[] = [];
   /** What search or a row tap located under a hidden family: drawn anyway (`keep`) on its floor, with a note and Show. */
   private _kept: { floor: string; t: "dev" | "furn"; i: number; fam: LayerId } | null = null;
+  /** S29 (A6): cover-art hrefs that failed to load, oldest first. Such a speaker draws its glyph; a new href is tried again. */
+  private _artFailed = new Set<string>();
+  /** S29 (A6): an `<image>`'s `error` does not bubble; one capturing listener on the shadow root sees the plan's and the 3D overlay's.
+   *  Tested by tag and namespace, not `instanceof SVGImageElement`: jsdom has no such class. */
+  private _onArtError = (e: Event): void => {
+    const t = e.target;
+    if (
+      !(t instanceof Element) ||
+      t.localName !== "image" ||
+      t.namespaceURI !== "http://www.w3.org/2000/svg" ||
+      !t.classList.contains("art")
+    )
+      return;
+    const href = t.getAttribute("href");
+    if (!href || this._artFailed.has(href)) return;
+    this._artFailed.add(href);
+    while (this._artFailed.size > ART_FAILED_MAX)
+      this._artFailed.delete(this._artFailed.values().next().value as string);
+    this.requestUpdate();
+  };
   /** Whether the layer chips are unfolded (the Layers button). Not remembered: folded is where a sheet starts. */
   private _layersOpen = false;
   /** S24.8 (F1): the search's entries, built once per layout and state source, not per keystroke (`<fp-search>` indexes on a new array). */
@@ -672,6 +734,8 @@ export class FloorplanStudioCard extends LitElement {
     x: number;
     y: number;
     opener: Element | null;
+    /** UI refactor 2: the plan element the popup was opened from (`g[data-x="3"]`), or null (3D, a list row): where it stands beside. */
+    thing: string | null;
     confirming: boolean;
     draft: { kind: SliderKind; value: number; from: number | null } | null;
   } | null = null;
@@ -758,7 +822,7 @@ export class FloorplanStudioCard extends LitElement {
    * a host resize, so the panel is inside the card by construction. Both fields are read from, and written to,
    * `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the panel forgets
    * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
-  private _activeCollapsed = false;
+  private _activeCollapsed = true;
   /** A card narrower than ACTIVE_FOLD_BELOW_PX folds the look controls (view, walls, theme, labels, names) behind
    * one View button, so they do not cover the plan; `_viewOpen` is whether that menu is open. */
   private _narrow = false;
@@ -766,14 +830,15 @@ export class FloorplanStudioCard extends LitElement {
   /** S14.6: the category groups the viewer folded, as `list:category` ids (`a:` Active list, `r:` Room panel). Per card, in browser storage. */
   private _foldedCats = new Set<string>();
   private _activePos: { x: number; y: number } | null = null;
-  /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
-   * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
-   * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
+  /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then it is folded
+   * at every width (UI refactor 1; it used to be open from `ACTIVE_FOLD_BELOW_PX` up). After, the choice is theirs. */
   private _activeUserChose = false;
   private _activeResizeObserver: ResizeObserver | null = null;
   /** S11.3: the room the person tapped, by floor key and room id (not index, so a reloaded layout keeps it), or null.
    *  Card chrome state, not a layout field: nothing here is saved, and a `hass` update leaves it alone. */
   private _pickedRoom: { floor: string; id: string } | null = null;
+  /** The pick (room and floor pill) whose list `_toggleCat` padded; the padding is dropped when the pick changes or the sheet ends. */
+  private _padKey: string | null = null;
   /** S20.2: the floor key whose pill was pressed, or null. Like `_pickedRoom` it is card chrome, and it excludes it: a room
    *  pick clears the floor and a floor pick clears the room, so the one panel always has one subject. */
   private _pickedFloor: string | null = null;
@@ -840,6 +905,11 @@ export class FloorplanStudioCard extends LitElement {
     if (c.detail !== undefined) seed.push(["detail", c.detail]);
     if (c.ghost_floor !== undefined) seed.push(["ghost_floor", c.ghost_floor]);
     if (c.floors_below !== undefined) seed.push(["floors_below", c.floors_below]);
+    // S29: a YAML change to these starts a clean memory, as `detail` does.
+    if (c.media_art !== undefined) seed.push(["media_art", c.media_art]);
+    if (c.temp_colors !== undefined) seed.push(["temp_colors", c.temp_colors]);
+    if (c.heat_min !== undefined) seed.push(["heat_min", c.heat_min]);
+    if (c.heat_max !== undefined) seed.push(["heat_max", c.heat_max]);
     if (c.kiosk !== undefined) seed.push(["kiosk", c.kiosk]);
     return `fp-view:${tag(JSON.stringify(seed))}`;
   }
@@ -858,6 +928,8 @@ export class FloorplanStudioCard extends LitElement {
       this._pickedDetail =
       this._pickedGhost =
       this._pickedBelow =
+      this._pickedArt =
+      this._pickedHeat =
         null;
     this._pendingView = null;
     this._shownFloor = null;
@@ -881,6 +953,8 @@ export class FloorplanStudioCard extends LitElement {
     if (s.detail !== undefined) this._pickedDetail = s.detail;
     if (s.ghost !== undefined) this._pickedGhost = s.ghost;
     if (s.below !== undefined) this._pickedBelow = s.below;
+    if (s.art !== undefined) this._pickedArt = s.art;
+    if (s.heat !== undefined) this._pickedHeat = s.heat;
     if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
     this._hiddenLayers = s.layers ?? [];
     for (const [k, fv] of s.floors ?? []) this._floorViews.set(k, fv); // the live fields follow once the first render knows the floor
@@ -938,6 +1012,8 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedDetail !== null) o.detail = this._pickedDetail;
     if (this._pickedGhost !== null) o.ghost = this._pickedGhost;
     if (this._pickedBelow !== null) o.below = this._pickedBelow;
+    if (this._pickedArt !== null) o.art = this._pickedArt;
+    if (this._pickedHeat !== null) o.heat = this._pickedHeat;
     if (this._shownFloor !== null) o.floor = this._shownFloor;
     if (this._hiddenLayers.length) o.layers = this._hiddenLayers;
     this._stashFloor();
@@ -1120,7 +1196,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   private _loadActiveState(): void {
-    this._activeCollapsed = false;
+    this._activeCollapsed = true; // UI refactor 1: folded until the viewer opens it, at every width
     this._activePos = null;
     this._activeUserChose = false;
     this._overviewAll = false;
@@ -1173,14 +1249,49 @@ export class FloorplanStudioCard extends LitElement {
     }
   }
 
+  /**
+   * Folds or opens one category. In the phone sheet (card narrower than `ACTIVE_FOLD_BELOW_PX`) the Room panel's groups are an
+   * accordion: opening one folds every other open group of that list, then scrolls the opened header to the top of the sheet's
+   * body, so what the finger opened is under the finger. Folding just folds. A room that shows several open groups from storage
+   * stays as stored; the accordion acts on the next opening. The wide card keeps independent folds.
+   */
   private _toggleCat(id: string): void {
-    if (!this._foldedCats.delete(id)) this._foldedCats.add(id);
+    const opening = this._foldedCats.delete(id);
+    if (!opening) this._foldedCats.add(id);
+    const accordion = opening && this._narrow && id.startsWith("r:");
+    const pad = this.shadowRoot?.querySelector<HTMLElement>(".fp-room-devices");
+    if (pad) pad.style.paddingBottom = "";
+    this._padKey = null;
+    if (accordion)
+      for (const g of this.shadowRoot?.querySelectorAll<HTMLElement>(".fp-room-devices > .fp-active-group[data-cat]") ??
+        []) {
+        const other = `r:${g.dataset.cat}`;
+        if (other !== id) this._foldedCats.add(other);
+      }
     try {
       globalThis.localStorage?.setItem(this._catStorageKey(), JSON.stringify([...this._foldedCats]));
     } catch {
       /* storage blocked: the fold just does not persist */
     }
     this.requestUpdate();
+    if (accordion)
+      void this.updateComplete.then(() => {
+        const body = this.shadowRoot?.querySelector<HTMLElement>(".fp-active-body");
+        const head = this.shadowRoot?.querySelector<HTMLElement>(
+          `.fp-room-devices > .fp-active-group[data-cat="${id.slice(2)}"]`,
+        );
+        const list = head?.parentElement;
+        if (!body || !head || !list) return;
+        // The last group may be too short to reach the top of the window: pad under the list by what is missing.
+        list.style.paddingBottom = "";
+        const delta = head.getBoundingClientRect().top - body.getBoundingClientRect().top;
+        const missing = delta - (body.scrollHeight - body.clientHeight - body.scrollTop);
+        if (missing > 0) {
+          list.style.paddingBottom = `${Math.ceil(missing)}px`;
+          this._padKey = this._pickKey();
+        }
+        body.scrollTop += delta;
+      });
   }
 
   /** S14.6: one category of rows under a header button. `list` is `a` (Active) or `r` (Room); folded state is per list. */
@@ -1222,6 +1333,7 @@ export class FloorplanStudioCard extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.renderRoot.addEventListener("error", this._onArtError, true); // S29 (A6): a failed cover image
     // S2.7: programmatically focusable (not in the tab order) so the card itself can take focus back after the
     // cover dialog closes, without adding a stop no keyboard user would otherwise want. Set here, not in the
     // constructor: the custom element spec forbids gaining attributes during construction (jsdom enforces this
@@ -1316,6 +1428,12 @@ export class FloorplanStudioCard extends LitElement {
   private _plugHeat(): [number, number] {
     return heatRange([this._config.plug_heat_from ?? HEAT_FROM, this._config.plug_heat_to ?? HEAT_TO]);
   }
+  /** S29 (H2, S3): the temperature colour scale handed to both views, or undefined when the colours are off. Untrusted YAML: only a real `false` is off. */
+  private _tempColors(): [number, number] | undefined {
+    return (this._pickedHeat ?? this._config.temp_colors !== false)
+      ? heatBounds(this._config.heat_min, this._config.heat_max)
+      : undefined;
+  }
 
   /**
    * Plug entity -> power sensor, for plugs with no `power` in the layout: the one `sensor.*` of device class `power`
@@ -1388,6 +1506,7 @@ export class FloorplanStudioCard extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this.renderRoot.removeEventListener("error", this._onArtError, true);
     this._stopTimer();
     if (this._pulseTimer !== null) {
       globalThis.clearTimeout(this._pulseTimer);
@@ -1584,6 +1703,10 @@ export class FloorplanStudioCard extends LitElement {
   private _names(): boolean {
     return this._pickedNames ?? this._config.names === true;
   }
+  /** S29 (A3, S3): whether a playing speaker shows its cover art. Untrusted YAML: only a real `false` is off. */
+  private _mediaArt(): boolean {
+    return this._pickedArt ?? this._config.media_art !== false;
+  }
 
   /** Home Assistant's dark mode, used only by `theme: ha` to choose the dark set for what its CSS variables do not cover. */
   private _haDark(): boolean {
@@ -1766,6 +1889,12 @@ export class FloorplanStudioCard extends LitElement {
 
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
+    // Lit reuses the Devices list element: padding added for one room must not follow the next room, or a wide card.
+    if (this._padKey !== null && (!this._narrow || this._padKey !== this._pickKey())) {
+      this._padKey = null;
+      const pad = this.shadowRoot?.querySelector<HTMLElement>(".fp-room-devices");
+      if (pad) pad.style.paddingBottom = "";
+    }
     this._glidePeople();
     this._applyWidthDefault();
     this._positionToolbar();
@@ -1987,12 +2116,17 @@ export class FloorplanStudioCard extends LitElement {
         fade: this._config.fade,
         plugWatts: plugThreshold(this._config.plug_watts),
         plugHeat: this._plugHeat(),
+        tempColors: this._tempColors(),
         powerLinks: this._powerLinks(),
         roomGlow: this._config.room_glow,
         night: this._night(),
         labels: this._labels(),
         showNames: this._names(),
+        mediaArt: this._mediaArt(),
+        artFailed: this._artFailed,
         around: floorsAroundKey(this._layout!, this._floorKey()!),
+        hiddenLayers: this._hiddenLayers, // S29 (L1, L3): the families Layers hides, and a found thing kept anyway
+        keep: this._keptHere(),
       },
       now,
     );
@@ -2085,6 +2219,13 @@ export class FloorplanStudioCard extends LitElement {
     let start: { x: number; y: number } | null = null,
       pointers = 0;
     let last: { t: number; x: number; y: number; before: PickMemo } | null = null;
+    // A room tap is committed once the double-tap window has passed with no second tap: the pick opens the room panel, which can
+    // open over the very point tapped, and a double tap must leave the pick as it was (UI refactor: the Overview starts folded).
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const drop = () => {
+      if (pending !== null) clearTimeout(pending);
+      pending = null;
+    };
     const onDown = (e: PointerEvent) => {
       if (e.isPrimary) pointers = 0;
       pointers++;
@@ -2106,12 +2247,15 @@ export class FloorplanStudioCard extends LitElement {
       }
       const p = this._pick3d({ clientX: s.x, clientY: s.y, timeStamp: -1 } as PointerEvent);
       if (p && (p.type === "device" || p.type === "door" || p.type === "unlinked" || p.type === "piece")) {
+        drop(); // a device tap right after a missed tap (the "try again" tap) opens its popup and cancels the room pick
         last = null;
         return;
       } // its own thing, never a pick
       this._closePopup(); // a tap on anything else is an outside tap
       const now = performance.now();
+      // The room pick is deferred (below), so a double tap's second tap only has to cancel it and put the pick back.
       if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
+        drop();
         this._restorePick(last.before);
         last = null;
         return;
@@ -2124,7 +2268,17 @@ export class FloorplanStudioCard extends LitElement {
       };
       if (!this._activeListVisible()) return;
       const room = p?.type === "room" ? p.index : null;
-      this._pickRoom(room !== null && this._picked() !== room ? room : null);
+      drop();
+      // The index is a room of the floor tapped: if the floor or the pick changed in the window (a pill, a row), the tap is stale.
+      const floorAt = this._floorKey(),
+        pickAt = this._pickedRoom,
+        pickedFloorAt = this._pickedFloor;
+      pending = setTimeout(() => {
+        pending = null;
+        if (this._floorKey() !== floorAt || this._pickedRoom !== pickAt || this._pickedFloor !== pickedFloorAt) return;
+        if (!this._activeListVisible()) return;
+        this._pickRoom(room !== null && this._picked() !== room ? room : null);
+      }, DOUBLE_TAP_MS);
     };
     const onCancel = () => {
       pointers = 0;
@@ -2180,6 +2334,7 @@ export class FloorplanStudioCard extends LitElement {
       host.removeEventListener("pointerdown", onDown);
       host.removeEventListener("pointerup", onUp);
       host.removeEventListener("pointercancel", onCancel);
+      drop();
     };
   }
 
@@ -2201,7 +2356,14 @@ export class FloorplanStudioCard extends LitElement {
         else right = Math.max(0, Math.min(1, (h.right - p.left) / h.width));
       }
     }
-    view.setInset(left, right);
+    // The toolbar floats over the top of the view: the house is framed under it (UI refactor item 11).
+    const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
+    let top = 0;
+    if (bar && h.height > 0) {
+      const b = bar.getBoundingClientRect();
+      if (b.width > 0 && b.height > 0) top = Math.max(0, Math.min(1, (b.bottom - h.top + 4) / h.height));
+    }
+    view.setInset(left, right, top);
   }
 
   /**
@@ -2444,18 +2606,25 @@ export class FloorplanStudioCard extends LitElement {
 
   private _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
     const s = this._subjectOf(t);
-    if (s) this._openSubject(s, at, from);
+    const thing =
+      "device" in t ? `g[data-x="${t.index}"]` : "door" in t ? `line[data-d="${t.index}"]` : `g[data-u="${t.index}"]`;
+    if (s) this._openSubject(s, at, from, thing);
   }
 
   /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
-  private _openSubject(s: PopupSubject, at: { x: number; y: number }, from: Element | null): void {
+  private _openSubject(
+    s: PopupSubject,
+    at: { x: number; y: number },
+    from: Element | null,
+    thing: string | null = null,
+  ): void {
     if (this._dialogOpen()) return;
     this._hideTip();
     if (this._popup?.s.key === s.key) {
       this._closePopup();
       return;
     }
-    this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
+    this._popup = { s, x: at.x, y: at.y, opener: from, thing, confirming: false, draft: null };
     this.requestUpdate();
   }
 
@@ -2531,7 +2700,16 @@ export class FloorplanStudioCard extends LitElement {
     });
     // A turned plan is rotated after the drawing, so its view box is not in the drawing's frame: no clamp then.
     const room = rotate ? { x: -1e9, y: -1e9, w: 2e9, h: 2e9 } : box;
-    const at = spiderLayout(spots, 1 / (this._px * (fit.w / box.w)), room);
+    // The ring clears the discs and names as drawn: a disc is 32k plan units (grows with the zoom), a name keeps its size on screen.
+    const unit = 1 / (this._px * (fit.w / box.w)),
+      k = Math.max(1 / this._scale(fit), NAME_MIN_PX / (12 * this._px)),
+      font = 12 * k * this._px;
+    const chars = Math.max(...ids.map((i) => String(f.devices[i].name ?? f.devices[i].id).length));
+    const at = spiderLayout(spots, unit, room, {
+      disc: (32 * k) / unit,
+      tag: this._labels() ? tagWidth(chars, font) : 0,
+      font,
+    });
     return at.length ? ids.map((i, j) => ({ i, at: at[j] })) : undefined;
   }
 
@@ -2684,6 +2862,8 @@ export class FloorplanStudioCard extends LitElement {
         this._popup.y,
         14,
         o?.isConnected && o.matches(".fp-active-row, fp-search") ? this._besideRect(o) : null,
+        this._popupAnchor(this._popup),
+        this._narrow,
       );
     }
     if (key === this._popupFocusKey) return;
@@ -2701,6 +2881,18 @@ export class FloorplanStudioCard extends LitElement {
       this._popupReturn = null;
       (back?.isConnected ? back : this).focus({ preventScroll: true });
     }
+  }
+
+  /** UI refactor 2: the box the popup keeps clear of. On the flat plan the opening element's own box (it follows a zoom or a turn,
+   * since this runs after every render); in 3D, where a device is a mesh and not an element, a box round the screen point of the tap,
+   * which is on the device. A popup opened from a sheet row has none (it stands beside the row). */
+  private _popupAnchor(p: NonNullable<FloorplanStudioCard["_popup"]>): Anchor | null {
+    const el = p.thing ? this.shadowRoot?.querySelector(`svg.fp-zoomable ${p.thing}`) : null;
+    const r = el?.getBoundingClientRect();
+    if (r && (r.width > 0 || r.height > 0)) return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+    if (!p.thing || !this._shows3d()) return null;
+    const half = POPUP_3D_ANCHOR_PX / 2;
+    return { left: p.x - half, top: p.y - half, right: p.x + half, bottom: p.y + half };
   }
 
   /** Where a popup opened from the sheet stands beside: the opener's height, the sheet's sides, so it clears the sheet's
@@ -2843,7 +3035,7 @@ export class FloorplanStudioCard extends LitElement {
     const st = this._hass?.states[entityId];
     if (!st || typeof st.state !== "string") return "";
     const unit = st.attributes?.unit_of_measurement;
-    return typeof unit === "string" && unit ? `${st.state} ${unit}` : st.state;
+    return readingText(st.state, unit); // UI refactor 1c: a unit only after a number
   }
 
   private _pickChooserEntity(entityId: string): void {
@@ -2946,13 +3138,15 @@ export class FloorplanStudioCard extends LitElement {
     </div>`;
   }
 
-  /** S20.2: a pill shows its floor, as before, and selects it so the side panel opens on the floor. The selected floor's
-   *  pill again lets go. With the panel off (`active_list: false`) there is nowhere to show a floor, so it only switches, as a
-   *  room tap does nothing there. Kiosk has no pills, so it never gets here. */
+  /** S20.2, UI refactor 1b: a pill of another floor only switches to it; the Overview keeps its folded or open state and no
+   *  floor panel opens. The floor panel is an explicit pick: a tap on the pill of the floor already shown selects it, and the
+   *  selected floor's pill again lets go. With the panel off (`active_list: false`) there is nowhere to show a floor, so a pill
+   *  only switches, as a room tap does nothing there. Kiosk has no pills, so it never gets here. */
   private _tapFloorChip(key: string): void {
+    const shown = this._floorKey() === key;
     const letGo = this._pickedFloorKey() === key;
     this._selectFloor(key);
-    this._pickFloor(letGo || !this._activeListVisible() ? null : key);
+    this._pickFloor(!shown || letGo || !this._activeListVisible() ? null : key);
   }
 
   /** The key of the selected floor while it is the one shown, else null (a floor the config no longer lists means nothing). */
@@ -2972,6 +3166,18 @@ export class FloorplanStudioCard extends LitElement {
    *  config: anything other than the literal `false` counts as the default, shown. */
   private _activeListVisible(): boolean {
     return this._config.active_list !== false && !this._kiosk();
+  }
+
+  /** Set when a press on the head moved the panel, so the click that ends the drag does not also unfold it. */
+  private _headDragged = false;
+
+  /** UI refactor 1: the folded line is one big target, a tap anywhere on it opens the panel (the arrow button does the
+   * same on its own; a drag of the head moves the panel and does not open it). An open head only folds by its button. */
+  private _onActiveHeadClick(e: MouseEvent, folded: boolean): void {
+    const dragged = this._headDragged;
+    this._headDragged = false;
+    if (!folded || dragged || (e.target as Element | null)?.closest?.("button")) return;
+    this._toggleActiveCollapsed();
   }
 
   private _toggleActiveCollapsed(): void {
@@ -3116,9 +3322,10 @@ export class FloorplanStudioCard extends LitElement {
     panel.style.top = `${this._activePos.y * maxY}px`;
   }
 
-  /** The list floats over the plan, so on a phone-width card it hides the plan: until the user has chosen, it is
-   * folded under 480px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
-   * `display:none`, not laid out yet) decides nothing. */
+  /** Tracks whether the card is narrower than `ACTIVE_FOLD_BELOW_PX` (the room panel becomes a sheet, the popup spans the
+   * card). The Overview itself no longer follows the width: it starts folded at every width (UI refactor 1) and stays
+   * as the viewer left it. Runs from `updated()` and the ResizeObserver; width 0 (detached, `display:none`, not laid
+   * out yet) decides nothing. */
   private _applyWidthDefault(): void {
     const width = this.getBoundingClientRect().width;
     if (width === 0) return;
@@ -3128,10 +3335,6 @@ export class FloorplanStudioCard extends LitElement {
       this._viewOpen = false;
       this.requestUpdate();
     }
-    if (this._activeUserChose) return;
-    if (narrow === this._activeCollapsed) return;
-    this._activeCollapsed = narrow;
-    this.requestUpdate();
   }
 
   /**
@@ -3156,6 +3359,7 @@ export class FloorplanStudioCard extends LitElement {
       startY = e.clientY;
     const pointerId = e.pointerId;
     let moved = false;
+    this._headDragged = false;
     try {
       head.setPointerCapture(pointerId);
     } catch {
@@ -3179,6 +3383,7 @@ export class FloorplanStudioCard extends LitElement {
         dy = me.clientY - startY;
       if (!moved && Math.hypot(dx, dy) <= TAP_SLOP_PX) return;
       moved = true;
+      this._headDragged = true;
       this._activePos = clampFraction(originLeft + dx, originTop + dy);
       this._positionActivePanel();
     };
@@ -3196,6 +3401,10 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S11.3: the index of the picked room on the shown floor, or null: none picked, a room of another floor, or one the
    *  layout no longer has (a reload keeps the id, so it survives an edit that moves the index). */
+  private _pickKey(): string {
+    return `${this._pickedRoom?.floor}/${this._pickedRoom?.id}/${this._pickedFloor}`;
+  }
+
   private _picked(): number | null {
     const p = this._pickedRoom,
       f = this._floor();
@@ -3362,11 +3571,16 @@ export class FloorplanStudioCard extends LitElement {
   /** S11.3: the room section: name, the facts the plan only hints at, and the room's devices as rows that act. A fact with
    *  nothing behind it (no sensor, no state) is left out, never printed empty; doors and lights always say "none". */
   private _roomSection(s: RoomSummary, active: unknown, scope: Scope) {
-    const facts: [string, string][] = [
+    const facts: [string, string, string?][] = [
       ["Area", s.areaM2 === null ? "" : `${s.areaM2} m²`],
       ["Temperature", s.temperature],
       ["Humidity", s.humidity],
-      ["Motion", s.motion ? `${s.motion.on ? "on" : "off"} since ${formatChanged(s.motion.since)}` : ""],
+      // UI refactor 1d: "off since 19:55" (today) or "off since 10 Oct 19:55"; the full timestamp is the title.
+      [
+        "Motion",
+        s.motion ? `${s.motion.on ? "on" : "off"} since ${formatSince(s.motion.since)}` : "",
+        s.motion ? formatChanged(s.motion.since) : undefined,
+      ],
       // S24.3 (G3): an unlocked door is not an open one. "Unlocked" shows only where a door carries a lock.
       ["Open", s.openings.join(", ") || "none"],
       ["Unlocked", s.hasLocks ? s.unlocked.join(", ") || "none" : ""],
@@ -3377,11 +3591,11 @@ export class FloorplanStudioCard extends LitElement {
         <span class="fp-room-name">${s.name || scope.unnamed}</span>
         <button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>
       </div>
-      <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
+      <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v, title]) => html`<div><dt>${k}</dt><dd title=${title ?? nothing}>${v}</dd></div>`)}</dl>
       ${s.offEntities.length || scope === FLOOR_SCOPE ? html`<div class="fp-alloff-row">${s.offEntities.length ? html`<button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title=${this._layout ? allOffTitle(this._layout.floors, this._floorKey() ?? "", s) : ALL_OFF_TITLE} @click=${() => this._allOff(s.offEntities)}>Lights off</button>` : nothing}${scope === FLOOR_SCOPE ? this._floorOffButton() : nothing}</div>` : nothing}
       ${this._scenesBlock()}
       ${active}
-      <div class="fp-active-group-label">Devices</div>
+      <div class="fp-active-group-label fp-section-label">Devices</div>
       <div class="fp-room-devices">
         ${
           s.devices.length || s.sensors.length
@@ -3593,8 +3807,8 @@ export class FloorplanStudioCard extends LitElement {
     // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`
     // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
     // that function is the only thing that ever touches this element's inline position.
-    return html`<div class=${summary ? "fp-active fp-room-open" : folded ? "fp-active fp-active-folded" : "fp-active"} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
-      <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
+    return html`<div class=${summary ? "fp-active fp-room-open" : folded ? `fp-active fp-active-folded${this._narrow ? " fp-active-narrow" : ""}` : "fp-active"} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
+      <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)} @click=${(e: MouseEvent) => this._onActiveHeadClick(e, folded)}>
         <span class="fp-active-title">Home${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}</span>
         ${
           summary
@@ -3617,10 +3831,13 @@ export class FloorplanStudioCard extends LitElement {
               summary
                 ? this._roomSection(
                     summary,
-                    html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => {
-                      this._roomFilter = !this._roomFilter;
-                      this.requestUpdate();
-                    }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
+                    // On a phone the sheet is short and these devices are listed under Devices anyway: no second list there.
+                    this._narrow
+                      ? nothing
+                      : html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => {
+                          this._roomFilter = !this._roomFilter;
+                          this.requestUpdate();
+                        }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
                 <div class="fp-filtered">${list}</div>`,
                     scope,
                   )
@@ -3716,8 +3933,7 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedDetail !== null) return this._pickedDetail;
     const set = this._config.detail;
     if (typeof set === "string" && (DETAIL_MODES as readonly string[]).includes(set)) return set as DetailMode;
-    const canChange = this._activeListVisible() || (this._zoomMode() !== false && !this._kiosk());
-    return canChange ? "auto" : "full";
+    return "full"; // UI refactor 1a: an idle device is a control; `auto` thins the plan at far zoom, so it is opt-in
   }
 
   /** The Detail button beside Layers; it unfolds the three choices. Its text never changes (the title names the mode): a
@@ -3754,10 +3970,12 @@ export class FloorplanStudioCard extends LitElement {
 
   /** The Layers button in the tools row: it unfolds the chips, and counts what is hidden ("Layers · 2 hidden"), with the
    *  Studio's sentence as its title ("Layers: lights hidden"), so a folded sheet still tells. Short, so it shares a line
-   *  with All floors in a 260 px sheet. Folded by default: the sheet covers no more of the plan. Not in live 3D. */
+   *  with All floors in a 260 px sheet. Folded by default: the sheet covers no more of the plan. Also in live 3D (S29), where Furniture stays drawn. */
   private _layersToggle() {
-    if (!this._floor() || this._shows3d()) return nothing;
-    const n = this._hiddenLayers.length;
+    if (!this._floor()) return nothing;
+    // S29 review: in live 3D furniture is drawn whatever Layers says, so it is not counted there.
+    const in3d = this._shows3d();
+    const n = this._hiddenLayers.filter((id) => !(in3d && id === "furniture")).length;
     return html`<button type="button" class="fp-layers-toggle" aria-expanded=${this._layersOpen ? "true" : "false"} title=${layersSummary(this._hiddenLayers) || "Hide or show families on the plan"} @click=${() => {
       this._layersOpen = !this._layersOpen;
       this.requestUpdate();
@@ -3765,20 +3983,27 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** One text chip per family with something on the floor on show (`layerCounts`); pressed means shown. A click hides or
-   *  shows the family, Alt-click shows it alone (again: all). Not in live 3D, which draws every family. Then, unfolded or
+   *  shows the family, Alt-click shows it alone (again: all). In live 3D too (S29); there the Furniture chip is disabled. Then, unfolded or
    *  not, the note for a thing located under a hidden family, with Show for that family. */
   private _layerChips() {
     const f = this._floor();
-    if (!f || this._shows3d()) return nothing;
+    if (!f) return nothing;
+    // S29 (L4): in live 3D furniture is solids in the canvas and is not hidden; its chip is disabled there and its stored state kept.
+    const in3d = this._shows3d();
     const n = layerCounts(f),
       hidden = this._hiddenLayers,
       k = this._keptHere();
     const word = (id: LayerId) => (LAYERS.find((l) => l.id === id)?.label ?? id).toLowerCase();
+    // S29 review (L4): in 3D a click or a solo never changes furniture's stored state; it keeps what 2D set.
+    const keepFurniture = (next: LayerId[]): LayerId[] =>
+      in3d ? [...next.filter((id) => id !== "furniture"), ...hidden.filter((id) => id === "furniture")] : next;
     const chips = LAYERS.filter((l) => n[l.id] > 0).map((l) => {
-      const shown = !hidden.includes(l.id);
-      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} title=${`${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id))}>${l.label}</button>`;
+      const shown = !hidden.includes(l.id),
+        off = in3d && l.id === "furniture";
+      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} ?disabled=${off} title=${off ? "Furniture hides in 2D only" : `${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(keepFurniture(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id)))}>${l.label}</button>`;
     });
-    return html`${this._layersOpen ? html`<div class="fp-layer-chips">${chips}</div>` : nothing}${k ? html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>` : nothing}`;
+    const note = k && !(in3d && k.fam === "furniture");
+    return html`${this._layersOpen ? html`<div class="fp-layer-chips">${chips}</div>` : nothing}${note ? html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>` : nothing}`;
   }
 
   private _setLayers(next: LayerId[]): void {
@@ -3902,6 +4127,7 @@ export class FloorplanStudioCard extends LitElement {
           fade: this._config.fade,
           plugWatts: plugThreshold(this._config.plug_watts),
           plugHeat: this._plugHeat(),
+          tempColors: this._tempColors(),
           powerLinks: this._powerLinks(),
           roomGlow: this._config.room_glow,
           theme: this._theme(),
@@ -3913,6 +4139,8 @@ export class FloorplanStudioCard extends LitElement {
           walls: this._walls(),
           labels: this._labels(),
           showNames: this._names(),
+          mediaArt: this._mediaArt(),
+          artFailed: this._artFailed,
           around: floorsAroundKey(this._layout!, this._floorKey()!),
           selectedRoom: this._picked() ?? undefined,
           hiddenLayers: this._hiddenLayers,
@@ -3978,7 +4206,7 @@ export class FloorplanStudioCard extends LitElement {
       this._pickedGhost = !on;
       this._saveViewNow();
       this.requestUpdate();
-    }}>${this._icon(GHOST_ICON)}</button>`;
+    }}>${this._icon(GHOST_ICON)}<span>Floor below</span></button>`;
   }
 
   /** The tilt on show: the slider's, else `config.tilt`, else the default. Clamped, since config is untrusted. */
@@ -4032,34 +4260,61 @@ export class FloorplanStudioCard extends LitElement {
     return html`<input type="range" aria-label="Tilt" title="Tilt" min="0" max="1" step="0.01" .value=${String(this._tilt())} @input=${onInput} />`;
   }
 
-  /** Everything that changes how the plan looks, but not where it is zoomed: the View select, the Tilt slider while
-   * the view is 2.5D, the Theme select and the Labels toggle. All hidden together (`view_switch: false`, kiosk). */
+  /** UI refactor 3: the toolbar is one row, the View segmented control and the View options button, at every width.
+   * Every other look control (Walls or cutaway, Floors below, Tilt, Theme, Labels, Device names, Cover art, Temperature colours, Floor below) is in the
+   * menu that button opens. All hidden together (`view_switch: false`, kiosk). */
   private _viewControls(current: CardView) {
-    if (!this._narrow) return this._lookControls(current);
-    const toggle = html`<button type="button" class="fp-view-toggle" aria-label="View options" title="View options" aria-expanded=${this._viewOpen ? "true" : "false"} @click=${() => {
+    const toggle = html`<button type="button" class="fp-view-toggle" aria-label="View options" title="View options" aria-expanded=${this._viewOpen ? "true" : "false"} aria-controls="fp-view-menu" @click=${() => {
       this._viewOpen = !this._viewOpen;
       this.requestUpdate();
     }}>${this._icon(UI_ICONS.view)}</button>`;
     // One template either way, so the toggle that has focus survives the click (two templates rebuilt it and focus fell to <body>).
-    return html`${this._viewOpen ? this._lookControls(current) : nothing}${toggle}`;
+    return html`${this._viewSegments(current)}${toggle}${this._viewOpen ? this._lookControls(current) : nothing}`;
   }
 
-  /** The look controls themselves: in the toolbar on a wide card, behind the View button on a narrow one. */
+  /** The views this card offers. The config has no key that withholds one (`view` only picks the start), so today it is
+   * all three; the control draws what this returns, so a view a card cannot show is not a button. */
+  private _viewsOffered(current: CardView): readonly { value: CardView; label: string }[] {
+    return VIEW_OPTIONS.filter((o) => o.value === current || this._offers(o.value));
+  }
+
+  private _offers(_v: CardView): boolean {
+    return true;
+  }
+
+  /** The look controls themselves, in the View options menu: a labelled row each, so none is a bare icon. */
   private _lookControls(current: CardView) {
     const labels = this._labels();
     const names = this._names();
+    const art = this._mediaArt(),
+      heat = this._tempColors() !== undefined;
     const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider
-    return html`${this._viewSelect(current)}${in3d ? html`${this._wallsSelect()}${this._belowSelect()}` : current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
+    const row = (name: string, control: unknown) =>
+      html`<label class="fp-vm-row"><span>${name}</span>${control}</label>`;
+    return html`<div class="fp-view-menu" id="fp-view-menu" role="group" aria-label="View options">
+      ${in3d ? html`${row("Walls", this._wallsSelect())}${row("Floors below", this._belowSelect())}` : current === "2.5d" ? html`${row("Tilt", this._tiltSlider())}${row("Walls", this._wallsSelect())}` : null}
+      ${row("Theme", this._themeSelect())}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => {
         this._pickedLabels = !labels;
         this._saveViewNow();
         this.requestUpdate();
-      }}>${this._icon(UI_ICONS.labels)}</button>
+      }}>${this._icon(UI_ICONS.labels)}<span>Labels</span></button>
       <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => {
         this._pickedNames = !names;
         this._saveViewNow();
         this.requestUpdate();
-      }}>Aa</button>${in3d ? null : this._ghostButton()}`;
+      }}><b aria-hidden="true">Aa</b><span>Device names</span></button>
+      <button type="button" aria-label="Cover art" title="Cover art" aria-pressed=${art ? "true" : "false"} @click=${() => {
+        this._pickedArt = !art;
+        this._saveViewNow();
+        this.requestUpdate();
+      }}><b aria-hidden="true">♪</b><span>Cover art</span></button>
+      <button type="button" aria-label="Temperature colours" title="Temperature colours" aria-pressed=${heat ? "true" : "false"} @click=${() => {
+        this._pickedHeat = !heat;
+        this._saveViewNow();
+        this.requestUpdate();
+      }}><b aria-hidden="true">°</b><span>Temperature colours</span></button>${in3d ? null : this._ghostButton()}
+    </div>`;
   }
 
   /** The two rotate buttons, next to the zoom buttons: a control of their own (`rotate_switch`), so a card with
@@ -4105,6 +4360,8 @@ export class FloorplanStudioCard extends LitElement {
         this._pickedDetail,
         this._pickedGhost,
         this._pickedBelow,
+        this._pickedArt,
+        this._pickedHeat,
       ].some((v) => v !== null)
     );
   }
@@ -4112,6 +4369,7 @@ export class FloorplanStudioCard extends LitElement {
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
+    const hadFocus = !!this.shadowRoot?.activeElement?.matches('button[aria-label="Reset view"]');
     this._fallback3d = null;
     this._pickedView =
       this._pickedTilt =
@@ -4122,6 +4380,8 @@ export class FloorplanStudioCard extends LitElement {
       this._pickedDetail =
       this._pickedGhost =
       this._pickedBelow =
+      this._pickedArt =
+      this._pickedHeat =
         null;
     this._pendingView = null;
     this._view = null;
@@ -4133,6 +4393,15 @@ export class FloorplanStudioCard extends LitElement {
       this._saveViewNow();
     }
     this.requestUpdate();
+    // The button hides itself once the view is back at its start: focus must not stay on (or fall off to <body> from) a
+    // hidden button, so it goes to the last button of the stack that is still there (the card itself when none is).
+    if (hadFocus)
+      void this.updateComplete.then(() => {
+        const keep = [...(this.shadowRoot?.querySelectorAll<HTMLButtonElement>(".fp-stack button") ?? [])].filter(
+          (b) => !b.hidden && !b.disabled,
+        );
+        (keep.at(-1) ?? this).focus({ preventScroll: true });
+      });
   }
 
   /** The 3D camera goes back to its first view and the shown floor forgets it (Reset view, Reset camera). The floor's
@@ -4149,21 +4418,21 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   private _resetButton() {
-    return html`<button type="button" aria-label="Reset view" title="Reset view" ?disabled=${!this._modified()} @click=${() => this._resetView()}>${this._icon(UI_ICONS.reset)}</button>`;
+    // UI refactor 4: hidden, not disabled, until the view differs from its start; its slot in the stack collapses.
+    return html`<button type="button" aria-label="Reset view" title="Reset view" ?hidden=${!this._modified()} @click=${() => this._resetView()}>${this._icon(UI_ICONS.reset)}</button>`;
   }
 
-  /** Compact `<select>` in the card chrome, outside the plan's `<svg>` like the zoom buttons. A pick redraws the
-   * plan only: `_view` (zoom and pan) is left alone, `render` clamps it against the new fit. */
-  private _viewSelect(current: CardView) {
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!isView(v)) return;
+  /** UI refactor 3: the View segmented control, in the card chrome outside the plan's `<svg>` like the zoom buttons: a named
+   * group of buttons, the one on show `aria-pressed`. A pick redraws the plan only: `_view` (zoom and pan) is left alone,
+   * `render` clamps it against the new fit. */
+  private _viewSegments(current: CardView) {
+    const pick = (v: CardView) => {
       this._pickedView = v;
       this._fallback3d = null; // a new pick tries 3D again
       this._saveViewNow();
       this.requestUpdate();
     };
-    return html`<select aria-label="View" title="View" @change=${onChange}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</select>`;
+    return html`<div class="fp-seg" role="group" aria-label="View">${this._viewsOffered(current).map((o) => html`<button type="button" aria-pressed=${o.value === current ? "true" : "false"} @click=${() => pick(o.value)}>${o.label}</button>`)}</div>`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */

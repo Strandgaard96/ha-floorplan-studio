@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demo, open, serve, configure, card, viewSelect, canvas, holder, cam, drawn, ORIGIN } from "./helpers-3d";
+import { openOverview, openViewMenu } from "./shell-helpers";
 
 // S12.3: the card's 3D view in real Chromium, loaded the way Home Assistant loads the card (a module under
 // /floorplan_studio_static/ with a ?v= query, from the built www/ folder), so the chunk delivery is tested as shipped
@@ -67,6 +68,7 @@ test.describe("3D view: the canvas", () => {
     expect(box.height).toBeGreaterThan(200);
     const light = await canvas(page).screenshot();
     expect(await colours(page, light)).toBeGreaterThan(12);
+    await openViewMenu(page); // UI refactor 3: Theme is in the View options menu
     await card(page).locator('css=select[aria-label="Theme"]').selectOption("midnight");
     await expect.poll(() => card(page).evaluate((el) => el.getAttribute("data-theme"))).toBe("midnight");
     await expect.poll(async () => (await cam(page)).drawn).toBeGreaterThan(1);
@@ -152,8 +154,10 @@ test.describe("3D view: the canvas", () => {
     expect(await renderers(page)).toBe(0);
     // the tilt and walls controls belong to 2.5D alone
     await viewSelect(page).selectOption("3d");
+    await openViewMenu(page); // UI refactor 3: Tilt lives in View options
     await expect(card(page).locator('css=input[aria-label="Tilt"]')).toHaveCount(0);
     await viewSelect(page).selectOption("2.5d");
+    await openViewMenu(page);
     await expect(card(page).locator('css=input[aria-label="Tilt"]')).toHaveCount(1);
   });
 
@@ -294,6 +298,7 @@ test.describe("3D view: walls mode (S12.4)", () => {
   }) => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
     await drawn(page);
+    await openViewMenu(page); // UI refactor 3: Walls is in the View options menu
     await expect(wallsSelect(page)).toHaveCount(1);
     expect(await wallsSelect(page).inputValue()).toBe("cut");
     await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(0);
@@ -331,6 +336,7 @@ test.describe("3D view: walls mode (S12.4)", () => {
   test("the config's walls value is the 3D select's value, as in 2.5D", async ({ page }) => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d", walls: "low" });
     await drawn(page);
+    await openViewMenu(page);
     expect(await wallsSelect(page).inputValue()).toBe("low");
     await viewSelect(page).selectOption("2.5d");
     expect(await wallsSelect(page).inputValue()).toBe("low");
@@ -341,6 +347,7 @@ test.describe("3D view: the Active list does not hide the model (S12.4)", () => 
   test("with the list open the camera frames the house in the free width", async ({ page }) => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
     await drawn(page);
+    await openOverview(page); // UI refactor 1: "the list open" is now the viewer's pick
     const h = (await holder(page).boundingBox())!,
       p = (await card(page).locator("css=.fp-active").boundingBox())!;
     await expect

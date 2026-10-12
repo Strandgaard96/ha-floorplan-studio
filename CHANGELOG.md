@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- View options has Cover art and Temperature colours; each is remembered per viewer and Reset view returns to the YAML (`media_art`, `temp_colors`). The card editor has both, and the two bounds.
+- Cover art in the card, 2D and 3D: an image that cannot load is replaced by the icon, and a new picture is tried again.
+- 3D: a room's temperature is on the same coloured pill as in 2D, and a temperature icon wears the same ring.
+- A room's temperature on the plan sits on a pill coloured by a fixed comfort scale: blue at `heat_min` (17 °C), neutral half way, red at `heat_max` (25 °C); a temperature icon gets a ring in the same colour. The text is unchanged. `temp_colors: false` turns it off.
+- Layers work in 3D: hiding a family takes its icons, balls, bodies and lamp pools off the 3D view, and a tap there no longer reaches them. The room's light lift stays. Furniture is not hidden in 3D; its chip is disabled there.
+- A playing speaker or media player shows its cover art on the plan in place of its icon, with a ring in its colour; at the furthest zoom it is a dot again. Only Home Assistant's own image proxy or a relative picture is drawn; any other address is ignored. YAML `media_art: false` turns it off.
+- Temperature colours, groundwork: three per-theme tokens (`--fp-temp-cold`, `-mid`, `-hot`) and the card keys `temp_colors`, `heat_min`, `heat_max` (default on, 17 and 25 °C). Nothing is drawn with them yet.
+- Phone: in the room sheet (card narrower than 480 px) the device groups are an accordion, so opening Security with Lights open shows the motion sensor instead of leaving it 900 px down a 235 px window; the opened group scrolls to the top. The duplicate "Active here" list is not drawn in the sheet. Wide cards are unchanged.
+
 ## 0.26.2 - 2026-10-11
 
 - 3D: a stair going down shows when it lies on the edge of its room, across two rooms, or under a fill lying over the room. 0.26.1 cut the stairwell only where the flight lay strictly inside a room, so a flight that touched its room's edge (the usual case in a real house) stayed under the room fill. The slab and every room fill are now clipped to the flight's outline.

@@ -16,6 +16,102 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: Sprint 29, switches (branch `task/s29`)
+
+- `StoredView.art`/`heat`, `_pickedArt`/`_pickedHeat`, two View options rows, four keys in the view-memory seed, four config
+  editor fields, `docs/card.md`.
+
+## 2026-10-12: Sprint 29, cover art in the card (branch `task/s29`)
+
+- One capturing `error` listener on the card's shadow root keeps a bounded set of failed art hrefs (`ART_FAILED_MAX` 64),
+  passed to both views as `artFailed`; the shots serve a fake cover.
+
+## 2026-10-12: Sprint 29, temperature pill in 3D (branch `task/s29`)
+
+- `LiveRoom` carries `temp`, `rest`, `heat`; the overlay draws `span.val-pill` and its own idle ring rule.
+
+## 2026-10-12: Sprint 29, temperature pill in 2D (branch `task/s29`)
+
+- `renderFloor` draws `rect.val-pill` and `tspan.val-t` for a room's temperature, sized by `textEm` (a per-character width
+  table); `.val-pill`, `.val .val-t` and `.halo.heat` rules.
+
+## 2026-10-12: Sprint 29, Layers in 3D (branch `task/s29`)
+
+- `liveOf` applies `layerHides`; `view3d.ts` hides balls, bodies, pools and glow for null slots and skips them in
+  `Picker.pick`; the card shows the chips in 3D.
+
+## 2026-10-12: Sprint 29, cover art markup (branch `task/s29`)
+
+- `artUrl` in `src/core/schema.ts`; `deviceMarkup` draws `image.art` with a per-device clip; `.art` rules in `FLOORPLAN_CSS`;
+  card key `media_art`.
+
+## 2026-10-12: Sprint 29, temperature scale (branch `task/s29`)
+
+- `meanValue`, `heatT`, `heatBounds`, `celsiusOf` in `src/core/readings.ts`; `roomReadoutParts`, `deviceHeat`, the `--fp-temp-*`
+  tokens and their mixing rule in `src/core/render.ts` and `theme-roles.ts`; card keys `temp_colors`, `heat_min`, `heat_max`.
+
+## 2026-10-12: Phone room sheet — accordion, no duplicate list (branch `task/sheet-fold`)
+
+- On a card narrower than 480 px the room panel's device groups are an accordion (opening one folds the others and scrolls it to
+  the top of the sheet) and the "Active here" list is not drawn there (its devices are under Devices). Wide cards unchanged.
+
+## 2026-10-11: Card UI refactor — system (branch `task/ui-system`)
+
+- One type scale (12 / 14 / 16 px), spacing scale (`--fp-space-1..5`: 4 / 8 / 12 / 16 / 24 px), radii (`--fp-radius-control` 6 px,
+  `--fp-radius-surface` 12 px, pill) and two shadow tokens (`--fp-shadow-sm`, `--fp-shadow-lg`, mixed from `--fp-ink`) on the card
+  host, replacing the off-scale sizes, radii and every `rgba(0, 0, 0, …)` in the card's CSS. Plan room names are 14 px semibold
+  (outdoor and zone names 12), readouts and room badges 12; the 3D chips follow.
+- Room panel: section headings (Devices, Active …) outrank group headings (Lights …); a fact's label is 12 px `--fp-text`,
+  its value 14 px `--fp-ink`.
+- Popup: More info is left-aligned with Details; the hue slider's thumb is round.
+- Outdoor kinds (garden, terrace, pavement, water) are drawn quiet: `--fp-<kind>-fill` mixes the kind colour into the
+  background, closer to it than an unpainted room in every theme. The plan, the room-name surface (`--fp-under`) and the 3D
+  ground read the fill tokens; trees keep the raw kind colour. Solarized's outdoor hexes were darkened to fit.
+
+## 2026-10-11: Card UI refactor — integration fixes (branch `task/ui-refactor`)
+
+- 3D: a change of the view's aspect keeps the camera's zoom against the new framing (`Orbit.setAspect`). The card's height
+  follows each floor, and the projected fit depends on the aspect, so a floor switch restored a stored camera 6 % off.
+- 3D: a room tap is committed after the double-tap window. With the Overview folded, the first tap's pick opened the room
+  panel over the point tapped and a double tap could not undo it.
+- The folded Overview hides its breadcrumb below 480 px, so the summary chips (alerts first) keep the one line.
+- A lit water room glows from its full water colour, so a pond stays blue under `room_glow` now that its unlit fill is
+  quiet. The folded Overview header is 4 px padded top and bottom, so it stays one 32 px line with 14 px text.
+- Opus review fixes (3D): a device tap right after a missed floor tap opens its popup and cancels the room pick; a
+  deferred room pick is dropped if the floor or the pick changed in its 350 ms window; an unavailable device keeps its
+  dashed warn ring instead of the idle disc.
+- Open: at 375 px a long outdoor name ("Garden pond" in the demo) can end 1.4 px under the control stack
+  (`card-label-bounds.spec.ts`).
+- Tests that pinned the old design (motion red, HA dark walls in the text colour, controls outside View options, a
+  two-value 3D inset, the long time format) now pin the new one.
+
+## 2026-10-11: Card UI refactor — plan (branch `task/ui-plan`)
+
+Spec: `docs/specs/card-ui-refactor.md`, items 5 to 8.
+
+- The stack fan's ring grows with the drawn disc and name tags, so members never overlap at any zoom
+  (`spiderLayout` takes a `SpiderSize`; the card passes it).
+- Far-zoom dots carry their glyph (half size, 3:1 ink on the dot); the dot grows from .5 to .64.
+- Red is for alerts only: motion has its own non-red colour in every theme (`ThemeRoles.motion`), and a motion sensor that lights its
+  room's outline draws no ring of its own.
+- `ha` theme in dark mode draws walls in a mid grey mixed from HA's text and card colours instead of the text colour itself.
+## 2026-10-11: Card UI refactor — 3D (branch `task/ui-3d`)
+
+- The 3D ground fades to transparent toward its border, so it has no visible edge on any page (`view3d.ts` `buildGround`).
+- 3D labels (room names, readouts, device values and names) are chips on the 2D label tag colour. The declutter never keeps a
+  room's readout when it drops that room's name.
+- Idle devices in 3D are full markers: lit size, opaque `--fp-disc` disc, thin `--fp-idle` edge, full-opacity glyph at 3:1 or
+  better (`overlay.ts`, `inkFor`). Never hidden.
+- The first 3D view frames the house box in the free area: 85 % of the view under the toolbar and beside the Active list,
+  centred, on every floor; Reset camera returns to it (`orbit.ts`, new `top` inset and `shiftY`; the card passes the
+  toolbar's bottom edge).
+## 2026-10-11: Card UI refactor — shell (branch `task/ui-shell`)
+
+- The Overview starts folded at every width (one line: breadcrumb and chips); a tap on the line opens it; the pick is remembered per viewer.
+- The device popup sits beside the device it opened from (never over its icon); under 480 px it is the full-width sheet on the half away from the device.
+- One toolbar: a View segmented control and a View options menu holding every other look control, at every width; tilt has a label. Reset view is hidden until the view differs.
+- Default `detail` is `full` (was `auto`); a floor pill of another floor only switches; no unit after a non-numeric state; Motion times are short.
+
 ## 2026-10-11: Sync with upstream 0.26.2 (branch `task/upstream-sync-0.26.2`)
 
 Merged upstream `d1ec086` (0.23.0 to 0.26.2). The plain merge left 50 files in

@@ -29,7 +29,7 @@ async function mount(page: Page, config: Record<string, unknown> = {}) {
 }
 const events = (page: Page) => page.evaluate(() => (window as any).__events);
 
-test("detail field: three choices, auto is the default and dropped from the payload, picks written, junk shows Auto", async ({
+test("detail field: three choices, full is the default and dropped from the payload (UI refactor 1a), picks written, junk shows Full", async ({
   page,
 }) => {
   await mount(page, { layout: demo });
@@ -39,13 +39,13 @@ test("detail field: three choices, auto is the default and dropped from the payl
     "Always full",
     "Always minimal",
   ]);
-  await expect(sel).toHaveValue("auto");
-  await sel.selectOption("full");
-  expect((await events(page)).at(-1).config.detail).toBe("full");
+  await expect(sel).toHaveValue("full");
   await sel.selectOption("auto");
+  expect((await events(page)).at(-1).config.detail).toBe("auto");
+  await sel.selectOption("full");
   expect("detail" in (await events(page)).at(-1).config).toBe(false);
   await mount(page, { detail: "<b>", layout: demo });
-  await expect(page.locator("#editor select#detail")).toHaveValue("auto");
+  await expect(page.locator("#editor select#detail")).toHaveValue("full");
   await mount(page, { detail: "minimal", layout: demo });
   await expect(page.locator("#editor select#detail")).toHaveValue("minimal");
 });

@@ -419,7 +419,7 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | binary_sensor on a door or window, or an attached `lock` left unlocked | door drawn normally | door drawn red and dashed, over a wide red line pulsing under it (S8.13 line, S9.1 dash; steady under reduced motion), the same for an open contact or an unlocked lock (2026-09-28). A cover door's own open state is undashed and keeps its plain orange, even on a door with both | `--fp-open-door`, default `var(--fp-dev-contact)` (#d64545); card's `open_color` overrides both the door and the line (S9.1) | more-info for its one entity; a door naming more than one (a contact sensor and a vibration sensor, or either plus a `lock`) opens a chooser listing all of them instead (S10.4). Never on a door with a `cover`: a plain tap there always opens its own confirm dialog, but a long press opens the chooser instead, the cover entity included (S10.3 review) |
 | door with a `vibration` sensor triggered | door drawn normally | door drawn the same red as an open contact, over the same pulsing alert line, but solid — dashed still means "open" alone. Open and vibrating together stay dashed (open wins the dash) and share one alert line, not two (S10.3) | `--fp-open-door`, same token and `open_color` override as an open contact | more-info (on the vibration sensor; it also joins the Active panel under the door's name); as above, a chooser instead when the door names more than one entity (S10.4), the long-press chooser on a `cover` door (S10.3 review) |
 | contact (device icon) | grey | a solid red disc with a 2 px `--fp-outline` ring (S23.4), and a red ring pulsing out from under the disc (S8.13) | `--fp-dev-contact` (#d64545) | more-info |
-| motion (binary_sensor motion/occupancy) | grey | icon red, fading to grey over `fade` seconds (default 120) from the moment it goes off (`last_changed`); halo a solid red disc at once with a 2 px `--fp-outline` ring (S23.4), and a red ring pulsing out from under the disc while it is on (S8.13) | `--fp-dev-motion` (#d64545) | more-info |
+| motion (binary_sensor motion/occupancy) | grey | icon in the motion colour, fading to grey over `fade` seconds (default 120) from the moment it goes off (`last_changed`); halo a solid disc in that colour at once with a 2 px `--fp-outline` ring (S23.4), and a ring pulsing out from under the disc while it is on (S8.13) unless the sensor lights its room's outline, which is then its one ring (UI refactor, item 6) | `--fp-dev-motion`: its own role in every theme (`ThemeRoles.motion`), never red (red is for alerts: open door or window, contact, lock, vibration, alarm, siren) and never the lights' colour; default #b5389a on light, #e86ad0 on dark | more-info |
 | temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | `--fp-dev-garden` (#3f8f4f) idle, as its type when on | more-info |
 | heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | with `trvs`/`tempSensors` attached: tap opens a chooser listing the heater plus all of them, never a guess (S10.4); long press opens more-info for the heater alone (S10.3 review). With none attached: popup; long press: more-info, unchanged |
@@ -611,7 +611,7 @@ Rows are grouped by category (S14.6, `src/core/categories.ts`: `CATEGORY_OF` pla
 **The Overview sheet (S24.7, G1, G2, F2, F3, A3, S22.F4).** The `active_list` panel is the Overview (`aria-label` "Overview"). Its header reads "Home › Ground" (the floor on show, or "All floors"), a collapse button, and count chips: the alerts first, in `--fp-warn`, then one chip per category with something on ("2 alerts · 6 lights · 1 plug"), or "Nothing on". Folded, the header is one line: the crumb hides and the chips end in an ellipsis, alerts still first. The body is:
 
 1. the search box, `<fp-search>` in `<div class="fp-ov-search" data-slot="search">` (S24.8);
-2. one row of tools (`.fp-ov-scopes`): "Turn off on this floor…" (S24.8, below), the Layers button (S24.8, below, not in live 3D), and an "All floors" toggle (`aria-pressed`), only on a card that can show more than one floor;
+2. one row of tools (`.fp-ov-scopes`): "Turn off on this floor…" (S24.8, below), the Layers button (S24.8, below; in live 3D too since S29), and an "All floors" toggle (`aria-pressed`), only on a card that can show more than one floor;
 3. the layer chips while unfolded, and the note for a kept thing, in `<div class="fp-ov-layers" data-slot="layers">`, hidden while empty;
 4. "Attention · N": `attention()` items in its order, each row with its state ("triggered", "open", "jammed", "unlocked", "battery 12 %", "battery low") and its age since `last_changed` ("12 min", `formatAge`), then "Unavailable" with a count, folded until opened;
 5. "Active · N": `activeDevices()` by category, the S14.6 folds kept, leaving out any entity already in Attention for a kind other than `battery-low` (S24.R6: a lamp on and low is in both);
@@ -625,7 +625,7 @@ A row tap locates its thing (`_locate`): it switches to the row's floor when the
 
 **Turn off on this floor… (S24.8, C2).** A button in the Overview and in the floor's panel, for the floor on show. It opens a modal checklist of what is on (`floorOffRows`): Lights (a lamp with its bound relay when on, read "with" the relay), Switches, Plugs, Media (tv, media, speaker), each a `fieldset` whose legend counts its rows ("Lights · 2"). On is any state but off, standby, unavailable and unknown. Every row starts ticked. The confirm names the count ("Turn off 4") and is disabled at 0; Cancel and Escape send nothing. The confirm sends one `turn_off` per domain over the ticked rows' entities, each once (`floorOffCalls`): `light`, `switch`, `media_player`, else `homeassistant`. With nothing on, the button is disabled with the title "Nothing is on on this floor". Focus starts on Cancel and returns to the card; Tab stays in the dialog.
 
-**Layer chips (S24.8).** The Layers button (`button.fp-layers-toggle`, `aria-expanded`) unfolds them; it starts folded, so the sheet covers no more of the plan, and counts what is hidden ("Layers · 2 hidden", else "Layers"), with the Studio's sentence as its title (`layersSummary`: "Layers: lights hidden"). One text chip per family that has something on the floor on show (`layerCounts`): the card's categories, then Furniture (`LAYERS`, the Studio's Layers). `button.fp-layer[data-layer]`, `aria-pressed` true while shown; a hidden one is dashed and struck through. A click hides or shows the family (`toggleLayer`); Alt-click shows it alone, and again shows all (`soloLayer`). The plan passes the hidden list to `renderFloor` (`hiddenLayers`): no icon, aura or piece of a hidden family. The list is the viewer's, in the view memory (`layers` in `fp-view:`, read through `parseLayers`), and holds on every floor. Live 3D draws every family and shows no chips. Search and row taps do not follow Layers: a located device or piece of a hidden family is drawn anyway (`keep`) on its floor, and the chips end in "Hidden by Layers: lights" with Show, which shows that family. Another floor or any chip change drops the kept thing.
+**Layer chips (S24.8).** The Layers button (`button.fp-layers-toggle`, `aria-expanded`) unfolds them; it starts folded, so the sheet covers no more of the plan, and counts what is hidden ("Layers · 2 hidden", else "Layers"), with the Studio's sentence as its title (`layersSummary`: "Layers: lights hidden"). One text chip per family that has something on the floor on show (`layerCounts`): the card's categories, then Furniture (`LAYERS`, the Studio's Layers). `button.fp-layer[data-layer]`, `aria-pressed` true while shown; a hidden one is dashed and struck through. A click hides or shows the family (`toggleLayer`); Alt-click shows it alone, and again shows all (`soloLayer`). The plan passes the hidden list to `renderFloor` (`hiddenLayers`): no icon, aura or piece of a hidden family. The list is the viewer's, in the view memory (`layers` in `fp-view:`, read through `parseLayers`), and holds on every floor. In live 3D (S29) the chips hide device families too; furniture is drawn there whatever Layers says, so its chip is disabled, not counted, and a click or a solo in 3D keeps its stored state. Search and row taps do not follow Layers: a located device or piece of a hidden family is drawn anyway (`keep`) on its floor, and the chips end in "Hidden by Layers: lights" with Show, which shows that family. Another floor or any chip change drops the kept thing.
 
 **Lights off (S24.8, C2).** The room and floor panel's "All off" reads "Lights off"; its action and aria-label ("Turn off all lights in …") are unchanged. Scenes has no preset All off; "All on" stays.
 
@@ -686,6 +686,27 @@ terrace and pavement take ramp shades on the generated themes. The values per th
 
 `ha` is untouched by this system: its neutrals still come from Home Assistant's CSS variables, with `midnight`'s fixed hexes as the fallback, not blueprint's new palette.
 
+Layers in 3D (S29). The Layers button and chips show in live 3D too. A hidden family is a null slot in the 3D live state:
+no overlay icon, ball, body, lamp pool or wall glow, and the picker skips it, so a tap there reads what is behind it (a
+room, or furniture), never the hidden device. A lit lamp still lifts its room, as the 2D room glow stays. A device located
+by search or a row tap stays. Furniture is solids in the canvas and is not hidden in 3D; its chip is disabled there
+("Furniture hides in 2D only") and its stored state applies again in 2D.
+
+Cover art (S29). A `speaker` or `media` device whose player is `playing` shows its art in place of its glyph: an `<image>`
+clipped to the halo's circle, the halo a ring in the device colour, the waves kept. The href is `entity_picture_local`,
+else `entity_picture`, and only a same-origin path passes (`artUrl`: starts with `/`, not `//` or `/\`, a closed set of
+characters, at most 2048); anything else, Music Assistant's LAN address included, draws the glyph. A failed load (one
+capturing `error` listener on the shadow root, a set of at most 64 failed hrefs) draws the glyph; a new href is tried. At
+far zoom the device is the plain dot. YAML `media_art` (default `true`), Cover art in View options.
+
+Temperature colours (S29). A room's temperature is a `tspan` on a pill (`rect.val-pill`, sized by the per-character
+estimate `textEm`), at 35 % of a colour mixed from the per-theme `--fp-temp-cold`, `-mid` and `-hot` by `--fp-temp-t`
+(0..1 on the fixed scale `heat_min` 17 to `heat_max` 25 °C, clamped; °F converted, other units uncoloured). On the pill
+the temperature has no outline (the one exception to the outline rule above). Humidity after it is plain. A `temp`
+icon's halo gets a ring in the same colour. The same numbers reach 3D through `LiveRoom` (`temp`, `rest`, `heat`), where
+the overlay draws a `span.val-pill`. YAML `temp_colors` (default `true`), `heat_min`, `heat_max`; Temperature colours in
+View options. A YAML change to any of the four keys starts a clean view memory; Reset view clears both picks, not Layers.
+
 ## Detail levels (S25)
 
 How much of a plan `renderFloor` draws depends on the zoom, `1` being the whole floor at fit (the smaller of fit width over
@@ -694,7 +715,7 @@ shown width and fit height over shown height, `detailFor` in `src/core/detail.ts
 
 | Level | Zoom | Drawn |
 |---|---|---|
-| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots; a device `attention()` reports on (class `needs-attention`) stays a dot even when its state reads off |
+| far | below 1.6 (`DETAIL_MID_FROM`) | rooms, room names, room badges; devices that are on, alerting or unavailable as dots that carry their glyph (half size, ink 3:1 on the dot; UI refactor, item 5); a device `attention()` reports on (class `needs-attention`) stays a dot even when its state reads off |
 | mid | 1.6 to below 3.2 (`DETAIL_NEAR_FROM`) | device icons, room names, badges |
 | near | 3.2 and up | everything, device names and readings too |
 

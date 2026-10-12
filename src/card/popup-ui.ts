@@ -48,7 +48,7 @@ export interface PopupView {
 
 export const POPUP_CSS = css`
   /* S14.2: the tap popup and the hover tooltip are card chrome like the dialogs, outside the plan. The popup's buttons are 44 px tall, a touch target. */
-  .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(240px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; padding: 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 10px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35); font: 13px/1.3 var(--fp-font, system-ui, sans-serif); }
+  .fp-pop { position: absolute; z-index: 3; box-sizing: border-box; width: min(240px, calc(100% - 8px)); max-height: calc(100% - 16px); display: flex; flex-direction: column; gap: 8px; padding: 12px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-surface); box-shadow: var(--fp-shadow-lg); font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
   /* The sliders scroll inside the card-high cap; the name, the state and the buttons stay put. */
   .fp-pop.fp-pop-wide { width: calc(100% - 8px); }
   /* When even the slider floor below does not fit (a 220 px card), the popup scrolls rather than paint past its edge. */
@@ -58,32 +58,32 @@ export const POPUP_CSS = css`
   .fp-pop-sliders { display: flex; flex-direction: column; gap: 8px; min-height: 62px; overflow-y: auto; flex: 0 1 auto; }
   .fp-pop > * { flex-shrink: 0; }
   .fp-pop > .fp-pop-sliders { flex-shrink: 1; }
-  .fp-pop-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+  .fp-pop-name { font-weight: 600; font-size: 16px; overflow-wrap: anywhere; }
   .fp-pop-state { opacity: 0.8; overflow-wrap: anywhere; }
-  .fp-pop button { min-height: 44px; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; padding: 0 12px; cursor: pointer; }
+  .fp-pop button { min-height: 44px; font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); box-shadow: var(--fp-shadow-sm); padding: 0 var(--fp-space-3); cursor: pointer; }
   .fp-pop button.fp-pop-primary { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }
-  .fp-pop button.fp-pop-more { background: transparent; border-color: transparent; text-decoration: underline; min-height: 36px; }
+  .fp-pop button.fp-pop-more { background: transparent; border-color: transparent; box-shadow: none; text-decoration: underline; min-height: 36px; text-align: left; padding: 0; }
   /* The second press of a turn off: the danger colour, so it does not look like the first press or a turn on. */
   .fp-pop button.fp-pop-danger { background: var(--fp-danger); border-color: var(--fp-danger); }
   .fp-pop-confirm { display: flex; gap: 8px; }
-  .fp-pop-confirm button { flex: 1 1 auto; white-space: nowrap; padding: 0 10px; }
-  .fp-pop label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+  .fp-pop-confirm button { flex: 1 1 auto; white-space: nowrap; padding: 0 var(--fp-space-2); }
+  .fp-pop label { display: flex; flex-direction: column; gap: var(--fp-space-1); font-size: 12px; }
   .fp-pop label span { display: flex; justify-content: space-between; opacity: 0.8; }
   .fp-pop input[type="range"] { width: 100%; height: 44px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
-  .fp-pop input.fp-pop-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); border-radius: 8px; height: 20px; margin: 12px 0; -webkit-appearance: none; appearance: none; }
-  .fp-pop input.fp-pop-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
-  .fp-pop input.fp-pop-hue::-moz-range-thumb { width: 22px; height: 28px; border-radius: 6px; background: var(--fp-ink); border: 2px solid var(--fp-room); }
+  .fp-pop input.fp-pop-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); border-radius: var(--fp-radius-control); height: 20px; margin: var(--fp-space-3) 0; -webkit-appearance: none; appearance: none; }
+  .fp-pop input.fp-pop-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%; background: var(--fp-ink); border: 2px solid var(--fp-room); }
+  .fp-pop input.fp-pop-hue::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: var(--fp-ink); border: 2px solid var(--fp-room); }
   /* S24.7: the details the row chevron used to open, folded under the buttons. */
-  .fp-pop-info summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.8; list-style: none; }
+  .fp-pop-info summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; gap: var(--fp-space-2); font-size: 12px; opacity: 0.8; list-style: none; }
   .fp-pop-info summary::-webkit-details-marker { display: none; }
   /* display:flex drops the native marker, so the disclosure triangle is drawn here. */
   .fp-pop-info summary::before { content: ""; border: 5px solid transparent; border-left-color: currentColor; border-right-width: 0; transition: transform 0.15s; }
   .fp-pop-info[open] summary::before { transform: rotate(90deg); }
-  .fp-pop-info dl { margin: 4px 0 0; font-size: 11px; line-height: 1.4; }
-  .fp-pop-info dl > div { display: flex; gap: 6px; }
+  .fp-pop-info dl { margin: var(--fp-space-1) 0 0; font-size: 12px; line-height: 1.4; }
+  .fp-pop-info dl > div { display: flex; gap: var(--fp-space-2); }
   .fp-pop-info dt { flex: 0 0 84px; opacity: 0.8; }
   .fp-pop-info dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
-  .fp-tip { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; max-width: min(260px, 90%); padding: 4px 8px; color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); font: 12px/1.3 var(--fp-font, system-ui, sans-serif); display: flex; flex-direction: column; }
+  .fp-tip { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; max-width: min(260px, 90%); padding: var(--fp-space-1) var(--fp-space-2); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-surface); box-shadow: var(--fp-shadow-lg); font: 12px/1.3 var(--fp-font, system-ui, sans-serif); display: flex; flex-direction: column; }
   .fp-tip[hidden] { display: none; }
   .fp-tip b { font-weight: 600; overflow-wrap: anywhere; }
   .fp-tip span { opacity: 0.8; }
@@ -146,12 +146,29 @@ function visibleBox(): { left: number; top: number; right: number; bottom: numbe
   return { left: 0, top: 0, right: window.innerWidth, bottom: window.innerHeight };
 }
 
+/** A box in client coordinates: the device a popup belongs to. */
+export interface Anchor {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+/** px between the device and the popup. */
+const BESIDE_GAP = 8;
+
 /**
- * Puts `el` (absolutely positioned in `host`) just below the point (client x, y), above it when there is no room below, and
- * inside the host either way. S22.2: "inside" is the host cut to what the user can see (`visibleBox`), so on a card taller than
- * the screen a tap low on the plan opens the popup above the point, not under the bottom edge. The popup's height is capped to
- * that box, and its sliders scroll (POPUP_CSS). A host scrolled almost out of sight (less than 40 px showing) falls back to the
- * host's own box, the rule before S22.2.
+ * Puts `el` (absolutely positioned in `host`) beside the thing it was opened from, inside the host either way. S22.2: "inside"
+ * is the host cut to what the user can see (`visibleBox`), so on a card taller than the screen the popup never ends under the
+ * bottom edge. The popup's height is capped to that box, and its sliders scroll (POPUP_CSS). A host scrolled almost out of
+ * sight (less than 40 px showing) falls back to the host's own box, the rule before S22.2.
+ *
+ * UI refactor 2: with an `anchor` (the device's box, or a small box round its screen point in 3D) the popup never covers it. It
+ * takes the side with the most room (right, left, below or above), measured as what is left after the popup's own size; when
+ * none holds the whole popup it goes above or below and its height is cut to the room there (it scrolls). `wide` (a card
+ * narrower than `ACTIVE_FOLD_BELOW_PX`) keeps the full-width sheet, so only above and below are on offer: it lands on the half
+ * of the card away from the device. Without an anchor (the old call) the popup sits just below the point (x, y), above it when
+ * there is no room.
  */
 export function placeNear(
   el: HTMLElement,
@@ -160,6 +177,8 @@ export function placeNear(
   y: number,
   gap = 14,
   beside: DOMRect | null = null,
+  anchor: Anchor | null = null,
+  wide = false,
 ): void {
   const h = host.getBoundingClientRect(),
     v = visibleBox();
@@ -168,9 +187,10 @@ export function placeNear(
     R = Math.min(h.right, v.right),
     B = Math.min(h.bottom, v.bottom);
   if (R - L < 40 || B - T < 40) ({ left: L, top: T, right: R, bottom: B } = h);
-  el.style.maxHeight = `${Math.max(0, Math.round(B - T - 16))}px`; // the CSS cap (100% - 16px) for a host in full view
-  const w = el.offsetWidth,
-    ht = el.offsetHeight;
+  const cap = Math.max(0, Math.round(B - T - 16)); // the CSS cap (100% - 16px) for a host in full view
+  el.style.maxHeight = `${cap}px`;
+  const w = el.offsetWidth;
+  let ht = el.offsetHeight;
   const clampTop = (t: number) => Math.max(T + 4, Math.min(B - ht - 4, t));
   // Beside a list row, the popup goes to the side of the list and lines up with the row, so the rows under it stay reachable.
   if (beside) {
@@ -178,6 +198,45 @@ export function placeNear(
       room = right + w + 4 <= R;
     el.style.left = `${Math.round(Math.max(L + 4, room ? right : beside.left - w - 8) - h.left)}px`;
     el.style.top = `${Math.round(clampTop(beside.top + beside.height / 2 - ht / 2) - h.top)}px`;
+    return;
+  }
+  if (anchor) {
+    const g = BESIDE_GAP;
+    const room = {
+      right: R - 4 - (anchor.right + g),
+      left: anchor.left - g - (L + 4),
+      below: B - 4 - (anchor.bottom + g),
+      above: anchor.top - g - (T + 4),
+    };
+    const slack: Record<"right" | "left" | "below" | "above", number> = {
+      right: room.right - w,
+      left: room.left - w,
+      below: room.below - ht,
+      above: room.above - ht,
+    };
+    // Beside first (right or left, whichever has more room left over once the popup is in), then above or below the same way.
+    const bestOf = (sides: (keyof typeof slack)[]) => {
+      const fits = sides.filter((k) => slack[k] >= 0);
+      return fits.reduce<keyof typeof slack | null>((m, k) => (m === null || slack[k] > slack[m] ? k : m), null);
+    };
+    let best = (wide ? null : bestOf(["right", "left"])) ?? bestOf(["below", "above"]);
+    if (best === null) {
+      // Nothing holds the whole popup: above or below, whichever has more room, and the popup is cut to it.
+      best = room.below >= room.above ? "below" : "above";
+      const fit = Math.max(0, Math.round(room[best]));
+      el.style.maxHeight = `${Math.min(cap, fit)}px`;
+      ht = el.offsetHeight;
+    }
+    const cx = (anchor.left + anchor.right) / 2,
+      cy = (anchor.top + anchor.bottom) / 2;
+    const across = (c: number) => Math.max(L + 4, Math.min(R - w - 4, c - w / 2));
+    let left: number, top: number;
+    if (best === "right") [left, top] = [anchor.right + g, clampTop(cy - ht / 2)];
+    else if (best === "left") [left, top] = [anchor.left - g - w, clampTop(cy - ht / 2)];
+    else if (best === "below") [left, top] = [wide ? L + 4 : across(cx), Math.max(T + 4, anchor.bottom + g)];
+    else [left, top] = [wide ? L + 4 : across(cx), Math.max(T + 4, anchor.top - g - ht)];
+    el.style.left = `${Math.round(Math.max(L + 4, left) - h.left)}px`;
+    el.style.top = `${Math.round(top - h.top)}px`;
     return;
   }
   const left = Math.max(L + 4, Math.min(R - w - 4, x - w / 2));

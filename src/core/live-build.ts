@@ -26,11 +26,13 @@ export type LiveDeps = Pick<
   | "polyCentre"
   | "roomAt"
   | "roomReadout"
+  | "roomReadoutParts"
   | "ROOM_OWNS"
 > &
   Pick<typeof import("./solids"), "pieceDevice"> &
   Pick<typeof import("./door-state"), "doorStateOf"> &
-  Pick<typeof import("./schema"), "fxScale">;
+  Pick<typeof import("./schema"), "fxScale"> &
+  Pick<typeof import("./layers"), "layerHides">;
 
 export interface LiveLight {
   device: number;
@@ -66,6 +68,10 @@ export interface LiveRoom {
   name: string;
   at: Pt;
   readout: string;
+  /** S29 (H6): the temperature text, the rest (humidity), and the scale's t (0..1, 0.01 steps) or null. */
+  temp: string;
+  rest: string;
+  heat: number | null;
   motion: { radar: boolean; on: boolean; v: number; pulseAge: number | null } | null;
 }
 export interface Live3D {
@@ -100,9 +106,11 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
     polyCentre,
     roomAt,
     roomReadout,
+    roomReadoutParts,
     ROOM_OWNS,
     doorStateOf,
     fxScale,
+    layerHides,
   } = d;
   const isPt = (p: unknown): p is Pt => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]);
   const ringOf = (r: { pts?: unknown } | null | undefined): Pt[] | null =>
@@ -135,7 +143,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
             ? [(p.a[0] + p.b[0]) / 2, (p.a[1] + p.b[1]) / 2]
             : null;
         if (!at) return;
-        const { cls, base, style, icon, s } = deviceMarkup(safe, d, o, now, at);
+        const { cls, base, style, icon, s } = deviceMarkup(safe, d, o, now, at, false, i);
         const bound = d.type === "light" && d.bound ? " bound" : "";
         const ac = d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : "";
         let value = "";
@@ -170,6 +178,9 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
             ...(fxScale(d) !== 1 ? { scale: fxScale(d) } : {}),
           });
         }
+        // S29 (L1, L2): a family Layers hides draws nothing in 3D either: the slot is null, as for a room's own sensor. A lit lamp
+        // stays in `lights`, so its room is still lifted (the 2D room glow stays too); the view drops its pool and wall glow.
+        if (layerHides(o.hiddenLayers, "dev", i, d.type, o.selection, o.keep)) out[i] = null;
       } catch (e) {
         debugOnce("3D live state: a device could not be read and draws nothing", e);
       }
@@ -196,7 +207,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         return null;
       }
     });
-    let motion: ReturnType<typeof motionRooms> = { triggered: new Map(), pulsing: new Map() };
+    let motion: ReturnType<typeof motionRooms> = { triggered: new Map(), pulsing: new Map(), lit: new Set() };
     try {
       motion = motionRooms(safe, o, now);
     } catch (e) {
@@ -208,10 +219,15 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
         if (!p || typeof r !== "object") return null;
         const m = motion.triggered.get(i),
           owns = ROOM_OWNS[r.kind];
+        // S29 (H6): the parts by the plan's own function, so the 3D pill and the 2D one cannot differ.
+        const parts = owns ? roomReadoutParts(r, o.state, o.tempColors) : null;
         return {
           name: typeof r.name === "string" && r.kind !== "structure" ? r.name : "",
           at: polyCentre(p),
           readout: owns ? roomReadout(r, o.state) : "",
+          temp: parts?.temp ?? "",
+          rest: parts?.rest ?? "",
+          heat: parts?.heat ?? null,
           motion: m ? { radar: m.radar, on: m.on, v: m.v, pulseAge: motion.pulsing.get(i) ?? null } : null,
         };
       } catch (e) {

@@ -71,11 +71,11 @@ const solid = (css: string): RoleStyle => ({ css, opacity: 1 });
 
 const ROOM: Record<string, string> = {
   room: mix("--fp-room", 100, "--fp-bg"),
-  garden: "var(--fp-garden)",
-  pavement: "var(--fp-pavement)",
-  terrace: "var(--fp-terrace)",
+  garden: "var(--fp-garden-fill)",
+  pavement: "var(--fp-pavement-fill)",
+  terrace: "var(--fp-terrace-fill)",
   fill: "var(--fp-fill)",
-  water: "var(--fp-water)",
+  water: "var(--fp-water-fill)",
 };
 // A wall is the ink colour of its theme: near black in the light theme, where a solid slab of it under lighting reads as a
 // hole. The 2.5D side faces already soften it this way (--fp-wall-side, 55% over the background), so the 3D walls do too.

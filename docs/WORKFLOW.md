@@ -50,7 +50,7 @@ actually run. It supersedes the three-role flow of 2026-09-21 (see
    5. commits in small steps, with the DECISIONS, PLAN and CHANGELOG lines in the same commits;
    6. reports the commits, the proof each test failed first, the exit codes, and what it skipped.
 4. **Check.** The coordinator re-runs `npm run lint`, `npx vitest run` and
-   `npx playwright test` itself, and opens the screenshots itself. A report
+   the scoped `npx playwright test` itself (see "Rules for checking"), and opens the screenshots itself. A report
    is a claim, not evidence. What is wrong goes back to the same coder, with
    the exact defect and the test that must catch it.
 5. **Integrate.** Parallel branches merge into one review branch. Doc
@@ -86,6 +86,12 @@ a second card on the page, a `hass` update in the middle. Say what held.
 
 ## Rules for checking
 
+- Playwright is scoped per task (Diego, 2026-10-12: the full suite takes
+  about 13 minutes). A task runs its own new or changed specs, plus every
+  spec that touches what it changed: `grep -l` the changed selectors,
+  classes, functions or file names over `tests/` and pass that list to
+  `npx playwright test`. The full suite runs once, on the integrated build
+  before the review and the release, not after every task or fix.
 - Run a command bare and read `$?` on its own line. Never
   `cmd | tail; echo $?` (CLAUDE.md finding 14).
 - To prove a test needs its feature, revert only the source file (in a

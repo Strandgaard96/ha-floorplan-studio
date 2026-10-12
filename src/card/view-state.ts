@@ -92,6 +92,10 @@ export interface StoredView {
   ghost?: boolean;
   /** The Floors below choice in 3D (S27.14), one of `BELOW_MODES`; it wins over the card's YAML `floors_below`. */
   below?: BelowMode;
+  /** S29: the View options' Cover art; it wins over YAML `media_art`. */
+  art?: boolean;
+  /** S29: the View options' Temperature colours; it wins over YAML `temp_colors`. */
+  heat?: boolean;
 }
 
 /** Further than this from the origin is not a plan in cm; the bound keeps later arithmetic finite. */
@@ -172,6 +176,8 @@ export function parseStoredView(raw: unknown, isView: (v: unknown) => boolean, t
   if (typeof r.detail === "string" && (DETAIL_MODES as readonly string[]).includes(r.detail))
     out.detail = r.detail as DetailMode;
   if (typeof r.ghost === "boolean") out.ghost = r.ghost;
+  if (typeof r.art === "boolean") out.art = r.art;
+  if (typeof r.heat === "boolean") out.heat = r.heat;
   if (typeof r.below === "string" && (BELOW_MODES as readonly string[]).includes(r.below))
     out.below = r.below as BelowMode;
   return out;

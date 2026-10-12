@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOverview, openViewMenu, viewControl } from "./shell-helpers";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
@@ -291,14 +292,22 @@ test("Opus review CSS pair: S2.9 round 3 an on room's outline paints after the w
     const ring = kids.find((n) => n.tagName === "polygon" && n.getAttribute("class") === "room on ring")!;
     const rs = getComputedStyle(ring);
     return {
-      baseFill: getComputedStyle(base).fill, // the room's own water colour: untouched, the ring is a stroke only
+      baseFill: (() => {
+        // UI refactor 17: water is --fp-water mixed 20 % into --fp-bg, a color-mix(), which computed style does not give as rgb().
+        const c = document.createElement("canvas").getContext("2d")!;
+        c.fillStyle = getComputedStyle(base).fill;
+        c.fillRect(0, 0, 1, 1); // Chromium's canvas keeps a color(srgb …) as written: read the pixel
+        return (
+          "#" + [...c.getImageData(0, 0, 1, 1).data.slice(0, 3)].map((v) => v.toString(16).padStart(2, "0")).join("")
+        );
+      })(), // the room's own water colour: untouched, the ring is a stroke only
       ringStroke: rs.stroke,
       ringFillAttr: ring.getAttribute("fill"),
       ringPointerEvents: rs.pointerEvents,
       ringAfterWalls: kids.indexOf(ring) > kids.indexOf(lastWall), // DOM order: later siblings paint on top in SVG
     };
   });
-  expect(info.baseFill).toBe("rgb(169, 207, 227)"); // --fp-water, unmoved by the "on" state
+  expect(info.baseFill).toBe("#e5e9e5"); // --fp-water-fill (20 % water in the light bg), unmoved by the "on" state
   expect(info.ringStroke).toBe("rgb(138, 81, 23)"); // --fp-active, light theme
   expect(info.ringFillAttr).toBe("none");
   expect(info.ringPointerEvents).toBe("none"); // a click on the pond still reaches the room polygon underneath
@@ -649,7 +658,7 @@ test.describe("S7.4 zoom and pan", () => {
   }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-    await page.locator("floorplan-studio-card").locator("css=.fp-active-collapse[aria-expanded=true]").click(); // the floating overview would take the wheel at this point with a wider font
+    // (UI refactor 1: the floating overview, which would take the wheel at this point with a wider font, starts folded now)
     const fit = await viewBox(page);
     const b = await svgBox(page);
     const px = b.x + b.width * 0.3,
@@ -716,15 +725,15 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await calls(page)).toEqual([]);
   });
 
-  test("the View select sits clear of the zoom buttons, picks 2.5D in a real browser, and a real click on a light still toggles it", async ({
+  test("the View control sits clear of the zoom buttons, picks 2.5D in a real browser, and a real click on a light still toggles it", async ({
     page,
   }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const flat = await viewBox(page);
-    const sel = card(page).locator('css=.fp-zoom select[aria-label="View"]');
-    await expect(sel).toBeVisible();
-    const s = (await sel.boundingBox())!;
+    const sel = viewControl(page); // UI refactor 3: View is a segmented control
+    await expect(sel.group).toBeVisible();
+    const s = (await sel.group.boundingBox())!;
     const z = (await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').boundingBox())!;
     expect(s.x + s.width).toBeLessThanOrEqual(z.x + 0.5); // beside the buttons, not over them
     expect(Math.abs(s.height - z.height)).toBeLessThan(2); // same row height
@@ -748,13 +757,15 @@ test.describe("S7.4 zoom and pan", () => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const slider = card(page).locator('css=.fp-zoom input[aria-label="Tilt"]');
+    await openViewMenu(page); // UI refactor 3: the slider is a labelled row of the View options menu
     await expect(slider).toHaveCount(0);
-    await card(page).locator('css=.fp-zoom select[aria-label="View"]').selectOption("2.5d");
+    await viewControl(page).selectOption("2.5d");
     await expect(slider).toBeVisible();
-    const s = (await slider.boundingBox())!,
-      sel = (await card(page).locator('css=.fp-zoom select[aria-label="View"]').boundingBox())!;
-    expect(s.x).toBeGreaterThanOrEqual(sel.x + sel.width - 0.5); // beside the select, not over it
-    expect(await slider.evaluate((el) => getComputedStyle(el).width)).toBe("72px"); // CSS pair: the rule reaches the pixel, not just the string
+    await expect(card(page).locator("css=.fp-view-menu label", { hasText: "Tilt" })).toBeVisible(); // a visible label
+    const s = (await slider.boundingBox())!;
+    const w = await slider.evaluate((el) => parseFloat(getComputedStyle(el).width));
+    expect(w).toBeGreaterThan(60); // CSS pair: the menu's rule (a row's flexible control, at most 120 px) reaches the pixel
+    expect(w).toBeLessThanOrEqual(120);
     const wall = () => card(page).locator("css=svg .ws").first().getAttribute("points");
     const before = await wall(),
       boxBefore = await viewBox(page);
@@ -936,15 +947,17 @@ test.describe("S7.4 zoom and pan", () => {
     for (const theme of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"]) {
       for (const dark of [false, true]) {
         await configure(page, { layout: structuredClone(demo), theme }, { states: {}, themes: { darkMode: dark } });
+        await openViewMenu(page); // UI refactor 3: Labels, Device names and Floor below are in the View options menu
         const got = await card(page).evaluate((el) =>
-          [...el.shadowRoot!.querySelectorAll(".fp-zoom button, .fp-stack button")].map((btn) => {
+          [...el.shadowRoot!.querySelectorAll(".fp-zoom button, .fp-stack button:not([hidden])")].map((btn) => {
             const s = getComputedStyle(btn);
             return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
           }),
         );
-        // Zoom in, out, Fit, plus the rotate pair, the labels and device names toggles and Reset view, and the Floor below ghost toggle
-        // (all share the zoom bar): all nine must read, so the new ones are held to the same contrast.
-        expect(got.length, `${theme} dark=${dark}`).toBe(9);
+        // The three View segments and View options; the menu's Labels, Device names, Cover art, Temperature colours (S29) and Floor
+        // below toggles; and the stack's zoom in, out, Fit and the rotate pair (Reset view is hidden at the start, UI refactor 4): all
+        // fourteen must read, so each is held to the same contrast.
+        expect(got.length, `${theme} dark=${dark}`).toBe(14);
         for (const g of got) {
           expect(g.disp).not.toBe("none");
           expect(ratio(rgbOf(g.bg), rgbOf(g.fg)), `${theme} dark=${dark}`).toBeGreaterThanOrEqual(3);
@@ -1103,6 +1116,7 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
 
     await expect(card(page).locator("css=.fp-active")).toHaveCount(1);
+    await openOverview(page); // UI refactor 1: it starts folded
     // S24.3: nothing in states() is on now that the camera is no longer listed; the panel says so instead of a row.
     await expect(card(page).locator("css=.fp-active-empty")).toHaveText("Nothing on");
   });
@@ -2331,6 +2345,7 @@ test.describe("S9.5: the active-devices panel", () => {
         },
       },
     );
+    await openOverview(page); // UI refactor 1
     const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Hall motion" });
     const box = (await row.boundingBox())!;
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
@@ -2361,6 +2376,7 @@ test.describe("S9.5: the active-devices panel", () => {
           },
         },
       );
+      await openOverview(page); // UI refactor 1
       await expect(
         page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Living light" }),
         s,
@@ -2389,6 +2405,7 @@ test.describe("S9.5: the active-devices panel", () => {
         },
       },
     );
+    await openOverview(page); // UI refactor 1
     const row = page.locator("floorplan-studio-card").locator("css=.fp-active-row", { hasText: "Front door" });
     await expect(row).toHaveCount(1);
     const box = (await row.boundingBox())!;
@@ -2480,13 +2497,22 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(await calls()).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]); // the plan itself still takes a plain click
   });
 
-  test("the collapsed state survives a reload", async ({ page }) => {
+  // UI refactor 1: folded is the default, so the pick that has to survive a reload is the open one (and the fold again after it).
+  test("the open state survives a reload, and so does folding it again", async ({ page }) => {
     await open(page);
     const config = { layout: structuredClone(demo) };
     await configure(page, config, { states: states() });
     const card = page.locator("floorplan-studio-card");
-    await card.locator("css=.fp-active-collapse").click();
     await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+    await card.locator("css=.fp-active-collapse").click();
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(1);
+
+    await page.reload();
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await configure(page, config, { states: states() });
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(1);
+    await card.locator("css=.fp-active-collapse").click();
 
     await page.reload();
     await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -2541,7 +2567,7 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(narrowCardBox.y + narrowCardBox.height + 0.5);
   });
 
-  test("Opus review finding 4: collapse, drag to the bottom, expand — the panel does not hang below the card", async ({
+  test("Opus review finding 4: drag the folded panel to the bottom, expand — the panel does not hang below the card", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1000, height: 700 });
@@ -2551,7 +2577,7 @@ test.describe("S9.5: the active-devices panel", () => {
     const card = page.locator("floorplan-studio-card");
     const cardBox = (await card.boundingBox())!;
 
-    await card.locator("css=.fp-active-collapse").click();
+    // UI refactor 1: it starts folded, so the drag to the bottom is the folded panel's
     const head = card.locator("css=.fp-active-head");
     const start = (await head.boundingBox())!;
     await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
@@ -2564,39 +2590,22 @@ test.describe("S9.5: the active-devices panel", () => {
     expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5);
   });
 
-  // Opus review finding 5 (phone-width default, an assumption Diego may overrule — see docs/DECISIONS.md): with
-  // nothing stored yet, a card narrower than 500px starts collapsed; a wider one starts open as always.
-  test("Opus review finding 5: a narrow card with nothing stored starts collapsed; a wide one starts open", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 380, height: 700 });
-    await open(page);
-    await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(0);
-
-    await page.setViewportSize({ width: 1000, height: 700 });
-    await page.reload();
-    await page.addScriptTag({ content: CARD_JS, type: "module" });
-    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-    await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(1);
-  });
-
-  // 2026-10-02: the list covered the plan on narrow cards. Folded by default under 480px (it was 500px, and only
-  // with nothing stored, so a panel that had merely been dragged once stayed open on a phone); the width is followed
-  // until the user folds or unfolds it by hand, and from then on the choice is theirs.
-  test("under 480px the list starts folded and over 480px it starts open, at the line and not at the old 500", async ({
+  // UI refactor 1: with nothing stored the Overview starts folded at every width (it was open from 480 px up). The width no longer
+  // decides; a viewer's own pick does, and is kept (the open state survives a reload, above).
+  test("with nothing stored the list starts folded on a narrow card and on a wide one, and a resize does not open it", async ({
     page,
   }) => {
     const body = () => page.locator("floorplan-studio-card").locator("css=.fp-active-body");
-    await page.setViewportSize({ width: 500, height: 700 }); // the page body's 8px margins make the card 484
-    await open(page);
-    await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    await expect(body()).toHaveCount(1); // 484 is wide enough now
+    for (const width of [380, 484, 1000]) {
+      await page.setViewportSize({ width, height: 700 });
+      await open(page);
+      await configure(page, { layout: structuredClone(demo) }, { states: states() });
+      await expect(body(), `${width} px`).toHaveCount(0);
+    }
     await page.setViewportSize({ width: 480, height: 700 });
-    await expect(body()).toHaveCount(0); // and 464 is not; the width is followed while nobody has chosen
+    await expect(body()).toHaveCount(0);
     await page.setViewportSize({ width: 1000, height: 700 });
-    await expect(body()).toHaveCount(1);
+    await expect(body()).toHaveCount(0); // still folded: nobody has chosen
   });
 
   test("a panel that was only dragged, never folded by hand, still starts folded on a narrow card", async ({
@@ -3385,8 +3394,9 @@ test.describe("plug power", () => {
         fill: getComputedStyle(g.querySelector("path:not(.halo)")!).fill,
       };
     });
-  const listed = (page: Page) =>
-    page
+  const listed = async (page: Page) => {
+    await openOverview(page); // UI refactor 1: the Overview starts folded (the open pick is stored, so a later configure keeps it)
+    return page
       .locator("floorplan-studio-card")
       .evaluate(
         (el) =>
@@ -3394,6 +3404,7 @@ test.describe("plug power", () => {
             .map((r) => r.textContent!.trim())
             .filter((t) => t.includes("TV plug")).length,
       );
+  };
 
   test("the icon changes class at 1.9 W vs 2 W, with the same switch state; the Active list and tooltip follow", async ({
     page,

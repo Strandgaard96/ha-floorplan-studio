@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { serve, ORIGIN, card, drawn, cam } from "./helpers-3d";
+import { openViewMenu } from "./shell-helpers";
 
 // S27.7: the 3D view can draw the floors below, through the view's `setBelow` (the card calls it from S27.14). Real card, the stress layout,
 // the test hook of the test build. Stress: ground is 270 high with a 25 slab, so `first` stands 295 above it. Ground's back garden is
@@ -180,6 +181,7 @@ async function configureCard(page: Page, config: Record<string, unknown>, layout
     { layout, floor: "first", view: "3d", active_list: false, ...config },
   );
   await drawn(page);
+  await openViewMenu(page); // UI refactor 3: the Floors below select is in the View options menu
 }
 const belowSelect = (page: Page) => card(page).locator('css=select[aria-label="Floors below"]');
 const y0 = async (page: Page) => (await hook(page, (h) => h.floors())).extent.y0;
@@ -198,9 +200,11 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
         .locator("option")
         .evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value)),
     ).toEqual(["off", "ghost", "solid"]);
-    // beside Walls: the same toolbar
+    // beside Walls: the same View options menu (UI refactor 3)
     expect(
-      await belowSelect(page).evaluate((s) => !!s.parentElement!.querySelector('select[aria-label="Walls"]')),
+      await belowSelect(page).evaluate(
+        (s) => !!s.closest(".fp-view-menu")?.querySelector('select[aria-label="Walls"]'),
+      ),
     ).toBe(true);
     const one = await y0(page);
     expect(one).toBeGreaterThanOrEqual(-26);

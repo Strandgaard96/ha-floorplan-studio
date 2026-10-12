@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOverview } from "./shell-helpers";
 
 // S24.8 (F1, C2): the card's search and "Turn off on this floor…", on the stress house (three floors, 437 devices). Real
 // page.mouse and page.keyboard only (finding 3). The hass stub has the shape Home Assistant's frontend gives a card: `states`
@@ -67,6 +68,7 @@ async function boot(
     },
     [{ layout, theme: "light", ...config }, states] as const,
   );
+  if (size.width >= 480) await openOverview(page); // UI refactor 1: folded at every width; these specs drive its rows, as when it was open from 480 px
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const pop = (page: Page) => card(page).locator("css=.fp-pop");
@@ -200,6 +202,8 @@ test.describe("S24.8 search in the card", () => {
 
   test("a card that is neither focused nor hovered leaves / alone", async ({ page }) => {
     await boot(page);
+    // boot clicks the Overview open (UI refactor 1), which leaves focus in the card: take it out again
+    await card(page).evaluate((el) => (el.shadowRoot!.activeElement as HTMLElement | null)?.blur());
     await page.mouse.move(2, 2); // the page's margin, outside the card
     await page.keyboard.press("/");
     expect(await focused(page)).toBeNull();

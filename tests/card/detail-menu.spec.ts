@@ -1,3 +1,4 @@
+import { openOverview } from "./shell-helpers";
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -24,6 +25,7 @@ async function boot(page: Page, config: Record<string, unknown> = {}) {
     },
     { cfg: { layout, theme: "light", ...config } },
   );
+  await openOverview(page); // UI refactor 1: the Overview (and its Detail button) starts folded
 }
 async function open(page: Page, config: Record<string, unknown> = {}) {
   await page.setViewportSize({ width: 1100, height: 800 });
@@ -74,44 +76,46 @@ test("a Detail button sits beside Layers and unfolds Auto, Full and Minimal; the
       .locator("css=button.fp-detail")
       .evaluateAll((els) => els.map((e) => e.getAttribute("data-detail"))),
   ).toEqual(["auto", "full", "minimal"]);
-  await expect(card(page).locator('css=button.fp-detail[data-detail="auto"]')).toHaveAttribute("aria-pressed", "true");
+  // UI refactor 1a: the default is Full, so Full is the pressed one until the viewer picks another.
+  await expect(card(page).locator('css=button.fp-detail[data-detail="full"]')).toHaveAttribute("aria-pressed", "true");
   await pick(page, "minimal");
   await expect(card(page).locator('css=button.fp-detail[data-detail="minimal"]')).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await expect(card(page).locator('css=button.fp-detail[data-detail="auto"]')).toHaveAttribute("aria-pressed", "false");
+  await expect(card(page).locator('css=button.fp-detail[data-detail="full"]')).toHaveAttribute("aria-pressed", "false");
 });
 
-test("no YAML key and no stored choice: auto. Fit is far; zooming in goes to near; the choices pin or free it", async ({
+test("no YAML key and no stored choice: full (UI refactor 1a). Fit is near; Auto thins the plan at fit and follows the zoom; Minimal pins far", async ({
   page,
 }) => {
   await open(page);
-  expect(await level(page)).toBe("far");
+  expect(await level(page), "full is near at fit").toBe("near");
+  await pick(page, "auto");
+  expect(await level(page), "auto is far at fit").toBe("far");
   await zoom(page, "Zoom in", 12);
-  expect(await level(page)).toBe("near");
+  expect(await level(page), "auto goes to near when zoomed in").toBe("near");
   await pick(page, "minimal");
   expect(await level(page), "minimal stays far when zoomed in").toBe("far");
   await zoom(page, "Zoom out", 12);
   await pick(page, "full");
   expect(await level(page), "full is near at fit").toBe("near");
-  await pick(page, "auto");
-  expect(await level(page)).toBe("far");
 });
 
 test("the viewer's choice survives a reload", async ({ page }) => {
   await open(page);
-  await pick(page, "full");
+  await pick(page, "auto"); // away from the Full default, so the reload has something to bring back
+  expect(await level(page)).toBe("far");
   await page.reload();
   await boot(page);
-  expect(await level(page)).toBe("near");
+  expect(await level(page)).toBe("far");
   await clickOn(page, "button.fp-detail-toggle");
-  await expect(card(page).locator('css=button.fp-detail[data-detail="full"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(card(page).locator('css=button.fp-detail[data-detail="auto"]')).toHaveAttribute("aria-pressed", "true");
 });
 
-test("YAML detail is the card's default; junk falls back to auto and does not throw", async ({ page }) => {
-  await open(page, { detail: "full" });
-  expect(await level(page)).toBe("near");
+test("YAML detail is the card's default; junk falls back to full and does not throw", async ({ page }) => {
+  await open(page, { detail: "auto" });
+  expect(await level(page)).toBe("far");
   await page.reload();
   await boot(page, { detail: "minimal" });
   await zoom(page, "Zoom in", 12);
@@ -123,7 +127,7 @@ test("YAML detail is the card's default; junk falls back to auto and does not th
     }); // the zoom above is remembered too, and a card writes its memory as it leaves
     await page.reload();
     await boot(page, { detail: junk as unknown });
-    expect(await level(page), `junk ${JSON.stringify(junk)} reads as auto`).toBe("far");
+    expect(await level(page), `junk ${JSON.stringify(junk)} reads as full`).toBe("near");
   }
 });
 
@@ -145,6 +149,8 @@ test("storage that throws: the card renders and the choice holds for the session
     });
   });
   await open(page);
+  expect(await level(page)).toBe("near");
+  await pick(page, "auto");
   expect(await level(page)).toBe("far");
   await pick(page, "full");
   expect(await level(page)).toBe("near");

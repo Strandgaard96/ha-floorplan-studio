@@ -3426,3 +3426,64 @@ Wave 2, in order on `task/s28-polish` after every lane is merged:
 
 Review (one Opus pass on the integrated build, the 4x shots open beside the diff) then fixes with their tests; exit test:
 shots at 4x, three themes.
+
+## Sprint 29 (0.27.0): layers in 3D, cover art, temperature colours
+
+Branch `task/s29-integrate` (off `task/s29-spec`, which carries the spec and the plan). Each task branches as `task/s29-<n>`,
+in its own worktree with its own `PW_PORT`, and merges back into `task/s29-integrate`; Group B branches off the merged Group A.
+Goal: a phone user reads at a glance which device families are shown (Layers now work in live 3D), what each speaker is
+playing (its cover art in place of its icon) and how warm each room is (the temperature on a coloured pill, a ring on a
+temperature icon). Spec `docs/specs/layers-art-heat.md` (approved 2026-10-12); plan, with every step, test and command,
+`docs/superpowers/plans/2026-10-12-layers-art-temp.md`. Rules as Sprint 28, plus: Playwright scoped per task (its own specs
+and those that grep the changed code), full suite once on the integrated build. The plan's "Spec decisions" list what
+differs from the spec's wording (the tokens are `--fp-temp-*`: `--fp-heat-*` is the plug ramp's).
+
+Group A, in parallel:
+- [x] S29.1 (H1-H3, S3; AC 12, 17) Temperature maths and tokens: `meanValue` (with `meanReading` rebuilt on it),
+      `celsiusOf` (°F converted), `heatBounds`, `heatT` in `readings.ts`; `roomReadoutParts` and `deviceHeat` in
+      `render.ts`; `--fp-temp-cold/mid/hot` in every theme (hand-written blocks and `rolesToTokens`, HA light and dark
+      included) and the one mixing rule; card keys `temp_colors`, `heat_min`, `heat_max` passed to both views.
+      Test: `temp-colour.test.ts`, `temp-tokens.spec.ts` (every theme), `card-temp-config.test.ts`.
+- [x] S29.2 (A1-A5; AC 5, 6, 10) Cover art markup: `artUrl` beside `TRACE_SRC`; `deviceMarkup` draws `image.art` after
+      the glyph with a per-device clip, class `art`; the `.art` and `far` rules; card key `media_art`. Test: `art.test.ts`,
+      `art-css.spec.ts` (computed-style pairs), `card-art-config.test.ts`.
+- [x] S29.3 (L1-L4; AC 1-4) Layers in 3D: `liveOf` gives a hidden device a null slot (a lit lamp still lifts its room);
+      the view hides its ball, body, pool and glow and the picker skips it; the card passes `hiddenLayers` and `keep` to
+      `setLive` and shows the chips in 3D, Furniture disabled there. Test: `live.test.ts`, `three-pick.test.ts`,
+      `card-3d-layers.spec.ts`.
+
+Group B, in parallel, off the merged Group A:
+- [x] S29.4 (H4, H5; AC 13, 14) The 2D pill and ring: `rect.val-pill` and `tspan.val-t` in the readout, `.val-pill` and
+      `.halo.heat` rules. Test: `temp-pill-2d.spec.ts` (three themes, a 0.25 room), the text unchanged character for
+      character. After S29.1.
+- [x] S29.5 (H6, H7; AC 15) The 3D pill and ring: `LiveRoom` gains `temp`, `rest`, `heat`; the overlay draws
+      `span.val-pill` and a ring rule that beats its idle disc. Test: `three-overlay-pill.test.ts`, `card-3d-temp.spec.ts`.
+      After S29.1.
+- [x] S29.6 (A6, A7; AC 6-9) Cover art in the card: one capturing `error` listener on the shadow root and a bounded
+      failed set (64) passed to both views; the shots serve a fake cover. Test: `card-art.spec.ts` (2D, 3D, refused URLs,
+      404, patch path), `card-art-failed.test.ts`. After S29.2.
+- [x] S29.7 (S1-S6; AC 11, 16) The switches: View options rows Cover art and Temperature colours, `StoredView` `art` and
+      `heat`, the four YAML keys in the memory key seed, Reset view, the config editor fields, `docs/card.md`. Test:
+      `card-view-memory.test.ts`, `view-state.test.ts`, `config-editor.spec.ts`, `card-view-art-heat.spec.ts`. After S29.1
+      and S29.2.
+
+Group C, in order:
+- [x] S29.8 (exit) `npm run shots -- --s29`: 2D and 3D, blueprint, light and HA dark, day and night, 1100 and 375 px wide,
+      4x crops of a cold and a hot readout and the speaker; looked at, every image.
+- [x] S29.9 Integrate and verify: full suites once, each bare with `$?` on its own line; shots looked at; one Opus review,
+      fixes test first; `docs/SPEC.md`, the spec's status and its LAN address, CHANGELOG, PLAN closed with real counts.
+
+Closed 2026-10-12, on one branch `task/s29` (inline execution, Diego's choice: no per-task branches or worktrees). Landed: Layers
+in live 3D (devices; furniture drawn, its chip disabled and left alone), cover art on playing speakers in 2D and 3D with a
+same-origin-only href and a bounded failed-image set, temperature pills on room readouts and a ring on temp icons in 2D
+and 3D, the View options switches and four YAML keys, the `--s29` shot set. Built beyond the plan: the pill is sized per
+character (`textEm`) and its temperature drops the readout outline (both seen in the shots); the screenshot script lists a
+tap that opens no popup instead of crashing (pre-existing, see below). Tests at close: vitest 3993 of 3994 (the
+`three-shade` 5000-piece timing test fails under load, passes alone); full Playwright before the review fixes 1960 passed,
+1 skipped, 9 failed, of which 8 fail on the pre-sprint base too (`card-label-bounds` 375 px 2D and 2.5D, `align-mode`
+S28.12, `multi-select` hidden layer, `studio-layers` S24.R8, `panel-inputs` width box, `view-labels` Show names (flaky),
+`editor` S8.10 cluster) and 1 was this sprint's (the toolbar contrast test pinned 12 buttons; now 14, fixed). Opus review:
+no critical; fixed a ball culling defect, 3D Layers counting and changing furniture, and a plug-ramp test that could not
+fail. Carry-overs: cover art under a frontend on another origin (HA Cast) 404s to the icon; the config editor gives no
+hint for an inverted range; no 3D test of a failed cover; at 375 px the confirm-popup shot taps a fanned device's anchor,
+which opens no popup (pre-existing, product question for Diego).

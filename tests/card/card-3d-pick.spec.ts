@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demo, serve, ORIGIN, card, holder, canvas, cam, drawn } from "./helpers-3d";
+import { openViewMenu } from "./shell-helpers";
 
 // S12.4 (spec G, criteria 4, 5 and 10): taps in the 3D view mean what they mean on the plan. Every click is a real
 // page.mouse event at the screen position of something in the model, asked of the view's test hook (`__fp3d`, built only into dist-test/), because a test that dispatched events on an element would pass while the real
@@ -114,6 +115,39 @@ test.describe("3D view: taps on devices", () => {
     expect(await ring(page)).toBe(""); // a device never picks a room
   });
 
+  test("a missed tap on the floor, then the device within the double-tap window: its popup opens and no room is picked (Opus review 1)", async ({
+    page,
+  }) => {
+    await boot(page);
+    await settled(page);
+    const d = (await where(page, "device", 0))!;
+    // a floor point under 24 px from the light: the "missed it" tap
+    let miss: Where | null = null;
+    for (const [dx, dy] of [
+      [0, 22],
+      [0, -22],
+      [22, 0],
+      [-22, 0],
+      [16, 16],
+      [-16, 16],
+      [16, -16],
+      [-16, -16],
+    ]) {
+      const q = { x: d.x + dx, y: d.y + dy };
+      if (((await picks(page, q)) as { type?: string } | null)?.type === "room") {
+        miss = q;
+        break;
+      }
+    }
+    expect(miss, "a room point beside the light").not.toBeNull();
+    await page.mouse.click(miss!.x, miss!.y);
+    await page.mouse.click(d.x, d.y); // well inside 350 ms and 24 px
+    await expect(card(page).locator("css=.fp-pop")).toBeVisible();
+    await page.waitForTimeout(450); // past the window: the missed tap's room pick was cancelled
+    await expect(card(page).locator("css=.fp-pop")).toBeVisible();
+    expect(await ring(page)).toBe("");
+  });
+
   test("a hold on a light opens its more-info and does not toggle", async ({ page }) => {
     await boot(page);
     const p = (await where(page, "device", 0))!;
@@ -187,6 +221,7 @@ test.describe("3D view: taps on rooms", () => {
     await click(page, () => at(page, 150, 450, 1), { type: "room", index: 2 }); // the Hall, 150 cm inside its south wall (S14.5: the low wall is 110 cm, so a nearer point is hidden), from a camera in the south
     await expect.poll(() => ring(page)).toBe("2");
     await expect.poll(async () => await holder(page).getAttribute("data-inset")).toMatch(/^0\.[3-9]/); // the room section widened the list
+    await openViewMenu(page); // UI refactor 3: Walls is in the View options menu
     await card(page).locator('css=select[aria-label="Walls"]').selectOption("full");
     await expect.poll(async () => await holder(page).getAttribute("data-lowered")).toBe("");
     await click(page, () => at(page, 150, 450, 1), { type: "other" }); // the wall in front of it now

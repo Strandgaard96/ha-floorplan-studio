@@ -13,9 +13,10 @@ const attrsOf = (s: Reading): Record<string, unknown> =>
   s.attributes && typeof s.attributes === "object" ? (s.attributes as Record<string, unknown>) : {};
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-/** A reading the way the plan prints it: the state, then its unit when there is one. */
+/** A reading the way the plan prints it: the state, then its unit when there is one and the state is a number. UI refactor 1c:
+ * a state that is not a number (`unavailable`, `unknown`, a word) never gets a unit, so no "unavailable °C". */
 export function readingText(state: string, unit: unknown): string {
-  return typeof unit === "string" && unit ? `${state.trim()} ${unit}` : state.trim();
+  return typeof unit === "string" && unit && DECIMAL.test(state.trim()) ? `${state.trim()} ${unit}` : state.trim();
 }
 
 /** A room's mean, rounded to 0.1 with no trailing zero: 48, not 48.0, as a single sensor's reading is printed. */

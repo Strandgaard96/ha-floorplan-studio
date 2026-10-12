@@ -25,6 +25,11 @@ type ZoomChoice = "on" | "wheel" | "off";
 const DEFAULT_THEME: Theme = "blueprint";
 const DEFAULT_FADE = 120;
 const DEFAULT_ROOM_GLOW = false;
+/** S29: match the card's defaults (`media_art`, `temp_colors` on; HEAT_MIN/HEAT_MAX in core/readings.ts). */
+const DEFAULT_MEDIA_ART = true;
+const DEFAULT_TEMP_COLORS = true;
+const DEFAULT_HEAT_MIN = 17,
+  DEFAULT_HEAT_MAX = 25;
 // Matches PLUG_ACTIVE_WATTS in core/power.ts, kept apart like the defaults around it.
 const DEFAULT_PLUG_WATTS = 2;
 // Matches HEAT_FROM and HEAT_TO in core/power.ts (S14.8).
@@ -206,11 +211,12 @@ export class FloorplanStudioCardEditor extends LitElement {
   }
 
   private _detail(): DetailMode {
-    return parseDetailMode(this._config.detail);
+    const d = this._config.detail; // UI refactor 1a: unset (or junk) is `full`, the card's default
+    return typeof d === "string" && DETAIL_MODES.includes(d as DetailMode) ? (d as DetailMode) : "full";
   }
 
   private _onDetail(e: Event): void {
-    this._set("detail", parseDetailMode((e.target as HTMLSelectElement).value), "auto");
+    this._set("detail", parseDetailMode((e.target as HTMLSelectElement).value), "full");
   }
 
   private _onGhost(e: Event): void {
@@ -303,6 +309,21 @@ export class FloorplanStudioCardEditor extends LitElement {
 
   private _onRoomGlow(e: Event): void {
     this._set("room_glow", (e.target as HTMLInputElement).checked, DEFAULT_ROOM_GLOW);
+  }
+
+  private _onMediaArt(e: Event): void {
+    this._set("media_art", (e.target as HTMLInputElement).checked, DEFAULT_MEDIA_ART);
+  }
+
+  private _onTempColors(e: Event): void {
+    this._set("temp_colors", (e.target as HTMLInputElement).checked, DEFAULT_TEMP_COLORS);
+  }
+
+  private _onTempBound(key: "heat_min" | "heat_max", dflt: number, e: Event): void {
+    // An emptied or non-numeric field is the default. A pair that is no range is the card's to resolve (17 and 25).
+    const raw = (e.target as HTMLInputElement).value.trim();
+    const n = Number(raw);
+    this._set(key, raw !== "" && Number.isFinite(n) ? n : dflt, dflt);
   }
 
   /** S9.2: `config.icon_size`, clamped to [0.5, 3] for display, same as the card itself reads it. */
@@ -513,6 +534,22 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="room_glow">Room glow</label>
         <input id="room_glow" type="checkbox" .checked=${this._config.room_glow ?? DEFAULT_ROOM_GLOW} @change=${this._onRoomGlow} />
+      </div>
+      <div class="row">
+        <label class="main" for="media_art">Cover art on playing speakers</label>
+        <input id="media_art" type="checkbox" .checked=${this._config.media_art !== false} @change=${this._onMediaArt} />
+      </div>
+      <div class="row">
+        <label class="main" for="temp_colors">Temperature colours</label>
+        <input id="temp_colors" type="checkbox" .checked=${this._config.temp_colors !== false} @change=${this._onTempColors} />
+      </div>
+      <div class="row">
+        <label class="main" for="heat_min">Cold at (°C)</label>
+        <input id="heat_min" type="number" step="0.5" .value=${String(this._config.heat_min ?? DEFAULT_HEAT_MIN)} @change=${(e: Event) => this._onTempBound("heat_min", DEFAULT_HEAT_MIN, e)} />
+      </div>
+      <div class="row">
+        <label class="main" for="heat_max">Hot at (°C)</label>
+        <input id="heat_max" type="number" step="0.5" .value=${String(this._config.heat_max ?? DEFAULT_HEAT_MAX)} @change=${(e: Event) => this._onTempBound("heat_max", DEFAULT_HEAT_MAX, e)} />
       </div>
 
       <div class="row">

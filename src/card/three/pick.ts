@@ -184,9 +184,10 @@ export class Picker {
 
   /**
    * What the ray meets first. `zOf` says the z range each prism is drawn over (null: not drawn, so not hit); the view
-   * passes the lowered walls through it. `null` when nothing is hit, and for a ray that is not a finite ray.
+   * passes the lowered walls through it. `skip` says which solids are not there to hit (S29: a device Layers hides), so the
+   * ray goes on to what is under them. `null` when nothing is hit, and for a ray that is not a finite ray.
    */
-  pick(ray: Ray, zOf: (s: Solid) => [number, number] | null): Pick | null {
+  pick(ray: Ray, zOf: (s: Solid) => [number, number] | null, skip: (s: Solid) => boolean = () => false): Pick | null {
     if (!ray || !vec(ray.o) || !vec(ray.d)) return null;
     const len = Math.hypot(...ray.d);
     if (!(len > 0)) return null;
@@ -194,6 +195,7 @@ export class Picker {
     let bestT = Infinity,
       bestItem: Item | null = null;
     for (const it of this.items) {
+      if (skip(it.s)) continue; // S29: a device Layers hides is not there to tap
       const sh = it.s.shape;
       let t: number | null = null;
       if (sh.type === "point") {

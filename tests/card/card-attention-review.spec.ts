@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOverview } from "./shell-helpers";
 
 // S24.R: the Opus review of Sprint 24, the card's half. The stress house (437 devices). The hass stub has the shapes Home
 // Assistant's frontend hands a card (finding 21): `states` keyed by entity id, and `entities`, the entity registry's display
@@ -41,6 +42,7 @@ async function boot(page: Page, states: Record<string, unknown>, entities?: Reco
     },
     [{ layout, theme: "light", floor: "ground" }, states, entities] as const,
   );
+  await openOverview(page); // UI refactor 1: the Overview starts folded; these specs read its rows
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const attnRow = (page: Page, entity: string) =>

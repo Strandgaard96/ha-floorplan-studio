@@ -13,6 +13,15 @@ const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
 type Cfg = Record<string, unknown>;
 const STACK = ["Zoom in", "Zoom out", "Fit", "Rotate left", "Rotate right", "Reset view"];
+// UI refactor 4: Reset view is hidden until the view differs, so the stack starts with these five and Reset joins after a change.
+const STACK_AT_START = STACK.slice(0, 5);
+/** Turns the plan one step with a real click and waits for it to settle, so the view differs and Reset view shows. */
+async function change(page: Page) {
+  const r = (await probe(page, "Rotate right"))!;
+  await page.mouse.click(r.x, r.y);
+  await expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0);
+  await expect(card(page).locator('css=.fp-stack button[aria-label="Reset view"]')).toBeVisible();
+}
 
 async function boot(page: Page, config: Cfg, width: number) {
   await page.setViewportSize({ width, height: 900 });
@@ -45,7 +54,7 @@ const planDeg = (page: Page) =>
 const probe = (page: Page, label: string) =>
   card(page).evaluate((el, label) => {
     const b = el.shadowRoot!.querySelector<HTMLElement>(`.fp-stack button[aria-label="${label}"]`);
-    if (!b) return null;
+    if (!b || b.hidden) return null;
     const r = b.getBoundingClientRect();
     const x = r.x + r.width / 2,
       y = r.y + r.height / 2;
@@ -55,10 +64,22 @@ const probe = (page: Page, label: string) =>
 
 for (const width of [1280, 375]) {
   test.describe(`stack at ${width} px`, () => {
-    test("the six buttons sit in one column, in order, below the toolbar, and each takes a real click", async ({
+    test("the buttons sit in one column, in order, below the toolbar, and each takes a real click; Reset view joins once the view differs", async ({
       page,
     }) => {
       await boot(page, BASE, width);
+      expect(await probe(page, "Reset view"), "Reset view is hidden at the start").toBeNull();
+      const stackH = await card(page).evaluate(
+        (el) => el.shadowRoot!.querySelector(".fp-stack")!.getBoundingClientRect().height,
+      );
+      await change(page);
+      const grown = await card(page).evaluate(
+        (el) => el.shadowRoot!.querySelector(".fp-stack")!.getBoundingClientRect().height,
+      );
+      expect(grown, "the hidden button's slot collapsed: the stack grows by one button and one gap").toBeCloseTo(
+        stackH + 28 + 4,
+        0,
+      );
       const ps = [];
       for (const l of STACK) ps.push({ l, ...(await probe(page, l))! });
       for (const p of ps) {
@@ -97,11 +118,9 @@ for (const width of [1280, 375]) {
       expect(g.chipsMeet).toBe(false);
       // The toolbar keeps the look controls only.
       for (const l of STACK) expect(g.toolbarButtons).not.toContain(l);
-      // Wide: the look controls themselves. Narrow: one View options button holds them, so they do not cover the plan.
-      if (width < 480) expect(g.toolbarButtons).toEqual(["View options"]);
-      else
-        for (const l of ["View", "Tilt", "Walls", "Theme", "Labels", "Device names"])
-          expect(g.toolbarButtons).toContain(l);
+      // UI refactor 3, at every width: the View segmented control (three unlabelled-by-aria buttons: 2D, 2.5D, 3D) and the one
+      // View options button; the look controls are behind it.
+      expect(g.toolbarButtons).toEqual([null, null, null, "View options"]);
     });
 
     test("a click on Rotate right at its real coordinates turns the plan, and Rotate left turns it back", async ({
@@ -136,7 +155,10 @@ test("rotate_switch: false drops the rotate pair and keeps the rest of the stack
   await boot(page, { ...BASE, rotate_switch: false }, 1280);
   expect(await probe(page, "Rotate left")).toBeNull();
   expect(await probe(page, "Rotate right")).toBeNull();
-  for (const l of ["Zoom in", "Zoom out", "Fit", "Reset view"]) expect(await probe(page, l), l).not.toBeNull();
+  for (const l of ["Zoom in", "Zoom out", "Fit"]) expect(await probe(page, l), l).not.toBeNull();
+  // Reset view is in the stack, hidden until the view differs (a zoom does not count: Fit is its way back).
+  await expect(card(page).locator('css=.fp-stack button[aria-label="Reset view"]')).toHaveCount(1);
+  expect(await probe(page, "Reset view")).toBeNull();
 });
 
 test("kiosk draws neither toolbar nor stack", async ({ page }) => {
@@ -148,6 +170,7 @@ test("zoom: false shows no zoom chrome; the stack holds only rotate and reset", 
   await boot(page, { ...BASE, zoom: false }, 1280);
   await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
   for (const l of ["Zoom in", "Zoom out", "Fit"]) expect(await probe(page, l), l).toBeNull();
+  await change(page);
   const ps = [];
   for (const l of ["Rotate left", "Rotate right", "Reset view"]) ps.push((await probe(page, l))!);
   for (const p of ps) expect(p.hit).toBe(true);
@@ -167,6 +190,8 @@ test("view_switch: false leaves the stack alone at the top right, with no toolba
     (el) => el.shadowRoot!.querySelector(".fp-stack")!.getBoundingClientRect().top - el.getBoundingClientRect().top,
   );
   expect(top).toBeCloseTo(8, 0);
-  // Rotate is on, so Reset view stays: it is the way back from a turn.
+  // Rotate is on, so Reset view stays in the stack: it shows once there is a turn to go back from.
+  for (const l of STACK_AT_START) expect((await probe(page, l))!.hit, l).toBe(true);
+  await change(page);
   for (const l of STACK) expect((await probe(page, l))!.hit, l).toBe(true);
 });

@@ -279,3 +279,18 @@ describe("Picker: a table drawn as a top and four legs", () => {
     expect(p.pick(through([30, 204, 20], [104, 204, 20]), plain)).toEqual({ type: "room", index: 0 });
   });
 });
+
+describe("Picker: a device the view hides is not hit (S29, Review focus 1)", () => {
+  const p = new Picker(
+    buildScene(house({ devices: [{ id: "l", type: "light", entity: "light.a", x: 150, y: 250 }] as never })).solids,
+  );
+  it("its proxy is hit when nothing is skipped", () => {
+    expect(p.pick(down(150, 250), plain)).toEqual({ type: "device", index: 0 });
+  });
+  it("skipped, the ray reaches the room under it", () => {
+    expect(p.pick(down(150, 250), plain, (s) => s.kind === "device" && s.ref.index === 0)).toEqual({
+      type: "room",
+      index: 0,
+    });
+  });
+});

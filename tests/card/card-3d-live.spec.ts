@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demo, serve, ORIGIN, card, canvas, cam, drawn } from "./helpers-3d";
+import { openViewMenu } from "./shell-helpers";
 
 // S12.5: live state in the 3D view. Pixels are read from real screenshots of the canvas, taps are real `page.mouse`
 // events, and the scene's own state (a door's swing, a body's colour, a pool, a ring) is read from the test hook
@@ -136,7 +137,8 @@ async function mean(page: Page, p: Where, half = 10): Promise<[number, number, n
   }, buf.toString("base64"));
 }
 const lum = (c: number[]) => 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
-/** How many pixels of the page region are clearly red (the motion ring's colour in every theme). */
+/** How many pixels of the page region are clearly the motion colour: magenta, red and blue both well over green (UI refactor
+ * item 6 took motion off alert red; an orange lamp glow or a red alert is not counted). */
 async function reds(
   page: Page,
   box: { x: number; y: number; width: number; height: number },
@@ -154,9 +156,10 @@ async function reds(
       const g = c.getContext("2d")!;
       g.drawImage(img, 0, 0);
       const d = g.getImageData(0, 0, c.width, c.height).data,
-        [lo, gap] = soft ? [90, 40] : [150, 70]; // half strength over a dark floor is a dull red
+        [lo, gap] = soft ? [90, 40] : [150, 70]; // half strength over a dark floor is a dull magenta
       let n = 0;
-      for (let i = 0; i < d.length; i += 4) if (d[i] > lo && d[i] > d[i + 1] + gap && d[i] > d[i + 2] + gap) n++;
+      for (let i = 0; i < d.length; i += 4)
+        if (d[i] > lo && d[i] > d[i + 1] + gap && d[i + 2] > d[i + 1] + gap / 2) n++;
       return n;
     },
     [buf.toString("base64"), soft] as const,
@@ -539,6 +542,7 @@ test.describe("3D view: the overlay", () => {
     await boot(page, {}, QUIET());
     await expect(roomLabel(page, 0).locator("css=.fp3-name")).toBeVisible();
     await expect(card(page).locator("css=.fp3-dn")).toHaveCount(0);
+    await openViewMenu(page); // UI refactor 3: the toggles are in the View options menu
     await card(page).locator('css=button[aria-label="Device names"]').click();
     await expect(card(page).locator("css=.fp3-dn").first()).toBeVisible();
     await card(page).locator('css=button[aria-label="Labels"]').click();
@@ -595,6 +599,7 @@ test.describe("3D view: the overlay", () => {
 
   test("a label behind a wall is hidden, and comes back when the camera does", async ({ page }) => {
     await boot(page);
+    await openViewMenu(page);
     await card(page).locator('css=select[aria-label="Walls"]').selectOption("full");
     await still(page);
     await look(page, 0, 0.12); // almost top-down: nothing stands in front of anything

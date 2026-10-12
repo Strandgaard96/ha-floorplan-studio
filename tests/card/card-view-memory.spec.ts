@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openViewMenu, viewControl } from "./shell-helpers";
 
 // The card's rotation, its animation and its view memory in real Chromium: real mouse coordinates (CLAUDE.md
 // finding 3), computed styles (finding 10), and a reload that goes through the real localStorage.
@@ -51,7 +52,9 @@ const planDeg = (page: Page) =>
     return m ? Number(m[1]) : 0;
   });
 const hostTheme = (page: Page) => card(page).evaluate((el) => el.getAttribute("data-theme"));
-const select = (page: Page, label: string) => card(page).locator(`css=select[aria-label="${label}"]`);
+// UI refactor 3: View is a segmented control (viewControl keeps the select's two calls); Theme and the rest are in the View options menu.
+const select = (page: Page, label: string) =>
+  label === "View" ? viewControl(page) : card(page).locator(`css=select[aria-label="${label}"]`);
 const lightCentre = async (page: Page) => {
   const g = card(page).locator(`css=g[data-x="${KITCHEN_LIGHT}"]`);
   await g.scrollIntoViewIfNeeded(); // a turned plan is taller; the light can sit below the fold
@@ -89,6 +92,10 @@ test.describe("rotation: the visible turn", () => {
   test("the turn lands byte for byte on a direct render at 45", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", rotation: 45 });
+    // UI refactor 4: Reset view shows only once the view differs, and the names keep clear of the stack's height, so the turned
+    // card (Reset shown) is compared with a direct one whose Reset is shown too: picking the 2D it already has does that.
+    await select(page, "View").selectOption("2d");
+    await expect(button(page, "Reset view")).toBeVisible();
     const direct = await card(page).evaluate((el) => el.shadowRoot!.querySelector("svg")!.outerHTML);
     await page.evaluate(() => localStorage.clear());
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
@@ -203,6 +210,7 @@ test.describe("the card remembers its view", () => {
 
   async function changeEverything(page: Page) {
     await select(page, "View").selectOption("2.5d");
+    await openViewMenu(page);
     await select(page, "Theme").selectOption("light");
     await button(page, "Zoom in").click();
     await button(page, "Zoom in").click();
@@ -231,6 +239,7 @@ test.describe("the card remembers its view", () => {
     for (let i = 0; i < 4; i++) expect(back[i]!).toBeCloseTo(zoomed[i]!, 2);
     expect(await planDeg(page)).toBe(90);
     expect(await select(page, "View").inputValue()).toBe("2.5d");
+    await openViewMenu(page);
     expect(await select(page, "Theme").inputValue()).toBe("light");
     expect(await hostTheme(page)).toBe("light");
     expect(await card(page).evaluate((el) => !!el.shadowRoot!.querySelector("svg .ws"))).toBe(true); // 2.5D walls are drawn
@@ -259,6 +268,7 @@ test.describe("the card remembers its view", () => {
     await configure(page, cfg());
     await button(page, "Rotate right").click();
     await settled(page);
+    await openViewMenu(page);
     await select(page, "Theme").selectOption("terminal");
     await page.reload();
     await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -333,6 +343,7 @@ test.describe("toolbar", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", theme: "light" });
+    await openViewMenu(page); // UI refactor 3: Device names is in the View options menu
     const names = card(page).locator('css=.fp-zoom button[aria-label="Device names"]');
     const look = () =>
       names.evaluate((b) => ({
@@ -363,7 +374,7 @@ test.describe("toolbar", () => {
   }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view_switch: false });
-    await expect(select(page, "Theme")).toHaveCount(0);
+    await expect(card(page).locator(`css=select[aria-label="Theme"]`)).toHaveCount(0);
     for (const l of ["Labels", "Device names"]) await expect(button(page, l)).toHaveCount(0);
     for (const l of ["Zoom in", "Rotate left", "Rotate right", "Reset view"])
       await expect(button(page, l)).toHaveCount(1);
@@ -400,24 +411,38 @@ test.describe("toolbar", () => {
     }
   });
 
-  test("a narrow card folds the look controls behind View options; opened, they wrap and do not cover the Active list's fold button", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 375, height: 800 });
-    await open(page);
-    await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
-    const toggle = card(page).locator('css=.fp-zoom button[aria-label="View options"]');
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(card(page).locator('css=.fp-zoom select[aria-label="Theme"]')).toHaveCount(0);
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-expanded", "true");
-    await expect(card(page).locator('css=.fp-zoom select[aria-label="Theme"]')).toHaveCount(1);
-    const r = await card(page).evaluate((el) => {
-      const bar = el.shadowRoot!.querySelector(".fp-zoom")!.getBoundingClientRect();
-      const head = el.shadowRoot!.querySelector(".fp-active-collapse")!.getBoundingClientRect();
-      return { barBottom: bar.bottom, barHeight: bar.height, headTop: head.top };
+  // UI refactor 3: the menu is there at every width (it used to be below 480 px only), and it stays clear of the control stack
+  // and inside the card. (The old premise, a wrapped toolbar, is gone: the toolbar is one row.)
+  for (const width of [1280, 375]) {
+    test(`at ${width} px the look controls are behind View options; opened, the menu is inside the card and clear of the stack`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await open(page);
+      await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
+      const toggle = card(page).locator('css=.fp-zoom button[aria-label="View options"]');
+      await expect(toggle).toHaveAttribute("aria-expanded", "false");
+      await expect(card(page).locator('css=.fp-zoom select[aria-label="Theme"]')).toHaveCount(0);
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("aria-expanded", "true");
+      await expect(card(page).locator('css=.fp-zoom select[aria-label="Theme"]')).toHaveCount(1);
+      const r = await card(page).evaluate((el) => {
+        const host = el.getBoundingClientRect();
+        const m = el.shadowRoot!.querySelector(".fp-view-menu")!.getBoundingClientRect();
+        const stack = el.shadowRoot!.querySelector(".fp-stack")!.getBoundingClientRect();
+        return {
+          host,
+          m,
+          stack,
+          hit: el
+            .shadowRoot!.elementFromPoint(stack.x + stack.width / 2, stack.y + 14)
+            ?.closest("button")
+            ?.getAttribute("aria-label"),
+        };
+      });
+      expect(r.m.left).toBeGreaterThanOrEqual(r.host.left);
+      expect(r.m.right).toBeLessThanOrEqual(r.stack.left);
+      expect(r.hit, "the first stack button is still the top element under an open menu").toBe("Zoom in");
     });
-    expect(r.barHeight).toBeGreaterThan(36); // the premise: it really wrapped
-    expect(r.headTop).toBeGreaterThanOrEqual(r.barBottom);
-  });
+  }
 });

@@ -20,6 +20,8 @@ const ROTATE_RATE = 0.006;
 /** The closest and furthest the camera goes, as a multiple of the distance that frames the house. */
 const NEAR_FACTOR = 0.15,
   FAR_FACTOR = 4;
+/** How much of the free part of the view the house's box fills at the first view (UI refactor item 11). */
+const FILL = 0.85;
 
 const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -37,6 +39,8 @@ export class Orbit {
   private aspect: number;
   private left = 0;
   private right = 0;
+  private top = 0;
+  private slide: [number, number] = [0, 0];
 
   /** `bounds` are the scene's, in the plan's frame (x, y, z up, cm); `fovDeg` the camera's vertical field; `turnDeg` the plan's turn. */
   constructor(bounds: Bounds, aspect: number, fovDeg: number, turnDeg: number) {
@@ -50,9 +54,10 @@ export class Orbit {
     this.fov = ((fin(fovDeg) && fovDeg > 1 && fovDeg < 120 ? fovDeg : 40) * Math.PI) / 180;
     this.aspect = fin(aspect) && aspect > 0 ? aspect : 1;
     this.target = [0, 1, 2].map((i) => (this.lo[i] + this.hi[i]) / 2) as V3;
+    this.azimuth = fin(turnDeg) ? (turnDeg * Math.PI) / 180 : 0;
+    this.start.azimuth = this.azimuth;
     this.fit = this.fitDistance();
     this.distance = this.fit;
-    this.azimuth = fin(turnDeg) ? (turnDeg * Math.PI) / 180 : 0;
     this.start = { azimuth: this.azimuth, polar: this.polar, distance: this.distance, target: [...this.target] };
   }
 
@@ -74,47 +79,110 @@ export class Orbit {
     this.start.target = [...this.target];
   }
 
-  /** The distance at which the whole house fits the narrower of the two fields of view. */
+  /**
+   * The distance at which the house's box, seen from the first view (its azimuth and polar), fills 85 % of the free part of the view
+   * along the tighter axis: its eight corners are projected the way the camera does (perspective, the vertical field `fov`), not a
+   * sphere round the house. The free part is the view less the panel's `left` and `right` and the toolbar's `top`. Also sets `slide`:
+   * how far the picture must move (fractions of the view's width and height) so the box is centred in the free part.
+   */
   private fitDistance(): number {
-    const radius = Math.max(
-      100,
-      0.5 * Math.hypot(this.hi[0] - this.lo[0], this.hi[1] - this.lo[1], this.hi[2] - this.lo[2]),
-    );
-    const across = 2 * Math.atan(Math.tan(this.fov / 2) * this.aspect * (1 - this.left - this.right));
-    return (0.85 * radius) / Math.sin(Math.min(this.fov, across) / 2);
+    const half = [0, 1, 2].map((i) => (this.hi[i] - this.lo[i]) / 2),
+      radius = Math.max(100, Math.hypot(half[0], half[1], half[2]));
+    if (!fin(radius)) return Infinity;
+    const a = this.start.azimuth,
+      p = this.start.polar,
+      s = [Math.sin(p) * Math.sin(a), Math.cos(p), Math.sin(p) * Math.cos(a)],
+      right = [Math.cos(a), 0, -Math.sin(a)],
+      up = [
+        right[1] * -s[2] - right[2] * -s[1],
+        right[2] * -s[0] - right[0] * -s[2],
+        right[0] * -s[1] - right[1] * -s[0],
+      ],
+      t = Math.tan(this.fov / 2),
+      freeW = 2 * FILL * (1 - this.left - this.right),
+      freeH = 2 * FILL * (1 - this.top);
+    const corners: V3[] = [];
+    for (const sx of [-1, 1])
+      for (const sy of [-1, 1]) for (const sz of [-1, 1]) corners.push([sx * half[0], sy * half[1], sz * half[2]]);
+    const dot = (q: number[], v: number[]) => q[0] * v[0] + q[1] * v[1] + q[2] * v[2];
+    const extent = (d: number) => {
+      let x0 = Infinity,
+        x1 = -Infinity,
+        y0 = Infinity,
+        y1 = -Infinity;
+      for (const q of corners) {
+        const depth = d - dot(q, s),
+          nx = dot(q, right) / (depth * t * this.aspect),
+          ny = dot(q, up) / (depth * t);
+        x0 = Math.min(x0, nx);
+        x1 = Math.max(x1, nx);
+        y0 = Math.min(y0, ny);
+        y1 = Math.max(y1, ny);
+      }
+      return { x0, x1, y0, y1 };
+    };
+    const fits = (d: number) => {
+      const e = extent(d);
+      return e.x1 - e.x0 <= freeW && e.y1 - e.y0 <= freeH;
+    };
+    // Every corner must be in front of the camera: the nearest distance is just past the box's own radius.
+    let lo = radius * 1.0001,
+      hi = radius * 1e4;
+    if (!fits(hi)) return Infinity; // cannot happen for a finite box; never a NaN distance
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) hi = mid;
+      else lo = mid;
+    }
+    const e = extent(hi);
+    // The box's centre on the screen, against the free part's centre: the picture slides by the difference (NDC is 2 across).
+    this.slide = [(this.left - this.right - (e.x0 + e.x1) / 2) / 2, -(-this.top - (e.y0 + e.y1) / 2) / 2];
+    return hi;
   }
 
-  /** The view got wider or taller: the next `reset` frames the house for the new shape; where the camera is now stays. */
+  /** The view got wider or taller: the house is framed for the new shape, and the camera keeps its zoom against that framing,
+   * as `setInset` does. The fit projects the box with the aspect, so a card whose height follows each floor (a floor switch)
+   * would otherwise come back to a stored camera 6 % off (UI refactor item 11). Its direction and look-at point stay. */
   setAspect(aspect: number): void {
     if (!(fin(aspect) && aspect > 0) || aspect === this.aspect) return;
+    const was = this.fit;
     this.aspect = aspect;
     this.fit = this.fitDistance();
     this.start.distance = this.fit;
+    if (fin(was) && was > 0 && fin(this.fit))
+      this.distance = clamp(this.distance * (this.fit / was), this.fit * NEAR_FACTOR, this.fit * FAR_FACTOR);
   }
 
   /**
-   * A panel covers `left` and `right` (fractions of the width): frame the house in what is left. The camera backs off to
-   * fit the narrower width, and `shift` tells the view to slide the picture so the house is centred in the free part.
-   * The distance the user has chosen is kept in proportion. Junk changes nothing; the two together never pass 0.6.
+   * A panel covers `left` and `right` (fractions of the width) and the toolbar `top` (a fraction of the height): frame the house in
+   * what is left. The camera backs off to fit, and `shift` and `shiftY` tell the view to slide the picture so the house is centred in
+   * the free part. The distance the user has chosen is kept in proportion. Junk changes nothing; left and right together never pass
+   * 0.6, nor `top` 0.4.
    */
-  setInset(left: number, right: number): void {
-    if (!(fin(left) && fin(right) && left >= 0 && right >= 0)) return;
+  setInset(left: number, right: number, top = 0): void {
+    if (!(fin(left) && fin(right) && fin(top) && left >= 0 && right >= 0 && top >= 0)) return;
     const total = left + right,
       k = total > 0.6 ? 0.6 / total : 1,
       l = left * k,
-      r = right * k;
-    if (l === this.left && r === this.right) return;
+      r = right * k,
+      tp = Math.min(top, 0.4);
+    if (l === this.left && r === this.right && tp === this.top) return;
     const was = this.fit;
     this.left = l;
     this.right = r;
+    this.top = tp;
     this.fit = this.fitDistance();
     this.start.distance = this.fit;
     this.distance = clamp(this.distance * (this.fit / was), this.fit * NEAR_FACTOR, this.fit * FAR_FACTOR);
   }
 
-  /** Where the free part's centre lies, as a fraction of the view's width from the view's centre (right is positive). */
+  /** Where the picture slides to centre the house in the free part, as a fraction of the view's width (right is positive). */
   get shift(): number {
-    return (this.left - this.right) / 2;
+    return this.slide[0];
+  }
+  /** The same, as a fraction of the view's height (down is positive). */
+  get shiftY(): number {
+    return this.slide[1];
   }
 
   /** Where the camera stands (three's frame). */

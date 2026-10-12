@@ -49,7 +49,7 @@ for (const [w, h] of [
     }, w);
     await drawn(page);
     await expect(card(page).locator("css=.fp-active-body")).toHaveCount(0); // folded: the header only
-    await expect.poll(async () => (await inset(page)).join()).toBe("0,0");
+    await expect.poll(async () => (await inset(page)).slice(0, 2).join()).toBe("0,0"); // left, right; the third is the toolbar's top inset (UI refactor 11)
     const s = await spread(page);
     expect(s.width, JSON.stringify(s)).toBeGreaterThan(0.7); // the house fills the width; half of it was lost before
   });

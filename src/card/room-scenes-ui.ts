@@ -4,8 +4,8 @@ import { css, html, nothing } from "lit";
 import type { RoomSceneMenu } from "../core";
 
 export const SCENES_CSS = css`
-  .fp-scenes { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 6px; }
-  .fp-scene { min-height: 32px; max-width: 100%; padding: 0 10px; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+  .fp-scenes { display: flex; flex-wrap: wrap; gap: var(--fp-space-2); margin: 0 0 var(--fp-space-2); }
+  .fp-scene { min-height: 32px; max-width: 100%; padding: 0 var(--fp-space-3); font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-control); cursor: pointer; overflow-wrap: anywhere; }
   .fp-scene:hover, .fp-scene:focus-visible { border-color: var(--fp-primary); }
   .fp-scene.fp-scene-ha { border-style: dashed; }
   .fp-scene.fp-scene-ask { color: var(--fp-on-dark, #fff); background: var(--fp-primary); border-color: var(--fp-primary); font-weight: 600; }

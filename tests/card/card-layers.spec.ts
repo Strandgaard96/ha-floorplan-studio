@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOverview } from "./shell-helpers";
 
 // S24.8 (layers): the card's layer chips on the stress house (ground: 182 devices, 75 of them lights, 39 pieces). Real
 // page.mouse and page.keyboard only (finding 3); the memory goes through the real localStorage and a real reload.
@@ -39,6 +40,7 @@ async function configure(page: Page, config: Record<string, unknown> = {}, clear
     },
     [{ layout, theme: "light", ...config }, clear] as const,
   );
+  await openOverview(page); // UI refactor 1: the Overview (and its Layers button) starts folded
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const chip = (page: Page, id: string) => card(page).locator(`css=.fp-ov-layers button.fp-layer[data-layer="${id}"]`);

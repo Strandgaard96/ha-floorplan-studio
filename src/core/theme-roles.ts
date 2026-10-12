@@ -19,7 +19,12 @@ export interface ThemeRoles {
   dark: boolean;
   devices?: Partial<Record<DeviceType, string>>;
   roomEmpty?: string;
+  /** Motion's own colour (rings, dots, a room's motion line and badge count): never red, which is for alerts only, and never the accent the lights wear. Left out, magenta on a light base and a lighter magenta on a dark one. A `devices.motion` override wins. */
+  motion?: string;
 }
+
+/** The motion colour a theme gets when its roles name none (UI refactor, item 6). */
+export const MOTION_DEFAULT = { light: "#b5389a", dark: "#e86ad0" } as const;
 
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -119,7 +124,8 @@ export function rolesToTokens(roles: ThemeRoles): string {
     string,
     string
   >;
-  const devFor = (t: DeviceType) => roles.devices?.[t] ?? roles.accent;
+  const motion = roles.devices?.motion ?? roles.motion ?? (roles.dark ? MOTION_DEFAULT.dark : MOTION_DEFAULT.light);
+  const devFor = (t: DeviceType) => (t === "motion" ? motion : (roles.devices?.[t] ?? roles.accent));
   const acCool = roles.devices?.ac ?? roles.accent,
     acHeat = roles.devices?.ac ?? roles.accent;
   return [
@@ -167,6 +173,11 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-dev-vacuum:${devFor("vacuum")}`,
     // S9.4: speaker is a fixed blue in every theme, the same exception TV is (S9.3) — never derived from the role's own accent.
     `--fp-dev-speaker:#2c7fb8`,
+    // S29 (H3): the temperature scale. Fixed hues per light or dark kind, like the TV and speaker blues: a one-accent theme must still
+    // read cold from hot. Mid is the neutral the pill passes through.
+    `--fp-temp-cold:${roles.dark ? "#5fa8e8" : "#2f78b8"}`,
+    `--fp-temp-mid:${roles.dark ? "#8b8578" : "#9a958b"}`,
+    `--fp-temp-hot:${roles.dark ? "#f0604d" : "#c8412f"}`,
     `--fp-halo:${roles.fg}`,
     `--fp-alpha:.25`,
     `--fp-disc:${roles.fg}`,
