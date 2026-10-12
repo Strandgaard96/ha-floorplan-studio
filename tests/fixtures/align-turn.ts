@@ -76,3 +76,18 @@ export const composePlace = (a: TestPlace, b: TestPlace): TestPlace => {
   const s = turnPt(a.shift, b.turn);
   return { turn: a.turn + b.turn, shift: [s[0] + b.shift[0], s[1] + b.shift[1]] };
 };
+
+/** A random star polygon: 6 to 10 corners round [400, 400] at radii 150 to 450, and 2 to 4 stray external walls. Nothing like an orthogonal house. */
+export function starFloor(rnd: () => number): Floor {
+  const n = 6 + Math.floor(rnd() * 5), pts: Pt[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = ((i + rnd() * 0.6) / n) * 2 * Math.PI, r = 150 + rnd() * 300;
+    pts.push([Math.round(400 + r * Math.cos(a)), Math.round(400 + r * Math.sin(a))]);
+  }
+  const f = blank(pts);
+  for (let i = 0, m = 2 + Math.floor(rnd() * 3); i < m; i++) {
+    const x = rnd() * 800, y = rnd() * 800;
+    f.walls.push({ id: `s${i}`, a: [x, y], b: [x + (rnd() - 0.5) * 300, y + (rnd() - 0.5) * 300], kind: "external" } as never);
+  }
+  return f;
+}

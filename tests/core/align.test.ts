@@ -312,3 +312,32 @@ describe("alignShift: translation at a given turn (S29.7, 0.27.0's alignFloor)",
     expect(alignKey(f, NaN as never)).toBe(alignKey(f));
   });
 });
+
+// S30.5: golden answers. `tests/fixtures/align-golden.json` holds what the 0.27.0 scan gave (alignShift and refinePlace) on every fixture pair
+// and seeded case of `tests/fixtures/align-golden.ts`, recorded before the line index existed. The index may only make it faster: every
+// answer must be deep equal, bit for bit. (Written after the code, on purpose: it is the safety net for the index, not a test of a new feature.)
+import golden from "../fixtures/align-golden.json";
+import { shiftCases, placeCases } from "../fixtures/align-golden";
+import { refinePlace, sampleLines, structure } from "../../src/core/align";
+
+/** What JSON would keep: a -0 and a 0 are the same number to the file. */
+const viaJson = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
+
+describe("golden answers recorded from the scan (S30.5)", () => {
+  const g = golden as unknown as { shift: Record<string, unknown>; place: Record<string, unknown> };
+  it("alignShift gives the recorded answer on every fixture pair and seeded case", () => {
+    const cases = shiftCases();
+    expect(cases.length).toBe(Object.keys(g.shift).length);
+    const wrong: string[] = [];
+    for (const c of cases) if (JSON.stringify(viaJson(alignShift(c.upper, c.lower, c.turn))) !== JSON.stringify(g.shift[c.name])) wrong.push(c.name);
+    expect(wrong).toEqual([]);
+  });
+
+  it("refinePlace gives the recorded answer from every start, turn free and held", () => {
+    const cases = placeCases();
+    expect(cases.length).toBe(Object.keys(g.place).length);
+    const wrong: string[] = [];
+    for (const c of cases) if (JSON.stringify(viaJson(refinePlace(sampleLines(structure(c.upper), 10), structure(c.lower), c.place, { turn: c.turnFree }))) !== JSON.stringify(g.place[c.name])) wrong.push(c.name);
+    expect(wrong).toEqual([]);
+  });
+});
