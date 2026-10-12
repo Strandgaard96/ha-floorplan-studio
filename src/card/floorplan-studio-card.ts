@@ -804,6 +804,8 @@ export class FloorplanStudioCard extends LitElement {
   /** S11.3: the room the person tapped, by floor key and room id (not index, so a reloaded layout keeps it), or null.
    *  Card chrome state, not a layout field: nothing here is saved, and a `hass` update leaves it alone. */
   private _pickedRoom: { floor: string; id: string } | null = null;
+  /** The pick (room and floor pill) whose list `_toggleCat` padded; the padding is dropped when the pick changes or the sheet ends. */
+  private _padKey: string | null = null;
   /** S20.2: the floor key whose pill was pressed, or null. Like `_pickedRoom` it is card chrome, and it excludes it: a room
    *  pick clears the floor and a floor pick clears the room, so the one panel always has one subject. */
   private _pickedFloor: string | null = null;
@@ -1215,6 +1217,7 @@ export class FloorplanStudioCard extends LitElement {
     const accordion = opening && this._narrow && id.startsWith("r:");
     const pad = this.shadowRoot?.querySelector<HTMLElement>(".fp-room-devices");
     if (pad) pad.style.paddingBottom = "";
+    this._padKey = null;
     if (accordion)
       for (const g of this.shadowRoot?.querySelectorAll<HTMLElement>(".fp-room-devices > .fp-active-group[data-cat]") ??
         []) {
@@ -1239,7 +1242,10 @@ export class FloorplanStudioCard extends LitElement {
         list.style.paddingBottom = "";
         const delta = head.getBoundingClientRect().top - body.getBoundingClientRect().top;
         const missing = delta - (body.scrollHeight - body.clientHeight - body.scrollTop);
-        if (missing > 0) list.style.paddingBottom = `${Math.ceil(missing)}px`;
+        if (missing > 0) {
+          list.style.paddingBottom = `${Math.ceil(missing)}px`;
+          this._padKey = this._pickKey();
+        }
         body.scrollTop += delta;
       });
   }
@@ -1827,6 +1833,12 @@ export class FloorplanStudioCard extends LitElement {
 
   protected updated(changed: PropertyValues): void {
     super.updated(changed);
+    // Lit reuses the Devices list element: padding added for one room must not follow the next room, or a wide card.
+    if (this._padKey !== null && (!this._narrow || this._padKey !== this._pickKey())) {
+      this._padKey = null;
+      const pad = this.shadowRoot?.querySelector<HTMLElement>(".fp-room-devices");
+      if (pad) pad.style.paddingBottom = "";
+    }
     this._glidePeople();
     this._applyWidthDefault();
     this._positionToolbar();
@@ -3328,6 +3340,10 @@ export class FloorplanStudioCard extends LitElement {
 
   /** S11.3: the index of the picked room on the shown floor, or null: none picked, a room of another floor, or one the
    *  layout no longer has (a reload keeps the id, so it survives an edit that moves the index). */
+  private _pickKey(): string {
+    return `${this._pickedRoom?.floor}/${this._pickedRoom?.id}/${this._pickedFloor}`;
+  }
+
   private _picked(): number | null {
     const p = this._pickedRoom,
       f = this._floor();

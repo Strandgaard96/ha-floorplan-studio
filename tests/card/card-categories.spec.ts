@@ -306,6 +306,36 @@ test.describe("the room sheet on a phone", () => {
     expect(await catsOpen(page)).toEqual([]);
   });
 
+  test("the padding that lets a short last group reach the top does not outlive its room or the sheet", async ({
+    page,
+  }) => {
+    await bootPadded(page, 375);
+    const pad = () =>
+      card(page).evaluate((el) => {
+        const l = el.shadowRoot!.querySelector<HTMLElement>(".fp-room-devices")!;
+        return getComputedStyle(l).paddingBottom;
+      });
+    expect(await pad()).toBe("0px");
+    await tapHead(page, "security");
+    await tapHead(page, "security");
+    expect(parseFloat(await pad()), "opening Security pads the list so it can reach the top").toBeGreaterThan(0);
+    await card(page).evaluate((el: HTMLElement & { _pickRoom(i: number): void; updateComplete: Promise<unknown> }) => {
+      el._pickRoom(1);
+      return el.updateComplete;
+    });
+    expect(await pad(), "another room starts with no padding").toBe("0px");
+    // and the sheet that stops being a sheet
+    await card(page).evaluate((el: HTMLElement & { _pickRoom(i: number): void; updateComplete: Promise<unknown> }) => {
+      el._pickRoom(0);
+      return el.updateComplete;
+    });
+    await tapHead(page, "security");
+    await tapHead(page, "security");
+    expect(parseFloat(await pad())).toBeGreaterThan(0);
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await expect.poll(pad).toBe("0px");
+  });
+
   test("at 1100 px the groups fold independently: opening Security leaves Lights open", async ({ page }) => {
     await bootPadded(page, 1100);
     await tapHead(page, "security");
