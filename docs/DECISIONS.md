@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: Opus review of Sprint 30: short lines vote (Sonnet)
+
+Supersedes "Shortest line counted | 20 cm" in S30.1. An L outline cut into 15 or 19 cm pieces (a click every 15 cm), turned 7.3
+degrees, answered turn -2, weak, no alt: no line reached 20 cm, so the histogram was empty and only turn 0 was a candidate.
+`HIST_MIN_LEN` is now 0 (zero-length lines still skipped). The S30.1 note said results were equal from 0 to 50 cm on the fixtures;
+that held, and the fixtures had no cut-up outline. Answers on hand-align, align-house and the stress pair are unchanged; the
+10 000-point circle (3 cm edges) now finds its four equal turns, so it gets an alt, which the weak-alt rule above drops again, and
+its golden answer is unchanged. Tests: a cut-up L at 7.3 and 4 degrees, both floors cut and only the lower cut, at 15 and 19 cm.
+
 ## 2026-10-12: Opus review of Sprint 30: a weak answer's alt must not be weak (Sonnet)
 
 Supersedes the `alt` rule of S30.1 and S30.8 ("any other fit within 5 points of the answer"). Two unrelated floors gave a weak

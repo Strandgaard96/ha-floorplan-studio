@@ -342,7 +342,7 @@ function shiftSearch(us: Seg[], low: Lower) {
 
 // ---- S30.2: candidate turns from direction histograms (constants and reasons: docs/DECISIONS.md, S30.1) ----------------------
 
-const HIST_BIN = 0.25, HIST_SMOOTH = 1, HIST_MIN_LEN = 20, HIST_PEAKS = 3, HIST_PEAK_FRACTION = 0.5, HIST_PEAK_APART = 2, MAX_WEIGHT = 1e6;
+const HIST_BIN = 0.25, HIST_SMOOTH = 1, HIST_MIN_LEN = 0, HIST_PEAKS = 3, HIST_PEAK_FRACTION = 0.5, HIST_PEAK_APART = 2, MAX_WEIGHT = 1e6;
 /** 0, and four turns for each of at most three peaks. */
 export const MAX_TURN_CANDIDATES = 1 + 4 * HIST_PEAKS;
 
@@ -355,13 +355,13 @@ function canonical(segs: Seg[]): Seg[] {
 /**
  * Length per direction modulo 90 degrees (a house's walls run in two directions at a right angle, so one peak stands for both),
  * in bins of `HIST_BIN`, a line's weight split between its two nearest bins. Weights are integers (whole cm, at most `MAX_WEIGHT`),
- * so the sums do not depend on the order the lines are added. Lines under `HIST_MIN_LEN` do not count.
+ * so the sums do not depend on the order the lines are added. Every line counts, short ones too (a floor drawn with a click every 15 cm has no long line).
  */
 function histogram(segs: Seg[]): number[] {
   const nb = Math.round(90 / HIST_BIN), h = new Array<number>(nb).fill(0);
   for (const s of segs) {
     const l = len(s);
-    if (!Number.isFinite(l) || l < HIST_MIN_LEN) continue;
+    if (!Number.isFinite(l) || l <= HIST_MIN_LEN) continue;
     const w = Math.min(Math.round(l), MAX_WEIGHT);
     const deg = (Math.atan2(s[3] - s[1], s[2] - s[0]) * 180) / Math.PI, f = ((((deg % 90) + 90) % 90)) / HIST_BIN, k = Math.floor(f), part = Math.round(w * (f - k));
     h[k % nb] += w - part;

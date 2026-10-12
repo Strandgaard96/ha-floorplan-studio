@@ -228,8 +228,8 @@ that missed `FAR_MARGIN`). When the answer is weak, an alt that is weak too is d
 
 1. Structure lines of both floors in stored frames (`structure`, unchanged), in a canonical order: each line from its
    smaller end (x, then y), the list sorted by its four numbers.
-2. Direction histograms: each line's direction modulo 90 degrees, weighted by its length in whole cm; lines shorter than
-   20 cm do not count. Bins of 0.25 degree; a line's weight is split between its two nearest bins, in integers, so the
+2. Direction histograms: each line's direction modulo 90 degrees, weighted by its length in whole cm; every line counts, however
+   short (a floor drawn with a click every 15 cm has no long line). Bins of 0.25 degree; a line's weight is split between its two nearest bins, in integers, so the
    sums do not depend on line order. Modulo 90 because a house's walls run in two directions at a right angle: one peak
    stands for both.
 3. Circular cross-correlation of the two histograms, smoothed by a triangle of plus or minus 1 degree; its local maxima

@@ -524,3 +524,23 @@ describe("Opus review: chooseAlign never throws", () => {
     expect(r).toMatchObject({ turn: 3, score: 70, alt: null });
   });
 });
+
+// ---- Opus review of Sprint 30: short lines, the alt of a weak answer, junk fits -----------------------------------------------
+
+describe("Opus review: short lines vote (HIST_MIN_LEN 0)", () => {
+  const L: Pt[] = [[0, 0], [900, 0], [900, 400], [500, 400], [500, 700], [0, 700]];
+  /** The outline cut into pieces of at most `step` cm: a drawing tool that clicks every 15 cm makes this. */
+  const cut = (c: Pt[], step: number): Pt[] => c.flatMap((a, i) => {
+    const b = c[(i + 1) % c.length], n = Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step);
+    return Array.from({ length: n }, (_, k) => [a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n] as Pt);
+  });
+  for (const step of [15, 19]) for (const deg of [7.3, 4]) for (const which of ["both", "lower only"]) {
+    it(`an L cut into ${step} cm pieces, turned ${deg}, ${which} cut: found within 0.2 degree and 2 cm`, () => {
+      const low = blank(cut(L, step)), up = turnedFloor(blank(which === "both" ? cut(L, step) : L), deg, ABOUT);
+      const r = alignFloor(up.floor, low)!;
+      expect(r, "an answer").not.toBeNull();
+      expect(gap(r.turn, up.truth.turn), `got ${r.turn}`).toBeLessThan(0.2);
+      expect(cornerError(ends(up.floor), asPlace(r), up.truth)).toBeLessThan(2);
+    });
+  }
+});
