@@ -9,6 +9,7 @@
 //   npm run shots -- --accept copy shots/current/ over shots/baseline/ (after you have looked)
 //   npm run shots -- --strict exit 1 when any image differs from the baseline
 //   npm run shots -- --polish render only the Sprint 28 set to shots/current/polish/ (4x, three themes, day and night)
+//   npm run shots -- --s29    render only the Sprint 29 set to shots/current/s29/ (pills, rings, cover art; 1100 and 375 px)
 //
 // The baseline is local and gitignored: PNGs differ between machines (fonts, antialiasing), so a committed
 // baseline would fail everywhere but where it was made. Only demo/ is ever drawn; no personal layout.
@@ -464,6 +465,33 @@ furnLayout.floors.ground.furniture.push(
   ].map(([symbol, x, y, rot]) => ({ id: `furn-${symbol}`, symbol, x, y, rot, w: FSZ[symbol][0], h: FSZ[symbol][1] })),
   { id: "furn-sofa-tall", symbol: "sofa", x: 650, y: 345, rot: 0, w: 200, h: 90, height: 120 },
 );
+// The plan to the screen at floor level, for a top-down or tilted plan: an affine map from three plan points (a room's first three
+// vertices) to where the drawn polygon puts them (its own CTM). Used by the --s29 crops.
+async function toScreenOf(page, plan) {
+  return page.evaluate((plan) => {
+    const sr = document.getElementById("c").shadowRoot,
+      poly = sr.querySelector('svg polygon[data-r="0"]'),
+      m = poly.getScreenCTM();
+    const drawn = poly
+      .getAttribute("points")
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    const scr = [0, 1, 2].map((i) => ({
+      x: m.a * drawn[2 * i] + m.c * drawn[2 * i + 1] + m.e,
+      y: m.b * drawn[2 * i] + m.d * drawn[2 * i + 1] + m.f,
+    }));
+    const [p0, p1, p2] = plan,
+      [s0, s1, s2] = scr;
+    const det = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p2[0] - p0[0]) * (p1[1] - p0[1]);
+    const row = (k) => {
+      const dx = ((s1[k] - s0[k]) * (p2[1] - p0[1]) - (s2[k] - s0[k]) * (p1[1] - p0[1])) / det;
+      const dy = ((s2[k] - s0[k]) * (p1[0] - p0[0]) - (s1[k] - s0[k]) * (p2[0] - p0[0])) / det;
+      return [dx, dy, s0[k] - dx * p0[0] - dy * p0[1]];
+    };
+    return [row("x"), row("y")];
+  }, plan);
+}
 // S28.1: `npm run shots -- --polish` renders only the Sprint 28 set to shots/current/polish/: the demo ground and first floor in
 // 2.5D (tilt .5) and 3D (default camera and one orbit), blueprint, light and ha-dark, day and night, at deviceScaleFactor 4,
 // plus 4x crops of a door, a window, a tree and a wall foot in both views. The demo has no tree, so two are added to the demo
@@ -662,6 +690,178 @@ if (args.has("--polish")) {
     else if (!sizeOk(p, min)) problems.push(`${name}: blank? ${readFileSync(p).length} bytes, under ${min}`);
   }
   console.log(`${files.length} polish images in ${POLISH}/`);
+  if (problems.length) {
+    console.error(`\n${problems.length} problem(s):\n${problems.join("\n")}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// S29.8: `npm run shots -- --s29` renders only the Sprint 29 set to shots/current/s29/: temperature pills (a cold, a mid, a
+// hot and a quarter room), a hot temp icon ring next to the cold room, and a playing speaker with cover art, in 2D and 3D,
+// blueprint, light and ha-dark, day and night, at 1100 x 800 (deviceScaleFactor 2) and phone width 375 x 720 (3), plus crops
+// of the Living readout, the Hall readout and the speaker. The cover is a fake image the route answers (fake token, A7).
+// Fails when a file is missing or blank, or a page logged an error.
+if (args.has("--s29")) {
+  const S29 = "shots/current/s29";
+  const s29Layout = structuredClone(layout);
+  const g = s29Layout.floors.ground;
+  Object.assign(g.rooms[0], { temps: ["sensor.s29_living"], humidity: ["sensor.s29_living_h"] });
+  Object.assign(g.rooms[1], { temps: ["sensor.s29_kitchen"] });
+  Object.assign(g.rooms[2], { temps: ["sensor.s29_hall"] });
+  Object.assign(g.rooms[4], { temps: ["sensor.s29_garden"] });
+  g.devices.push({
+    id: "s29-speaker",
+    type: "speaker",
+    entity: "media_player.s29_speaker",
+    name: "Speaker",
+    x: 700,
+    y: 300,
+  });
+  const ART = "/api/media_player_proxy/media_player.s29_speaker?token=FAKE&cache=s29";
+  const COVER =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><defs><linearGradient id="g" x2="1" y2="1"><stop offset="0" stop-color="#e94"/><stop offset="1" stop-color="#638"/></linearGradient></defs><rect width="64" height="64" fill="url(#g)"/><circle cx="32" cy="32" r="9" fill="#fff"/></svg>';
+  const extra = {
+    "sensor.s29_living": st("16", { unit_of_measurement: "°C" }),
+    "sensor.s29_living_h": st("48", { unit_of_measurement: "%" }),
+    "sensor.s29_kitchen": st("21", { unit_of_measurement: "°C" }),
+    "sensor.s29_hall": st("26", { unit_of_measurement: "°C" }),
+    "sensor.s29_garden": st("18.5", { unit_of_measurement: "°C" }),
+    "sensor.demo_living_temperature": st("26", { unit_of_measurement: "°C" }), // device 4: a hot ring next to the cold room
+    "media_player.s29_speaker": st("playing", { entity_picture_local: ART }),
+  };
+  const HA_DARK =
+    "--primary-text-color:#e1e1e1;--secondary-text-color:#9b9b9b;--card-background-color:#1c1c1c;--secondary-background-color:#282828";
+  const PT = [
+    { id: "blueprint", theme: "blueprint", dark: false, vars: "", page: "#0d1522" },
+    { id: "light", theme: "light", dark: false, vars: "", page: "#fff" },
+    { id: "ha-dark", theme: "ha", dark: true, vars: HA_DARK, page: "#111111" },
+  ];
+  const WIDTHS = [
+    { w: 1100, h: 800, dpr: 2 },
+    { w: 375, h: 720, dpr: 3 },
+  ];
+  const centre = (pts) => [
+    pts.reduce((a, p) => a + p[0], 0) / pts.length,
+    pts.reduce((a, p) => a + p[1], 0) / pts.length,
+  ];
+  const SPOTS = [
+    ["living", ...centre(g.rooms[0].pts), 0],
+    ["hall", ...centre(g.rooms[2].pts), 0],
+    ["speaker", 700, 300, 100],
+  ];
+  const files = [],
+    problems = [];
+  mkdirSync(S29, { recursive: true });
+  for (const f of readdirSync(S29)) rmSync(`${S29}/${f}`, { force: true });
+  const ORIGIN = "http://fp.test";
+  const browser = await chromium.launch();
+  try {
+    for (const t of PT)
+      for (const day of [true, false])
+        for (const view of ["2d", "3d"])
+          for (const W of WIDTHS) {
+            const base = `${view}-${W.w}-${t.id}-${day ? "day" : "night"}`;
+            const ctx = await browser.newContext({
+              viewport: { width: W.w, height: W.h },
+              colorScheme: "light",
+              reducedMotion: "reduce",
+              deviceScaleFactor: W.dpr,
+            });
+            const page = await ctx.newPage();
+            page.on("pageerror", (e) => problems.push(`${base}: ${e}`));
+            page.on("console", (m) => {
+              if (m.type() === "error") problems.push(`${base}: console.error ${m.text()}`);
+            });
+            // Both views load through the routed origin, so the relative cover URL resolves and the art draws in 2D too.
+            await page.route("**/*", (route) => {
+              const url = new URL(route.request().url());
+              if (url.origin !== ORIGIN) return route.abort();
+              if (url.pathname === "/")
+                return route.fulfill({
+                  contentType: "text/html",
+                  body: `<!doctype html><meta charset="utf-8"><script type="module" src="/floorplan_studio_static/floorplan-studio-card.js?v=s29"></script><body style="margin:0;padding:12px;background:${t.page};${t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`,
+                });
+              if (url.pathname.startsWith("/api/media_player_proxy/"))
+                return route.fulfill({ contentType: "image/svg+xml", body: COVER });
+              const m = /^\/floorplan_studio_static\/([\w.-]+)$/.exec(url.pathname);
+              if (!m || !existsSync(resolve(DIST, m[1]))) return route.fulfill({ status: 404, body: "not found" });
+              return route.fulfill({ contentType: "text/javascript", body: readFileSync(resolve(DIST, m[1])) });
+            });
+            await page.goto(`${ORIGIN}/`);
+            await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+            const hass = hassFor(day ? "on" : "night", t.dark);
+            Object.assign(hass.states, extra);
+            const config = {
+              layout: s29Layout,
+              floor: "ground",
+              theme: t.theme,
+              view,
+              active_list: false,
+              heat_min: 16,
+              heat_max: 26,
+              detail: "full",
+            };
+            await page.evaluate(
+              ([c, h]) => {
+                const el = document.getElementById("c");
+                el.setConfig(c);
+                el.hass = h;
+                return el.updateComplete;
+              },
+              [config, hass],
+            );
+            const card = page.locator("floorplan-studio-card");
+            if (view === "3d") {
+              try {
+                await page.waitForFunction(
+                  () => +(document.getElementById("c").shadowRoot.querySelector(".fp-3d")?.dataset.drawn ?? 0) >= 1,
+                  null,
+                  { timeout: 30000 },
+                );
+              } catch {
+                problems.push(`${base}: the 3D view never drew a frame`);
+                await ctx.close();
+                continue;
+              }
+            }
+            await page.waitForTimeout(900); // the cover image, and the 3D overlay's settle
+            await page.mouse.move(0, 0);
+            await card.screenshot({ path: `${S29}/${base}.png` });
+            files.push([`${base}.png`, 20000]);
+            const aff = view === "2d" ? await toScreenOf(page, s29Layout.floors.ground.rooms[0].pts.slice(0, 3)) : null;
+            for (const [kind, x, y, z] of SPOTS) {
+              const at =
+                view === "3d"
+                  ? await page.evaluate(([x, y, z]) => globalThis.__fp3d.project(x, y, z), [x, y, z])
+                  : { x: aff[0][0] * x + aff[0][1] * y + aff[0][2], y: aff[1][0] * x + aff[1][1] * y + aff[1][2] };
+              if (!at || !Number.isFinite(at.x) || !Number.isFinite(at.y)) {
+                problems.push(`${base}: no screen point for ${kind}`);
+                continue;
+              }
+              const docW = await page.evaluate(() => document.documentElement.scrollWidth),
+                docH = await page.evaluate(() => document.documentElement.scrollHeight);
+              const cl = {
+                x: Math.max(0, Math.min(Math.round(at.x - 80), docW - 160)),
+                y: Math.max(0, Math.min(Math.round(at.y - 80), docH - 160)),
+                width: 160,
+                height: 160,
+              };
+              await page.screenshot({ path: `${S29}/crop-${kind}-${base}.png`, clip: cl });
+              files.push([`crop-${kind}-${base}.png`, 2000]);
+            }
+            await ctx.close();
+          }
+  } finally {
+    await browser.close();
+  }
+  for (const [name, min] of files) {
+    const p = `${S29}/${name}`;
+    if (!existsSync(p)) problems.push(`${name}: missing`);
+    else if (readFileSync(p).length < min)
+      problems.push(`${name}: blank? ${readFileSync(p).length} bytes, under ${min}`);
+  }
+  console.log(`${files.length} s29 images in ${S29}/`);
   if (problems.length) {
     console.error(`\n${problems.length} problem(s):\n${problems.join("\n")}`);
     process.exit(1);
