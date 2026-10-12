@@ -1203,14 +1203,45 @@ export class FloorplanStudioCard extends LitElement {
     }
   }
 
+  /**
+   * Folds or opens one category. In the phone sheet (card narrower than `ACTIVE_FOLD_BELOW_PX`) the Room panel's groups are an
+   * accordion: opening one folds every other open group of that list, then scrolls the opened header to the top of the sheet's
+   * body, so what the finger opened is under the finger. Folding just folds. A room that shows several open groups from storage
+   * stays as stored; the accordion acts on the next opening. The wide card keeps independent folds.
+   */
   private _toggleCat(id: string): void {
-    if (!this._foldedCats.delete(id)) this._foldedCats.add(id);
+    const opening = this._foldedCats.delete(id);
+    if (!opening) this._foldedCats.add(id);
+    const accordion = opening && this._narrow && id.startsWith("r:");
+    const pad = this.shadowRoot?.querySelector<HTMLElement>(".fp-room-devices");
+    if (pad) pad.style.paddingBottom = "";
+    if (accordion)
+      for (const g of this.shadowRoot?.querySelectorAll<HTMLElement>(".fp-room-devices > .fp-active-group[data-cat]") ??
+        []) {
+        const other = `r:${g.dataset.cat}`;
+        if (other !== id) this._foldedCats.add(other);
+      }
     try {
       globalThis.localStorage?.setItem(this._catStorageKey(), JSON.stringify([...this._foldedCats]));
     } catch {
       /* storage blocked: the fold just does not persist */
     }
     this.requestUpdate();
+    if (accordion)
+      void this.updateComplete.then(() => {
+        const body = this.shadowRoot?.querySelector<HTMLElement>(".fp-active-body");
+        const head = this.shadowRoot?.querySelector<HTMLElement>(
+          `.fp-room-devices > .fp-active-group[data-cat="${id.slice(2)}"]`,
+        );
+        const list = head?.parentElement;
+        if (!body || !head || !list) return;
+        // The last group may be too short to reach the top of the window: pad under the list by what is missing.
+        list.style.paddingBottom = "";
+        const delta = head.getBoundingClientRect().top - body.getBoundingClientRect().top;
+        const missing = delta - (body.scrollHeight - body.clientHeight - body.scrollTop);
+        if (missing > 0) list.style.paddingBottom = `${Math.ceil(missing)}px`;
+        body.scrollTop += delta;
+      });
   }
 
   /** S14.6: one category of rows under a header button. `list` is `a` (Active) or `r` (Room); folded state is per list. */
@@ -3723,10 +3754,13 @@ export class FloorplanStudioCard extends LitElement {
               summary
                 ? this._roomSection(
                     summary,
-                    html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => {
-                      this._roomFilter = !this._roomFilter;
-                      this.requestUpdate();
-                    }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
+                    // On a phone the sheet is short and these devices are listed under Devices anyway: no second list there.
+                    this._narrow
+                      ? nothing
+                      : html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => {
+                          this._roomFilter = !this._roomFilter;
+                          this.requestUpdate();
+                        }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
                 <div class="fp-filtered">${list}</div>`,
                     scope,
                   )

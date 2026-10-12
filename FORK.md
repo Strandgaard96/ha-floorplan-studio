@@ -16,6 +16,11 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: Phone room sheet — accordion, no duplicate list (branch `task/sheet-fold`)
+
+- On a card narrower than 480 px the room panel's device groups are an accordion (opening one folds the others and scrolls it to
+  the top of the sheet) and the "Active here" list is not drawn there (its devices are under Devices). Wide cards unchanged.
+
 ## 2026-10-11: Card UI refactor — system (branch `task/ui-system`)
 
 - One type scale (12 / 14 / 16 px), spacing scale (`--fp-space-1..5`: 4 / 8 / 12 / 16 / 24 px), radii (`--fp-radius-control` 6 px,

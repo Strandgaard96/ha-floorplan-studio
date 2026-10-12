@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: the phone room sheet is an accordion and drops the "Active here" list
+
+Field report: in a room with the lights group open, the Security group could not be reached on a phone. Measured at 375 x 640
+with nine lights and a motion sensor: the sheet (45 % of the card) shows a 235 px body that holds 1140 px (head 24, facts 78,
+Lights off 32, scenes 28, filter bar 27, "Active here" list 214, Devices label 19, device groups 660). Security's header sat
+about 900 px down. Touch scrolling worked; there was just too much above and between. So, only while the room panel is a sheet
+(card narrower than `ACTIVE_FOLD_BELOW_PX`, 480 px):
+
+- The room's device groups are an accordion. Opening a folded group folds every other group of that list, so at most one is open;
+  folding a group just folds it. The opened header is scrolled to the top of the body (the list is padded underneath when the
+  last group is too short to reach the top). A room that opens with several groups unfolded from storage is left as stored; the
+  accordion acts on the next opening. The fold state is still the stored one, per card. Wide cards keep independent folds.
+- The "Active here" block (filter bar and list) is not rendered: every device in it is already listed under Devices. This holds
+  for the floor scope too. Wide cards still show it.
+
 ## 2026-10-11: a 3D room tap is committed after the double-tap window (UI refactor, integration and Opus review)
 
 With the Overview folded, a room tap's pick opens the room panel, which can open over the point tapped, so a double tap

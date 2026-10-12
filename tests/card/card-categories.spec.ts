@@ -199,7 +199,131 @@ test.describe("the Room panel is grouped too", () => {
       expect(await rowsIn(page, "lights", room)).toBe(0);
       expect(await expanded(page, "lights", room)).toBe("false");
       // the Active list below shows the same category, and it is still open: the two lists fold apart
-      expect(await expanded(page, "lights", ".fp-filtered .fp-ov-act > .fp-active-group")).toBe("true");
+      // (the phone sheet has no Active list: its devices are the Devices list, see "the room sheet on a phone" below)
+      if (width > 480)
+        expect(await expanded(page, "lights", ".fp-filtered .fp-ov-act > .fp-active-group")).toBe("true");
+    });
+  }
+});
+
+// Phone sheet fix (2026-10-12): below 480 px the room panel is a short sheet (45 % of the card). A room with nine lights and
+// a motion sensor held 1140 px in a 235 px window, with the Security header 900 px down, so with Lights open nobody could reach
+// the motion sensor. In the sheet the device groups are an accordion and the duplicate "Active here" list is not drawn.
+test.describe("the room sheet on a phone", () => {
+  test.use({ hasTouch: true });
+
+  /** The demo ground floor padded with eight lights and a motion sensor in room 0, the room opened, the card 640 px high. */
+  async function bootPadded(page: Page, width: number) {
+    const layout = structuredClone(demo);
+    const states: Record<string, unknown> = STATES();
+    for (let i = 0; i < 8; i++) {
+      layout.floors.ground.devices.push({
+        id: `l${i}`,
+        type: "light",
+        entity: `light.x${i}`,
+        name: `Lamp ${i}`,
+        x: 200 + i * 10,
+        y: 220,
+      });
+      states[`light.x${i}`] = st(i % 2 ? "on" : "off");
+    }
+    layout.floors.ground.devices.push({
+      id: "mot2",
+      type: "motion",
+      entity: "binary_sensor.m2",
+      name: "Living motion",
+      x: 260,
+      y: 230,
+    });
+    states["binary_sensor.m2"] = st("off");
+    await boot(page, width, { layout });
+    await page.evaluate(() => (document.getElementById("wrap")!.style.height = "640px"));
+    await card(page).evaluate((el: HTMLElement & { _pickRoom(i: number): void; updateComplete: Promise<unknown> }) => {
+      el._pickRoom(0);
+      return el.updateComplete;
+    });
+    await page.waitForFunction(() =>
+      document.querySelector("floorplan-studio-card")!.shadowRoot!.querySelector(".fp-active.fp-room-open"),
+    );
+  }
+  const room = ".fp-room-devices > .fp-active-group";
+  const catsOpen = (page: Page) =>
+    card(page).evaluate(
+      (el, sel) =>
+        [...el.shadowRoot!.querySelectorAll<HTMLElement>(`${sel} > button.fp-cat`)]
+          .filter((b) => b.getAttribute("aria-expanded") === "true")
+          .map((b) => b.parentElement!.getAttribute("data-cat")),
+      room,
+    );
+
+  /** A real touch at the header's centre, after scrolling it into the body and checking it is the top element. */
+  async function tapHead(page: Page, cat: string) {
+    const p = await card(page).evaluate((el, sel) => {
+      const b = el.shadowRoot!.querySelector<HTMLElement>(sel)!;
+      b.scrollIntoView({ block: "nearest" });
+      const r = b.getBoundingClientRect(),
+        x = r.x + r.width / 2,
+        y = r.y + r.height / 2;
+      return { x, y, hit: el.shadowRoot!.elementFromPoint(x, y)?.closest("button.fp-cat") === b };
+    }, `${room}[data-cat="${cat}"] > button.fp-cat`);
+    expect(p.hit, `the ${cat} header is the top element at its centre`).toBe(true);
+    await page.touchscreen.tap(p.x, p.y);
+  }
+
+  test("at 375 px opening Security folds Lights, scrolls Security to the top of the sheet and shows the motion row", async ({
+    page,
+  }) => {
+    await bootPadded(page, 375);
+    expect(await catsOpen(page)).toEqual(expect.arrayContaining(["lights", "security"]));
+    // the user's state: Lights open, Security folded
+    await tapHead(page, "security");
+    await tapHead(page, "lights");
+    await tapHead(page, "lights"); // Lights open again; accordion folds everything else
+    expect(await catsOpen(page)).toEqual(["lights"]);
+    await tapHead(page, "security");
+    expect(await catsOpen(page)).toEqual(["security"]);
+    await expect
+      .poll(() =>
+        card(page).evaluate((el, sel) => {
+          const b = el.shadowRoot!.querySelector<HTMLElement>(sel)!;
+          const body = el.shadowRoot!.querySelector<HTMLElement>(".fp-active-body")!;
+          return Math.abs(b.getBoundingClientRect().top - body.getBoundingClientRect().top);
+        }, `${room}[data-cat="security"] > button.fp-cat`),
+      )
+      .toBeLessThan(4);
+    const motion = await card(page).evaluate((el) => {
+      const row = [...el.shadowRoot!.querySelectorAll<HTMLElement>(".fp-room-devices .fp-active-row")].find((r) =>
+        r.textContent!.includes("Living motion"),
+      )!;
+      const r = row.getBoundingClientRect(),
+        body = el.shadowRoot!.querySelector<HTMLElement>(".fp-active-body")!.getBoundingClientRect(),
+        top = el.shadowRoot!.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return { inside: r.top >= body.top && r.bottom <= body.bottom, hit: !!top && row.contains(top) };
+    });
+    expect(motion).toEqual({ inside: true, hit: true });
+    // folding just folds
+    await tapHead(page, "security");
+    expect(await catsOpen(page)).toEqual([]);
+  });
+
+  test("at 1100 px the groups fold independently: opening Security leaves Lights open", async ({ page }) => {
+    await bootPadded(page, 1100);
+    await tapHead(page, "security");
+    expect(await catsOpen(page)).toEqual(expect.arrayContaining(["lights"]));
+    await tapHead(page, "security");
+    expect(await catsOpen(page)).toEqual(expect.arrayContaining(["lights", "security"]));
+  });
+
+  for (const [width, present] of [
+    [375, false],
+    [1100, true],
+  ] as const) {
+    test(`at ${width} px the room panel ${present ? "lists" : "does not list"} the Active here block`, async ({
+      page,
+    }) => {
+      await bootPadded(page, width);
+      expect(await card(page).locator("css=.fp-active-body .fp-filter").count()).toBe(present ? 1 : 0);
+      expect(await card(page).locator("css=.fp-active-body .fp-filtered").count()).toBe(present ? 1 : 0);
     });
   }
 });
