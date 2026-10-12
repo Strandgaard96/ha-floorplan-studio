@@ -45,5 +45,5 @@ export { buildSearchIndex, entryDetail, layoutEntries, normalize, searchIndex } 
 export type { SearchEntry, SearchIndex } from "./search";
 export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRows } from "./floor-off";
 export type { OffGroup, OffRow } from "./floor-off";
-export { NEAR, WEAK_BELOW, MAX_TURN_CANDIDATES, alignFloor, alignShift, alignKey, alignKeyOf, turnCandidates } from "./align";
-export type { AlignResult } from "./align";
+export { NEAR, WEAK_BELOW, MAX_TURN_CANDIDATES, alignFloor, alignShift, alignCandidates, chooseAlign, SAME_TURN, SMALL_TURN, FAR_MARGIN, ALT_WITHIN, alignKey, alignKeyOf, turnCandidates } from "./align";
+export type { AlignResult, AlignFit, AlignAnswer } from "./align";

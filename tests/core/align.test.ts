@@ -318,18 +318,26 @@ describe("alignShift: translation at a given turn (S29.7, 0.27.0's alignFloor)",
 // answer must be deep equal, bit for bit. (Written after the code, on purpose: it is the safety net for the index, not a test of a new feature.)
 import golden from "../fixtures/align-golden.json";
 import { shiftCases, placeCases } from "../fixtures/align-golden";
-import { refinePlace, sampleLines, structure } from "../../src/core/align";
+import { refinePlace, sampleLines, structure, alignFloor as alignFloorGolden } from "../../src/core/align";
 
 /** What JSON would keep: a -0 and a 0 are the same number to the file. */
 const viaJson = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 
 describe("golden answers recorded from the scan (S30.5)", () => {
-  const g = golden as unknown as { shift: Record<string, unknown>; place: Record<string, unknown> };
+  const g = golden as unknown as { shift: Record<string, unknown>; place: Record<string, unknown>; align: Record<string, unknown> };
   it("alignShift gives the recorded answer on every fixture pair and seeded case", () => {
     const cases = shiftCases();
     expect(cases.length).toBe(Object.keys(g.shift).length);
     const wrong: string[] = [];
     for (const c of cases) if (JSON.stringify(viaJson(alignShift(c.upper, c.lower, c.turn))) !== JSON.stringify(g.shift[c.name])) wrong.push(c.name);
+    expect(wrong).toEqual([]);
+  });
+
+  it("alignFloor (the search of the turn, S30.4) gives the answer recorded with the index switched off, on every pair, from the case's turn", () => {
+    const cases = shiftCases();
+    expect(cases.length).toBe(Object.keys(g.align).length);
+    const wrong: string[] = [];
+    for (const c of cases) if (JSON.stringify(viaJson(alignFloorGolden(c.upper, c.lower, c.turn))) !== JSON.stringify(g.align[c.name])) wrong.push(c.name);
     expect(wrong).toEqual([]);
   });
 

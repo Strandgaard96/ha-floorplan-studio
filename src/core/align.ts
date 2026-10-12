@@ -339,8 +339,6 @@ function shiftSearch(us: Seg[], low: Lower) {
   return { t, score: Math.round(pick.score * 10) / 10, rawScore: pick.score, res: pick.res, samples, fitSamples };
 }
 
-/** S30.2, until S30.4 gives `alignFloor` the search of the turn: the editor still calls it with a turn, and gets the translation search of 0.27.0. */
-export const alignFloor = alignShift;
 
 // ---- S30.2: candidate turns from direction histograms (constants and reasons: docs/DECISIONS.md, S30.1) ----------------------
 
@@ -473,7 +471,16 @@ export function refinePlace(samples: Sample[], lines: Seg[], place: Place, opts:
   try {
     const base = list(samples).filter((q): q is Sample => typeof q === "object" && q !== null && num(q.x) && num(q.y) && num(q.w) && q.w > 0);
     const segs = list(lines).filter((l): l is Seg => Array.isArray(l) && l.length === 4 && l.every(num));
-    const free = opts.turn !== false, L = buildLineIndex(segs);
+    return refineOn(base, buildLineIndex(segs), start, opts.turn !== false);
+  } catch {
+    return { place: start, score: 0, res: 0, rounds: 0 };
+  }
+}
+
+/** `refinePlace` on clean samples and an index the caller already built (the search builds the lower floor's once). */
+function refineOn(base: Sample[], L: Lines, start: Place, free: boolean): PlaceFit {
+  const segs = L.segs;
+  try {
     const measure = (cur: Sample[]) => ({ score: scoreAt(cur, L, 0, 0), res: residual(cur, L, 0, 0) });
     let p = start, cur = placed(base, p);
     let best = { place: p, ...measure(cur) }, rounds = 0;
@@ -532,4 +539,96 @@ export function refinePlace(samples: Sample[], lines: Seg[], place: Place, opts:
   } catch {
     return { place: start, score: 0, res: 0, rounds: 0 };
   }
+}
+
+// ---- S30.4: the search of the turn ---------------------------------------------------------------------------------------------
+
+const SAME_TURN = 2, SMALL_TURN = 10, FAR_MARGIN = 25, ALT_WITHIN = 5;
+export { SAME_TURN, SMALL_TURN, FAR_MARGIN, ALT_WITHIN };
+
+/** One answer of the search: the place `{ turn, shift: t }`, laid on the lower floor, and how well it fits. `score` is to 0.1, `res` the mean residual in cm. */
+export interface AlignFit { turn: number; t: Pt; score: number; res: number }
+
+/** What `alignFloor` returns: the chosen place, `weak` under `WEAK_BELOW`, and `alt`, the best other turn that fits nearly as well (or null). */
+export interface AlignAnswer { turn: number; t: Pt; score: number; weak: boolean; alt: { turn: number; score: number } | null }
+
+const gapOf = (a: number, b: number) => Math.abs(wrap180(a - b));
+/** A turn to start from: a finite number of sane size; anything else reads as 0. */
+const fromOf = (f: unknown): number => (num(f) && Math.abs(f) <= 1e6 ? wrap180(f) : 0);
+
+/**
+ * S30.4: every candidate turn of `turnCandidates`, each searched with `shiftSearch`, refined together with the turn by `refinePlace`,
+ * rounded (turn to 0.01 degree, then the shift refit at that turn with the turn held, from a start that keeps the floor's centre where the
+ * refined place put it: a floor 1e7 cm from its origin moves 870 cm for 0.005 degree), scored on all samples, and fits within `SAME_TURN`
+ * merged into one (the best score, among the scores within `TIE` of it the smallest residual). Sorted by turn. Independent of any current
+ * turn; the lines are put in canonical order so the same floors give the same list. Null when either floor has no line. Never throws.
+ */
+export function alignCandidates(upper: unknown, lower: unknown): AlignFit[] | null {
+  try {
+    const us = canonical(structure(upper)), ls = canonical(structure(lower));
+    if (!us.length || !ls.length) return null;
+    const low = lowerOf(ls);
+    const total = us.reduce((a, s) => a + len(s), 0);
+    const all = sampleLines(us, Math.max(STEP, total / MAX_SAMPLES));
+    const fitBase = all.length > 1000 ? all.filter((_, i) => i % Math.ceil(all.length / 1000) === 0) : all;
+    let cw = 0, cx = 0, cy = 0;
+    for (const q of fitBase) { cw += q.w; cx += q.w * q.x; cy += q.w * q.y; }
+    const centre: Sample = { x: cw > 0 ? cx / cw : 0, y: cw > 0 ? cy / cw : 0, w: 1 };
+    const fits: AlignFit[] = [];
+    for (const c of turnCandidates(upper, lower)) {
+      const r = shiftSearch(us.map((s) => turnSeg(s, c)), low);
+      const rp = refineOn(fitBase, low.fit, { turn: c, shift: r.t }, true).place;
+      let turn = round2(wrap180(rp.turn)), t = rp.shift;
+      if (turn === -180) turn = 180;
+      if (turn !== rp.turn) {
+        const was = placed([centre], rp)[0], now = placed([centre], { turn, shift: [0, 0] })[0];
+        t = refineOn(fitBase, low.fit, { turn, shift: [was.x - now.x, was.y - now.y] }, false).place.shift;
+      }
+      t = [round1(t[0]) + 0, round1(t[1]) + 0];
+      const on = placed(all, { turn, shift: t });
+      fits.push({ turn, t, score: Math.round(scoreAt(on, low.lines, 0, 0) * 10) / 10, res: residual(placed(fitBase, { turn, shift: t }), low.fit, 0, 0) });
+    }
+    const left = fits.filter((f) => Number.isFinite(f.turn) && Number.isFinite(f.score) && Number.isFinite(f.res) && pt(f.t));
+    left.sort((a, b) => b.score - a.score || a.res - b.res || a.turn - b.turn);
+    const out: AlignFit[] = [];
+    while (left.length) {
+      const group = left.filter((f) => gapOf(f.turn, left[0].turn) <= SAME_TURN), top = left[0].score;
+      out.push(group.filter((f) => f.score >= top - TIE).sort((a, b) => a.res - b.res || a.turn - b.turn)[0]);
+      for (const g of group) left.splice(left.indexOf(g), 1);
+    }
+    return out.length ? out.sort((a, b) => a.turn - b.turn) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * S30.4: the choice among `fits`, given the turn the floor has now (`from`, degrees; junk reads as 0). The small tier is the fits within
+ * `SMALL_TURN` of `from` (the circle wrapped), the far tier the rest. A far fit wins only if it scores at least `FAR_MARGIN` above the best
+ * small one and is not weak. In a tier, scores within `TIE` of the best tie: the turn nearer `from` wins, then the smaller move, the smaller
+ * residual, the smaller turn. `alt` is the best fit more than `SAME_TURN` from the answer scoring at least the answer minus `ALT_WITHIN`.
+ * The turn is in (-180, 180]. Does not change `fits`. Null for no fits.
+ */
+export function chooseAlign(fits: AlignFit[] | null, from: unknown = 0): AlignAnswer | null {
+  if (!Array.isArray(fits) || !fits.length) return null;
+  const f0 = fromOf(from), move = (t: Pt) => Math.hypot(t[0], t[1]);
+  const pickIn = (xs: AlignFit[]): AlignFit | null => {
+    if (!xs.length) return null;
+    const top = Math.max(...xs.map((x) => x.score));
+    return xs.filter((x) => x.score >= top - TIE)
+      .sort((a, b) => gapOf(a.turn, f0) - gapOf(b.turn, f0) || move(a.t) - move(b.t) || a.res - b.res || a.turn - b.turn)[0];
+  };
+  const bs = pickIn(fits.filter((x) => gapOf(x.turn, f0) <= SMALL_TURN)), bf = pickIn(fits.filter((x) => gapOf(x.turn, f0) > SMALL_TURN));
+  const ans = bs && bf ? (bf.score >= bs.score + FAR_MARGIN && bf.score >= WEAK_BELOW ? bf : bs) : (bs ?? bf)!;
+  const alt = pickIn(fits.filter((x) => gapOf(x.turn, ans.turn) > SAME_TURN && x.score >= ans.score - ALT_WITHIN));
+  return { turn: ans.turn, t: ans.t, score: ans.score, weak: ans.score < WEAK_BELOW, alt: alt ? { turn: alt.turn, score: alt.score } : null };
+}
+
+/**
+ * S30.4: where to lay `upper` on `lower`, turn and shift: `{ turn, shift: t }` is the new `Place`. `from` is the turn the floor has now
+ * (default 0); it only breaks ties and decides which answers count as small. See `alignCandidates` and `chooseAlign`. Null when either floor
+ * has nothing to match. Never throws.
+ */
+export function alignFloor(upper: unknown, lower: unknown, from: unknown = 0): AlignAnswer | null {
+  return chooseAlign(alignCandidates(upper, lower), from);
 }

@@ -2,8 +2,12 @@
 import { describe, it, expect } from "vitest";
 import hand from "../fixtures/hand-align-house.json";
 import house from "../fixtures/align-house.json";
-import { turnCandidates, refinePlace, sampleLines, structure, MAX_TURN_CANDIDATES } from "../../src/core/align";
-import { blank, rect, turnedFloor, nearestTurn, squareHouse, plusHouse, noLines, seeded, composePlace, placeAbout, invertPlace, placePt, type TestPlace } from "../fixtures/align-turn";
+import { turnCandidates, refinePlace, sampleLines, structure, MAX_TURN_CANDIDATES, buildLineIndex, linesNear, REFINE_REACH, alignFloor, alignShift, alignCandidates, chooseAlign, type AlignFit } from "../../src/core/align";
+import { blank, rect, turnedFloor, nearestTurn, squareHouse, plusHouse, noLines, seeded, starFloor, cornerError, composePlace, placeAbout, invertPlace, placePt, type TestPlace } from "../fixtures/align-turn";
+import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
+import { circle, heavyStress } from "../fixtures/align-golden";
+import stress from "../fixtures/stress-layout.json";
+import demo from "../../demo/layout.json";
 import type { Floor, Layout, Pt } from "../../src/core/schema";
 
 const h = hand as unknown as Layout, a = house as unknown as Layout;
@@ -197,7 +201,6 @@ describe("refinePlace (S30.3)", () => {
 });
 
 // ---- S30.5: the exact line index -------------------------------------------------------------------------------------
-import { buildLineIndex, linesNear, REFINE_REACH } from "../../src/core/align";
 
 describe("line index (S30.5)", () => {
   const dist = (x: number, y: number, s: number[]) => {
@@ -244,5 +247,260 @@ describe("line index (S30.5)", () => {
       const got = linesNear(h, 3, 3);
       expect(got === null || Array.isArray(got)).toBe(true);
     }
+  });
+});
+
+// ---- S30.4: alignFloor searches the turn ------------------------------------------------------------------------------------
+
+const ends = (f: Floor): Pt[] => structure(f).flatMap((s) => [[s[0], s[1]], [s[2], s[3]]] as Pt[]);
+/** The angle between two turns, 0 to 180. */
+const gap = (a: number, b: number) => Math.abs((((a - b) % 360) + 540) % 360 - 180);
+const asPlace = (r: { turn: number; t: Pt }): TestPlace => ({ turn: r.turn, shift: r.t });
+
+describe("alignFloor searches the turn (S30.4)", () => {
+  /** A turned copy of `f` laid on `f`: the truth is the inverse of how it was turned. */
+  const onItself = (f: Floor, deg: number) => { const { floor: up, truth } = turnedFloor(f, deg, ABOUT, [41, -17]); return { up, truth, r: alignFloor(up, f) }; };
+
+  it("the hand-align first floor from the identity: the truth within 0.2 degree and 2 cm, not weak, alt names the half turn", () => {
+    for (const [name, up, low, truth] of [["first", h.floors.first, h.floors.ground, FIRST_TO_GROUND], ["ground", h.floors.ground, h.floors.basement, GROUND_TO_BASEMENT]] as const) {
+      const r = alignFloor(up, low)!;
+      expect(r, name).not.toBeNull();
+      expect(gap(r.turn, truth.turn), name).toBeLessThan(0.2);
+      expect(cornerError(ends(up), asPlace(r), truth), name).toBeLessThan(2);
+      expect(r.weak, name).toBe(false);
+      expect(r.alt, name).not.toBeNull();
+      expect(gap(r.alt!.turn, truth.turn + 180), `${name}: alt ${r.alt!.turn}`).toBeLessThan(1);
+    }
+  });
+
+  for (const [name, f] of [["align-house first (the rectangle)", a.floors.first], ["hand first", h.floors.first], ["hand ground", h.floors.ground], ["align-house ground (the L)", a.floors.ground]] as [string, Floor][]) {
+    it(`${name}: turned either way by each small test angle, from 0: within 0.2 degree and 2 cm at every corner`, () => {
+      for (const deg of TURNS.filter((t) => Math.abs(t) < 20)) for (const sign of [1, -1]) {
+        const { up, truth, r } = onItself(f, deg * sign);
+        expect(r, `${deg * sign}`).not.toBeNull();
+        expect(gap(r!.turn, truth.turn), `${name} turned ${deg * sign}: got ${r!.turn}`).toBeLessThan(0.2);
+        expect(cornerError(ends(up), asPlace(r!), truth), `${name} turned ${deg * sign}`).toBeLessThan(2);
+      }
+    });
+  }
+
+  it("the align-house L over a copy of itself is found at 23, -31 and 93 degrees, either way (the far tier wins by its margin)", () => {
+    for (const deg of [23, -31, 93, -23, 31, -93]) {
+      const { up, truth, r } = onItself(a.floors.ground, deg);
+      expect(gap(r!.turn, truth.turn), `turned ${deg}: got ${r!.turn}`).toBeLessThan(0.2);
+      expect(cornerError(ends(up), asPlace(r!), truth), `turned ${deg}`).toBeLessThan(2);
+    }
+  });
+
+  it("the align-house rectangle at plus or minus 93 gives the truth or its half-turn twin, and alt names the other", () => {
+    for (const deg of [93, -93]) {
+      const { truth, r } = onItself(a.floors.first, deg);
+      const toTruth = gap(r!.turn, truth.turn), toTwin = gap(r!.turn, truth.turn + 180);
+      expect(Math.min(toTruth, toTwin), `turned ${deg}: got ${r!.turn}`).toBeLessThan(0.2);
+      expect(r!.alt, `turned ${deg}`).not.toBeNull();
+      expect(gap(r!.alt!.turn, toTruth < toTwin ? truth.turn + 180 : truth.turn), `turned ${deg}: alt ${r!.alt!.turn}`).toBeLessThan(1);
+    }
+  });
+
+  it("the hand-align floors at 23 and -31 are found; at plus or minus 93 found, or the twin or near 0 with alt naming the truth (never confident and wrong)", () => {
+    for (const f of [h.floors.first, h.floors.ground]) for (const deg of [23, -23, -31, 31]) {
+      const { up, truth, r } = onItself(f, deg);
+      expect(gap(r!.turn, truth.turn), `turned ${deg}: got ${r!.turn}`).toBeLessThan(0.2);
+      expect(cornerError(ends(up), asPlace(r!), truth)).toBeLessThan(2);
+    }
+    for (const f of [h.floors.first, h.floors.ground]) for (const deg of [93, -93]) {
+      const { up, truth, r } = onItself(f, deg);
+      const found = gap(r!.turn, truth.turn) < 0.2 && cornerError(ends(up), asPlace(r!), truth) < 2;
+      if (found) continue;
+      // The hand first floor is a rectangle: its half turn scores 100 as well, so the twin may answer. Then alt must name the truth.
+      const twin = gap(r!.turn, truth.turn + 180) < 0.2;
+      if (!twin) expect(Math.abs(r!.turn), `turned ${deg}: got ${r!.turn}`).toBeLessThanOrEqual(10);
+      expect(r!.alt, `turned ${deg}: a confident wrong answer`).not.toBeNull();
+      expect(Math.min(gap(r!.alt!.turn, truth.turn), gap(r!.alt!.turn, truth.turn + 180)), `turned ${deg}: alt ${r!.alt!.turn}`).toBeLessThan(1);
+    }
+  });
+
+  it("from is honoured: the first floor with from 184 gives -176 (within 0.2), with 0 gives 4", () => {
+    const at184 = alignFloor(h.floors.first, h.floors.ground, 184)!, at0 = alignFloor(h.floors.first, h.floors.ground, 0)!;
+    expect(gap(at184.turn, -176)).toBeLessThan(0.2);
+    expect(at184.turn).toBeGreaterThan(-180);
+    expect(at184.turn).toBeLessThanOrEqual(180);
+    expect(gap(at0.turn, 4)).toBeLessThan(0.2);
+    expect(at184.alt && gap(at184.alt.turn, 4) < 1).toBe(true);
+  });
+
+  it("a symmetric square house turned 2 degrees: found within 0.2, and never a confident answer", () => {
+    for (const make of [squareHouse, plusHouse]) for (const deg of [2, -2, 3.4]) {
+      const { floor: up, truth } = turnedFloor(make(), deg, [400, 400], [10, 5]);
+      const r = alignFloor(up, make())!;
+      expect(gap(r.turn, truth.turn), `turned ${deg}`).toBeLessThan(0.2);
+      expect(r.alt, `turned ${deg}`).not.toBeNull();
+      expect(r.weak && r.alt === null, "never weak=false with alt=null on a symmetric floor").toBe(false);
+      expect(!r.weak && r.alt === null).toBe(false);
+    }
+  });
+
+  it("noisy but answerable: 3.40 degrees, every point jittered up to 4 cm and 15 stray lines (seeded): within 0.5 degree and 5 cm, scored below the clean one", () => {
+    const clean = onItself(a.floors.first, 3.4);
+    for (let seed = 1; seed <= 5; seed++) {
+      const rnd = seeded(seed), j = () => (rnd() - 0.5) * 8, { floor: up, truth } = turnedFloor(a.floors.first, 3.4, ABOUT, [41, -17]);
+      const noisy = clone(up);
+      noisy.outline = noisy.outline.map(([x, y]) => [x + j(), y + j()] as Pt);
+      noisy.walls = noisy.walls.map((w) => ({ ...w, a: [w.a[0] + j(), w.a[1] + j()] as Pt, b: [w.b[0] + j(), w.b[1] + j()] as Pt }));
+      for (let i = 0; i < 15; i++) { const x = rnd() * 1000, y = rnd() * 800; noisy.walls.push({ id: `n${i}`, a: [x, y], b: [x + (rnd() - 0.5) * 400, y + (rnd() - 0.5) * 400], kind: "external" } as never); }
+      const r = alignFloor(noisy, a.floors.first)!;
+      expect(gap(r.turn, truth.turn), `seed ${seed}: got ${r.turn}`).toBeLessThan(0.5);
+      expect(cornerError(ends(up), asPlace(r), truth), `seed ${seed}`).toBeLessThan(5);
+      expect(r.score, `seed ${seed}`).toBeLessThan(clean.r!.score);
+    }
+  });
+
+  it("no answer: two unrelated random star polygons are weak or carry alt, for each of 20 seeds", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const g = seeded(seed * 7919), r = alignFloor(starFloor(g), starFloor(g))!;
+      expect(r, `seed ${seed}`).not.toBeNull();
+      expect(r.weak || r.alt !== null, `seed ${seed}: ${JSON.stringify(r)}`).toBe(true);
+    }
+  });
+
+  it("the far margin: the 0.27.0 corner rectangles, 2000 seeds, never land turned", () => {
+    const rnd = seeded(12345);
+    let turned = 0;
+    for (let n = 0; n < 2000; n++) {
+      const W = 600 + rnd() * 1000, H = 300 + rnd() * 500, w = W * (0.3 + rnd() * 0.5), hh = H * (0.3 + rnd() * 0.5), ox = rnd() * 40, oy = rnd() * 40;
+      const corner = n % 4, left = corner % 2 === 0, top = corner < 2, x0 = left ? ox : W - ox - w, y0 = top ? oy : H - oy - hh;
+      const r = alignFloor(blank(rect(x0, y0, x0 + w, y0 + hh)), blank(rect(0, 0, W, H)))!;
+      if (Math.abs(r.turn) > 0.05) turned++;
+    }
+    expect(turned).toBe(0);
+  });
+
+  it("far from the origin: an L at [1e7 - 900, 1e7 - 700] turned 3.374 about its centre (a turn that rounds to 3.37, moving the origin 700 cm) is found within 0.2 degree and 2 cm", () => {
+    const L = blank([[1e7 - 900, 1e7 - 700], [1e7 - 100, 1e7 - 700], [1e7 - 100, 1e7 - 300], [1e7 - 500, 1e7 - 300], [1e7 - 500, 1e7 + 100], [1e7 - 900, 1e7 + 100]]);
+    const { floor: up, truth } = turnedFloor(L, 3.374, [1e7 - 500, 1e7 - 300]);
+    const r = alignFloor(up, L)!;
+    expect(gap(r.turn, truth.turn), `got ${r.turn}`).toBeLessThan(0.2);
+    expect(cornerError(ends(up), asPlace(r), truth)).toBeLessThan(2);
+  });
+
+  it("a floor with no lines, or a lower floor with none, gives null; junk floors and junk from never throw", () => {
+    expect(alignFloor(noLines(), h.floors.first)).toBeNull();
+    expect(alignFloor(h.floors.first, noLines())).toBeNull();
+    const junk = [null, undefined, 5, "x", [], {}, { outline: 5, rooms: 5, walls: "x" }, { outline: [[NaN, 0], [0, NaN], [Infinity, 1]], rooms: [null, 5], walls: [null, { a: 1, b: 2 }] }];
+    for (const j of junk) for (const k of [...junk, h.floors.first]) expect(() => alignFloor(j as never, k as never)).not.toThrow();
+    const zero = alignFloor(h.floors.first, h.floors.ground, 0);
+    for (const from of [NaN, "4", null, [4], 1e308, Infinity, undefined, {}]) {
+      expect(() => alignFloor(h.floors.first, h.floors.ground, from as never), String(from)).not.toThrow();
+      expect(alignFloor(h.floors.first, h.floors.ground, from as never), `junk from ${String(from)} reads as 0`).toEqual(zero);
+    }
+  });
+
+  it("deterministic: twice deep equal; another start vertex, reversed walls and shuffled rooms within 0.01 degree and 0.1 cm; alignCandidates equal whatever from the caller passes later", () => {
+    const { floor: up } = turnedFloor(h.floors.ground, -4.6, ABOUT, [12, 30]);
+    const first = alignFloor(up, h.floors.basement)!;
+    expect(alignFloor(up, h.floors.basement)).toEqual(first);
+    const other = clone(up), n = other.outline.length;
+    other.outline = [...other.outline.slice(2 % n), ...other.outline.slice(0, 2 % n)].reverse();
+    other.rooms = [...other.rooms].reverse();
+    other.walls = [...other.walls].reverse().map((w) => ({ ...w, a: w.b, b: w.a }));
+    const r = alignFloor(other, h.floors.basement)!;
+    expect(Math.abs(r.turn - first.turn)).toBeLessThan(0.01);
+    expect(Math.hypot(r.t[0] - first.t[0], r.t[1] - first.t[1])).toBeLessThan(0.1);
+    const fits = alignCandidates(up, h.floors.basement), copy = clone(fits);
+    for (const from of [0, 184, -30, 77]) { chooseAlign(fits, from); expect(fits).toEqual(copy); }
+    expect(alignCandidates(up, h.floors.basement)).toEqual(fits);
+  });
+
+  it("the 0.27.0 cases still hold with turn 0: the demo's identical floors give turn 0, [0, 0], 100", () => {
+    const l = demo as unknown as Layout, r = alignFloor(l.floors.first, l.floors.ground)!;
+    expect(r.turn).toBe(0);
+    expect(r.t).toEqual([0, 0]);
+    expect(r.score).toBe(100);
+    expect(r.weak).toBe(false);
+  });
+});
+
+describe("alignCandidates (S30.4)", () => {
+  it("lists a fit for each searched turn, sorted by turn, merged within 2 degrees, each with a finite turn, t, score and residual", () => {
+    const fits = alignCandidates(h.floors.first, h.floors.ground)!;
+    expect(fits.length).toBeGreaterThanOrEqual(2);
+    expect([...fits].sort((p, q) => p.turn - q.turn)).toEqual(fits);
+    for (let i = 1; i < fits.length; i++) expect(gap(fits[i].turn, fits[i - 1].turn)).toBeGreaterThan(2);
+    for (const f of fits) { expect([f.turn, f.t[0], f.t[1], f.score, f.res].every(Number.isFinite)).toBe(true); expect(f.turn).toBeGreaterThan(-180); expect(f.turn).toBeLessThanOrEqual(180); }
+    expect(fits.some((f) => gap(f.turn, 4) < 0.2)).toBe(true);
+    expect(fits.some((f) => gap(f.turn, -176) < 0.2)).toBe(true);
+  });
+  it("null when either floor has no line, and never throws on junk", () => {
+    expect(alignCandidates(noLines(), h.floors.first)).toBeNull();
+    expect(alignCandidates(h.floors.first, noLines())).toBeNull();
+    for (const j of [null, 5, "x", {}, { outline: [[NaN, 0]] }]) expect(() => alignCandidates(j as never, h.floors.first)).not.toThrow();
+  });
+});
+
+describe("chooseAlign (S30.4): the small tier, the far tier, ties and alt", () => {
+  const fit = (turn: number, score: number, t: Pt = [0, 0], res = 5): AlignFit => ({ turn, t, score, res });
+  it("a far fit wins only by 25 points and not weak; below that the small tier answers and alt names the far fit", () => {
+    expect(chooseAlign([fit(4, 60), fit(-176, 84.9)], 0)).toMatchObject({ turn: 4, score: 60, weak: false, alt: { turn: -176, score: 84.9 } });
+    expect(chooseAlign([fit(4, 60), fit(-176, 85)], 0)).toMatchObject({ turn: -176, score: 85, alt: null });
+    expect(chooseAlign([fit(4, 60), fit(-176, 85)], 180)).toMatchObject({ turn: -176 });
+  });
+  it("a weak far fit never wins by margin, and a small answer that is weak says so", () => {
+    const r = chooseAlign([fit(4, 10), fit(120, 45)], 0)!;
+    expect(r).toMatchObject({ turn: 4, score: 10, weak: true, alt: { turn: 120, score: 45 } });
+  });
+  it("small tier is within 10 degrees of from, the circle wrapped: from 184 reads -176 as near", () => {
+    expect(chooseAlign([fit(-176, 70), fit(4, 90)], 184)).toMatchObject({ turn: -176, alt: { turn: 4, score: 90 } });
+    expect(chooseAlign([fit(179, 70), fit(-175, 72)], 0)).not.toBeNull();
+  });
+  it("a tie within 1 point goes to the turn nearer from, then the smaller move, then the smaller residual, then the smaller turn", () => {
+    expect(chooseAlign([fit(8, 80.5), fit(1, 80)], 0)).toMatchObject({ turn: 1 });
+    expect(chooseAlign([fit(5, 80, [30, 40]), fit(-5, 80, [3, 4])], 0)).toMatchObject({ turn: -5 });
+    expect(chooseAlign([fit(5, 80, [3, 4], 6), fit(-5, 80, [3, 4], 2)], 0)).toMatchObject({ turn: -5 });
+    expect(chooseAlign([fit(5, 80, [3, 4], 2), fit(-5, 80, [3, 4], 2)], 0)).toMatchObject({ turn: -5 });
+    expect(chooseAlign([fit(5, 80, [3, 4], 2), fit(-5, 80, [3, 4], 2)].reverse(), 0)).toMatchObject({ turn: -5 });
+    expect(chooseAlign([fit(1, 70), fit(2.5, 90)], 0)).toMatchObject({ turn: 2.5 });
+  });
+  it("alt is the best other fit more than 2 degrees away within 5 points, even when it scores higher; none when nothing is near", () => {
+    expect(chooseAlign([fit(1, 70), fit(5, 74), fit(-176, 30)], 0)).toMatchObject({ turn: 5, alt: null }.turn === 5 ? { alt: { turn: 1, score: 70 } } : {});
+    expect(chooseAlign([fit(1, 70), fit(-176, 30)], 0)!.alt).toBeNull();
+    expect(chooseAlign([fit(4, 60), fit(-176, 84)], 0)!.alt).toEqual({ turn: -176, score: 84 });
+  });
+  it("the result: turn in (-180, 180], weak under 50, null for no fits, junk from reads as 0", () => {
+    expect(chooseAlign([], 0)).toBeNull();
+    expect(chooseAlign(null as never, 0)).toBeNull();
+    expect(chooseAlign([fit(49, 49.9)], 40)).toMatchObject({ weak: true });
+    expect(chooseAlign([fit(180, 60)], "x" as never)!.turn).toBe(180);
+    expect(chooseAlign([fit(3, 60), fit(180, 60)], NaN as never)).toEqual(chooseAlign([fit(3, 60), fit(180, 60)], 0));
+  });
+});
+
+// ---- S30.5: the time budget (the slower of two runs counts) --------------------------------------------------------------------
+
+describe("time budget (S30.5)", () => {
+  const slower = (f: () => unknown) => { let worst = 0; for (let i = 0; i < 2; i++) { const t0 = performance.now(); f(); worst = Math.max(worst, performance.now() - t0); } return worst; };
+  const S = stress as unknown as Layout, keys = Object.keys(S.floors);
+  const centre = (f: Floor): Pt => { const p = ends(f), xs = p.map((q) => q[0]), ys = p.map((q) => q[1]); return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2]; };
+
+  it("each consecutive floor pair of the stress layout, as stored and with the upper floor turned 7.30 degrees about its centre: under 600 ms", () => {
+    for (let i = 1; i < keys.length; i++) {
+      const up = S.floors[keys[i]], low = S.floors[keys[i - 1]];
+      expect(slower(() => alignFloor(up, low)), `${keys[i]} as stored`).toBeLessThan(600);
+      const turned = turnedFloor(up, 7.3, centre(up)).floor;
+      expect(slower(() => alignFloor(turned, low)), `${keys[i]} turned`).toBeLessThan(600);
+    }
+  });
+
+  it("the stress first floor with 300 short external walls on it and on the ground: under 600 ms", () => {
+    const hv = heavyStress();
+    expect(slower(() => alignFloor(hv.floors.first, hv.floors.ground))).toBeLessThan(600);
+  });
+
+  it("a 10 000-point circle, in 8000 ms", () => {
+    const up = blank(circle()), low = blank(circle(10000, 40, -25));
+    expect(slower(() => alignFloor(up, low))).toBeLessThan(8000);
+  });
+
+  it("alignShift on the stress pair stays under 200 ms", () => {
+    expect(slower(() => alignShift(S.floors[keys[1]], S.floors[keys[0]]))).toBeLessThan(200);
   });
 });

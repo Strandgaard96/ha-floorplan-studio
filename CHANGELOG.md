@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Core: `alignFloor(upper, lower, from = 0)` now searches the turn too. It tries every candidate turn, refines turn and shift together, and returns `{ turn, t, score, weak, alt }`: a far turn (more than 10 degrees from `from`) wins only by 25 points and not weak, ties go to the turn nearer `from`, and `alt` names the best other turn that fits nearly as well. `alignCandidates` and `chooseAlign` are exported. Callers that passed a turn now pass it as `from`.
 - Core: Align reads the lower floor through an exact line index (a bucket grid), so a distance query looks at a few lines instead of all of them. Every answer is bit for bit what the scan gave (a recorded set of answers checks it); on the heavy stress floor the translation search takes about a tenth of the time.
 - Core: `refinePlace` refines the turn and the shift together (robust weighted least squares, linearised about the placed lines' centre, the turn moving at most 2 degrees), so a candidate turn a fraction of a degree off ends within 0.05 degree and 0.5 cm.
 - Core: `turnCandidates(upper, lower)` lists the turns worth searching, from the two floors' wall directions (modulo 90 degrees, 0.25 degree bins, at most 13 candidates); `alignShift` is 0.27.0's translation search under its new name. Test helper `tests/fixtures/align-turn.ts`.

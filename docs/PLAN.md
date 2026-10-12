@@ -3676,7 +3676,7 @@ a new `tests/fixtures/align-turn.ts`):
       (no lever) leaves the turn alone; one wall on one wall turned 0.6 degree is found; junk never throws. With the turn
       unknown removed (shift only), the first case fails.
       Files: `src/core/align.ts`, `tests/core/align-turn.test.ts`.
-- [ ] S30.4 `alignFloor` searches the turn (Sonnet, **judgement**: the choice rule and the tie order).
+- [x] S30.4 `alignFloor` searches the turn (Sonnet, **judgement**: the choice rule and the tie order).
       `alignCandidates(upper, lower)` (every candidate turn searched with `alignShift`'s translation search, every fit
       refined by `refinePlace`, rounded as the spec says, scored on all samples, merged within `SAME_TURN`; independent
       of any current turn);
@@ -3711,7 +3711,7 @@ a new `tests/fixtures/align-turn.ts`):
         exactly, `t` `[0, 0]`, score 100; the 200 seeded corner rectangles never land in another corner or at 90
         degrees).
       Files: `src/core/align.ts`, `src/core/index.ts`, `tests/core/align.test.ts`, `tests/core/align-turn.test.ts`.
-- [ ] S30.5 Time budget (Sonnet). Make the search fit the budget without changing an answer: every S30.4 test still
+- [x] S30.5 Time budget (Sonnet). Make the search fit the budget without changing an answer: every S30.4 test still
       passes. How (S30.1): the exact line index of the spec's time budget, used by every score, nearest and residual
       query. First record golden answers from the scan (`alignShift` and `alignFloor` on every fixture pair and the
       seeded cases), then add the index and check deep equality on all of them. No triage. Test (vitest, the slower of two runs counts): each consecutive floor pair of `stress-layout.json`, as stored
