@@ -3746,7 +3746,7 @@ Lane state (`src/editor/state.ts`):
       Files: `src/editor/state.ts`, `tests/editor/floor-offset-state.test.ts`, `tests/editor/floor-pose.test.ts`.
 
 Lane studio (`src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/styles.ts`):
-- [ ] S30.8 The Align panel shows and applies the turn (Sonnet, **judgement**: the memo split). `alignPreview`
+- [x] S30.8 The Align panel shows and applies the turn (Sonnet, **judgement**: the memo split). Done 2026-10-12 (DECISIONS). `alignPreview`
       memoises `alignCandidates` on `alignKeyOf(upper)#alignKeyOf(lower)` (no turn: the expensive part does not read it)
       and calls `chooseAlign(fits, place.turn)` on every render (cheap). The panel's Auto align block shows
       `alignSummary`'s lines: `#alignScore`, a new `#alignAlt` (only with `alt`), `#alignMove`; Apply writes the turn and

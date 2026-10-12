@@ -8,6 +8,7 @@
 - Core: `refinePlace` refines the turn and the shift together (robust weighted least squares, linearised about the placed lines' centre, the turn moving at most 2 degrees), so a candidate turn a fraction of a degree off ends within 0.05 degree and 0.5 cm.
 - Core: `turnCandidates(upper, lower)` lists the turns worth searching, from the two floors' wall directions (modulo 90 degrees, 0.25 degree bins, at most 13 candidates); `alignShift` is 0.27.0's translation search under its new name. Test helper `tests/fixtures/align-turn.ts`.
 - Core: `alignSummary` and `alignStatus` word the Align panel (match, weak, the other fit, the change from the current place, Apply's status). Not wired to the panel yet.
+- Studio: Align finds the turn. The Auto align block says the change in words ("Turn 2.5° anticlockwise, move the centre 38 cm left, 90 cm down"), names another turn that fits as well ("A half turn (177.5°) fits about as well") and Apply writes the turn and the offset in one undo step. A move, a turn press or an undo does not search again; a changed wall does.
 
 ## 0.27.0 - 2026-10-11
 

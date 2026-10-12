@@ -247,10 +247,6 @@ export function alignView(h: FloorplanStudioEditor) {
   const a = h.alignPreview();
   if (!a) return nothing;
   const esc = (ev: KeyboardEvent) => { if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); h.closeAlign(); } };
-  const words = (d: Pt) => {
-    const parts = [d[0] ? `${Math.abs(Math.round(d[0]))} cm ${d[0] < 0 ? "left" : "right"}` : "", d[1] ? `${Math.abs(Math.round(d[1]))} cm ${d[1] < 0 ? "up" : "down"}` : ""].filter(Boolean);
-    return parts.length ? parts.join(", ") : d[0] || d[1] ? "Under 1 cm" : "Already aligned";
-  };
   const field = (id: string, label: string, axis: 0 | 1) => html`<label for=${id}>${label}</label>
     <input id=${id} type="text" inputmode="decimal" autocomplete="off" .value=${live(String(a.cur[axis]))} @change=${(e: Event) => h.setAlignOffset(axis, (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}>`;
   const steps = h.alignSteps, stairs = h.alignStairInfo();
@@ -263,11 +259,12 @@ export function alignView(h: FloorplanStudioEditor) {
     </div>
     <p>Lay this floor over <strong>${a.belowTitle}</strong>. The floor below is drawn as faint lines on the plan.</p>
     <h4 class="pnl-h">Auto align</h4>
-    ${a.r && a.delta
-      ? html`<p id="alignScore">${a.r.weak ? `Weak match: ${Math.round(a.r.score)} %. Check the plan before you apply it` : `${Math.round(a.r.score)} % match`}</p>
-        <p id="alignMove">${words(a.delta)}</p>`
+    ${a.r && a.words
+      ? html`<p id="alignScore">${a.words.score}</p>
+        ${a.words.alt === null ? nothing : html`<p id="alignAlt">${a.words.alt}</p>`}
+        <p id="alignMove">${a.words.move}</p>`
       : html`<p id="alignNone">Nothing to match: ${a.belowTitle} or this floor has no outline or walls.</p>`}
-    <button class="btn primary keep" id="alignApply" ?disabled=${!a.r || !a.delta || (a.delta[0] === 0 && a.delta[1] === 0)} @click=${() => h.applyAlign()}>Apply</button>
+    <button class="btn primary keep" id="alignApply" ?disabled=${!a.r || !a.words || a.words.move === "Already aligned"} @click=${() => h.applyAlign()}>Apply</button>
     <h4 class="pnl-h">Move</h4>
     <div class="al-cross" role="group" aria-label="Move this floor">
       ${mv("alignUp", "up", "Move this floor up", "\u2191", [0, -1])}${mv("alignLeft", "left", "Move this floor left", "\u2190", [-1, 0])}${mv("alignRight", "right", "Move this floor right", "\u2192", [1, 0])}${mv("alignDown", "down", "Move this floor down", "\u2193", [0, 1])}
