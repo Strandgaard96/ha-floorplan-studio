@@ -242,6 +242,8 @@ export interface FloorplanStudioCardConfig {
   ghost_floor?: boolean;
   /** How the 3D view draws the floors under the shown one (docs/card.md): `"off"` (default), `"ghost"` translucent, `"solid"` in their own colours. Anything else is `"off"`. A Floors below select next to Walls in 3D changes it for one viewer, and the card remembers the pick. */
   floors_below?: BelowMode;
+  /** S29: `false` shows a playing speaker's icon instead of its cover art; anything else shows the art (default). The View options' Cover art button changes it for one viewer. */
+  media_art?: boolean;
 }
 
 /** The Floor below button's icon: Material Design Icons "layers-outline", 24x24 (inlined, no runtime import: CLAUDE.md finding 9). */
@@ -1661,6 +1663,10 @@ export class FloorplanStudioCard extends LitElement {
   private _names(): boolean {
     return this._pickedNames ?? this._config.names === true;
   }
+  /** S29 (A3, S3): whether a playing speaker shows its cover art. Untrusted YAML: only a real `false` is off. */
+  private _mediaArt(): boolean {
+    return this._config.media_art !== false;
+  }
 
   /** Home Assistant's dark mode, used only by `theme: ha` to choose the dark set for what its CSS variables do not cover. */
   private _haDark(): boolean {
@@ -2076,6 +2082,7 @@ export class FloorplanStudioCard extends LitElement {
         night: this._night(),
         labels: this._labels(),
         showNames: this._names(),
+        mediaArt: this._mediaArt(),
         around: floorsAroundKey(this._layout!, this._floorKey()!),
       },
       now,
@@ -4080,6 +4087,7 @@ export class FloorplanStudioCard extends LitElement {
           walls: this._walls(),
           labels: this._labels(),
           showNames: this._names(),
+          mediaArt: this._mediaArt(),
           around: floorsAroundKey(this._layout!, this._floorKey()!),
           selectedRoom: this._picked() ?? undefined,
           hiddenLayers: this._hiddenLayers,

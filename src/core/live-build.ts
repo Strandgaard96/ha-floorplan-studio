@@ -135,7 +135,7 @@ export function makeLiveOf(d: LiveDeps): (floor: Floor, o: RenderOpts, now: numb
             ? [(p.a[0] + p.b[0]) / 2, (p.a[1] + p.b[1]) / 2]
             : null;
         if (!at) return;
-        const { cls, base, style, icon, s } = deviceMarkup(safe, d, o, now, at);
+        const { cls, base, style, icon, s } = deviceMarkup(safe, d, o, now, at, false, i);
         const bound = d.type === "light" && d.bound ? " bound" : "";
         const ac = d.type === "ac" ? ` ${acMode(d, o) ?? ""}`.trimEnd() : "";
         let value = "";

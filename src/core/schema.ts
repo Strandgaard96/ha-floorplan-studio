@@ -160,6 +160,21 @@ export const MAX_LAYOUT_BYTES = 3_500_000;
 /** S7.11: a raster data URL and nothing else. SVG is left out (it is a document), and the base64 alphabet has no quote,
  *  so a src that passes can go into an attribute as it is. Linear: no nested quantifier. */
 export const TRACE_SRC = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]*={0,2}$/;
+/** S29 (A2): the longest cover-art URL drawn. */
+export const MAX_ART_URL = 2048;
+/** S29 (A2): a cover-art href is a same-origin path and nothing else: Home Assistant's own media proxy (`entity_picture_local`)
+ *  or a relative `entity_picture`. Music Assistant's LAN address fails over a remote connection and would be a request to
+ *  another host; `//host/x` and `/\host/x` resolve to another origin. The value goes into an attribute, so the set of
+ *  characters is closed; `renderFloor` still escapes it (finding 2). */
+export const ART_SRC = /^\/[A-Za-z0-9._~!$&'()*+,;=:@%/?-]*$/;
+const artOk = (v: unknown): v is string =>
+  typeof v === "string" && v.length <= MAX_ART_URL && v[1] !== "/" && v[1] !== "\\" && ART_SRC.test(v);
+/** The art of a media player's state attributes, or null. Untrusted state: anything else is null, never a throw. */
+export function artUrl(attributes: unknown): string | null {
+  if (typeof attributes !== "object" || attributes === null) return null;
+  const a = attributes as Record<string, unknown>;
+  return artOk(a.entity_picture_local) ? a.entity_picture_local : artOk(a.entity_picture) ? a.entity_picture : null;
+}
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 const isEntity = (x: unknown) => typeof x === "string" && x.includes(".");

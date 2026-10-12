@@ -4,6 +4,7 @@ import { stairMarks } from "./stair-marks";
 import { playerOf } from "./attachments";
 import { resolveStairDirection, type FloorsAround } from "./stairs";
 import {
+  artUrl,
   COORD_LIMIT,
   DEVICE_TYPES,
   drawsEffect,
@@ -119,6 +120,10 @@ export interface RenderOpts {
    *  pill and a temp icon wears a ring, both carrying `--fp-temp-t` (0..1) that the stylesheet turns into a colour. Omitted
    *  (the editor, or the card's switch off), nothing is written and the markup is byte for byte as before. */
   tempColors?: readonly [number, number];
+  /** S29 (A3-A6): a playing speaker or media device shows its cover art (`artUrl`) in place of its glyph. Omitted or false: none, byte for byte as before. */
+  mediaArt?: boolean;
+  /** S29 (A6): art hrefs that failed to load; such a device draws its glyph. The card keeps the set (bounded). */
+  artFailed?: ReadonlySet<string>;
   /** S25.5: a stack of devices fanned out. Each entry moves device `i`'s icon to `at` (plan units), with a leader line to its true
    *  spot, a pin there and its name beside it. The card computes the spots (`spiderLayout`) and passes them while a ring is open.
    *  Junk entries (an unknown index, a point that is not finite), a hidden device and a device with no spot are skipped.
@@ -697,6 +702,8 @@ ${DEV_ON_RULES.replace(/\{--fp-dev:var\((--fp-[a-z-]+)\)\}/g, "{--fp-dev-ink:var
 /* S23.4 (V9): off is quiet, the glyph alone. The disc stays painted at fill-opacity 0, not fill:none, so it still takes the click. On is a solid disc. */
 .dev .halo{fill:var(--fp-disc);fill-opacity:0;stroke:none;stroke-width:1;vector-effect:non-scaling-stroke}
 .dev.on .halo{fill:var(--fp-dev-fill,var(--fp-dev));fill-opacity:1;stroke:none}
+/* S29 (A4): a playing speaker with cover art. The art (clipped to the halo's circle) replaces the glyph; the halo becomes a ring in the device colour; the waves stay. g.dev outranks .dev.on .halo. */
+g.dev.art path{display:none} g.dev.art .halo{fill-opacity:0;stroke:var(--fp-dev);stroke-width:2;vector-effect:non-scaling-stroke}
 /* S23.8 (V13): a lamp's light falls off from the lamp (the shared #fp-lamp-falloff mask, alpha 1 at the lamp, .33 at 60 %, 0 at
    the reach) and blends like light: screen over a dark theme, multiply over a light one (--fp-glow-blend, ink.ts themeExtras). */
 .aura{fill:var(--fp-aura);fill-opacity:calc(.55 * var(--fp-dev-opacity,1));mix-blend-mode:var(--fp-glow-blend,normal);pointer-events:none}
@@ -779,6 +786,8 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 [data-detail="far"] g.dev.unavailable:not(.sel):not(.spider) path:not(.cone){fill:var(--fp-ink);fill-opacity:1}
 [data-detail="far"] .dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) .halo{fill:var(--fp-warn);fill-opacity:1;stroke:var(--fp-ink);stroke-opacity:1;stroke-width:1.5px;vector-effect:non-scaling-stroke}
 [data-detail="far"] g.dev.needs-attention:not(.on):not(.danger):not(.unavailable):not(.sel):not(.spider) path:not(.cone){fill:var(--fp-on-light);fill-opacity:1}
+/* S29 (A4): at far the art is a far dot like any other on device: no art, the glyph back, the disc filled. */
+[data-detail="far"] g.dev.art .art{display:none} [data-detail="far"] g.dev.art path{display:inline} [data-detail="far"] g.dev.art .halo{fill-opacity:1;stroke:none}
 [data-detail="far"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="mid"] text.lbl:not([data-rl]):not(.extra + .lbl),[data-detail="far"] text.val:not([data-rv]),[data-detail="mid"] text.val:not([data-rv]){display:none}`;
 
 const COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -1535,6 +1544,8 @@ export interface DeviceMarkup {
   /** The inner markup of the icon: rings, halo, glyph, the away mark. */
   icon: string;
   s: StateOverlay[string] | undefined;
+  /** S29: the cover-art href drawn on the icon, or null. */
+  art: string | null;
 }
 /** What a device icon wears, from the live state: the one place the plan (renderFloor) and the 3D overlay read it. `floorAt` is the device's floor point. */
 export function deviceMarkup(
@@ -1544,18 +1555,28 @@ export function deviceMarkup(
   now: number,
   floorAt: Pt,
   quiet = false,
+  index = -1,
 ): DeviceMarkup {
   // Value sensors in a garden room are outdoor sensors. Motion and contact keep their own state colours.
   const outdoor =
     (d.type === "temp" || d.type === "humidity") && f.rooms.some((r) => r.kind === "garden" && inside(floorAt, r.pts));
   const base = classOf(d, o),
     person = d.type === "person";
+  // S29 (A1, A3, A5): a speaker or media device that is playing shows its art, read from its own state only; a failed href shows the glyph.
+  // Needs the device's index for a clip id of its own (both callers pass it).
+  const s0 = o.state?.[d.entity],
+    href =
+      o.mediaArt === true && index >= 0 && (d.type === "speaker" || d.type === "media") && s0?.state === "playing"
+        ? artUrl(s0.attributes)
+        : null,
+    art = href && !o.artFailed?.has(href) ? href : null;
   const cls =
     base +
     (outdoor ? " outdoor" : "") +
     personClass(d, o, base) +
     vacuumSpinClass(d, o) +
-    (isSiren(d) && base === "on" ? " siren" : "");
+    (isSiren(d) && base === "on" ? " siren" : "") +
+    (art ? " art" : "");
   const s = o.state?.[d.entity];
   const style: string[] = [];
   if (d.type === "motion" && s) {
@@ -1619,8 +1640,12 @@ export function deviceMarkup(
       ? `<circle class="siren-ring" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="0"/>` +
         `<circle class="siren-ring w2" cx="12" cy="12" r="16" pathLength="100" stroke-dasharray="50 50" stroke-dashoffset="50"/>`
       : "";
-  const icon = `${ping}${wave}${siren}<circle class="halo${heat !== null ? " heat" : ""}" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${mark}${gone}`;
-  return { cls, base, style, icon, s };
+  // S29 (A3): the art after the glyph, clipped to the halo's own circle; the clip sits beside it in the same svg, named by attribute (the camera cone's way).
+  const artMark = art
+    ? `<clipPath id="fp-art-${index}"><circle cx="12" cy="12" r="16"/></clipPath><image class="art" href="${esc(art)}" x="-4" y="-4" width="32" height="32" preserveAspectRatio="xMidYMid slice" clip-path="url(#fp-art-${index})"/>`
+    : "";
+  const icon = `${ping}${wave}${siren}<circle class="halo${heat !== null ? " heat" : ""}" cx="12" cy="12" r="16"/><path d="${DEVICE_ICONS[d.type] ?? DEVICE_ICONS.other}"/>${artMark}${mark}${gone}`;
+  return { cls, base, style, icon, s, art };
 }
 
 /** S23.2 (V1): the smallest a room name may render, in CSS px, on a card that knows its size. */
@@ -2544,7 +2569,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     const sp = spiderAt.get(i);
     const c = sp ?? iconAt(d, floorAt);
     const person = d.type === "person";
-    const { cls, style: styleParts, icon, s } = deviceMarkup(f, d, o, now, floorAt, lit.has(i));
+    const { cls, style: styleParts, icon, s } = deviceMarkup(f, d, o, now, floorAt, lit.has(i), i);
     // S7.8: a person's position is a CSS transform, so .dev-person's transition can glide it to a new room. A person
     // has no facing, so `rot` is not applied.
     const origin = at([c[0] - 12 * k, c[1] - 12 * k]).replace(" ", "px,") + "px";

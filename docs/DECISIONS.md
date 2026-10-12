@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: cover art follows the entity, and its far dot is a plain dot (Sprint 29)
+
+Art shows only while the media player's own state is `playing`; each grouped speaker is read on its own. Music Assistant can
+report a stale `idle` while playing (seen 2026-10-09); the card follows the entity and does not work around it. The clip id is
+`fp-art-<device index>`, so `deviceMarkup` takes the index (art is drawn only when it is given). At `far` the art, its ring
+and the hidden glyph are all undone, so the far dot is the same filled disc as any on device. Tests use a generic LAN
+address, never the maintainer's.
+
 ## 2026-10-12: temperature colours are --fp-temp-*, mixed in CSS (Sprint 29)
 
 The spec first named the tokens `--fp-heat-cold/mid/hot` and the per-element colour `--fp-heat`. Both collide with the plug ramp:
