@@ -4715,7 +4715,7 @@ test("S8.9 CSS pair: a plain wall is 10cm thick, an external wall 20cm, each hal
   await page.evaluate((tag) => {
     const el = document.querySelector(tag) as any, l = JSON.parse(JSON.stringify(el.layout)), g = l.floors.ground;
     g.walls.push({ id: "s89-wi", a: [1900, 500], b: [2000, 500], kind: "wall" }, { id: "s89-we", a: [1900, 560], b: [2000, 560], kind: "external" });
-    g.doors.push({ id: "s89-di", name: "Internal", kind: "door", a: [1920, 500], b: [1980, 500] }, { id: "s89-de", name: "External", kind: "window", a: [1920, 560], b: [1980, 560] });
+    g.doors.push({ id: "s89-di", name: "Internal", kind: "window", a: [1920, 500], b: [1980, 500] }, { id: "s89-de", name: "External", kind: "window", a: [1920, 560], b: [1980, 560] });
     el.layout = l;
   }, EDITOR);
   const w = (sel: string) => page.locator(sel).first().evaluate((e) => parseFloat(getComputedStyle(e).strokeWidth));
@@ -4724,7 +4724,7 @@ test("S8.9 CSS pair: a plain wall is 10cm thick, an external wall 20cm, each hal
   expect(await w("svg line.eh:not(.external):not(.fence):not(.edge):not(.se):not(.nw)")).toBe(12);
   expect(await w("svg line.eh.external")).toBe(22);
   const wByTitle = (name: string) => page.locator("svg line[data-d]:not(.door-hit)").filter({ hasText: name }).first().evaluate((e) => parseFloat(getComputedStyle(e).strokeWidth));
-  expect(await wByTitle("Internal")).toBe(10); // s89-di, on the internal wall
+  expect(await wByTitle("Internal")).toBe(10); // s89-di, a window on the internal wall; a sensorless door is a 1.5 px guide in the Studio now, see door-guide.spec.ts
   expect(await wByTitle("External")).toBe(20); // s89-de, on the external wall
 });
 

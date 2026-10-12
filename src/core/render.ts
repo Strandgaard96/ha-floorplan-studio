@@ -451,7 +451,11 @@ ${THEME_EXTRAS}
 /* S23.7: plan symbols. A window's own line is quiet while it is not selected; its symbol is three hairlines (window, slit), red only
    while open, alarmed or its cover is open. S25.D1: a door or glass door has no symbol and no leaf. Open or with no sensor it is a hole
    (its own line is quiet); closed (a sensor says off, or a lock says locked, and none is open, unlocked or jammed) its own line is the thick line across the gap (CLOSED_DOOR_BAND), in --fp-door / --fp-glass. */
-.door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+.door.quiet{stroke:transparent}
+/* Studio only (2026-10-12): the editor has no live state, so every sensorless door is a hole and was invisible. It draws a faint dashed guide in the
+   door colour instead, thin whatever the zoom, like .e.none. Two classes plus the kind class, so it outranks .door and .door-glass whatever the source order. */
+.door.guide{stroke:var(--fp-door);stroke-width:1.5px;stroke-dasharray:4 4;stroke-opacity:.55;vector-effect:non-scaling-stroke;stroke-linecap:butt} .door.guide.door-glass{stroke:var(--fp-glass)}
+.door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-window,.door-sym.k-slit,.door-sym.k-fullwindow{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
    board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
@@ -1700,12 +1704,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S23.7: a door or window is its symbol (below); its own line stays for the title, the selection and the alert look, and
     // paints nothing while the door is closed and not selected (`quiet`).
     // S25.D1: a door or glass door is closed (its line shows) only when a sensor says off or a lock says locked, and no lock is unlocked or jammed (`doorStateOf`); otherwise it is a hole and its line is quiet.
-    const sym = doorSymbol(f, d.kind, d.a, d.b), swing = SWING_KINDS.includes(d.kind), quiet = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
+    const sym = doorSymbol(f, d.kind, d.a, d.b), swing = SWING_KINDS.includes(d.kind), hushed = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
+    // Studio only: a hole with no symbol (door, glass door) shows a faint guide, so it can be seen and picked; the card and 2.5D keep the hole.
+    const guide = !!o.editor && hushed && !sym, quiet = hushed && !guide;
     const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`, pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
     // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
     // carries the glass on its face and hides the floor-level cut.
     if (pane) out.push(`<path data-dp="${i}" class="win-pane k-${esc(String(d.kind))}${state}" d="${pane.pane}"/>`);
-    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
+    out.push(`<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}${guide ? " guide" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`);
     if (sym) out.push(`<path data-ds="${i}" class="door-sym k-${esc(String(d.kind))}${state}" d="${sym}"/>`);
     if (pane) out.push(`<path data-dj="${i}" class="win-jamb k-${esc(String(d.kind))}${state}" d="${pane.jambs}"/>`);
   });
