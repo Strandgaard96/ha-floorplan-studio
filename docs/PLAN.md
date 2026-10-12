@@ -3721,7 +3721,7 @@ a new `tests/fixtures/align-turn.ts`):
       Files: `src/core/align.ts`, `tests/core/align.test.ts`.
 
 Lane words (a new `src/core/align-words.ts`; reads only the result shape S30.1 fixed):
-- [ ] S30.6 What the panel says (Sonnet). `alignSummary(result, place, pivot)` returns the panel's lines as plain
+- [x] S30.6 What the panel says (Sonnet). Done 2026-10-12: `alignSummary` returns `{ score, alt, move }`, `alignStatus(result, place, name)` the Apply line (DECISIONS). `alignSummary(result, place, pivot)` returns the panel's lines as plain
       strings: the score line (match, weak, or alt as the spec words them), the change from the current place in words
       ("Turn 4.0° clockwise, move the centre 34 cm right, 12 cm up"; the move is the pivot's, in the floor below's frame;
       no turn words under 0.05 degree; "Already aligned" when nothing changes), and Apply's status ("Aligned to Ground: 82
