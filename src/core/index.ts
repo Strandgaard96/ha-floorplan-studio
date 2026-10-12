@@ -47,7 +47,5 @@ export { FLOOR_OFF_GROUP, OFF_GROUPS, OFF_GROUP_LABEL, floorOffCalls, floorOffRo
 export type { OffGroup, OffRow } from "./floor-off";
 export { NEAR, WEAK_BELOW, MAX_TURN_CANDIDATES, alignFloor, alignShift, alignCandidates, chooseAlign, SAME_TURN, SMALL_TURN, FAR_MARGIN, ALT_WITHIN, alignKey, alignKeyOf, turnCandidates } from "./align";
 export type { AlignResult, AlignFit, AlignAnswer } from "./align";
-export { NEAR, WEAK_BELOW, alignFloor, alignKey, alignKeyOf } from "./align";
-export type { AlignResult } from "./align";
 export { alignStatus, alignSummary } from "./align-words";
 export type { AlignChoice, AlignSummary } from "./align-words";
