@@ -168,6 +168,22 @@ export const DRAG_PX = 6;
 /** The far plane, as a multiple of the distance that frames the house. */
 const FAR_PLANES = 40;
 const hex = (n: number) => n.toString(16).padStart(6, "0");
+/**
+ * Polygon offsets that settle a depth tie between coplanar faces the same way from every angle (a frame's faces lie in its wall's
+ * planes, a piece set into a wall shares its face); without one the winner changed with every small turn and the face flickered.
+ * PROUD for a frame, a piece of furniture and a device's body; SCREEN for a TV's screen and a speaker's drivers, which must still
+ * win against their own pulled-forward body.
+ */
+const PROUD = -1,
+  SCREEN = -2;
+const pullForward = <M extends Material>(m: M, by: number): M => {
+  m.polygonOffset = true;
+  m.polygonOffsetFactor = by;
+  m.polygonOffsetUnits = by;
+  return m;
+};
+/** Whether a solid's faces are drawn pulled forward: a window's or a door's frame, and furniture. */
+const isProud = (s: Solid) => s.paint.role === "frame" || s.kind === "furniture";
 /** radians. How far an open door's leaf swings about its hinge: about 70 degrees. */
 const SWING = (70 * Math.PI) / 180;
 /** The lights' strength by day and by night, and how much more a lit room and a lamp's pool count at night, against the dark. */
@@ -636,11 +652,23 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   ): Mesh[] => {
     const groups = new Map<
       string,
-      { tris: Triangles; colour: Color; opacity: number; tile?: TextureTile; uv: number[] }
+      {
+        tris: Triangles;
+        colour: Color;
+        opacity: number;
+        tile?: TextureTile;
+        uv: number[];
+        roles: Set<string>;
+        proud: boolean;
+      }
     >();
-    const group = (key: string, colour: Color, opacity: number, tile?: TextureTile) => {
+    const group = (key: string, colour: Color, opacity: number, tile?: TextureTile, proud = false) => {
       let g = groups.get(key);
-      if (!g) groups.set(key, (g = { tris: { position: [], normal: [] }, colour, opacity, tile, uv: [] }));
+      if (!g)
+        groups.set(
+          key,
+          (g = { tris: { position: [], normal: [] }, colour, opacity, tile, uv: [], roles: new Set(), proud }),
+        );
       return g;
     };
     for (const s of from) {
@@ -648,7 +676,15 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const z = zOf(s);
       if (!z) continue;
       const p = paintOf(s.paint.role, s.paint.color),
-        flat = group(`${p.colour.getHexString()}|${p.opacity}`, p.colour, p.opacity);
+        proud = isProud(s),
+        flat = group(
+          `${p.colour.getHexString()}|${p.opacity}${proud ? "|proud" : ""}`,
+          p.colour,
+          p.opacity,
+          undefined,
+          proud,
+        );
+      flat.roles.add(s.paint.role);
       const tile =
         textured && s.paint.texture !== undefined
           ? opts.deps.texture(s.paint.texture, s.paint.textureRot, s.paint.textureScale)
@@ -659,7 +695,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       }
       const all: Triangles = { position: [], normal: [] };
       prismTriangles(s.shape.base, z[0], z[1], all, s.shape.holes);
-      const top = group(`tex|${textureKey(tile)}|${tile.rot}`, dimTile(tile.preview), 1, tile);
+      const top = group(
+        `tex|${textureKey(tile)}|${tile.rot}${proud ? "|proud" : ""}`,
+        dimTile(tile.preview),
+        1,
+        tile,
+        proud,
+      );
+      top.roles.add(s.paint.role);
       for (let t = 0; t < all.position.length; t += 9) {
         const to = all.normal[t + 1] > 0.5 ? top : flat; // the cap that faces up wears the texture
         to.tris.position.push(...all.position.slice(t, t + 9));
@@ -686,8 +729,10 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           depthWrite: !glass,
           ...(glass ? { side: DoubleSide } : {}),
         }); // `side: undefined` makes three warn
+      if (g.proud) pullForward(mat, PROUD);
       const mesh = new Mesh(geo, mat);
       mesh.renderOrder = glass ? 1 : 0;
+      mesh.userData.roles = [...g.roles];
       scene.add(mesh);
       out.push(mesh);
       if (g.tile) texMeshes.push({ mesh, mat, tile: g.tile });
@@ -1021,12 +1066,13 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       geo.setAttribute("position", new BufferAttribute(new Float32Array(tris.position), 3));
       geo.setAttribute("normal", new BufferAttribute(new Float32Array(tris.normal), 3));
       const p = paintOf(s.paint.role, s.paint.color),
-        mat = new MeshLambertMaterial({ color: p.colour }),
+        mat = pullForward(new MeshLambertMaterial({ color: p.colour }), PROUD),
         mesh = new Mesh(geo, mat);
+      mesh.userData.roles = [s.paint.role];
       scene.add(mesh);
       const lit: Mesh[] = [],
         glow = (g: BufferGeometry) => {
-          const m = new Mesh(g, new MeshBasicMaterial({ color: 0x000000, side: DoubleSide }));
+          const m = new Mesh(g, pullForward(new MeshBasicMaterial({ color: 0x000000, side: DoubleSide }), SCREEN));
           m.renderOrder = 1;
           scene.add(m);
           lit.push(m);
@@ -1103,7 +1149,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       geo.setAttribute("position", new BufferAttribute(new Float32Array(tris.position), 3));
       geo.setAttribute("normal", new BufferAttribute(new Float32Array(tris.normal), 3));
       const p = paintOf(s.paint.role, s.paint.color),
-        mat = new MeshLambertMaterial({ color: p.colour }),
+        mat = pullForward(new MeshLambertMaterial({ color: p.colour }), PROUD),
         mesh = new Mesh(geo, mat);
       scene.add(mesh);
       pieceBodies.push({ index: s.ref.index, mesh, mat, rest: p.colour, on: false });
@@ -1815,6 +1861,24 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
             first: [0, 1, 2].map((i) => ({ x: pos.getX(i), y: pos.getZ(i), u: uv.getX(i), v: uv.getY(i) })),
           };
         });
+      },
+      /** The polygon offset of each wall, static, piece and body mesh and of each TV screen or driver, and the paint roles a merged mesh holds (0: none). */
+      offsets() {
+        const of = (what: string, m: Mesh) => {
+          const mat = m.material as Material;
+          return {
+            what,
+            roles: (m.userData.roles as string[] | undefined) ?? [],
+            offset: mat.polygonOffset ? mat.polygonOffsetUnits : 0,
+          };
+        };
+        return [
+          ...wallMeshes.map((m) => of("wall", m)),
+          ...meshes.map((m) => of("static", m)),
+          ...pieceBodies.map((b) => of("piece", b.mesh)),
+          ...devBodies.map((b) => of("body", b.mesh)),
+          ...devBodies.flatMap((b) => b.lit.map((m) => of("screen", m))),
+        ];
       },
       /** What the live state did to the scene: for the tests, which read the pixels too. */
       live() {
