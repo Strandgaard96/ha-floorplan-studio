@@ -2,6 +2,160 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: S30.1 design note: Align searches the turn (Opus)
+
+`docs/specs/hand-align.md` (Sprint 30), `docs/PLAN.md` (S30.1 ticked, S30.2 to S30.5 reworded). No product code. A
+scratch prototype of the whole search (outside the repo) was run on the invented fixtures only: `hand-align-house.json`,
+`align-house.json`, `stress-layout.json`, `demo/` and shapes built in the probe. Its output is pasted below.
+
+**Verdict on the 600 ms budget: achievable, without triage.** Every candidate turn gets the full `alignShift`
+translation search. What makes it cheap is an exact line index (S30.5), not a ranking pass: a bucket grid on the lower
+floor's lines, cell at least 2 · `REFINE_REACH` (50 cm), at most 1024 cells a side, each cell listing every line that
+can be within `REFINE_REACH` of a point in it, in the lines' own order. Each distance query then looks at a few lines
+instead of all of them, and the answer is the same bit for bit (215 pairs deep equal with and without it). Measured on an
+Apple M5, the heavy floor's full search takes 32 ms with the index and 311 ms without; forced to 13 candidates, 212 ms
+against 2413 ms. So 13 candidates fit about 3 times over on this machine, and without the index 4 do not fit on a slower
+one. Triage was rejected: any ranking cheaper than the full search can drop the true turn (at turn 0 the hand first
+floor scores 19.7 %, the half turn 81.3 %), and it would make the answer depend on a second set of constants.
+Split, for the slowest case in the budget test: candidates under 5 ms, searches under 400, refinement under 100,
+scoring and merging under 50.
+
+**Constants, each with its number and reason.**
+
+| Constant | Value | Why |
+|---|---|---|
+| Histogram bin | 0.25 degree | Worst candidate error over the sweep 0.020 degree (bin 1: 0.09; bin 0.1: 0.000 at 2.5 times the work). Refinement removes the rest. |
+| Smoothing | triangle, plus or minus 1 degree | Same errors from 0.5 to 2 degrees; none doubles the worst error (0.040) and is the worst under noise (0.390 degree against 0.350). |
+| Shortest line counted | 20 cm | Results equal from 0 to 50 cm, so this is a reason, not a measurement: stair treads and wall stubs should not vote. |
+| Weights | length in whole cm, soft-binned into two bins as integers | Integer sums do not depend on the order lines are added (determinism). |
+| Peaks | at most 3, each at least half the highest, at least 2 degrees apart, sharpened by a parabola within half a bin | A house has one direction; 3 leaves room for a wing at another angle. 2 degrees apart keeps a smeared peak from taking two places. |
+| Candidate turns | 0, and each peak θ in (-45, 45] with θ + 90, θ + 180, θ - 90; rounded to 0.01 degree, -180 read as 180, deduplicated, sorted | At most 13. The probe never needed more than 5 on the fixtures; the 400-gon gave 12. |
+| Translation search per candidate | `alignShift` unchanged, every candidate | See the verdict. |
+| Refinement unknowns | shift x, shift y, turn | The turn is scaled by the lever (the samples' weighted RMS radius about their centre) so all three are in cm and the normal equations are balanced. |
+| Linearisation point | the placed samples' weighted centre, recomputed each round | About the origin, a floor far from [0, 0] couples turn and shift. |
+| Weights | `refine`'s: `w / (1 + (d / c)^2)^2`, c the per-axis median distance, at least 2 cm | One rule for both refinements. |
+| Turn cap | 2 degrees from where the refinement started | It refines, it does not search. The candidates are within 0.020 degree of the truth. |
+| Stop | every component of the step under 0.05 cm (the turn as its move at the lever), or 40 rounds | `refine`'s rule. 2 to 3 rounds on every fixture. |
+| Which fits are refined | all of them | 13 at most; refinement took under 6 ms per pair. Refining only the best 3 lets a candidate that drifts to its neighbour hide a better fit. |
+| Rounding | turn to 0.01 degree, then the shift refit at that turn (turn held) from the start that keeps the floor's centre where the refined place put it; shift to 0.1 cm; then scored on all samples | The turn is about the stored origin: at 1e7 cm from it a 0.005 degree rounding moves the floor 870 cm. Without the centre kept, an L at [1e7, 1e7] turned 3.37 came back at -2 with corners 13.9 cm off; with it, -3.37 and 0.03 cm. |
+| `SAME_TURN` | 2 degrees | Fits within 2 degrees of each other are one answer; inside it the scores within `TIE` of its best, then the smallest mean residual. Without it the ground's turn 0 candidate drifted to -2 and won by 0.3 points (68.7 against 68.4) with a residual of 9.01 cm against the truth's 7.75. |
+| `TIE` | 1 point | 0.27.0's, unchanged. |
+| `SMALL_TURN` | 10 degrees about `from` | Diego's floors are off by a few degrees; every probe turn under 10 was found from 0. |
+| `FAR_MARGIN` | 25 points, and the far fit not weak | Was 15. On 2000 seeded corner rectangles (the 0.27.0 test's generator), a quarter turn that fits three sides beats the true two by up to 22.6 points: at 15 23 land turned, at 20 10, at 25 and 30 none. Cost: the hand-align floors traced sideways (93) stay near 0 when the far fit wins by less than 25 (21 to 24), but then `alt` names it, so it is never a confident wrong answer. The align-house L at 93 wins by 43.7. |
+| `ALT_WITHIN` | 5 points | `alt` is the best other merged fit more than `SAME_TURN` away scoring at least the answer's score minus 5, including one that scores higher (a far fit that missed `FAR_MARGIN`). The words say "fits better" when it is more than `TIE` higher. |
+| Tie order in a tier | score within `TIE` of the best, then the turn nearer `from`, then the smaller move, then the smaller residual, then the smaller turn value | Every key is total, so the order of the input cannot decide. |
+
+**Determinism.** Before anything, the structure lines of both floors are put in a canonical order: each line from its
+smaller end (x, then y), the list sorted by its four numbers. Histograms use integer weights. So another start vertex,
+reversed walls and shuffled rooms give a deep equal result, not only within 0.01 degree (probe: all true). The
+`alignCandidates` result is built without `from`, so the memo holds for every `from`.
+
+**What the probe found that changes the plan.**
+- The 0.27.0 rectangle (`align-house` first) over the L at plus or minus 93 is ambiguous: its half-turn twin fits as
+  well (100 against 100). It is a fixture fact, not a bug. The far-turn tests use the L on a copy of itself; the
+  rectangle at 93 may give either, with `alt` naming the other.
+- Random orthogonal L-houses are not "unrelated": 7 of 40 pairs got a confident 50 to 75 %, a real corner fit. The
+  "no answer" test uses random star polygons (0 of 40 confident).
+- The joint refinement's basin on the hand ground (68 % fit) is narrower than 0.6 degree: two of four starts ended 0.11
+  to 0.135 degree off. The pipeline starts within 0.02, so it does not bite, but S30.3's 0.6 degree test runs on the
+  align-house rectangle and a plain rectangle only, as the plan already says.
+- "Lines in one direction only leaves the turn alone" is not what happens: one wall on one wall turned 0.6 is found
+  (both ends lever). The test becomes: one sample (no lever) leaves the turn alone; one wall on one wall turned 0.6
+  degree is found.
+- `from` 184 gives -176: the result is in (-180, 180].
+
+Probe output (the slower of two runs; Apple M5, node v26.10.0):
+
+```
+constants: bin 0.25, smooth +-1, shortest line 20 cm, peaks 3 at >= 0.5 of the highest, 2 deg apart; refine cap 2 deg, stop 0.05 cm, 40 rounds; SMALL_TURN 10, FAR_MARGIN 25, ALT_WITHIN 5, SAME_TURN 2, TIE 1
+
+hand-align first -> ground (truth 4, [83, -41])
+  candidate: score at the candidate (alignShift) -> after the joint refinement: turn, t, score, mean residual
+    -176: 81.3 % -> -176, [917,641], 81.3 %, 4.51 cm
+     -86: 57.2 % -> -86, [-41,817], 57.2 %, 10.57 cm
+       0: 19.7 % -> 2, [64.8,-16.9], 35.3 %, 10.91 cm
+       4: 81.9 % -> 4, [83,-41], 81.9 %, 4.51 cm
+      94: 56.6 % -> 94, [641,-17], 56.6 %, 10.57 cm
+  merged: -176 81.3 %; -86 57.2 %; 4 81.9 %; 94 56.6 %
+  from 0: {"turn":4,"t":[83,-41],"score":81.9,"weak":false,"alt":{"turn":-176,"score":81.3}}
+  from 184: {"turn":-176,"t":[917,641],"score":81.3,"weak":false,"alt":{"turn":4,"score":81.9}}
+
+hand-align ground -> basement (truth -2.5, [-57, 112])
+  candidate: score at the candidate (alignShift) -> after the joint refinement: turn, t, score, mean residual
+   -92.5: 48.2 % -> -92.5, [69.1,707.1], 48.2 %, 12.86 cm
+    -2.5: 68.4 % -> -2.5, [-57,112], 68.4 %, 7.75 cm
+       0: 25.3 % -> -2, [-53.6,107.5], 68.7 %, 9.01 cm
+    87.5: 48.2 % -> 87.5, [842.1,72.7], 48.2 %, 12.86 cm
+   177.5: 68.4 % -> 177.5, [968.2,667.8], 68.4 %, 7.75 cm
+  merged: -92.5 48.2 %; -2.5 68.4 %; 87.5 48.2 %; 177.5 68.4 %
+  from 0: {"turn":-2.5,"t":[-57,112],"score":68.4,"weak":false,"alt":{"turn":177.5,"score":68.4}}
+  from 184: {"turn":177.5,"t":[968.2,667.8],"score":68.4,"weak":false,"alt":{"turn":-2.5,"score":68.4}}
+
+timings, ms, Apple M5, node v26.10.0, the slower of two runs
+  case                          | alignShift scan | indexed | full search scan | indexed (cands/search/refine/score) | n | answer
+  stress first/ground           |    1.6 |   0.6 |     5.8 |   2.5 (0.1/1.8/0.3/0.1) | 4 | turn 0, t [0,0], 100 %
+  stress first/ground turned 7.30 |    3.0 |   2.3 |     7.1 |   7.5 (0.1/5.5/1.2/0.5) | 5 | turn -7.3, t [-80.8,132.7], 100 %
+  stress second/first           |    0.5 |   0.4 |     2.3 |   2.1 (0.1/1.5/0.3/0.1) | 4 | turn 0, t [0,0], 100 %
+  stress second/first turned 7.30 |    2.4 |   6.2 |    14.7 |  24.6 (0.2/15.1/5.7/1.4) | 5 | turn -7.3, t [-80.8,132.7], 100 %
+  heavy first/ground            |   63.9 |   5.3 |   311.0 |  32.2 (0.1/29.9/1.2/0.3) | 4 | turn 0, t [-0.3,1.6], 100 %
+  10 000-point circle           |  380.0 |  17.2 |   skipped |  26.7 (0.4/17.2/2.0/0.9) | 1 | turn 0.03, t [40.1,-25], 29.4 %
+
+line index: alignShift deep equal with and without it on 215 pairs: 0 differ
+
+turn sweep: each floor turned by +-(-9.7, -6.2, -3.3, -1.1, -0.35, 0.4, 1.8, 4, 7.3, 9.95) about [370, -120], the align-house ones also by +-(23, -31, 93); from 0
+  align-house first (rectangle) on the L: 26 cases, candidate within 0.020 deg of the truth, answer within 0.000 deg and 0.06 cm, at most 5 candidates; 2 other: 93: got 87 (truth -93.00), alt {"turn":-93,"score":100}; -93: got -87 (truth 93.00), alt {"turn":93,"score":100}
+  align-house L on the L: 26 cases, candidate within 0.020 deg of the truth, answer within 0.000 deg and 0.06 cm, at most 5 candidates; 0 other: none
+  hand first on ground: 20 cases, candidate within 0.020 deg of the truth, answer within 0.000 deg and 0.07 cm, at most 5 candidates; 0 other: none
+  hand ground on basement: 20 cases, candidate within 0.020 deg of the truth, answer within 0.020 deg and 0.46 cm, at most 5 candidates; 0 other: none
+  far tier: the best of the small tier about 0 against the best far fit, when the far one is right
+    rectangle on the L: 23: 5.7 vs 100; -31: 3.9 vs 100; 93: 68.2 vs 100; 180: 100 vs 100
+    L on the L: 23: 5.1 vs 100; -31: 4.7 vs 100; 93: 56.3 vs 100; 180: 68.1 vs 100
+
+histogram constants over the sweep (worst candidate error, deg / failures not counting the rectangle's half-turn twin at 93)
+  bin 0.1: +-0: 0.000/0  +-0.5: 0.000/0  +-1: 0.000/0  +-2: 0.000/0
+  bin 0.25: +-0: 0.040/0  +-0.5: 0.020/0  +-1: 0.020/0  +-2: 0.020/0
+  bin 0.5: +-0: 0.080/0  +-0.5: 0.040/0  +-1: 0.040/0  +-2: 0.040/0
+  bin 1: +-0: 0.170/0  +-0.5: 0.090/0  +-1: 0.090/0  +-2: 0.090/0
+
+noise: align-house first turned 3.40, corners jittered up to 4 cm, 15 stray walls; 10 seeds; worst turn error / worst corner, cm / scores
+  bin 0.25, smooth +-1, shortest 20 cm: 0.350 deg, 4.43 cm, scores 58.3 57.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+  bin 0.25, smooth +-0, shortest 20 cm: 0.390 deg, 4.28 cm, scores 58.1 55.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+  bin 0.25, smooth +-2, shortest 20 cm: 0.350 deg, 4.43 cm, scores 58.3 57.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+  bin 0.25, smooth +-1, shortest 0 cm: 0.350 deg, 4.43 cm, scores 58.3 57.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+  bin 0.25, smooth +-1, shortest 50 cm: 0.350 deg, 4.43 cm, scores 58.3 57.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+
+joint refinement from a start 0.6 deg and 8 cm off the truth (turn error, deg / corners, cm / rounds); shift only for comparison
+  align-house first (rectangle) on the L: +0.6/+8: 0.000/0.00/2 (shift only 5.7); -0.6/-8: 0.000/0.00/2 (shift only 5.7); +0.6/-8: 0.000/0.00/2 (shift only 5.7); -0.6/+8: 0.000/0.00/2 (shift only 5.7); +0/+0: 0.000/0.00/0 (shift only 0.0)
+  hand first on ground: +0.6/+8: 0.000/0.01/2 (shift only 6.7); -0.6/-8: 0.000/0.01/2 (shift only 6.7); +0.6/-8: 0.000/0.01/3 (shift only 7.1); -0.6/+8: 0.001/0.01/2 (shift only 6.9); +0/+0: 0.000/0.00/0 (shift only 0.0)
+  hand ground on basement: +0.6/+8: 0.001/0.01/2 (shift only 7.7); -0.6/-8: 0.112/2.11/2 (shift only 7.9); +0.6/-8: 0.036/0.46/2 (shift only 8.7); -0.6/+8: 0.135/2.34/2 (shift only 8.9); +0/+0: 0.000/0.00/0 (shift only 0.0)
+  one sample (no lever): turn stays 0.6; one wall on one wall turned 0.6: answer -0.6 (truth -0.6), alt {"turn":179.4,"score":100}
+
+hostile and edge cases, from 0
+  square turned 2 about its centre: {"turn":-2,"t":[-13.7,14.2],"score":100,"weak":false,"alt":{"turn":88,"score":100}} (truth -2)
+  plus turned 3.4: {"turn":-3.4,"t":[7.8,21.7],"score":100,"weak":false,"alt":{"turn":86.6,"score":100}} (truth -3.4)
+  demo first/ground: {"turn":0,"t":[0,0],"score":100,"weak":false,"alt":{"turn":180,"score":100}}
+  40 unrelated pairs of random star polygons: 0 confident (not weak, no alt)
+  40 unrelated pairs of random L-shaped houses: 7 confident (not weak, no alt), scores 50.3 50 75 50.6 50.6 50 52.3
+  2000 seeded corner rectangles (the 0.27.0 test's generator): a quarter turn that fits 3 sides beats the true 2 sides by up to 22.6 points (23 cases over 15); answers not at turn 0 by FAR_MARGIN 15: 23 (3 in the first 200), 20: 10 (2 in the first 200), 25: 0 (0 in the first 200), 30: 0 (0 in the first 200); wrong corner or turn at 25: 20, 0.27.0 alignShift wrong corner: 20
+  400-gon, 78 cm edges (a flat histogram): 12 candidates, 63 ms, {"turn":0,"t":[40,-25],"score":100,"weak":false,"alt":{"turn":-4.5,"score":100}}
+  determinism: twice true, other start vertex true, reversed outline true, lower floor reordered true
+  junk: 500 calls, 0 threw, 420 null; an L at [1e7, 1e7] turned 3.37: turn -3.37, corners 0.03 cm
+
+far turns on the hand-align floors, from 0 (about [370, -120])
+  hand first turned 23: truth -19.00, got -19 81.9, corners 0.03 cm, alt {"turn":161,"score":81.3}
+  hand first turned -23: truth 27.00, got 27 81.6, corners 0.05 cm, alt {"turn":-153,"score":81.6}
+  hand first turned -31: truth 35.00, got 35 81.6, corners 0.06 cm, alt {"turn":-145,"score":81.6}
+  hand first turned 31: truth -27.00, got -27 81.6, corners 0.02 cm, alt {"turn":153,"score":81.6}
+  hand first turned 93: truth -89.00, got -89 81.9, corners 0.04 cm, alt {"turn":91,"score":81.3}
+  hand first turned -93: truth 97.00, got 7 57.2, corners 1005.02 cm, alt {"turn":-83,"score":81.6}
+  hand ground turned 23: truth -25.50, got -25.5 68.4, corners 0.03 cm, alt {"turn":154.5,"score":68.4}
+  hand ground turned -23: truth 20.50, got 20.5 68.4, corners 0.02 cm, alt {"turn":-159.5,"score":68.4}
+  hand ground turned -31: truth 28.50, got 28.5 68.4, corners 0.02 cm, alt {"turn":-151.5,"score":68.4}
+  hand ground turned 31: truth -33.50, got -33.5 68.4, corners 0.04 cm, alt {"turn":146.5,"score":68.4}
+  hand ground turned 93: truth -95.50, got -5.5 47.6, corners 1005.02 cm, alt {"turn":84.5,"score":68.4}
+  hand ground turned -93: truth 90.50, got 0.5 47.9, corners 1044.06 cm, alt {"turn":-89.5,"score":68.9}
+```
+
 ## 2026-10-11: Sprint 30 planned: Align searches the turn (assumptions, pending Diego)
 
 `docs/PLAN.md` (Sprint 30), `docs/specs/hand-align.md` (section "Sprint 30", criteria 13 to 24).
