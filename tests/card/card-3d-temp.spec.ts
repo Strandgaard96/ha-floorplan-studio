@@ -139,3 +139,12 @@ test("a state change from 16 to 26 °C recolours the Living pill to the hot colo
     })
     .toBe(true);
 });
+
+test("the 3D pill has a 1 px border in its own colour (pill polish)", async ({ page }) => {
+  await boot(page, "light");
+  await expect.poll(async () => Object.keys((await read(page)).pills).length).toBeGreaterThan(0);
+  const shadow = await holder(page).evaluate(
+    (root) => getComputedStyle(root.querySelector<HTMLElement>(".fp3-val .val-pill")!).boxShadow,
+  );
+  expect(shadow).toMatch(/inset 0px 0px 0px 1px$|^rgb.*inset 0px 0px 0px 1px|1px inset/);
+});

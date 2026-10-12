@@ -16,6 +16,11 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: temperature pill border and alignment (branch `task/pill-polish`)
+
+- `.val-pill` gets a 1 px stroke and the 3D pill an inset 1 px ring; a pill's readout line is drawn from a computed left edge
+  (`text-anchor="start"`) with the pill 3 units before it; digits in `textEm` lean to Roboto (0.58 em).
+
 ## 2026-10-12: Sprint 29, switches (branch `task/s29`)
 
 - `StoredView.art`/`heat`, `_pickedArt`/`_pickedHeat`, two View options rows, four keys in the view-memory seed, four config

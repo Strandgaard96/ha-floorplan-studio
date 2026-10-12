@@ -78,7 +78,7 @@ const CSS = `.fp3-ov{position:absolute;inset:0;overflow:hidden;pointer-events:no
 .fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:opacity .12s linear}
 .fp3-ov .fp3-lose{opacity:0}
 @media (prefers-reduced-motion:reduce){.fp3-ic,.fp3-dv,.fp3-dn,.fp3-name,.fp3-val{transition:none}}
-.fp3-val .val-pill{display:inline-block;padding:0 4px;margin:0 -2px;border-radius:999px;background:color-mix(in srgb,var(--fp-temp) 35%,transparent)}
+.fp3-val .val-pill{display:inline-block;padding:0 4px;margin:0 -2px;border-radius:999px;background:color-mix(in srgb,var(--fp-temp) 35%,transparent);box-shadow:inset 0 0 0 1px var(--fp-temp)}
 .fp3-ic g.dev:not(.on):not(.danger):not(.unavailable) .halo.heat{stroke:var(--fp-temp);stroke-width:2}`;
 
 /** The least contrast (WCAG ratio) the idle glyph and the disc's edge keep against the disc: 3 is the rule, this leaves a margin. */

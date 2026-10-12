@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.1 - 2026-10-12
+
+- The temperature pill has a 1 px border in its own colour, in 2D and 3D, and in 2D it lines up with its number: the pill's left edge is exact in any font (it was shifted left in Home Assistant's Roboto, e.g. "Badeværelse oppe").
+
 ## 0.27.0 - 2026-10-12
 
 - View options has Cover art and Temperature colours; each is remembered per viewer and Reset view returns to the YAML (`media_art`, `temp_colors`). The card editor has both, and the two bounds.

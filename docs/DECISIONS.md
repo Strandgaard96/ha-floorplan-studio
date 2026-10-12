@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: the temperature pill starts at the text's left edge, and has a border
+
+Diego: "give the temperature pill a small border" and "Badeværelse oppe is not aligned in the pill". Measured in his
+dashboard (Roboto): the pill had 6.8 units of padding left of "25 °C" and 0.3 right. The readout line was centred on an
+estimated width, so the estimate's whole error landed on the pill's left. A line with a pill is now drawn from a computed
+left edge (`text-anchor="start"`), and the pill starts 3 units before it: exact in any font. Only the right edge leans on
+`textEm` of the short temperature; digits lean to Roboto (0.58 em), so in DejaVu (the test machines) the last glyph can
+touch the edge. A line without a pill stays centred. The border is a 1 px stroke in the pill's own colour (2D), an inset
+1 px ring (3D).
+
 ## 2026-10-12: Sprint 29 review fixes: balls never culled, furniture untouched by 3D Layers
 
 Opus review of Sprint 29. (1) A ball Layers hides is scaled to nothing, and three computes an instanced mesh's bounding sphere

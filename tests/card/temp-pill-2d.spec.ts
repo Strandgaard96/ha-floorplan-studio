@@ -117,3 +117,35 @@ test("the readout text is character for character the same with the pill (AC 13)
   );
   expect(await page.locator('text.val[data-rv="0"]').evaluate((t) => getComputedStyle(t).stroke)).not.toBe("none");
 });
+
+// Pill polish (Diego, 2026-10-12): "give the pill a small border" and "Badeværelse oppe is not aligned in the pill". The line
+// was centred on an estimated width, so the estimate's whole error landed on the pill's left (6.8 against 0.3 units in Roboto).
+// The line now starts at a computed left edge and the pill starts 3 units before it: exact in any font. Only the right edge
+// leans on the estimate of the short temperature.
+test("the pill starts exactly 3 units before its temperature and ends close after it; it has a 1 px border", async ({
+  page,
+}) => {
+  await page.setContent(plan("light", markup()));
+  const r = await page.evaluate(() =>
+    [...document.querySelectorAll<SVGRectElement>("rect.val-pill")].map((p) => {
+      const t = document.querySelector<SVGTSpanElement>(`text.val[data-rv="${p.dataset.rp}"] tspan.val-t`)!;
+      const pb = p.getBBox(),
+        tb = t.getBBox(),
+        s = getComputedStyle(p);
+      return {
+        left: tb.x - pb.x,
+        right: pb.x + pb.width - (tb.x + tb.width),
+        stroke: s.stroke,
+        width: s.strokeWidth,
+        fill: s.fill,
+      };
+    }),
+  );
+  expect(r.length).toBe(4);
+  for (const p of r) {
+    expect(Math.abs(p.left - 3), JSON.stringify(p)).toBeLessThan(0.5);
+    expect(Math.abs(p.right), JSON.stringify(p)).toBeLessThan(0.35 * 12 + 1); // the estimate's slack on a short string
+    expect(p.stroke).toBe(p.fill); // the border is the pill's own colour, at full strength over its 35 % fill
+    expect(p.width).toBe("1px");
+  }
+});
