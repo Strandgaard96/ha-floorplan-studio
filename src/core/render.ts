@@ -758,10 +758,10 @@ g.dev.unavailable path{fill:var(--fp-idle);fill-opacity:.7}
 @media (prefers-reduced-motion:reduce){.dev-vacuum.spin path{animation:none}}
 .dev-motion{--fp-fade:0} .dev.dev-motion path{fill:color-mix(in srgb,var(--fp-motion) calc(var(--fp-fade) * 100%),var(--fp-idle))}
 .heater{stroke:var(--fp-idle)} .heater.on{stroke:var(--fp-heater)} .val,.lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round} .lbl-leader{stroke:var(--fp-text);opacity:.5;pointer-events:none} .lbl-tag{fill:var(--fp-outline);stroke:none;pointer-events:none} .lbl-on{pointer-events:none}
-/* S29 (H3-H5): the temperature pill sits behind the readout at a fixed share over the plan; the text keeps its own colour. A temp icon's
+/* S29 (H3-H5): the temperature pill sits behind the readout at a fixed share over the plan, ringed 1 px in its own colour; the text keeps its own colour. A temp icon's
    ring is its stroke only (its disc is untouched); g.dev outranks .dev.on .halo. Never a click target (finding 18: a class rule).
    On the pill the temperature drops the readout's outline, which would paint over the pill's top half; the pill is its contrast. */
-.val-pill{fill:var(--fp-temp);fill-opacity:.35;stroke:none;pointer-events:none} .val .val-t{stroke:none} g.dev .halo.heat{stroke:var(--fp-temp);stroke-width:2;vector-effect:non-scaling-stroke}
+.val-pill{fill:var(--fp-temp);fill-opacity:.35;stroke:var(--fp-temp);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .val .val-t{stroke:none} g.dev .halo.heat{stroke:var(--fp-temp);stroke-width:2;vector-effect:non-scaling-stroke}
 /* S25.5: a fanned stack. Leader, pin and name never take a click (finding 18: class rules); a member stays drawn at far. */
 .spider-leader{stroke:var(--fp-text);stroke-opacity:.6;stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none} .spider-pin{fill:var(--fp-text);fill-opacity:.8;pointer-events:none}
 .spider-lbl{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;font-family:var(--fp-font);font-weight:500;pointer-events:none}
@@ -1443,7 +1443,7 @@ const EM: Record<string, number> = {
 };
 export function textEm(s: string): number {
   let w = 0;
-  for (const ch of String(s)) w += EM[ch] ?? 0.6; // digits and other letters
+  for (const ch of String(s)) w += EM[ch] ?? (ch >= "0" && ch <= "9" ? 0.58 : 0.6); // digits lean to Roboto (0.56), HA's font
   return w;
 }
 /** S29 (H5): a temp icon's place on the scale, from its own state; null for any other type, no `tempColors` or no reading. */
@@ -2557,10 +2557,14 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     );
     const head = `<text class="val" data-rv="${i}" x="${num(vx)}" y="${num(vy)}"${up(vx, vy)} text-anchor="middle" font-size="${num(vs)}">`;
     if (heat === null || !temp) return void out.push(`${head}${esc(text)}</text>`);
-    const h = vs + 2 * kt;
+    // Pill polish (Diego, 2026-10-12): the line starts at a computed left edge and the pill 3 units before it, so the pill's left
+    // padding is exact in any font; centring on the estimate put its whole error on the pill's left. Only the right edge leans on
+    // `textEm` of the short temperature.
+    const h = vs + 2 * kt,
+      x0 = vx - (textEm(text) * vs) / 2;
     out.push(
-      `<rect class="val-pill" data-rp="${i}"${up(vx, vy)} x="${num(vx - (textEm(text) * vs) / 2 - 2 * kt)}" y="${num(vy - 0.75 * vs - kt)}" width="${num(textEm(temp) * vs + 4 * kt)}" height="${num(h)}" rx="${num(h / 2)}" style="--fp-temp-t:${num(heat)}"/>`,
-      `${head}<tspan class="val-t">${esc(temp)}</tspan>${rest ? esc(` · ${rest}`) : ""}</text>`,
+      `<rect class="val-pill" data-rp="${i}"${up(vx, vy)} x="${num(x0 - 3 * kt)}" y="${num(vy - 0.75 * vs - kt)}" width="${num(textEm(temp) * vs + 4 * kt)}" height="${num(h)}" rx="${num(h / 2)}" style="--fp-temp-t:${num(heat)}"/>`,
+      `<text class="val" data-rv="${i}" x="${num(x0)}" y="${num(vy)}"${up(vx, vy)} text-anchor="start" font-size="${num(vs)}"><tspan class="val-t">${esc(temp)}</tspan>${rest ? esc(` · ${rest}`) : ""}</text>`,
     );
   });
 
