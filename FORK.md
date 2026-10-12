@@ -16,6 +16,12 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: 3D frames and TVs no longer flicker while turning (branch `task/zfight`)
+
+- Window/door frames share planes with their wall (jamb = wall end face, head = wall underside, tops at the cut), so the depth
+  tie flipped with every small turn. Frames get a mesh of their own and, with furniture, pieces and device bodies, a polygon
+  offset (`PROUD` -1); a TV screen / speaker driver `SCREEN` -2. `__fp3d.offsets()` test hook, `card-3d-zfight.spec.ts`.
+
 ## 2026-10-12: temperature pill border and alignment (branch `task/pill-polish`)
 
 - `.val-pill` gets a 1 px stroke and the 3D pill an inset 1 px ring; a pill's readout line is drawn from a computed left edge

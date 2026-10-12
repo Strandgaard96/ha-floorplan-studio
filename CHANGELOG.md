@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.27.2 - 2026-10-12
+
+- 3D: window and door frames, furniture and TVs no longer flicker while the view turns. A frame lies in its wall's planes (and a piece set into a wall shares its face), so which face won the depth test changed with every small turn; frames, furniture and device bodies are now drawn a hair toward the camera, a TV's screen a hair more.
+
 ## 0.27.1 - 2026-10-12
 
 - The temperature pill has a 1 px border in its own colour, in 2D and 3D, and in 2D it lines up with its number: the pill's left edge is exact in any font (it was shifted left in Home Assistant's Roboto, e.g. "Badeværelse oppe").
