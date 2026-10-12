@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: S30.9 exit test and docs (Sonnet)
+
+`tests/editor/align-turn-exit.spec.ts`: hand-align house, no pose; real clicks on Align, Apply for the ground then the first
+floor, Save. The saved file validates, outline corners in the house are within 2 cm of the truth (ground -2.5 degrees,
+first 1.5 in the house, which is the truth's -2.5 + 4), and the card with `floors_below: solid` has stair blocks of both
+floors below within 2 cm of the first floor's stair. Assumptions that held: the small-turn preference picks the right
+turn on both floors; Apply then Undo restores no pose; the first floor's pose composes with the ground's as the truth does.
+Changes from the plan: the README has no Align text (nothing to update); docs changed are `docs/SPEC.md` (Align finds the
+turn, 0.27.0 note), `docs/editor.md` (Auto align lines) and the guide's "Line the floors up" step. The control (unaligned
+house misses by more than 2 cm) is inside the test so it can fail.
 ## 2026-10-12: S30.7 alignToBelow applies the turn (Sonnet)
 
 `alignToBelow` passes the floor's current place turn as `from` and writes the answer's turn and shift through `setPose`.

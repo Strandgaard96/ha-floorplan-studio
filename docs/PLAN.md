@@ -3766,7 +3766,7 @@ Lane studio (`src/editor/editor-app.ts`, `src/editor/inspector.ts`, `src/editor/
       `tests/editor/align-turn.spec.ts`, `tests/editor/align-mode.spec.ts`, `tests/editor/align-buttons.spec.ts`.
 
 Wave 3, in order on `task/s30-align-angles`:
-- [ ] S30.9 Exit test and docs (Sonnet; the docs part may go to Haiku). `tests/editor/align-turn-exit.spec.ts`: load
+- [x] S30.9 Exit test and docs (Sonnet; the docs part may go to Haiku). `tests/editor/align-turn-exit.spec.ts`: load
       the hand-align house with no pose in the Studio; Align on the ground, Apply; Align on the first floor, Apply; with
       real clicks; Save; the saved file validates; each floor's outline corners in the house within 2 cm of the truth's
       and the rotation within 0.2 degree; the card with `floors_below: solid` on the first floor: each floor's stair
