@@ -578,3 +578,32 @@ test("plug_heat_from and plug_heat_to: default 0 and 2000, written when changed,
     expect(id in ((await events(page)).at(-1) as { config: Record<string, unknown> }).config, id).toBe(false);
   }
 });
+
+test("S29: media_art and temp_colors checkboxes and the two bounds: defaults shown, defaults dropped, picks written", async ({
+  page,
+}) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  await expect(editor.locator("#media_art")).toBeChecked();
+  await expect(editor.locator("#temp_colors")).toBeChecked();
+  await expect(editor.locator("#heat_min")).toHaveValue("17");
+  await expect(editor.locator("#heat_max")).toHaveValue("25");
+  await editor.locator("#media_art").uncheck();
+  let detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.media_art).toBe(false);
+  await editor.locator("#media_art").check();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("media_art" in detail.config).toBe(false);
+  await editor.locator("#temp_colors").uncheck();
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.temp_colors).toBe(false);
+  await editor.locator("#heat_min").fill("16");
+  await editor.locator("#heat_min").dispatchEvent("change");
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect(detail.config.heat_min).toBe(16);
+  await editor.locator("#heat_max").fill("");
+  await editor.locator("#heat_max").dispatchEvent("change");
+  detail = (await events(page)).at(-1) as { config: Record<string, unknown> };
+  expect("heat_max" in detail.config).toBe(false);
+});

@@ -82,7 +82,7 @@ describe("failed cover art (S29, A6, Review focus 5)", () => {
     el.hass = hassWith("/api/x.png?n=0") as never;
     await el.updateComplete;
     expect(el.shadowRoot!.querySelector("svg image.art")?.getAttribute("href")).toBe("/api/x.png?n=0");
-  });
+  }, 20_000); // 70 full card renders: past the 5 s default when the whole suite runs at once
   it("an error from anything else (another image, a script) is ignored", async () => {
     const el = await mount("/api/b.png");
     const other = document.createElementNS("http://www.w3.org/2000/svg", "image");

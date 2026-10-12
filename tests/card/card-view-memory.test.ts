@@ -782,3 +782,53 @@ describe("the ghost floor: YAML default and the viewer's choice (S27.13)", () =>
     expect(ghostOf()).toBeUndefined();
   });
 });
+
+describe("Cover art and Temperature colours: YAML default and the viewer's choice (S29, AC 11, AC 16)", () => {
+  it("each button toggles its option, is remembered, and the pick wins over YAML; Reset view goes back to YAML", async () => {
+    const a = await mount();
+    expect(btn(a, "Cover art")!.getAttribute("aria-pressed")).toBe("true");
+    expect(btn(a, "Temperature colours")!.getAttribute("aria-pressed")).toBe("true");
+    await click(a, "Cover art");
+    await click(a, "Temperature colours");
+    expect(lastOpts().mediaArt).toBe(false);
+    expect(lastOpts().tempColors).toBeUndefined();
+    a.remove();
+    const b = await mount(); // a reload: the stored picks
+    expect(lastOpts().mediaArt).toBe(false);
+    expect(lastOpts().tempColors).toBeUndefined();
+    await click(b, "Reset view");
+    expect(lastOpts().mediaArt).toBe(true);
+    expect(lastOpts().tempColors).toEqual([17, 25]);
+    expect(stored()).toEqual([]);
+  });
+  it("YAML false starts off; junk YAML is on; the YAML bounds reach renderFloor and bad ones are 17 and 25", async () => {
+    const off = await mount({ media_art: false, temp_colors: false });
+    expect(lastOpts().mediaArt).toBe(false);
+    expect(lastOpts().tempColors).toBeUndefined();
+    expect(btn(off, "Cover art")!.getAttribute("aria-pressed")).toBe("false");
+    off.remove();
+    const junk = await mount({ media_art: "no" as never, temp_colors: 0 as never, heat_min: 30, heat_max: 20 });
+    expect(lastOpts().mediaArt).toBe(true);
+    expect(lastOpts().tempColors).toEqual([17, 25]);
+    junk.remove();
+    await mount({ heat_min: 16, heat_max: 26 });
+    expect(lastOpts().tempColors).toEqual([16, 26]);
+  });
+  it("Reset view does not touch Layers (S4)", async () => {
+    const a = await mount();
+    (a as unknown as { _hiddenLayers: string[] })._hiddenLayers = ["lights"];
+    await click(a, "Cover art");
+    await click(a, "Reset view");
+    expect(lastOpts().hiddenLayers).toEqual(["lights"]);
+  });
+  it("a YAML change starts a clean memory: the four keys join the storage key", async () => {
+    const a = await mount();
+    await click(a, "Cover art");
+    a.remove();
+    for (const k of [{ media_art: true }, { temp_colors: true }, { heat_min: 16 }, { heat_max: 26 }]) {
+      await mount(k);
+      expect(lastOpts().mediaArt, JSON.stringify(k)).toBe(true);
+      document.body.innerHTML = "";
+    }
+  });
+});

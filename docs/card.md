@@ -37,12 +37,15 @@ floors — ready to paste. See "A premade dashboard" below.
 | `fade` | `120` | seconds a motion sensor takes to fade from its colour to nothing after it goes off |
 | `plug_heat_from`, `plug_heat_to` | `0`, `2000` | the draw range a plug's colour runs over, in watts: blue at the low end, amber half way, red at the high end. Two numbers with from below to; anything else is `0` and `2000`. See Plugs |
 | `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
+| `media_art` | `true` | a playing speaker or media player shows its cover art in place of its icon, in 2D and 3D. Only Home Assistant's own image proxy (`entity_picture_local`) or a relative `entity_picture` is drawn; any other address is ignored. Only `false` turns it off; junk is on. The Cover art button in View options changes it for one viewer — see Cover art, below |
+| `temp_colors` | `true` | a room's temperature sits on a pill coloured by the comfort scale, and a temperature icon wears a ring in that colour, in 2D and 3D. Only `false` turns it off; junk is on. The Temperature colours button in View options changes it for one viewer — see Temperature colours, below |
+| `heat_min`, `heat_max` | `17`, `25` | the comfort scale in °C: blue at `heat_min`, neutral half way, red at `heat_max`. Two numbers with min below max; anything else is `17` and `25`. A °F sensor is converted |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
 | `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the vertical stack at the top right, under the toolbar. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth (see 2.5D view, below), `3d` draws it as a real 3D model you can turn (see 3D view, below). Anything else is `2d` |
-| `view_switch` | `true` | `false` hides the View control and the View options menu (Theme, Labels, Device names …). `kiosk` hides them too |
+| `view_switch` | `true` | `false` hides the View control and the View options menu (Theme, Labels, Device names, Cover art, Temperature colours …). `kiosk` hides them too |
 | `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
 | `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See the Tilt slider, below |
@@ -728,6 +731,26 @@ What the card does when it cannot be sure:
 room or a piece of furniture whose `entity` is the plug's switch follows the
 same rule for its "on" ring. A light bound to a plug's switch (`bound`) does
 not: it is a lamp, and on when its switch is.
+
+## Cover art
+
+A `speaker` or `media` device whose media player is `playing` shows its cover art in place of its icon, clipped to the
+icon's disc and ringed in the speaker colour; the waves stay. Paused, idle, off or unavailable shows the icon. Each player of
+a group is read on its own, so every speaker that reports art shows it. At the furthest zoom it is a dot like any other
+device. A picture that fails to load gives way to the icon, and a new picture is tried again.
+
+Only a same-origin path is drawn: Home Assistant's image proxy (`entity_picture_local`) or a relative `entity_picture`.
+Music Assistant's `entity_picture` is a LAN address (`http://<host>:8095/imageproxy/...`) that fails over a remote
+connection, so it is ignored; Home Assistant's proxy of the same picture is used instead. Music Assistant can report a
+stale `idle` while it plays; the card follows the entity. `media_art: false`, or Cover art in View options, turns it off.
+
+## Temperature colours
+
+A room's temperature reading sits on a pill coloured by a fixed comfort scale: blue at `heat_min` (17 °C), neutral half
+way, red at `heat_max` (25 °C), blended in between and clamped at both ends. The text is unchanged; humidity after it
+stays plain. A temperature icon gets a ring in the same colour. A °F sensor is converted to °C for the colour; a reading
+in any other unit is not coloured. The colours are per theme (`--fp-temp-cold`, `--fp-temp-mid`, `--fp-temp-hot`). No
+legend: the number is on the pill. `temp_colors: false`, or Temperature colours in View options, turns it off.
 
 ## Tap, hold and hover
 

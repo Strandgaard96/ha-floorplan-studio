@@ -16,6 +16,11 @@ git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
 
+## 2026-10-12: Sprint 29, switches (branch `task/s29`)
+
+- `StoredView.art`/`heat`, `_pickedArt`/`_pickedHeat`, two View options rows, four keys in the view-memory seed, four config
+  editor fields, `docs/card.md`.
+
 ## 2026-10-12: Sprint 29, cover art in the card (branch `task/s29`)
 
 - One capturing `error` listener on the card's shadow root keeps a bounded set of failed art hrefs (`ART_FAILED_MAX` 64),

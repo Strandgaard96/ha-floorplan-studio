@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- View options has Cover art and Temperature colours; each is remembered per viewer and Reset view returns to the YAML (`media_art`, `temp_colors`). The card editor has both, and the two bounds.
 - Cover art in the card, 2D and 3D: an image that cannot load is replaced by the icon, and a new picture is tried again.
 - 3D: a room's temperature is on the same coloured pill as in 2D, and a temperature icon wears the same ring.
 - A room's temperature on the plan sits on a pill coloured by a fixed comfort scale: blue at `heat_min` (17 °C), neutral half way, red at `heat_max` (25 °C); a temperature icon gets a ring in the same colour. The text is unchanged. `temp_colors: false` turns it off.

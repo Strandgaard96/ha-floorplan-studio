@@ -690,6 +690,9 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedDetail: DetailMode | null = null;
   /** S27.13: the Floor below button's pick; `null` leaves the card's YAML `ghost_floor` in charge. */
   private _pickedGhost: boolean | null = null;
+  /** S29: Cover art and Temperature colours in View options; `null` means the config's own. */
+  private _pickedArt: boolean | null = null;
+  private _pickedHeat: boolean | null = null;
   /** S27.14: the Floors below select's pick (3D); `null` leaves the card's YAML `floors_below` in charge. */
   private _pickedBelow: BelowMode | null = null;
   /** Whether the Detail choices are unfolded. Not remembered, like `_layersOpen`. */
@@ -902,6 +905,11 @@ export class FloorplanStudioCard extends LitElement {
     if (c.detail !== undefined) seed.push(["detail", c.detail]);
     if (c.ghost_floor !== undefined) seed.push(["ghost_floor", c.ghost_floor]);
     if (c.floors_below !== undefined) seed.push(["floors_below", c.floors_below]);
+    // S29: a YAML change to these starts a clean memory, as `detail` does.
+    if (c.media_art !== undefined) seed.push(["media_art", c.media_art]);
+    if (c.temp_colors !== undefined) seed.push(["temp_colors", c.temp_colors]);
+    if (c.heat_min !== undefined) seed.push(["heat_min", c.heat_min]);
+    if (c.heat_max !== undefined) seed.push(["heat_max", c.heat_max]);
     if (c.kiosk !== undefined) seed.push(["kiosk", c.kiosk]);
     return `fp-view:${tag(JSON.stringify(seed))}`;
   }
@@ -920,6 +928,8 @@ export class FloorplanStudioCard extends LitElement {
       this._pickedDetail =
       this._pickedGhost =
       this._pickedBelow =
+      this._pickedArt =
+      this._pickedHeat =
         null;
     this._pendingView = null;
     this._shownFloor = null;
@@ -943,6 +953,8 @@ export class FloorplanStudioCard extends LitElement {
     if (s.detail !== undefined) this._pickedDetail = s.detail;
     if (s.ghost !== undefined) this._pickedGhost = s.ghost;
     if (s.below !== undefined) this._pickedBelow = s.below;
+    if (s.art !== undefined) this._pickedArt = s.art;
+    if (s.heat !== undefined) this._pickedHeat = s.heat;
     if (s.floor !== undefined) this._shownFloor = s.floor; // an unknown id is ignored by _floorKey
     this._hiddenLayers = s.layers ?? [];
     for (const [k, fv] of s.floors ?? []) this._floorViews.set(k, fv); // the live fields follow once the first render knows the floor
@@ -1000,6 +1012,8 @@ export class FloorplanStudioCard extends LitElement {
     if (this._pickedDetail !== null) o.detail = this._pickedDetail;
     if (this._pickedGhost !== null) o.ghost = this._pickedGhost;
     if (this._pickedBelow !== null) o.below = this._pickedBelow;
+    if (this._pickedArt !== null) o.art = this._pickedArt;
+    if (this._pickedHeat !== null) o.heat = this._pickedHeat;
     if (this._shownFloor !== null) o.floor = this._shownFloor;
     if (this._hiddenLayers.length) o.layers = this._hiddenLayers;
     this._stashFloor();
@@ -1416,7 +1430,9 @@ export class FloorplanStudioCard extends LitElement {
   }
   /** S29 (H2, S3): the temperature colour scale handed to both views, or undefined when the colours are off. Untrusted YAML: only a real `false` is off. */
   private _tempColors(): [number, number] | undefined {
-    return this._config.temp_colors !== false ? heatBounds(this._config.heat_min, this._config.heat_max) : undefined;
+    return (this._pickedHeat ?? this._config.temp_colors !== false)
+      ? heatBounds(this._config.heat_min, this._config.heat_max)
+      : undefined;
   }
 
   /**
@@ -1689,7 +1705,7 @@ export class FloorplanStudioCard extends LitElement {
   }
   /** S29 (A3, S3): whether a playing speaker shows its cover art. Untrusted YAML: only a real `false` is off. */
   private _mediaArt(): boolean {
-    return this._config.media_art !== false;
+    return this._pickedArt ?? this._config.media_art !== false;
   }
 
   /** Home Assistant's dark mode, used only by `theme: ha` to choose the dark set for what its CSS variables do not cover. */
@@ -4240,7 +4256,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** UI refactor 3: the toolbar is one row, the View segmented control and the View options button, at every width.
-   * Every other look control (Walls or cutaway, Floors below, Tilt, Theme, Labels, Device names, Floor below) is in the
+   * Every other look control (Walls or cutaway, Floors below, Tilt, Theme, Labels, Device names, Cover art, Temperature colours, Floor below) is in the
    * menu that button opens. All hidden together (`view_switch: false`, kiosk). */
   private _viewControls(current: CardView) {
     const toggle = html`<button type="button" class="fp-view-toggle" aria-label="View options" title="View options" aria-expanded=${this._viewOpen ? "true" : "false"} aria-controls="fp-view-menu" @click=${() => {
@@ -4265,6 +4281,8 @@ export class FloorplanStudioCard extends LitElement {
   private _lookControls(current: CardView) {
     const labels = this._labels();
     const names = this._names();
+    const art = this._mediaArt(),
+      heat = this._tempColors() !== undefined;
     const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider
     const row = (name: string, control: unknown) =>
       html`<label class="fp-vm-row"><span>${name}</span>${control}</label>`;
@@ -4280,7 +4298,17 @@ export class FloorplanStudioCard extends LitElement {
         this._pickedNames = !names;
         this._saveViewNow();
         this.requestUpdate();
-      }}><b aria-hidden="true">Aa</b><span>Device names</span></button>${in3d ? null : this._ghostButton()}
+      }}><b aria-hidden="true">Aa</b><span>Device names</span></button>
+      <button type="button" aria-label="Cover art" title="Cover art" aria-pressed=${art ? "true" : "false"} @click=${() => {
+        this._pickedArt = !art;
+        this._saveViewNow();
+        this.requestUpdate();
+      }}><b aria-hidden="true">♪</b><span>Cover art</span></button>
+      <button type="button" aria-label="Temperature colours" title="Temperature colours" aria-pressed=${heat ? "true" : "false"} @click=${() => {
+        this._pickedHeat = !heat;
+        this._saveViewNow();
+        this.requestUpdate();
+      }}><b aria-hidden="true">°</b><span>Temperature colours</span></button>${in3d ? null : this._ghostButton()}
     </div>`;
   }
 
@@ -4327,6 +4355,8 @@ export class FloorplanStudioCard extends LitElement {
         this._pickedDetail,
         this._pickedGhost,
         this._pickedBelow,
+        this._pickedArt,
+        this._pickedHeat,
       ].some((v) => v !== null)
     );
   }
@@ -4345,6 +4375,8 @@ export class FloorplanStudioCard extends LitElement {
       this._pickedDetail =
       this._pickedGhost =
       this._pickedBelow =
+      this._pickedArt =
+      this._pickedHeat =
         null;
     this._pendingView = null;
     this._view = null;
