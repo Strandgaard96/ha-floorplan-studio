@@ -3734,7 +3734,7 @@ Lane words (a new `src/core/align-words.ts`; reads only the result shape S30.1 f
 Wave 2, after wave 1 is merged. Two lanes in parallel:
 
 Lane state (`src/editor/state.ts`):
-- [ ] S30.7 `alignToBelow` applies the turn (Sonnet). `EditorState.alignToBelow(key)` reads `from` from
+- [x] S30.7 `alignToBelow` applies the turn (Sonnet). `EditorState.alignToBelow(key)` reads `from` from
       `floorPlace(layout, key, below).turn`, calls `alignFloor(upper, lower, from)` and writes
       `poseFromPlace(layout, key, below, { turn: r.turn, shift: r.t })` through `setPose`: one undo step, none when the
       pose does not change, refused under Lock plan, the exact session pose starts again from the stored one. Test,

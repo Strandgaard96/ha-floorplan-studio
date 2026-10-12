@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: S30.7 alignToBelow applies the turn (Sonnet)
+
+`alignToBelow` passes the floor's current place turn as `from` and writes the answer's turn and shift through `setPose`.
+Nothing new in the writer: rounding, one undo step, "same" and Lock plan are `setPose`'s. The exact session pose is left
+alone; it is trusted only while it rounds to the stored pose, so a turn press after Apply starts from the stored pose.
+The S29.7 test "a floor with no turn behaves as before" asserted the old translation-only answer; it now asserts the
+found turn (-2.5 for the ground over the basement).
+
 ## 2026-10-12: S30.6 the panel's words (Sonnet)
 
 `src/core/align-words.ts`. Pure text from the result `{ turn, t, score, weak, alt }`; it declares that shape itself and

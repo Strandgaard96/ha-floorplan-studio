@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import house from "../fixtures/hand-align-house.json";
 import type { Layout, Pt } from "../../src/core/schema";
-import { validate, floorPlace, floorPose, placePoint } from "../../src/core";
+import { validate, floorPlace, floorPose, placePoint, composePlace, floorPivot } from "../../src/core";
+import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
 import { EditorState } from "../../src/editor/state";
 
 // S29.6. Floors of the hand-align fixture: basement (lowest), ground (middle), first (top). No pose on any of them.
@@ -229,9 +230,75 @@ describe("Apply keeps the turn (S29.7)", () => {
     expect(Math.abs(pl.shift[0] - 83)).toBeLessThan(2); expect(Math.abs(pl.shift[1] + 41)).toBeLessThan(2);
     ok(s);
   });
-  it("a floor with no turn behaves as before", () => {
-    const s = st(); // ground vs basement with no rotation: translation only
+  it("a floor with no turn now gets the turn the search finds (S30.7: ground over basement, -2.5)", () => {
+    const s = st();
     s.alignToBelow("ground");
-    expect("rotation" in s.layout.floors.ground).toBe(false);
+    expect(Math.abs(floorPose(s.layout, "ground").rot + 2.5)).toBeLessThan(0.2);
   });
+});
+
+describe("alignToBelow applies the turn (S30.7)", () => {
+  /** The largest distance, in the house (the basement's frame, which has no pose), between where the pose puts each outline corner of `key` and where `truth` puts it. */
+  const cornerErr = (s: EditorState, key: string, truth: { turn: number; shift: Pt }) => {
+    const place = floorPlace(s.layout, key, LOWEST);
+    return Math.max(...mk().floors[key].outline.map((p) => {
+      const a = placePoint(place, p), b = placePoint(truth, p);
+      return Math.hypot(a[0] - b[0], a[1] - b[1]);
+    }));
+  };
+  const gap = (a: number, b: number) => Math.abs((((a - b) % 360) + 540) % 360 - 180);
+
+  it("from no pose: the ground then the first floor land on the truth, one undo step each", () => {
+    const s = st();
+    expect(s.alignToBelow("ground")).toBe(true);
+    expect(s.alignToBelow("first")).toBe(true);
+    ok(s);
+    expect(cornerErr(s, "ground", GROUND_TO_BASEMENT)).toBeLessThanOrEqual(2);
+    expect(cornerErr(s, "first", composePlace(FIRST_TO_GROUND, GROUND_TO_BASEMENT))).toBeLessThanOrEqual(2);
+    expect(gap(floorPose(s.layout, "ground").rot, -2.5)).toBeLessThan(0.2);
+    expect(gap(floorPlace(s.layout, "first", "ground").turn, 4)).toBeLessThan(0.2);
+    s.undo(); expect("rotation" in s.layout.floors.first).toBe(false); expect("offset" in s.layout.floors.first).toBe(false);
+    s.undo(); expect("rotation" in s.layout.floors.ground).toBe(false); expect(s.canUndo).toBe(false);
+  });
+
+  it("the stored place is the prior: a first floor stored a half turn off (184 from the ground) answers -176, one stored near 0 answers 4", () => {
+    const set = (rot?: number) => { const s = st(); s.layout.floors.ground.rotation = -2.5; s.layout.floors.ground.offset = [-57, 112]; if (rot !== undefined) s.layout.floors.first.rotation = rot; return s; };
+    const half = set(-178.5); // place turn 181.5 - 360... = -178.5 + 2.5 = -176 from the ground
+    expect(half.alignToBelow("first")).toBe(true);
+    expect(gap(floorPlace(half.layout, "first", "ground").turn, -176)).toBeLessThan(0.2);
+    const near = set();
+    expect(near.alignToBelow("first")).toBe(true);
+    expect(gap(floorPlace(near.layout, "first", "ground").turn, 4)).toBeLessThan(0.2);
+  });
+
+  it("a turn press after Apply moves by one step, from the stored pose", () => {
+    const s = st(); s.alignToBelow("ground");
+    const before = floorPose(s.layout, "ground").rot;
+    expect(s.turnFloor("ground", 1, floorPivot(s.layout.floors.ground))).toBe(true);
+    expect(floorPose(s.layout, "ground").rot).toBeCloseTo(before + 1, 2);
+    s.undo(); expect(floorPose(s.layout, "ground").rot).toBe(before);
+  });
+
+  const upperRot: [string, number | undefined][] = [["absent", undefined], ["4", 4], ["-176", -176]];
+  const lowerRot: [string, number | undefined][] = [["absent", undefined], ["-2.5", -2.5]];
+  const lowerOff: [string, Pt | undefined][] = [["absent", undefined], ["set", [-57, 112]]];
+  for (const [un, ur] of upperRot) for (const [ln, lr] of lowerRot) for (const [on, lo] of lowerOff) for (const locked of [false, true])
+    for (const key of [LOWEST, MIDDLE, "first", "nope", "__proto__"]) {
+      it(`upper rotation ${un}, lower rotation ${ln}, lower offset ${on}, lock ${locked}, floor ${key}`, () => {
+        const s = st(locked);
+        const below = KEYS[KEYS.indexOf(key) - 1];
+        if (below !== undefined) { if (lr !== undefined) s.layout.floors[below].rotation = lr; if (lo) s.layout.floors[below].offset = [...lo]; }
+        if (KEYS.includes(key) && ur !== undefined) s.layout.floors[key].rotation = ur;
+        const before = JSON.stringify(s.layout);
+        const r = s.alignToBelow(key);
+        ok(s);
+        if (!r) { expect(JSON.stringify(s.layout)).toBe(before); expect(s.canUndo).toBe(false); return; }
+        expect(locked).toBe(false); expect(s.canUndo).toBe(true);
+        s.undo(); expect(JSON.stringify(s.layout)).toBe(before); expect(s.canUndo).toBe(false);
+        s.redo(); ok(s);
+        // applying again changes nothing and records nothing
+        expect(s.alignToBelow(key)).toBe(false);
+        s.undo(); expect(s.canUndo).toBe(false);
+      });
+    }
 });

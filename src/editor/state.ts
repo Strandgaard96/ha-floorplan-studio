@@ -433,15 +433,21 @@ export class EditorState {
     return this.turnFloor(key, normaliseTurn(rot) - e.rot, pivot);
   }
 
-  /** Lays a floor on the floor below it (S27.4): keeps the floor's turn, and sets the offset so the best translation (found with the floor turned) is the place. False when there is no floor below, nothing to match, or nothing changes. */
+  /**
+   * Lays a floor on the floor below it (S27.4, S30.7): searches the turn as well as the shift, preferring a small change
+   * from the floor's current turn (`from`), and writes both through `setPose`: one undo step, none when the rounded pose is
+   * the stored one, refused under Lock plan. The exact session pose is not touched; it is trusted only while it rounds to
+   * the stored pose, so the next press starts from what Apply wrote. False when there is no floor below, nothing to match,
+   * or nothing changes.
+   */
   alignToBelow(key: string): boolean {
     if (!this.fresh()) return false;
     const below = floorBelow(this.layout, key);
     if (below === null) return false;
-    const turn = floorPlace(this.layout, key, below).turn;
-    const r = alignFloor(this.layout.floors[key], this.layout.floors[below], turn);
+    const from = floorPlace(this.layout, key, below).turn;
+    const r = alignFloor(this.layout.floors[key], this.layout.floors[below], from);
     if (!r) return false;
-    const p = poseFromPlace(this.layout, key, below, { turn, shift: r.t });
+    const p = poseFromPlace(this.layout, key, below, { turn: r.turn, shift: r.t });
     return this.setPose(key, p);
   }
 
