@@ -53,7 +53,6 @@ for (const [name, size] of Object.entries(SIZES) as [keyof typeof SIZES, TouchSi
     });
 
     test("K4 show the plan in 2.5D: View options, 2.5D (2 taps)", async ({ page }) => {
-      test.fail(true, "S31.11 removes this: no button named View options yet");
       await bootTouch(page, size);
       const before = await page.evaluate(() => document.getElementById("card")!.shadowRoot!.querySelector("svg.fp-zoomable")!.innerHTML);
       await tapRole(page, "button", "View options");
