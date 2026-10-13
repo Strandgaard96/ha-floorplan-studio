@@ -4,6 +4,7 @@ import type { Layout } from "../../src/core/schema";
 import { THEMES } from "../../src/core";
 import { parseStoredView } from "../../src/card/view-state";
 import "../../src/card/floorplan-studio-card";
+import { pickItem, stateOfItem } from "./menu-dom";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 // What the card writes, and when: the field report was a view that resets on every dashboard reload.
@@ -95,17 +96,11 @@ describe("every touch is written soon", () => {
 
   it("theme, view, tilt and labels are written the moment they are touched", async () => {
     const el = await mount({ floor: "ground", theme: "terminal", view: "2.5d", tilt: 0.3 });
-    const theme = q<HTMLSelectElement>(el, 'select[aria-label="Theme"]')!;
-    theme.value = "light";
-    theme.dispatchEvent(new Event("change", { bubbles: true }));
-    await el.updateComplete;
+    await pickItem(el, "theme:light");
     expect(stored()[0]?.theme).toBe("light");
-    await click(el, 'button[aria-label="Labels"]');
+    await pickItem(el, "labels");
     expect(stored()[0]?.labels).toBe(false);
-    const view = q<HTMLSelectElement>(el, 'select[aria-label="View"]')!;
-    view.value = "2d";
-    view.dispatchEvent(new Event("change", { bubbles: true }));
-    await el.updateComplete;
+    await pickItem(el, "view:2d");
     expect(stored()[0]?.view).toBe("2d");
   });
 });
@@ -114,15 +109,13 @@ describe("the stored view wins over the config, and Reset view gives the config 
   it("a config that sets theme and view, picked over, comes back as picked after setConfig with a new equal object", async () => {
     const cfg = { floor: "ground", theme: "terminal", view: "2.5d", tilt: 0.3 } as const;
     const el = await mount(cfg);
-    const theme = q<HTMLSelectElement>(el, 'select[aria-label="Theme"]')!;
-    theme.value = "light";
-    theme.dispatchEvent(new Event("change", { bubbles: true }));
-    await click(el, 'button[aria-label="Rotate right"]');
+    await pickItem(el, "theme:light");
+    await pickItem(el, "rotate:1");
     el.setConfig({ layout: structuredClone(L), ...cfg } as FloorplanStudioCardConfig); // HA calls it again on a re-render
     await el.updateComplete;
-    expect(q<HTMLSelectElement>(el, 'select[aria-label="Theme"]')!.value).toBe("light");
+    expect(await stateOfItem(el, "theme:light")).toBe("true");
     expect(el.getAttribute("data-theme")).toBe("light");
-    await click(el, 'button[aria-label="Reset view"]');
+    await pickItem(el, "reset");
     expect(el.getAttribute("data-theme")).toBe("terminal");
     expect(stored()).toEqual([]);
   });
@@ -131,7 +124,7 @@ describe("the stored view wins over the config, and Reset view gives the config 
     vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => { throw new Error("blocked"); });
     const el = await mount({ floor: "ground" });
-    await click(el, 'button[aria-label="Rotate right"]');
+    await pickItem(el, "rotate:1");
     expect(q(el, "svg")).not.toBeNull();
   });
 });
@@ -140,8 +133,7 @@ describe("S25 fix: a stored Detail pick does not outlive a change of detail or k
   const level = (el: FloorplanStudioCard) => q(el, "svg g[data-detail]")?.getAttribute("data-detail");
   async function pickMinimal() {
     const a = await mount();
-    await click(a, ".fp-detail-toggle");
-    await click(a, '.fp-detail[data-detail="minimal"]');
+    await pickItem(a, "detail:minimal");
     expect(level(a)).toBe("far");
     a.remove(); // leaving flushes the save
     expect(stored().some((v) => v.detail === "minimal")).toBe(true);

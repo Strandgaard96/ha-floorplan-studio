@@ -10,6 +10,7 @@ vi.mock("../../src/core", async (importOriginal) => {
   return { ...actual, renderFloor: vi.fn(actual.renderFloor) };
 });
 import { renderFloor } from "../../src/core";
+import { hasMenuItem, menuItemDisabled, menuOf, openMenu, pickItem, stateOfItem } from "./menu-dom";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
@@ -23,14 +24,12 @@ async function mount(config: Record<string, unknown> = {}): Promise<FloorplanStu
   await el.updateComplete;
   return el;
 }
-const select = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector<HTMLSelectElement>('select[aria-label="Walls"]');
-const pick = async (el: FloorplanStudioCard, value: string) => {
-  const s = select(el)!;
-  s.value = value;
-  s.dispatchEvent(new Event("change", { bubbles: true }));
-  await el.updateComplete;
+// S31.6: Walls is a radio group of the header menu, `walls:<mode>`; Reset view is its `reset` action.
+const pick = (el: FloorplanStudioCard, value: string) => pickItem(el, `walls:${value}`);
+const current = async (el: FloorplanStudioCard) => {
+  for (const m of WALLS_MODES) if ((await stateOfItem(el, `walls:${m}`)) === "true") return m;
+  return null;
 };
-const reset = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector<HTMLButtonElement>('button[aria-label="Reset view"]')!;
 const stored = () => Object.keys(localStorage).filter((k) => k.startsWith("fp-view:")).map((k) => JSON.parse(localStorage.getItem(k)!));
 
 beforeEach(() => localStorage.clear());
@@ -57,19 +56,21 @@ describe("card walls option", () => {
     }
   });
 
-  it("the select lists every mode with its label, and shows the current one", async () => {
+  it("the menu lists every mode with its label, and checks the current one", async () => {
     const el = await mount({ walls: "low" });
-    const s = select(el)!;
-    expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual(WALLS_MODES.map((m) => [m, WALLS_LABELS[m]]));
-    expect(s.value).toBe("low");
+    await openMenu(el);
+    const items = [...menuOf(el)!.shadowRoot!.querySelectorAll('[data-value^="walls:"]')];
+    expect(items.map((o) => [o.getAttribute("data-value"), o.querySelector(".text")!.textContent!.trim()])).toEqual(WALLS_MODES.map((m) => [`walls:${m}`, WALLS_LABELS[m]]));
+    expect(await current(el)).toBe("low");
   });
 
-  it("is in the toolbar next to the Tilt slider, in 2.5D only", async () => {
+  it("is in the menu right after the Tilt steps, in 2.5D only", async () => {
     const on = await mount();
-    const tilt = on.shadowRoot!.querySelector('input[aria-label="Tilt"]')!;
-    expect(select(on)!.previousElementSibling).toBe(tilt);
+    await openMenu(on);
+    const order = [...menuOf(on)!.shadowRoot!.querySelectorAll("[data-value]")].map((o) => o.getAttribute("data-value")!);
+    expect(order.map((v) => v.startsWith("tilt:")).lastIndexOf(true) + 1).toBe(order.findIndex((v) => v.startsWith("walls:")));
     const flat = await mount({ view: "2d" });
-    expect(select(flat)).toBeNull();
+    expect(await hasMenuItem(flat, "walls:cut")).toBe(false);
   });
 
   it("a pick redraws with that mode and is stored at once", async () => {
@@ -81,9 +82,8 @@ describe("card walls option", () => {
 
   it("a junk pick is refused", async () => {
     const el = await mount();
-    const s = select(el)!;
-    s.add(new Option("x", "tall"));
-    await pick(el, "tall");
+    menuOf(el)!.dispatchEvent(new CustomEvent("fp-menu-pick", { detail: { value: "walls:tall" }, bubbles: true, composed: true }));
+    await el.updateComplete;
     expect(last().walls).toBe("cut");
     expect(stored()).toEqual([]);
   });
@@ -94,7 +94,7 @@ describe("card walls option", () => {
     document.body.innerHTML = "";
     const again = await mount({ walls: "low" });
     expect(last().walls).toBe("full");
-    expect(select(again)!.value).toBe("full");
+    expect(await current(again)).toBe("full");
   });
 
   it("a hostile stored mode is dropped and the config stays in charge", async () => {
@@ -110,9 +110,8 @@ describe("card walls option", () => {
   it("Reset view returns to the config's mode and clears the stored one", async () => {
     const el = await mount({ walls: "low" });
     await pick(el, "full");
-    expect(reset(el).disabled).toBe(false);
-    reset(el).click();
-    await el.updateComplete;
+    expect(await menuItemDisabled(el, "reset")).toBe(false);
+    await pickItem(el, "reset");
     expect(last().walls).toBe("low");
     expect(stored()).toEqual([]);
   });

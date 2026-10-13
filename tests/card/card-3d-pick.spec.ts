@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demo, serve, ORIGIN, card, holder, canvas, cam, drawn } from "./helpers-3d";
+import { pick } from "./menu-helper";
 
 // S12.4 (spec G, criteria 4, 5 and 10): taps in the 3D view mean what they mean on the plan. Every click is a real
 // page.mouse event at the screen position of something in the model, asked of the view's test hook (`__fp3d`, built only into dist-test/), because a test that dispatched events on an element would pass while the real
@@ -104,8 +105,8 @@ test.describe("3D view: taps on rooms", () => {
     await click(page, () => at(page, 60, 60, 1), { type: "room", index: 0 });
     await expect.poll(() => ring(page)).toBe("0");
     await expect(panel(page)).toHaveAttribute("aria-label", "Living");
-    // the room section widens the list, which moves the framing a little: find the spot again
-    await expect.poll(async () => (await holder(page).getAttribute("data-inset"))).toMatch(/^0\.[3-9]/);
+    // S31.5: the room section is in the side sheet, beside the stage: the framing does not move, there is nothing over the model to frame around
+    await expect.poll(async () => (await holder(page).getAttribute("data-inset"))).toMatch(/^0(\.0+)?,0(\.0+)?$/);
     await click(page, () => at(page, 60, 60, 1), { type: "room", index: 0 });
     await expect.poll(() => ring(page)).toBe("");
     await expect(panel(page)).toHaveAttribute("aria-label", "Overview"); // S24.7: the Active panel is the Overview
@@ -132,8 +133,8 @@ test.describe("3D view: taps on rooms", () => {
     await boot(page);
     await click(page, () => at(page, 150, 450, 1), { type: "room", index: 2 }); // the Hall, 150 cm inside its south wall (S14.5: the low wall is 110 cm, so a nearer point is hidden), from a camera in the south
     await expect.poll(() => ring(page)).toBe("2");
-    await expect.poll(async () => (await holder(page).getAttribute("data-inset"))).toMatch(/^0\.[3-9]/); // the room section widened the list
-    await card(page).locator('css=select[aria-label="Walls"]').selectOption("full");
+    await expect.poll(async () => (await holder(page).getAttribute("data-inset"))).toMatch(/^0(\.0+)?,0(\.0+)?$/); // S31.5: the room section is in the sheet beside the stage, no inset
+    await pick(page, "walls:full");
     await expect.poll(async () => (await holder(page).getAttribute("data-lowered"))).toBe("");
     await click(page, () => at(page, 150, 450, 1), { type: "other" }); // the wall in front of it now
     await expect.poll(() => ring(page)).toBe("");

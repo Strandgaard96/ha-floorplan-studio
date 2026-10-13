@@ -1,9 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+import { checkedIn, menuPanel, openMenu, closeMenu, pick as pickItem, stateOf } from "./menu-helper";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-// S25.8: the card's Detail button beside Layers, and `detail:` in the card YAML. Real page.mouse (finding 3); the level
+// S25.8: the card's Detail section of the ⋯ menu (S31.6: it was a button beside Layers), and `detail:` in the card YAML. Real page.mouse (finding 3); the level
 // is read off the live plan root; the viewer's choice goes through the real localStorage and a real reload.
 // The shared harness pins `detail: full` for every other card test (tests/card/harness.html); these tests opt out of
 // that so they see the real default, which is `auto`.
@@ -43,22 +44,18 @@ async function clickOn(page: Page, sel: string) {
   await page.mouse.click(p!.x, p!.y);
 }
 const zoom = async (page: Page, label: "Zoom in" | "Zoom out", n: number) => { for (let i = 0; i < n; i++) await clickOn(page, `button[aria-label="${label}"]`); };
-async function pick(page: Page, mode: "auto" | "full" | "minimal") {
-  if ((await card(page).locator('css=button.fp-detail-toggle').getAttribute("aria-expanded")) !== "true") await clickOn(page, "button.fp-detail-toggle");
-  await clickOn(page, `button.fp-detail[data-detail="${mode}"]`);
-}
+const pick = (page: Page, mode: "auto" | "full" | "minimal") => pickItem(page, `detail:${mode}`);
 
-test("a Detail button sits beside Layers and unfolds Auto, Full and Minimal; the active one is pressed", async ({ page }) => {
+test("the menu has Detail: Auto, Full and Minimal as radios; the active one is checked", async ({ page }) => {
   await open(page);
-  const scopes = card(page).locator("css=.fp-ov-scopes");
-  expect(await scopes.evaluate((el) => [...el.querySelectorAll("button")].map((b) => b.className.split(" ")[0]))).toEqual(expect.arrayContaining(["fp-layers-toggle", "fp-detail-toggle"]));
-  await expect(card(page).locator("css=button.fp-detail")).toHaveCount(0);
-  await clickOn(page, "button.fp-detail-toggle");
-  expect(await card(page).locator("css=button.fp-detail").evaluateAll((els) => els.map((e) => e.getAttribute("data-detail")))).toEqual(["auto", "full", "minimal"]);
-  await expect(card(page).locator('css=button.fp-detail[data-detail="auto"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(card(page).locator("css=button.fp-detail-toggle, button.fp-detail")).toHaveCount(0); // moved premise: not in the Overview
+  await openMenu(page);
+  expect(await menuPanel(page).evaluate((el) => [...el.querySelectorAll("[role=menuitemradio][data-value^='detail:']")].map((e) => e.getAttribute("data-value")))).toEqual(["detail:auto", "detail:full", "detail:minimal"]);
+  await closeMenu(page);
+  expect(await checkedIn(page, "detail", ["auto", "full", "minimal"])).toBe("auto");
   await pick(page, "minimal");
-  await expect(card(page).locator('css=button.fp-detail[data-detail="minimal"]')).toHaveAttribute("aria-pressed", "true");
-  await expect(card(page).locator('css=button.fp-detail[data-detail="auto"]')).toHaveAttribute("aria-pressed", "false");
+  expect(await stateOf(page, "detail:minimal")).toBe("true");
+  expect(await stateOf(page, "detail:auto")).toBe("false");
 });
 
 test("no YAML key and no stored choice: auto. Fit is far; zooming in goes to near; the choices pin or free it", async ({ page }) => {
@@ -81,8 +78,7 @@ test("the viewer's choice survives a reload", async ({ page }) => {
   await page.reload();
   await boot(page);
   expect(await level(page)).toBe("near");
-  await clickOn(page, "button.fp-detail-toggle");
-  await expect(card(page).locator('css=button.fp-detail[data-detail="full"]')).toHaveAttribute("aria-pressed", "true");
+  expect(await stateOf(page, "detail:full")).toBe("true");
 });
 
 test("YAML detail is the card's default; junk falls back to auto and does not throw", async ({ page }) => {

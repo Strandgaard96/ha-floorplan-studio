@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { hasItem, pick } from "./menu-helper";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -34,17 +35,6 @@ const dev = (page: Page, i: number) => card(page).evaluate((el, i) => {
   return { display: getComputedStyle(g).display, x, y, hit: !!top?.closest(`g[data-x="${i}"]`) };
 }, i);
 const LAMP = 0; // demo ground floor, device 0: light.demo_living
-async function clickOn(page: Page, sel: string) {
-  const p = await card(page).evaluate((el, sel) => {
-    const t = el.shadowRoot!.querySelector(sel);
-    if (!t) return null;
-    const r = t.getBoundingClientRect(), x = r.x + r.width / 2, y = r.y + r.height / 2, top = el.shadowRoot!.elementFromPoint(x, y);
-    return top && (top === t || t.contains(top)) ? { x, y } : null;
-  }, sel);
-  expect(p, `${sel} is the top element at its centre`).not.toBeNull();
-  await page.mouse.click(p!.x, p!.y);
-}
-
 test("A: kiosk with zoom off cannot change the level, so the default is full: the idle lamp is drawn and a real click opens its popup", async ({ page }) => {
   await open(page, { kiosk: true, zoom: false });
   expect(await level(page)).toBe("near");
@@ -59,7 +49,7 @@ test("A: kiosk alone has no Detail button, so the default is full too", async ({
   await open(page, { kiosk: true });
   expect(await level(page)).toBe("near");
   expect((await dev(page, LAMP)).display).not.toBe("none");
-  await expect(card(page).locator("css=.fp-detail-toggle")).toHaveCount(0);
+  expect(await hasItem(page, "detail:auto"), "kiosk has no menu, so no Detail item").toBe(false); // S31.6: the old button is the menu's Detail section
 });
 
 test("A: active_list false with zoom off is full as well; with zoom left on it stays auto (the viewer can zoom)", async ({ page }) => {
@@ -89,7 +79,7 @@ test("A: an explicit detail wins: auto in a kiosk is far, minimal on a normal ca
   expect(await level(page)).toBe("far");
 });
 
-test("F: the real default is auto: far at fit, mid then near as the card zooms in; the Detail button picks", async ({ page }) => {
+test("F: the real default is auto: far at fit, mid then near as the card zooms in; the menu's Detail picks", async ({ page }) => {
   await open(page, { zoom: "wheel" });
   expect(await level(page)).toBe("far");
   const seen: string[] = [];
@@ -102,10 +92,9 @@ test("F: the real default is auto: far at fit, mid then near as the card zooms i
     if (seen[seen.length - 1] !== l) seen.push(l);
   }
   expect(seen).toEqual(["far", "mid", "near"]);
-  await clickOn(page, "button.fp-detail-toggle");
-  await clickOn(page, 'button.fp-detail[data-detail="minimal"]');
+  await pick(page, "detail:minimal");
   expect(await level(page)).toBe("far");
-  await clickOn(page, 'button.fp-detail[data-detail="full"]');
+  await pick(page, "detail:full");
   expect(await level(page)).toBe("near");
 });
 

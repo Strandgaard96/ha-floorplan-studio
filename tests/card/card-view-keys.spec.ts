@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { menuItem, openMenu, rotateLeft } from "./menu-helper";
 
 // The card's keys and its floor memory in real Chromium: a real pointer over the card, a real keyboard, a real reload.
 
@@ -10,7 +11,6 @@ const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
 const card = (page: Page) => page.locator("floorplan-studio-card");
-const button = (page: Page, label: string) => card(page).locator(`css=button[aria-label="${label}"]`);
 const settled = (page: Page) => expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0);
 const viewBox = (page: Page) => card(page).evaluate((el) => el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number));
 const planDeg = (page: Page) => card(page).evaluate((el) => {
@@ -85,11 +85,13 @@ test.describe("the keys, with a real pointer and a real keyboard", () => {
     expect(await planDeg(page)).toBe(0);
   });
 
-  test("Space on a focused Rotate right button turns once and does not also reset", async ({ page }) => {
+  // S31.6: Rotate right is an item of the ⋯ menu now, not a button; Space on the focused item is the menu's own key.
+  test("Space on a focused Rotate right menu item turns once and does not also reset", async ({ page }) => {
     await page.goto(URL_);
     await boot(page, PINNED);
     await hoverCard(page);
-    await button(page, "Rotate right").focus();
+    await openMenu(page);
+    await menuItem(page, "rotate:1").focus();
     await page.keyboard.press("Space");
     await settled(page);
     expect(await planDeg(page)).toBe(45);
@@ -108,11 +110,11 @@ test.describe("the keys, with a real pointer and a real keyboard", () => {
     expect((await viewBox(page))[2]!).toBe(w0);
   });
 
-  test("a turn made by button is still there after a reload", async ({ page }) => {
+  test("a turn made from the menu is still there after a reload", async ({ page }) => {
     await page.goto(URL_);
     await boot(page, PINNED);
     await hoverCard(page);
-    await button(page, "Rotate left").click();
+    await rotateLeft(page);
     await settled(page);
     await page.reload();
     await boot(page, PINNED);

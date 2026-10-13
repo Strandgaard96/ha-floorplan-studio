@@ -3,47 +3,49 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { serve, ORIGIN } from "./helpers-3d";
+import { menuItem, openMenu } from "./menu-helper";
 
 // Diego, 0.12.22: "everything you do in studio must also be done in card". The rule for what is VIEWING: every
 // control the editor's View menu, its zoom group and its Filter menu draw is listed here with a decision, so a new
 // editor view control fails this test until someone writes down what the card does about it (CLAUDE.md finding 17).
 // The same table is in docs/card.md ("Studio and card"); the last test keeps the two together.
 
-type Decision = { card: "yes"; has: string } | { card: "deliberate"; why: string };
+// S31.6: `has` is a selector in the card's shadow root (the zoom cluster); `item` is the `data-value` of an item of the ⋯ menu.
+type Decision = { card: "yes"; has: string } | { card: "yes"; item: string } | { card: "deliberate"; why: string };
 const EDITING_AID = "an editing aid: it helps place and measure things, and a dashboard viewer places nothing";
-/** Editor control id -> what the card does. `has` is a selector in the card's shadow root. */
+/** Editor control id -> what the card does. `has` / `item`: where the card has it. */
 const PARITY: Record<string, Decision> = {
   snap: { card: "deliberate", why: EDITING_AID },
   mgrid: { card: "deliberate", why: EDITING_AID },
   lens: { card: "deliberate", why: EDITING_AID },
   // S26.17: the Labels submenu holds Device names and Names and values; the version moved to the Help panel.
-  labelsSub: { card: "yes", has: 'button[aria-label="Labels"]' },
-  names: { card: "yes", has: 'button[aria-label="Device names"]' },
-  labels: { card: "yes", has: 'button[aria-label="Labels"]' },
+  labelsSub: { card: "yes", item: "labels" },
+  names: { card: "yes", item: "names" },
+  labels: { card: "yes", item: "labels" },
   night: { card: "deliberate", why: "a preview of what the card already does: it goes dark after sunset by itself (`night`, `sun`)" },
   // S27.11: the card's Floor below button (2D and 2.5D); in 3D the same choice is the Floors below select, checked below.
-  ghostFloor: { card: "yes", has: 'button[aria-label="Floor below"]' },
-  thSub: { card: "yes", has: 'select[aria-label="Theme"]' },
+  ghostFloor: { card: "yes", item: "ghost" },
+  thSub: { card: "yes", item: "theme:light" },
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },
   // S24.6: Layers replaced the Filter menu; S24.8 gives the card a text chip per family in its Overview, unfolded by this button.
   // S25.8: the Detail button beside Layers, same three choices; the card starts on Auto, the Studio on Full.
-  detailSub: { card: "yes", has: ".fp-ov-scopes button.fp-detail-toggle" },
-  tabLayers: { card: "yes", has: ".fp-ov-scopes button.fp-layers-toggle" },
+  detailSub: { card: "yes", item: "detail:auto" },
+  tabLayers: { card: "yes", item: "layer:lights" },
   zin: { card: "yes", has: 'button[aria-label="Zoom in"]' },
   zout: { card: "yes", has: 'button[aria-label="Zoom out"]' },
-  zreset: { card: "yes", has: 'button[aria-label="Reset view"]' },
-  vrotl: { card: "yes", has: 'button[aria-label="Rotate left"]' },
-  vrotr: { card: "yes", has: 'button[aria-label="Rotate right"]' },
+  zreset: { card: "yes", item: "reset" },
+  vrotl: { card: "yes", item: "rotate:-1" },
+  vrotr: { card: "yes", item: "rotate:1" },
 };
 
 /** S12.1: the editor has no 2.5D, so these three are card only (the card keeps 2.5D as its low-power view). They are not
  * in PARITY, which is keyed by editor control; the card must still have them, and the editor must not. */
-const CARD_ONLY: Record<string, string> = {
-  "view-mode": 'select[aria-label="View"]',
-  tilt: 'input[aria-label="Tilt"]',
-  walls: 'select[aria-label="Walls"]',
+const CARD_ONLY: Record<string, { item: string }> = {
+  "view-mode": { item: "view:2.5d" },
+  tilt: { item: "tilt:0.5" },
+  walls: { item: "walls:full" },
 };
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
@@ -77,14 +79,16 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
     el.hass = { states: {}, themes: { darkMode: false } };
     await el.updateComplete;
   }, demo);
+  await openMenu(page);
   for (const [id, d] of Object.entries(PARITY)) {
     if (d.card !== "yes") continue;
-    await expect(page.locator("floorplan-studio-card").locator(`css=${d.has}`), `${id}: ${d.has}`).toHaveCount(1);
+    if ("item" in d) await expect(menuItem(page, d.item), `${id}: menu item ${d.item}`).toHaveCount(1);
+    else await expect(page.locator("floorplan-studio-card").locator(`css=${d.has}`), `${id}: ${d.has}`).toHaveCount(1);
   }
-  for (const [id, has] of Object.entries(CARD_ONLY)) await expect(page.locator("floorplan-studio-card").locator(`css=${has}`), `${id}: ${has}`).toHaveCount(1);
+  for (const [id, c] of Object.entries(CARD_ONLY)) await expect(menuItem(page, c.item), `${id}: menu item ${c.item}`).toHaveCount(1);
 });
 
-test("in 3D the Floor below choice is the Floors below select, and the button is gone", async ({ page }) => {
+test("in 3D the Floor below choice is the three Floors below radios, and the single check is gone", async ({ page }) => {
   await serve(page);
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto(`${ORIGIN}/harness.html`);
@@ -95,8 +99,9 @@ test("in 3D the Floor below choice is the Floors below select, and the button is
     el.hass = { states: {}, callService: () => undefined };
     return el.updateComplete;
   }, demo);
-  await expect(page.locator("floorplan-studio-card").locator('css=select[aria-label="Floors below"]')).toHaveCount(1);
-  await expect(page.locator("floorplan-studio-card").locator('css=button[aria-label="Floor below"]')).toHaveCount(0);
+  await openMenu(page);
+  for (const v of ["off", "ghost", "solid"]) await expect(menuItem(page, `below:${v}`), `Floors below: ${v}`).toHaveCount(1);
+  await expect(menuItem(page, "ghost"), "the 2D check is gone in 3D").toHaveCount(0);
 });
 
 test("docs/card.md lists every control and its decision", () => {

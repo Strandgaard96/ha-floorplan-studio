@@ -36,9 +36,16 @@ async function boot(page: Page, width: number, extra: Record<string, unknown> = 
     el.hass = { states, callService: (d: string, s: string) => { w.__calls.push(`${d}.${s}`); } };
     return el.updateComplete;
   }, [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const);
-  // below 480 px the list starts folded: open it, as a person would
-  const collapse = card(page).locator("css=.fp-active-collapse");
-  if ((await collapse.getAttribute("aria-expanded")) === "false") await collapse.click();
+  // S31.8: under 640 px the list is a bottom sheet that rests at its peek: open it to half with a real click on the handle, as a person
+  // would. (Before S31.8 this was the floating panel's collapse button, folded under 480 px.)
+  const handle = card(page).locator("css=.fp-bottom .fp-handle");
+  if (await handle.count() && (await handle.getAttribute("aria-expanded")) === "false") await handle.click();
+  if (await handle.count()) {
+    await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
+    // The stop is set at once but the sheet rises over 0.2 s; a header's point read mid-rise is elsewhere when the click lands.
+    let last = -1, same = 0;
+    await expect.poll(async () => { const b = await card(page).locator("css=.fp-bottom").boundingBox(); const y = b ? b.y : 0; same = Math.abs(y - last) < 0.01 ? same + 1 : 0; last = y; return same; }, { timeout: 4000 }).toBeGreaterThanOrEqual(3);
+  }
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
@@ -46,6 +53,10 @@ const names = (page: Page) => card(page).locator("css=.fp-active-body .fp-ov-act
 
 /** A real click at the header's centre, after checking that the header is the top element there. */
 async function clickHead(page: Page, cat: string, list = ".fp-active-body .fp-ov-act > .fp-active-group") {
+  // The phone sheet rises over 0.2 s after a tap: read the header's point once it has stopped moving.
+  const head = card(page).locator(`css=${list}[data-cat="${cat}"] > button.fp-cat`);
+  let last = -1, same = 0;
+  await expect.poll(async () => { const b = await head.boundingBox(); const y = b ? b.y : -2; same = Math.abs(y - last) < 0.01 ? same + 1 : 0; last = y; return same; }, { timeout: 4000 }).toBeGreaterThanOrEqual(3);
   const p = await card(page).evaluate((el, sel) => {
     const b = el.shadowRoot!.querySelector<HTMLElement>(sel)!;
     b.scrollIntoView({ block: "nearest" });
@@ -126,6 +137,9 @@ test.describe("the Room panel is grouped too", () => {
   for (const width of [1100, 375]) {
     test(`at ${width} px a picked room lists its devices by category and folds them apart from the Active list`, async ({ page }) => {
       await boot(page, width);
+      // S31.8: boot opened the phone's sheet to half over the plan; a person taps the room on a plan they can see, so it goes back to peek
+      const sheet = card(page).locator("css=.fp-bottom");
+      if (await sheet.count()) { await card(page).locator("css=.fp-bottom .fp-handle").click(); await expect(sheet).toHaveAttribute("data-stop", "peek"); await expect.poll(async () => (await sheet.boundingBox())!.height).toBeLessThan(70); }
       const p = await card(page).evaluate((el) => {
         const poly = el.shadowRoot!.querySelector<SVGPolygonElement>('svg polygon[data-r="0"]')!;
         const r = poly.getBoundingClientRect();

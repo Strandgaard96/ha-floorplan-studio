@@ -47,6 +47,16 @@ async function mount(): Promise<FloorplanStudioCard> {
   return el;
 }
 
+/** S31.8: under 640 px the card is a phone, where the overview is a bottom sheet with no collapse button. jsdom has no layout, so a
+ *  card is "bottom" until it has a width. Tests of the side sheet and its collapse button (S9.5, S9.6) give the card a tablet width. */
+async function mountSide(): Promise<FloorplanStudioCard> {
+  const el = document.createElement("floorplan-studio-card") as FloorplanStudioCard;
+  el.getBoundingClientRect = () => ({ x: 0, y: 0, top: 0, left: 0, right: 900, bottom: 600, width: 900, height: 600, toJSON: () => ({}) }) as DOMRect;
+  document.body.appendChild(el);
+  await el.updateComplete;
+  return el;
+}
+
 describe("FloorplanStudioCard", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -763,19 +773,21 @@ describe("FloorplanStudioCard", () => {
       vi.useRealTimers();
     });
 
-    it("kiosk: true hides .fp-floors and the zoom buttons; kiosk: false (or unset) shows both", async () => {
+    it("kiosk: true hides .fp-floors, the view menu and the zoom buttons; kiosk: false (or unset) shows both", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floors: ["ground", "first"], kiosk: true });
       el.hass = stubHass() as never;
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
-      expect(el.shadowRoot!.querySelector(".fp-zoom")).toBeNull();
+      expect(el.shadowRoot!.querySelector("fp-menu")).toBeNull(); // S31.6: the old .fp-zoom toolbar is the header menu now
+      expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')).toBeNull();
 
       el.setConfig({ layout: structuredClone(L), floors: ["ground", "first"], kiosk: false });
       el.hass = stubHass() as never;
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-floors")).not.toBeNull();
-      expect(el.shadowRoot!.querySelector(".fp-zoom")).not.toBeNull();
+      expect(el.shadowRoot!.querySelector("fp-menu")).not.toBeNull();
+      expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')).not.toBeNull();
     });
 
     it("with floors: [a, b] and kiosk: true the first floor shows and there is no switcher", async () => {
@@ -1535,7 +1547,7 @@ describe("FloorplanStudioCard", () => {
     });
 
     it("the collapse button hides the body but keeps the header and count, and is reachable by keyboard as a real button", async () => {
-      const el = await mount();
+      const el = await mountSide();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass({ "light.demo_living": st("on") }) as never;
       await el.updateComplete;
@@ -1545,6 +1557,13 @@ describe("FloorplanStudioCard", () => {
       collapseBtn.click();
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
+      // S31.8: a folded side sheet is the 52 px rail, not a header with a count (the header with chips is the open sheet's). The way back
+      // is one real button; opening it again shows the chips.
+      const open = el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-rail-open")!;
+      expect(open.tagName).toBe("BUTTON");
+      expect(open.getAttribute("aria-expanded")).toBe("false");
+      open.click();
+      await el.updateComplete;
       expect(chips(el)).toBe("1 light"); // the light; S24.3: the camera is no longer listed; S24.7: chips, not a number
     });
 
@@ -1565,7 +1584,7 @@ describe("FloorplanStudioCard", () => {
     });
 
     it("collapsed state survives a fresh card instance (localStorage), keyed so a different config does not share it", async () => {
-      const el = await mount();
+      const el = await mountSide();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass() as never;
       await el.updateComplete;
@@ -1574,14 +1593,14 @@ describe("FloorplanStudioCard", () => {
       expect(el.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
 
       // A second card, same config (same storage key): reopens already collapsed.
-      const el2 = await mount();
+      const el2 = await mountSide();
       el2.setConfig({ layout: structuredClone(L) });
       el2.hass = stubHass() as never;
       await el2.updateComplete;
       expect(el2.shadowRoot!.querySelector(".fp-active-body")).toBeNull();
 
       // A third card pinned to a different floor (different storage key per Opus review finding 7): opens fresh.
-      const el3 = await mount();
+      const el3 = await mountSide();
       el3.setConfig({ layout: structuredClone(L), floor: "first" });
       el3.hass = stubHass() as never;
       await el3.updateComplete;
@@ -1590,7 +1609,7 @@ describe("FloorplanStudioCard", () => {
 
     it("Opus review finding 7: two cards in websocket mode (no layout/layout_url, the default install) pinned to different floors keep separate storage, not one shared key", async () => {
       const sendMessagePromise = vi.fn(async () => ({ layout: structuredClone(L) }));
-      const el = await mount();
+      const el = await mountSide();
       el.setConfig({ floor: "ground" });
       el.hass = { ...stubHass(), connection: { sendMessagePromise } } as never;
       await el.updateComplete;
@@ -1608,7 +1627,7 @@ describe("FloorplanStudioCard", () => {
     });
 
     it("Opus review finding 7: an edited inline layout keeps its storage key (the seed is the layout's source, not its content)", async () => {
-      const el = await mount();
+      const el = await mountSide();
       el.setConfig({ layout: structuredClone(L) });
       el.hass = stubHass() as never;
       await el.updateComplete;
@@ -1783,7 +1802,7 @@ describe("FloorplanStudioCard", () => {
     });
 
     async function mountPinned(config: Record<string, unknown>) {
-      const el = await mount();
+      const el = await mountSide();
       el.setConfig({ layout: structuredClone(L), floor: "ground", ...config });
       el.hass = stubHass() as never;
       await el.updateComplete;

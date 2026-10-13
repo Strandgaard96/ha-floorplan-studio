@@ -2,6 +2,144 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: fixes from the Opus review of Sprint 31 (Sonnet)
+
+Six findings, one commit each; this entry grows with them.
+- Re-check, Back and focus. `_back()` focused a sheet control whenever the card owned the key, which includes owning it by hover alone, so Escape with the pointer over the card and focus in another widget on the page stole that focus. It now moves focus only when the card already contained it (`shadowRoot.activeElement`); otherwise focus stays where it was. Test: a page button focused, the pointer over the card, Escape: the button keeps focus (the card's `host` took it before). The case with focus inside the card still moves to the sheet's control. The phone S31.8 tests held unchanged.
+- Re-check, focus on a tablet. Back and Escape moved focus to `.fp-back, .fp-active-collapse, .fp-handle`; at 768 the sheet folds to the rail, where the only control is `.fp-rail-open`, so focus was lost to the body. `.fp-rail-open` joins the selector. Test: `card-back-focus.spec.ts`, 768 x 1024, room, two Escapes, the rail's open button is the focused element (null before).
+- Re-check, card height in side mode (blocker). The fix above sized the card from the rail ALWAYS, but from 900 px the sheet is open by default and the plan is drawn in the card less the sheet (up to 320 px), so it letterboxed in an empty band under the plan: 193 px at 1280 x 1000, 164 at 1600 x 1200, 148 at 1024 x 768. The premise "the sheet never moves the edge" held for a pick, not for the resting state. The card now sizes from the sheet's RESTING state: `sideWidth(width)` when it is open by default (from 900 px), the 52 px rail below that or once folded by hand. A room pick never changes it (at 768 the rail rests, the sheet opens over it; at 1280 it was open already); a manual fold does. The plan letterboxes only while a pick has opened the sheet over a rail (a tablet under 900 px, or a card folded by hand). Tests: band under 2 px at 1280 x 1000, 1600 x 1200 and 1024 x 768 (193, 164 and 148 px before); a fold at 1280 changes the height; a pick at 1280 does not. Premise change, not weakened: the first test of `card-fit-height.spec.ts` expected the rail's width as the stage in side mode; it now expects the resting sheet's, open from 900 px.
+- Card height in side mode. `_fitHeight` took the stage width (card less sheet), so a room tap on a tablet opened the sheet, the plan got narrower, the card got shorter by up to 150 px and the room moved under the finger. Side mode now sizes from the card's width less the 52 px rail, whatever the sheet does; the plan letterboxes when the sheet is open. (Superseded by the re-check entry below in this list: sizing from the rail always was wrong from 900 px.) Test: 768 x 1024, demo and stress, height equal before the pick, with the sheet open and after Escape (failed 557 vs 407 and 842 vs 607 before). `card-fit-height.spec.ts` first test changed premise: its expected stage is now card less the rail in side mode (it used `--fp-sheet-w`, which at 1024 is the open sheet); the bound is the same.
+- Name floor. Nothing measured the pixel behind `qpx` (round down, so a name never falls under 11 px). New `card-name-floor.spec.ts`: the real on-screen size (font-size times the text's screen scale) of every room name, widths 300 to 1400 step 37, demo and stress, plan turned 45 degrees, at least 10.99 px. With `Math.round` in `qpx` it fails ("Living" 10.96 px at 300 and 374 px); with `Math.floor` it passes 10 of 10.
+- Docs. The zoom cluster is at the top right (`.fp-cluster` is `align-self: start`), not the bottom right as `docs/card.md` and spec D1 said; both corrected (the spec in place, with a note, as it describes what was built). `docs/card.md` also said that on a phone the 3D model "stays above" the sheet; it does not, so that sentence is replaced and a Known limits section lists the three honest gaps: no 3D re-fit on a narrower card, the half sheet covers the lower house in 3D, a room pick does not move the 3D camera. No code change, no CHANGELOG line.
+- Menu height. `place()` set an inline `max-height` of the card's room below the button, which beat the stylesheet's `min(70vh, 520px)`, so in a card taller than the screen the menu ran off it. The inline value is now the least of the card's room, the screen's room below the button (visual viewport), 70 % of the screen and 520 px, never under 120 px, and the panel scrolls. Test (harness `?h=` card height, `?many=1` forty items): 1024 x 600 and 768 x 1024, card 300 and 1400 px tall; the 1400 cases failed before (menu bottom 1416 px against a 592 px and a 1016 px screen), the 300 cases already held. The real card's Theme list at the end of the tablet shot is the same menu.
+- No fixed sleep in `card-fit-height.spec.ts`. The two negative checks (a fixed row, a hand-set height survive a resize) waited 100 ms; they now wait two animation frames, a ResizeObserver tick and one more frame, then assert. Mutation check: with the hand-set-height guard removed the test fails (300 expected, 428 received). 10 of 10 on the whole file. Test-only, no CHANGELOG line.
+- Escape is Back. In a side sheet `_onViewKey` called `_pickRoom(null)`, so Escape on a tablet went room to Overview while Back went room to floor. With a sheet it now calls `_back()` on every width (the phone path already did, S31.8); with no sheet (`active_list: false`, kiosk) there is no level and it lets go as before. Back moves focus to the sheet's own control; Escape does too, so a test that pressed Space on the same pill after Escape now refocuses the pill. Test: real `page.keyboard`, 768 and 1280 wide, room, floor, Overview (failed on the second step before). Premise changes, not weakened: `card-room-select` (the floor step was phone only), `card-find` (Escape after a find lands on the floor, a second clears), `card-floor-select` (refocus the pill), the new tablet test uses two Escapes.
+
+## 2026-10-13: the plan is drawn at a snapped scale, so a settled render does not depend on its history
+
+`_measurePx` re-rendered only when the measured scale moved more than 1 % (strip: 0.5 % of the plan), so a card drawn at one width and nudged by 0.4 % kept the old render, and differed in the second decimal of a label from a card drawn at the final width. That was the 2 to 7 % flake of "the turn lands byte for byte on a direct render". The scale and strip now go to `renderFloor` snapped DOWN to 1 % and 0.5 % steps (down, so a name never falls under its 11 px floor) (`qpx`, `qstrip`), and the card re-renders when the step changes. Same churn as before, no history. New spec `card-px-pure.spec.ts` (nudged versus fresh, three sizes) failed 3 of 3 before; the old test passes 100 of 100 after. Studio has no measured scale, no twin.
+
+## 2026-10-13: S31.11 Sprint 31 exit: what held, what changed (Sonnet)
+
+Docs, shots and the exit test. The assumptions of "Sprint 31 planned" against what was built:
+- Held: D1 the header bar (floor tabs, Search, ⋯), one sheet beside the plan from 640 px (open from 900, a 52 px rail below), only +, -, Fit over the plan. D2 the phone bottom sheet at peek 64, half `max(50 %, 340)`, full; drag, fling over 0.5 px/ms or a handle tap; the phone card at least `min(screen, 640)`. D3 the ⋯ menu holds the look. D4 the plan is one Tab stop, arrows walk devices once one has focus, Shift + arrows pan, Enter opens. Fit to height with no new key. No Studio twin: it is all card chrome.
+- Changed: Tilt is five presets, not a slider (S31.6). The Layers label lost its "N hidden" count (S31.6). A stored overview x and y are ignored and the sheet cannot be dragged at all; only `collapsed`, `chosen` and `all` are written (S31.5). On a phone the device popup is the Device level inside the sheet and nothing floats (S31.8). A plan tap on a side-sheet card opens the popup and a row tap opens the Device level, as assumed; the popup floats (S31.5). The focus ring is ink inside a bg with a primary halo, not primary alone (S31.10). The pulse ring got a frame loop (fix, same day).
+- K1 to K5 pass at 2/2, 3/3, 3/3, 2/2, 2/2 on 768 x 1024 and 390 x 844, real taps, cold card; no `test.fail()` is left.
+- Seen in the shots, not fixed (outside this task): in the shot harness the card has no height of its own, so on a tablet it is as tall as the plan at its width: 568 px with the rail, 418 px with the side sheet open (the plan is narrower), which cuts the sheet's list short. The ⋯ menu is capped at `min(70vh, 520px)` and scrolls; on a tablet the Theme list ends mid-row at "Home Assistant". Neither shows in a card with a height of its own.
+- README: it has no state table; the Active list bullet, Rotate and Reset were reworded, and three screenshots are labelled as from before 0.29 until they are retaken.
+Studio parity: no twin.
+
+## 2026-10-13: the pulse ring follows its device every frame
+
+`_placePulse` ran only after a render. A pan or a layout settle moves the icon with no render, so the ring stayed behind (7 to 16 px). The test "All floors: a row tap..." failed about 90 % of runs under repeat load on plain main and passed alone by luck. A frame loop while the ring shows keeps it on the icon; it costs one `getBoundingClientRect` pair per frame for under three seconds. The test now waits for the lamp to stop before it measures. Failed 10 of 10 without the fix, 0 of 40 with it. Studio has no ring, no twin.
+## 2026-10-13: S31.10 keys on the plan (Sonnet)
+
+D4 as the spec has it, in `src/card/floorplan-studio-card.ts` with `plan-focus.ts` and `planKeyFor` from S31.4 doing the thinking. Judgement calls:
+- The stage `<svg>` is the Tab stop (`tabindex="0"`, `role="group"`, `aria-label="Floor plan, <title>"`). The card keeps its window `keydown` listener and its focused-else-hovered ownership gate; a device key counts only when the key's real target is the plan, so a popup button or a text field keeps Enter, Space and arrows.
+- A Tab in picks the device by `:focus-visible`, so a click or a tap on the plan gives the plan focus and no ring. A pointer down on the plan drops the device.
+- Device focus lives as long as the focus is on the plan or in the popup it opened (`blur` with `relatedTarget` in `.fp-pop` keeps it). Floor switch and `setConfig` drop it; a `hass` update does not touch it. The plan stays focused after Escape; arrows pan again; Tab out and in picks a device again.
+- Points are the centres of the drawn `g[data-x]` boxes, in DOM (reading) order, skipped when `display: none` or boxless. Off-view devices are reachable; focus pans them in with the S31.8 pan (generalised to `_panBoxIn`, which now works in any frame, the visible part being the stage less the bottom sheet).
+- The ring is `.fp-focus`, a card-level chrome element placed in `updated()` like `.fp-pulse`, `pointer-events: none` by class. Ink inside a bg and a primary halo: primary alone vanished on blueprint and HA dark. The status line is `.fp-focus-status`, `role="status"`, clipped to 1 px, text through a Lit binding. The svg gets an outline only on `:focus-visible`.
+- Not added: a class on the svg for "has ring" (a card test pins the svg's class string), and no keys for doors, pieces or unlinked devices (the spec says devices).
+
+## 2026-10-13: S31.9 44 px on a coarse pointer (Sonnet)
+
+Every control is at least 44 x 44 CSS px under `(pointer: coarse)`; a fine pointer keeps what it had. Judgement calls:
+- One file, `src/card/touch-css.ts`: `TOUCH_CSS` joins the card's styles last, so it wins ties; `SEARCH_TOUCH_CSS` joins `<fp-search>`, which has its own shadow root the card's CSS cannot reach (outside the files the plan named). `<fp-menu>` already had its own coarse rule.
+- Rules only raise a minimum or set a size of 44 or more. Where the card's rule is more specific (`.fp-sheet-top .fp-back`, `.fp-pop button.fp-pop-more`, `.fp-pop input.fp-pop-hue`) the coarse rule uses the same selector.
+- A check row is the target, not its 18 px box: the row is 44 high. A field (text, select, range, combobox) needs the height only.
+- The colour bar was a 20 px input carrying its own gradient. On touch the input is 44 high and the gradient moves to the track, still 20 px, so the bar looks the same and the finger target is larger. Looked at in light, dark and blueprint.
+- The rail badge moved from -6 to -4 px so a 44 px rail button does not clip it.
+- The test walks the card's shadow root and `<fp-search>` and measures what is visible, hit-tested at its centre. It leaves out overlays that are not controls (listbox, menu, dialog shells, backdrop, popup, sheet body). Skipped: HA's own config editor element, and 3D beyond its Reset camera button.
+- The fine pass pins the old sizes per rule, so a coarse rule that leaks fails there.
+
+## 2026-10-13: S31.8 the phone bottom sheet (Sonnet)
+
+Under 640 px the Overview is a bottom sheet; the floating panel and its dock logic are removed. Judgement calls:
+- Levels are derived, not stored: Overview (nothing picked), Floor (`_pickedFloor`), Room (`_pickedRoom`), Device (the popup, drawn inside the sheet). Only the stop (peek, half, full) is new state. A pick raises the sheet to half; Search raises it to full; Back and Escape step up one level, and from the Overview at half or full go to peek.
+- The drag writes the height straight to the element (no render per move) and ends through `snapSheet`. The velocity is the last 100 ms of the drag, floored at a 16 ms span, so a mouse that pauses before it lifts has none and snaps to the nearest stop. A tap is the click, so Enter and Space work; a drag swallows its own click. The handle element is never replaced, so a `hass` update mid-drag keeps the capture, and the render repaints the same height.
+- Pan to visible is measured on screen after the render: the target's box against the plan above the sheet (stage top to the sheet's top at the new stop). If outside, the view pans by the pixel difference. A view at fit cannot pan (`clamp` hands fit back), so it gets a 0.1 % zoom first, invisible.
+- The stage reserves the 64 px peek as a grid row; half and full overlay the plan. The card's fitted height counts the peek.
+- The handle's accessible name is fixed ("Overview") whatever the level; the region carries the level's name.
+- 2.5D/3D: the camera inset (room for a floating panel) is skipped in the bottom frame; the sheet covers the lower plan and the pan reaches the room. Not tested beyond a render check.
+- Studio parity: no twin. The sheet is card chrome; the Studio editor has no overview.
+
+## 2026-10-13: S31.7 fit to height (Sonnet)
+
+The host's inline `height` is set from `cardHeight` (frame.ts) when its parent has no height of its own. Judgement calls:
+- Fixed or not is measured, not guessed: the card shrinks to 1 px for a moment and sees whether the parent's height moves. A sections row (or a panel) does not move, so the card is left to `height: 100%` and the `:host([panel])` rule, as in 0.28.1. A parent held up by other boxes looks fixed too; then the card is only as tall as before, never worse. The parent is observed as well, so a row resized by hand is noticed.
+- An inline height on the host that the card did not set is the user's; the card leaves it. (An existing 3D test sets one.)
+- Chrome is the 52 px header only (none in kiosk). The peek (64 px) joins when S31.8 draws the bottom sheet; until then a phone card is at least min(cap, 640) with empty room under the plan.
+- `--header-height` falls back to 56 px, the same fallback the panel rule uses; a page outside HA keeps 56 px above the card free.
+- Listeners: window `resize` and `visualViewport` `resize` (the address bar, the keyboard), beside the ResizeObserver.
+- Test migration, premise moved, assertions kept: S8.11 "floor offset by +5000" and S9.2 "2000 cm plan, 2x" now run in a 1280 x 1100 window, so the card is not cut and the plan is the size they were written for (a smaller plan moved a pixel probe onto a wall's edge and an icon from 30.9 to 29.4 px); S8.3 "layout = panel" lost "the bug: the card is taller than the screen" (no longer true) and asserts the card ends 16 px above the bottom before the panel bounds it.
+Studio parity: no twin. The Studio is a full-page editor with no host height to fit.
+## 2026-10-13: S31.6 the ⋯ menu holds the look (Sonnet)
+
+`<fp-menu>` replaces the View options box, the toolbar, the Layers and Detail buttons and the stack's rotate and reset. Items are named by a `data-value` (`view:2.5d`, `tilt:0.25`, `layer:lights`, `rotate:1`, `reset`), which tests use; the accessible names follow the spec. Judgement calls:
+- Tilt was a slider; it is five radio presets (0, 0.25, 0.5, 0.75, 1). A slider does not belong in a menu, and a touch user hits a preset.
+- Layers and Detail keep their old availability (an active list on a floor, not in 3D). The Layers section label is constant: the "N hidden" count is gone, the checks say it. The "Hidden by Layers ... Show" note stays in the Overview, since it explains a lamp drawn alone.
+- Alt-click on a layer still shows that family alone: `fp-menu-pick` carries `alt`.
+- `view_switch: false` drops View, Tilt, Walls, Theme, Labels, Device names and Floor below; Detail, Layers, Rotate and Reset stay. A kiosk has no header, so no menu; with `rotate_switch: true` a menu with only Rotate and Reset sits in the cluster. No menu when no section is left.
+- The menu is a popover on purpose: opening it never moves the plan. The old fold-button premise (the box pushed the panel down) was moved, not weakened.
+- Keys: the menu takes ArrowDown, ArrowUp and Space while open (the card ignores a `defaultPrevented` key); ArrowRight and + still reach the card.
+- Dropped assertions, with the control they described: the 28 versus 32 px row height, the Tilt slider's 72 px width, the "N hidden" label. K4 now passes and lost its `test.fail`; K2 on a phone stays marked (the sheet still covers the lit lamp, S31.8).
+Studio parity: no twin. The editor keeps its own View menu; the card gets the same choices in its own menu, and `view-parity.spec.ts` ties the two (items by `data-value`).
+## 2026-10-13: S31.5 the chrome around the plan (Sonnet)
+
+The card host is a grid (`"head head" "sheet stage"`); the reasoning is in the comment block above the class in `src/card/floorplan-studio-card.ts`. Decisions made on the way:
+- The header carries the floor tabs, a Search button (it opens the existing `<fp-search>`) and a View options button. Both buttons are text ("Search", "⋯"), not icons, so the plan's `<svg>` stays the first svg in the shadow root, which `updated()` binds.
+- View options opens today's toolbar unchanged in a plain bordered box, hidden until opened. Tests open it with `tests/card/options-helper.ts`. S31.6 replaces it with the menu.
+- From 640 px the Overview is the side sheet; folded it is a 52 px rail with an alert badge. Open by default from 900 px (`sideOpenByDefault`), folded below until the viewer chooses. A room or floor pick opens it regardless. Back goes room to floor, floor to Overview; the room section's x is dropped in side mode, since Back does its job. Under 640 px nothing changes but the dock: the floating panel stays until S31.8, and an open options box starts 52 px down so it does not cover the panel's fold button.
+- The drag is gone, with `_activePos`, `_positionToolbar`, `_placeTopDock`. A stored `x` and `y` are ignored; `{collapsed, chosen, all}` is what is written.
+- Test migration: look controls are reached through View options; a plan is the card minus header and sheet, so size tests measure the stage; two drag tests became "a stored position is ignored" and "a drag on the head moves nothing"; the K2 `test.fail()` is now phone-only because the tablet passes (a Search button exists). Two tests learned something real: two quick clicks on one spot are a double tap and zoom (card-room-select), and the 3D camera does not re-fit when the card narrows after the first frame (the test narrows the card before it).
+Studio parity: no twin. The Studio's own editor chrome is not the card's header or sheet; nothing in the editor changes.
+## 2026-10-13: S31.1 tap tasks red, and the baseline (Sonnet)
+
+Measured on 0.28.1 with real `page.touchscreen.tap` on 768 x 1024 and 390 x 844 (hasTouch, isMobile, `pointer: coarse` asserted), the
+stress house and the `card-find.spec.ts` states, a scratch script not committed. Taps, with the calls the card sent:
+- K1 Kitchen lights off (tap the room on the plan, Lights off): tablet 2, phone 2. `light.turn_off {entity_id: ["light.kitchen_spot_1"]}`.
+  The spec guessed 3 on a phone; a room tap on the plan already opens the sheet unfolded.
+- K2 find Guest bedroom bedside left and turn it on: tablet 3 (search box, result, Turn on) plus 18 letters, phone 4 (the overview is
+  folded: one more tap). `light.turn_on {entity_id: "light.guest_bedroom_bedside_left"}`. On the phone the icon box (y 121 to 179, x 166 to
+  224) lies under the floating overview (x 16 to 186, y 82 to 335): the S24.7 note, measured.
+- K3 First floor off (tab, Turn off on this floor, Turn off 1): tablet 3, phone 3 (the tab unfolds the overview). The measured 4 on a
+  phone came from tapping Expand first, which is not needed. `light.turn_off {entity_id: ["light.study_desk_lamp"]}`.
+- K4 2.5D: 2 by definition (a select: open, choose). Not driven; a touch tap cannot pick an option of a native select.
+- K5 the lit kitchen spot, its icon then Turn off: tablet 2, phone 2. `light.turn_off {entity_id: "light.kitchen_spot_1"}`.
+So the spec's "today" column was off in three cells (K1 phone 2, K3 phone 3, K5 never 3); the targets stand, and K1, K3, K5 are guards that
+pass today. Red today: K2 on both sizes (no button named Search) and K4 on both (no button named View options), each marked
+`test.fail()` "S31.11 removes this". Run once with the markers off: each fails with `button "Search" in the card` or `button "View options" in
+the card`, "missing", after a 3 s poll, not a test timeout. Their later assertions (K2's icon above the sheet, K4's changed plan and
+`fp-view:` entry, K2's 18 letters) never ran red, so S31.11 is where they are first proven.
+Headroom: the card file is 104 639 bytes gzip -9 against the 115 000 limit, 10 361 bytes (10.1 KB). Above the 6 KB line, so wave 2 needs no
+question to Diego. Helpers: `tests/card/touch-helpers.ts` (`bootTouch`, `tapRole`, `tapPlan`, `taps`, `typed`, `typeText`, `boxOf`, `calls`);
+no other file uses them yet. Test only, no product code, no CHANGELOG line. Studio parity: none, this is test tooling.
+## 2026-10-13: S31.2 frame maths: the phone minimum and the snap rule (Sonnet)
+
+`src/card/frame.ts`, pure. Reasoning is in the comment block at its top; the calls, short:
+- The phone minimum is `min(cap, 640)` where `cap = viewport - HA header - 16`, bottom mode only. D2's "min(screen - header, 640)"
+  and the fit-to-height cap clash on a screen under 656 px; the cap wins, so the card never passes the screen. Hard floor 120 px
+  for a broken measurement. A side sheet scrolls in its own column and a kiosk has no sheet, so neither gets the minimum.
+- Snap: a drag lands on the nearest stop, a tie on the smaller sheet. A fling (over 0.5 px/ms, height growing positive) goes to
+  the next stop beyond the finger in its direction, never two, none past the ends. Exactly 0.5 is not a fling.
+- `snapSheet` and `nextOnHandleTap` speak stop names (`peek`, `half`, `full`); `sheetStops` gives the heights. A card too short
+  collapses stops onto each other (half caps at full, peek at the card), never reorders them.
+- `frameMode(width, { kiosk, sheet })`: the spec's one-argument form cannot say `none`, so the options are a second argument.
+  Junk widths give `bottom`; no function throws or answers a non-finite number.
+## 2026-10-13: S31.3 `<fp-menu>` (Sonnet)
+
+New `src/card/more-menu.ts`, used by nothing yet (S31.6 puts the look in it). Assumptions, not asked: a pick closes the menu for all three kinds (a check item too) and the host owns the checked state: the menu changes nothing, the host sets `items` again; `fp-menu-pick` carries a copy of the item as `detail`. The menu aligns with the button's edge on the side with more room and is clamped into the box of its shadow root's host (the body outside a shadow root); under 640 px that box wide it is a panel as wide as the box. Focus moves to the first checked enabled item, else the first, on every open, mouse included. Disabled items are skipped by arrows and stay open on a click. Tab is taken (closes, focus to the button). Studio parity: card chrome, no Studio twin. Tests: `tests/card/more-menu.spec.ts` on `tests/card/menu-harness.html` (two menus in a stand-in card's shadow root); with the Tab handler, the outside-press close and the 44 px rule removed, four tests fail.
+## 2026-10-13: S31.4 plan focus: cone, cost and ties (Sonnet)
+
+`src/card/plan-focus.ts` (reasoning in its header comment). Decisions: the cone is 45 degrees about the arrow with the edge in,
+because a plan turned 45 degrees puts every grid neighbour exactly on an edge; "on the edge" and "equal cost" use a 1e-9 relative
+tolerance, since rotation leaves float noise. Cost is along + 2 x across. Equal cost goes to the lower index, so the host's point
+order (reading order) is the tie-break. Not reversible by design. `firstFocus` returns -1 for no point; `nextInDirection` returns
+`from` for none. `planKeyFor(ev, deviceFocused)` sits beside `viewKeyFor`, which the Studio keeps unchanged: plain arrows move focus
+only with a device focused, Shift + arrows pan always, Enter and Space open (stay with a focused button or link), Escape leaves,
+Space resets only without a device. Not wired into the card until S31.9.
+
 ## 2026-10-13: Sprint 31 planned: card layout and touch (Sonnet)
 
 Spec `docs/specs/card-layout-touch.md`, plan `docs/PLAN.md` Sprint 31. Docs only; nothing built. Four decisions wait for

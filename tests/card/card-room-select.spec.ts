@@ -81,6 +81,9 @@ async function iconPoint(page: Page, i: number) {
 }
 /** A point of the plan's own svg that is no room, door or device: bare background. */
 async function backgroundPoint(page: Page) {
+  // S31.8: a phone sheet rises over 0.2 s and covers part of the plan; a point read mid-rise is under the sheet when the finger lands.
+  let last = -1, same = 0;
+  await expect.poll(async () => { const b = await card(page).locator("css=.fp-active").boundingBox(); const h = b ? b.height : 0; same = Math.abs(h - last) < 0.01 ? same + 1 : 0; last = h; return same; }, { timeout: 4000 }).toBeGreaterThanOrEqual(3);
   const p = await card(page).evaluate((el) => {
     const svg = el.shadowRoot!.querySelector("svg")!, r = svg.getBoundingClientRect();
     for (let y = r.bottom - 4; y > r.top; y -= 6) for (let x = r.left + 4; x < r.right; x += 6) if (el.shadowRoot!.elementFromPoint(x, y) === svg) return { x, y };
@@ -99,11 +102,13 @@ test("S24.3 (G3): a door left unlocked reads Unlocked, not Open; the room with n
   const patio = (locked.floors.ground.doors as { name: string; locks?: string[] }[]).find((d) => d.name === "Patio door")!;
   patio.locks = ["lock.demo_patio"];
   await boot(page, 1280, { layout: locked, states: { "binary_sensor.demo_patio_door": st("off"), "lock.demo_patio": st("unlocked") } });
-  await click(page, await floorPoint(page, 0));
+  const first = await floorPoint(page, 0);
+  await click(page, first);
   await expect(room(page).locator("css=.fp-room-name")).toHaveText("Living");
   expect(await factsOf(page)).toMatchObject({ Open: "none", Unlocked: "Patio door" });
   expect(Object.keys(await factsOf(page))).not.toContain("Open doors and windows");
-  await click(page, await floorPoint(page, 0)); // clear, then a room whose doors carry no lock
+  // Clear it from another spot of the room: two taps on one spot within 350 ms are a double tap, a zoom.
+  await click(page, await floorPoint(page, 0, first, 60)); // clear, then a room whose doors carry no lock
   await click(page, await floorPoint(page, 1));
   expect(Object.keys(await factsOf(page))).not.toContain("Unlocked");
 });
@@ -144,6 +149,9 @@ for (const width of [1280, 375]) {
       expect(await picked(page)).toEqual([0]);
       await page.keyboard.press("Escape"); // the pointer is still over the card, so it owns the key
       expect(await picked(page)).toEqual([]);
+      // S31.8 and the S31 review: Escape is Back at every width, Room to Floor; the Floor level is a panel too. A second Escape reaches the Overview.
+      await expect(room(page)).toHaveCount(1);
+      await page.keyboard.press("Escape");
       await expect(room(page)).toHaveCount(0);
     });
 
@@ -167,7 +175,8 @@ for (const width of [1280, 375]) {
     test("a tap on a door does not select a room either", async ({ page }) => {
       await boot(page, width);
       // S24.7: the open Overview (Attention, scope, two-line rows) stands over door 1 at 1280 px; fold it, as a person would.
-      const fold = card(page).locator("css=.fp-active-collapse");
+      // S31.8: a phone has no fold button; its sheet rests at peek (the handle's aria-expanded is false), which is the folded state.
+      const fold = card(page).locator("css=.fp-active-collapse, .fp-handle");
       if ((await fold.getAttribute("aria-expanded")) === "true") await fold.click();
       const p = await card(page).evaluate((el) => { const l = el.shadowRoot!.querySelector("svg line[data-d='1']")!, r = l.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, hit: !!el.shadowRoot!.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest("line[data-d]") }; });
       expect(p.hit).toBe(true);
@@ -316,12 +325,18 @@ test.describe("CSS pairs (finding 10): the rule reaches the pixel", () => {
     expect(r.events).toBe("none");
     expect(r.fill).toBe("none");
   });
-  test("the panel is wider with a room section, and the popup's Details is a real, clickable size", async ({ page }) => {
-    await boot(page, 1280);
-    const w0 = (await card(page).locator("css=.fp-active").boundingBox())!.width;
+  test("the sheet is taller with a room section, and the popup's Details is a real, clickable size", async ({ page }) => {
+    // S31.8: under 640 px the floating panel (which grew wider with a room section) is the bottom sheet: as wide as the card always,
+    // 64 px at rest, half the card with a room. The growth the old test asserted is now in height.
+    await boot(page, 600);
+    const box = async () => (await card(page).locator("css=.fp-active").boundingBox())!;
+    const host = (await card(page).boundingBox())!;
+    const b0 = await box();
+    expect(b0.width, "full width at rest").toBeCloseTo(host.width, 0);
+    expect(b0.height, "the 64 px peek").toBeCloseTo(64, 0);
     await click(page, await floorPoint(page, 0));
-    const w1 = (await card(page).locator("css=.fp-active").boundingBox())!.width;
-    expect(w1).toBeGreaterThan(w0);
+    await expect.poll(async () => (await box()).height).toBeGreaterThan(b0.height + 100);
+    expect((await box()).width).toBeCloseTo(host.width, 0);
     await card(page).locator("css=.fp-room-devices .fp-active-row").first().click();
     const sum = card(page).locator("css=.fp-pop .fp-pop-info > summary");
     const b = (await sum.boundingBox())!; // S24.7: Details replaced the 24 px chevron; its row is at least 32 px tall

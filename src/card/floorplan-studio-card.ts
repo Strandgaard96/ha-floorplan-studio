@@ -1,12 +1,13 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
 import { lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
+import { TOUCH_CSS } from "./touch-css";
 import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
@@ -15,9 +16,14 @@ import "./config-editor";
 import { defineElement } from "./define";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
-import { PAN_STEP, isSearchChord, viewKeyFor, type ViewKey } from "./view-keys";
+import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
+import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
+import { HEADER_H, PEEK_H, cardHeight, frameMode, nextOnHandleTap, sheetStops, sideOpenByDefault, sideWidth, snapSheet, type FrameMode, type SheetStop, type Stops } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
 import "./search-box";
+// S31.6: <fp-menu>, the header's ⋯: everything about how the plan looks.
+import "./more-menu";
+import type { MenuItem, MenuSection } from "./more-menu";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
@@ -123,9 +129,6 @@ export interface FloorplanStudioCardConfig {
   floors_below?: BelowMode;
 }
 
-/** The Floor below button's icon: Material Design Icons "layers-outline", 24x24 (inlined, no runtime import: CLAUDE.md finding 9). */
-const GHOST_ICON = "M12 16L19.36 10.27L21 9L12 2L3 9L4.63 10.27M12 18.54L4.62 12.81L3 14.07L12 21.07L21 14.07L19.37 12.8L12 18.54Z";
-
 /** What the View dropdown offers: the two flat plans `renderFloor` draws and the 3D model, which is a renderer of its own. */
 export type CardView = PlanView | "3d";
 /** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
@@ -135,6 +138,8 @@ const VIEW_OPTIONS: readonly { value: CardView; label: string }[] = [
   { value: "2.5d", label: "2.5D" },
   { value: "3d", label: "3D" },
 ];
+/** S31.6: the Tilt slider is a menu of steps. A stored or YAML tilt in between reads as the nearest step. */
+const TILT_STEPS: readonly number[] = [0, 0.25, 0.5, 0.75, 1];
 const isView = (v: unknown): v is CardView => VIEW_OPTIONS.some((o) => o.value === v);
 
 /** The Theme dropdown's labels. A Record over `Theme`, so a theme added to core fails the build here until it has a name. */
@@ -234,7 +239,66 @@ const loadLib3d = (): Promise<Lib3d> => {
 /** The card that has focus (or has something inside it focused), whatever shadow roots it sits in. */
 let focusedCard: FloorplanStudioCard | null = null;
 
+/*
+ * S31.5: the chrome around the plan (docs/specs/card-layout-touch.md, decisions D1 to D4).
+ *
+ * The grid. The host is a CSS grid: `"head head" "sheet stage"`, one auto row for the header, one 1fr row below it, and
+ * two columns, `--fp-sheet-w` (set on the host by `_measureFrame()`: `sideWidth()` open, 52 px as the rail, 0 where there
+ * is no side sheet) and the rest. The header holds the floor tabs, Search and View options. The stage is the plan's
+ * `<svg>` (or `.fp-3d`); the zoom cluster (View options box and the + - Fit stack) sits on the stage's corner and is the
+ * one thing that floats over the plan on purpose. The sheet (the Overview, `.fp-active.fp-side`) is the "sheet" cell,
+ * beside the plan and never over it. `frame.ts` decides the mode from the card's own width: side from 640 px, the old
+ * floating panel under it (until S31.8), none in kiosk or with `active_list: false`.
+ *
+ * Why the zoom maths did not move. The pan, the pinch and the double tap read `svg.getBoundingClientRect()`. The svg is
+ * the stage, so it is the box they read; they land where they did. The header holds no `<svg>` (its buttons are text),
+ * because `updated()` binds the plan to the first svg in the shadow root.
+ *
+ * Gone: the dragged panel (`_activePos`, `_onActiveDragStart`: a stored x or y is ignored, the fold is kept),
+ * `_positionToolbar` and `_placeTopDock` (nothing floats over the top any more, bar the cluster).
+ *
+ * The test migration. Tests that read an old chrome position or reached a control now behind View options moved their
+ * premise, not their assertion. The look controls are in the closed ⋯ menu, so those tests open it first
+ * (tests/card/menu-helper.ts, since S31.6). The plan is smaller than the card (header 52 px, sheet 320 px), so a test that
+ * expected the plan to be the card measures the stage. The drag tests became "a stored position is ignored" and "the
+ * head moves nothing". Each one is listed in the S31.5 commit message and the report.
+ */
+/*
+ * S31.8: the phone bottom sheet (D2, criterion 6). JUDGEMENT: the drag and the pan-to-visible. Why each is the way it is.
+ *
+ * Under 640 px the Overview is one sheet along the bottom of the card, three stops (frame.ts: peek 64, half, full). The peek
+ * has a row of its own in the grid (`--fp-peek-row`), so the plan ends where the peek starts: at rest nothing is over the plan.
+ * Half and full lie over it, on purpose, and the plan is panned so what the sheet opened for stands in what is left.
+ *
+ * The levels (Overview, Floor, Room, Device) are not a new state: they are what the card already holds (`_pickedFloor`,
+ * `_pickedRoom`, `_popup`). The Device level is the popup, drawn in the sheet instead of floating. So a tap, a locate, a row,
+ * the search and the keyboard all reach the same code as on a tablet, and only where it is drawn differs. `active_list: false`
+ * and kiosk have no sheet, so the popup floats there on every width, as before.
+ *
+ * The drag. The handle takes the pointer (`setPointerCapture`) and the sheet's height follows the finger one to one, written
+ * straight into the element's style: a re-render per move would redraw the whole plan sixty times a second. The render reads
+ * the same number (`_sheetDrag`), so a `hass` update in the middle of a drag repaints the same height, and the handle element
+ * is never replaced, so the capture holds. The release goes to `snapSheet` with the velocity of the last 100 ms of the drag: a
+ * finger that stopped before it lifted has no velocity, however fast it came. A press that never moved 6 px is a tap, which
+ * is the click that follows (so Enter and Space on the handle work too); a drag that moved swallows the click it ends with.
+ * Reduced motion: no transition, the height jumps.
+ *
+ * The pan. After a render that opened the sheet for a room or a thing (`_panTarget`), the thing's own box is measured on screen
+ * and, if it is not wholly inside the part the sheet at its new stop leaves, the plan is moved by the pixel difference that
+ * puts its centre in the middle of that part. Measured, not computed from plan coordinates, so a turned plan, a letterboxed
+ * plan and any zoom give the same answer; the box that is wanted is the stop's height, not the animating one, so it is right
+ * at once. A thing already in view stays where it is. In 3D there is nothing to pan, and the camera is not inset (it was, for
+ * a floating panel): the sheet is lower than the house.
+ */
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
+/** The scale and the control strip the plan is DRAWN with are snapped DOWN to steps (1 % of scale, 0.5 % of the plan's width; down, so a name's 11 px floor is never missed), and
+ *  `_measurePx` re-renders when the step changes. A settled render is then a pure function of the final measured size, not of
+ *  the sizes the card passed through on the way (a render drawn at a scale 0.4 % off used to stay, and differed in the second
+ *  decimal of a label from a card drawn at the final size). */
+const PX_STEP = Math.log(1.01);
+const qpx = (p: number): number => (p > 0 ? Math.exp(Math.floor(Math.log(p) / PX_STEP + 1e-9) * PX_STEP) : 0);
+const qstrip = (s: number, w: number): number => { const u = w * 0.005; return u > 0 ? Math.round(s / u) * u : s; };
+
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
     /* S8.2: height 100% on both, matching Home Assistant's own cards (thermostat, map). In an "auto" grid row
@@ -243,23 +307,33 @@ export class FloorplanStudioCard extends LitElement {
        fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
        the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
        than cropped or stretched. */
-    :host { display: block; position: relative; height: 100%; }
+    :host { display: grid; grid-template-columns: var(--fp-sheet-w, 0px) minmax(0, 1fr); grid-template-rows: auto 1fr var(--fp-peek-row, 0px); grid-template-areas: "head head" "sheet stage" "peek peek"; position: relative; height: 100%; }
     /* S8.3: hui-panel-view gives the card no definite height either, so the plan grew by width past the bottom of
        the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
     :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
     svg { width: 100%; height: 100%; display: block; }
+    /* S31.5: the plan is the stage, the cell of the grid that is left when the header and the side sheet have theirs.
+       Its box is the box the zoom maths read, so a pan, a pinch and a double tap land where they did. */
+    svg.fp-zoomable, .fp-3d { grid-area: stage; min-width: 0; min-height: 0; }
     /* S12.3: the 3D view takes the place of the plan's svg, in the same box (aspect-ratio is the plan's own: with an
        indefinite height it sizes like the svg, in a fixed row it fills it). */
     .fp-3d { position: relative; width: 100%; height: 100%; display: block; }
+    .fp-head { grid-area: head; box-sizing: border-box; height: 52px; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--fp-idle); }
+    .fp-head-gap { flex: 1 1 0; min-width: 0; }
+    .fp-head-btn { flex: 0 0 auto; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; min-width: 32px; cursor: pointer; }
+    /* The cluster: +, - and Fit (Reset camera in 3D), top right of the stage. Over the plan on purpose; the one thing that is.
+       In kiosk it also holds the ⋯ menu when \`rotate_switch: true\` brings one. */
+    .fp-cluster { grid-area: stage; justify-self: end; align-self: start; z-index: 1; margin: 8px; min-width: 0; max-width: calc(100% - 16px); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
     /* One line, over the plan, when 3D cannot run: why, and that 2D is what is shown. */
     .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: 4px 8px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; }
-    p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
+    p.msg { grid-area: 1 / 1 / -1 / -1; padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
        renderFloor draws and is positioned over it instead. */
     /* Opus review finding 13: the active-devices panel below (also z-index: 1, and later in DOM order, so it
        would otherwise win ties) can be dragged to sit right under this row; the floor chips must still take the
        click, not the panel behind — or in front of, without this — them. */
-    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: 6px; }
+    .fp-floors { flex: 0 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 3px 4px; }
+    .fp-floors button { flex: 0 0 auto; white-space: nowrap; }
     .fp-floors button { font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
     /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
@@ -278,26 +352,16 @@ export class FloorplanStudioCard extends LitElement {
     .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .fp-dialog-actions button { font: 13px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
-    /* S7.4: the view controls are card chrome, the same colours as the floor chips, in the other top corner.
-       Like the studio: a horizontal toolbar (.fp-zoom) for the look controls and a vertical stack (.fp-stack) for
-       zoom, fit, rotate and reset, just below it. .fp-viewonly is the toolbar when zoom is off, not .fp-zoom, so
-       "zoom: false shows no zoom chrome" holds. */
-    /* The toolbar wraps: on a narrow card (375 px) its controls take two rows, right-aligned, rather than running
-       off the left edge. The right-hand 8 px plus the floor chips' room on the left are what max-width leaves.
-       The stack's top is set in _positionToolbar, from where the toolbar ends. */
-    .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
-    .fp-stack { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-direction: column; gap: 4px; }
-    .fp-stack.fp-stack-row { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; left: 8px; }
-    .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
-    .fp-zoom button:disabled, .fp-viewonly button:disabled, .fp-stack button:disabled { opacity: 0.45; cursor: default; }
-    .fp-zoom button[aria-pressed="false"], .fp-viewonly button[aria-pressed="false"] { opacity: 0.6; }
-    .fp-zoom svg, .fp-viewonly svg, .fp-stack svg { width: 14px; height: 14px; }
+    /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the corner of the stage. S31.6: only +, - and
+       Fit (Reset camera in 3D) are left here; the look controls are the ⋯ menu's (more-menu.ts). */
+    .fp-stack { display: flex; flex-direction: column; gap: 4px; }
+    .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-stack button:disabled { opacity: 0.45; cursor: default; }
+    .fp-stack svg { width: 14px; height: 14px; }
     /* While the plan turns it takes no taps: a tap would land on a device that is moving away from the finger.
        The star reaches the children that carry their own pointer-events (.room{pointer-events:all} in the editor's
        rules, .extra, .door-hit), which an inherited value on the svg alone would lose to. */
     svg.fp-turning, svg.fp-turning * { pointer-events: none; }
-    .fp-zoom input[type="range"], .fp-viewonly input[type="range"] { width: 72px; height: 28px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
-    .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 4px; font: 13px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
        a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
        any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
@@ -323,8 +387,8 @@ export class FloorplanStudioCard extends LitElement {
        off-screen (S9.5 spec). */
     /* Opus review finding 5: min(200px, 45%) instead of a flat 200px, so a narrow (phone-width) card gets a panel
        that fits it rather than one that is most of the card's own width at 200px on a ~380px card. */
-    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
-    .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 8px; cursor: grab; touch-action: none; user-select: none; font: 600 12px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
+    .fp-active { grid-area: stage; position: absolute; top: 8px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 16px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
+    .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 8px; user-select: none; font: 600 12px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
     .fp-active-title { flex: 1; }
     .fp-active-count { font-weight: 400; color: var(--fp-text); }
     .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 4px; }
@@ -341,12 +405,32 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: var(--fp-active-row-color, var(--fp-ink)); }
     .fp-active-empty { margin: 4px 2px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* S11.3/S11.4: the room section and the details under a row. Same card chrome and tokens as the list above. */
-    .fp-active.fp-room-open { width: min(260px, 70%); }
-    /* S14 review: on a card narrower than ACTIVE_FOLD_BELOW_PX an open room panel is a short sheet, not a column down the card: at most 45% of the card high, its body scrolling, and docked on the half opposite the picked room (class set in _positionActivePanelNow) so that room stays in view. */
-    .fp-active.fp-sheet { max-height: 45%; }
-    .fp-active.fp-sheet.fp-dock-bottom { top: auto; bottom: 8px; }
-    /* Docked at the top over the toolbar (z-index 2, as the floor chips; the dialogs come later in the DOM and win). */
-    .fp-active.fp-sheet.fp-dock-over { top: 8px; z-index: 2; }
+    /* S31.5: from 640 px the Overview is the side sheet: the whole sheet cell of the grid, beside the plan, not over it.
+       It is absolute inside its cell (inset 0), so a long list scrolls in the body and never makes the card taller. */
+    .fp-active.fp-side { inset: 0; width: auto; max-width: none; max-height: none; border-radius: 0; border-width: 0 1px 0 0; box-shadow: none; z-index: 0; grid-area: sheet; }
+    .fp-active.fp-side .fp-active-body, .fp-active.fp-bottom .fp-active-body { flex: 1 1 auto; min-height: 0; }
+    /* S31.8: the phone's sheet: along the bottom, over the plan above its 64 px peek (the peek has its own grid row). The stops are
+       lengths on the host (\`_measureFrame\`); a drag writes the height inline, with the transition off. Reduced motion: it jumps. */
+    .fp-active.fp-bottom { grid-area: 1 / 1 / -1 / -1; inset: auto 0 0 0; width: auto; max-width: none; max-height: none; box-sizing: border-box; border-radius: 12px 12px 0 0; border-width: 1px 0 0; z-index: 2; height: var(--fp-sheet-peek, 64px); transition: height 0.2s ease; }
+    .fp-active.fp-bottom[data-stop="half"] { height: var(--fp-sheet-half, 50%); }
+    .fp-active.fp-bottom[data-stop="full"] { height: var(--fp-sheet-full, 100%); }
+    .fp-active.fp-bottom.fp-dragging { transition: none; }
+    @media (prefers-reduced-motion: reduce) { .fp-active.fp-bottom { transition: none; } }
+    .fp-sheet-top { flex: 0 0 64px; box-sizing: border-box; height: 64px; display: flex; align-items: stretch; }
+    .fp-sheet-top .fp-back { align-self: center; flex: 0 0 auto; margin-left: 4px; font-size: 18px; min-width: 40px; min-height: 40px; }
+    .fp-handle { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 0; background: transparent; color: inherit; font: 600 13px/1.2 var(--fp-font, system-ui, sans-serif); text-align: left; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .fp-handle:focus-visible { outline: 2px solid var(--fp-primary); outline-offset: -2px; }
+    .fp-grab { flex: 0 0 4px; width: 36px; height: 4px; border-radius: 2px; background: var(--fp-idle); }
+    .fp-handle-line { max-width: 100%; box-sizing: border-box; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fp-handle-line .fp-active-title { flex: none; }
+    .fp-handle-line .fp-ov-chips { flex: none; display: inline; }
+    .fp-handle-line .fp-ov-chips::before { content: " · "; }
+    .fp-pop.fp-pop-sheet { position: static; width: auto; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 4px 4px 12px; }
+    .fp-active.fp-rail { align-items: center; padding-top: 8px; }
+    .fp-rail-open { position: relative; width: 36px; height: 36px; border: 1px solid var(--fp-idle); border-radius: 8px; background: var(--fp-bg); color: var(--fp-ink); font: 14px/1 var(--fp-font, system-ui, sans-serif); cursor: pointer; }
+    .fp-rail-count { position: absolute; top: -6px; right: -6px; min-width: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; background: var(--fp-warn); color: var(--fp-on-light); font: 600 11px/16px var(--fp-font, system-ui, sans-serif); text-align: center; }
+    .fp-back { flex: 0 0 auto; border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+    .fp-back:hover, .fp-back:focus-visible { background: var(--fp-idle); }
     .fp-item { display: flex; flex-wrap: wrap; align-items: center; }
     .fp-item .fp-active-row { flex: 1 1 0; width: auto; min-width: 0; }
     .fp-row-state { margin-left: auto; padding-left: 6px; flex: 0 0 auto; white-space: nowrap; font-size: 11px; color: var(--fp-text); overflow-wrap: anywhere; text-align: right; }
@@ -359,27 +443,17 @@ export class FloorplanStudioCard extends LitElement {
     .fp-ov-chips { flex: 0 0 100%; font: 400 11px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     .fp-chip-warn { color: var(--fp-warn); font-weight: 600; }
     /* Folded, the header is one line so it covers as little plan as before S24.7; the crumb goes, the chips end in an ellipsis. */
-    .fp-active-folded .fp-active-head { flex-wrap: nowrap; }
-    .fp-active-folded .fp-active-title { flex: 0 0 auto; }
-    .fp-active-folded .fp-crumb { display: none; }
-    .fp-active-folded .fp-ov-chips { flex: 1 1 auto; order: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .fp-active-folded .fp-active-collapse { order: 2; }
     .fp-ov-search:empty { display: none; }
     /* S24.8: the search at the top of the sheet; its list drops over the rows below. */
     .fp-ov-search { margin: 2px 0 6px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); }
     /* S24.8: one row of tools: Turn off on this floor…, Layers, All floors. */
     .fp-ov-scopes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
     .fp-ov-scopes .fp-floor-off { margin-right: auto; }
-    /* S24.8: the layer chips, one per family, unfolded by the Layers button; and the note for a kept thing. */
+    /* S24.8: the note for a kept thing (the family chips are the ⋯ menu's Layers section since S31.6). */
     .fp-ov-layers:empty { display: none; }
     .fp-ov-layers { margin: 0 0 6px; }
-    .fp-layer-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-    .fp-ov-detail { margin: 0 0 6px; }
-    .fp-layer, .fp-layers-toggle, .fp-detail, .fp-detail-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
-    .fp-layer[aria-pressed="false"] { border-style: dashed; text-decoration: line-through; }
-    .fp-detail[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
-    .fp-layers-toggle[aria-expanded="true"], .fp-detail-toggle[aria-expanded="true"] { border-color: var(--fp-ink); }
-    .fp-layer:hover, .fp-layer:focus-visible, .fp-layers-toggle:hover, .fp-layers-toggle:focus-visible, .fp-detail:hover, .fp-detail:focus-visible, .fp-detail-toggle:hover, .fp-detail-toggle:focus-visible, .fp-layer-note button:hover, .fp-layer-note button:focus-visible { border-color: var(--fp-primary); }
+    .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
+    .fp-layer-note button:hover, .fp-layer-note button:focus-visible { border-color: var(--fp-primary); }
     .fp-layer-note { margin: 4px 0 0; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-floor-off:disabled { opacity: 0.5; cursor: default; }
     .fp-floor-off:disabled:hover { border-color: var(--fp-idle); }
@@ -399,12 +473,19 @@ export class FloorplanStudioCard extends LitElement {
     .fp-ov-age { white-space: nowrap; }
     .fp-ov-hint { margin: 8px 2px 0; font: 10px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* One target per row, finger-sized on a touch screen (S24.7). */
-    @media (pointer: coarse) { .fp-active-row { min-height: 40px; } }
     /* S24.7: the ring a row tap puts on its thing. Card chrome over the plan, never a hit target. Reduced motion: a steady ring. */
     .fp-pulse { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-primary); border-radius: 50%; transform: translate(-50%, -50%); animation: fp-pulse-ring 0.8s ease-out 3; }
     /* Not fp-locate: that is the plan's own ring (render.ts), and one name in one shadow root means one wins (S24.R7). */
     @keyframes fp-pulse-ring { 0% { opacity: 1; box-shadow: 0 0 0 0 var(--fp-primary); } 100% { opacity: 0.6; box-shadow: 0 0 0 10px transparent; } }
     @media (prefers-reduced-motion: reduce) { .fp-pulse { animation: none; } }
+    /* S31.10 (D4): the ring of the device a key stands on, and the line a screen reader reads. Chrome over the plan like the pulse, never a hit
+       target: the behaviour is this class rule, not an attribute (a presentation attribute loses to the editor's own \`.room { pointer-events }\`
+       kind of rule, finding 18). The plan itself is the Tab stop; its outline is the thin frame of the focused stop, the ring says which device. Ink inside a bg and a primary halo, so it reads on every theme. */
+    .fp-focus { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-ink); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--fp-bg, #fff), 0 0 0 4px var(--fp-primary); }
+    .fp-focus[hidden] { display: none; }
+    .fp-focus-status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    svg.fp-zoomable:focus { outline: none; }
+    svg.fp-zoomable:focus-visible { outline: 2px solid var(--fp-primary); outline-offset: -2px; }
     .fp-room { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--fp-idle); }
     .fp-room-head { display: flex; align-items: center; gap: 6px; font: 600 13px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-room-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -426,7 +507,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
     .fp-show-all:hover, .fp-show-all:focus-visible { background: var(--fp-idle); }
-  `, POPUP_CSS, SCENES_CSS];
+  `, POPUP_CSS, SCENES_CSS, TOUCH_CSS];
 
   private _config: FloorplanStudioCardConfig = {};
   private _hass?: Hass;
@@ -470,13 +551,9 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedGhost: boolean | null = null;
   /** S27.14: the Floors below select's pick (3D); `null` leaves the card's YAML `floors_below` in charge. */
   private _pickedBelow: BelowMode | null = null;
-  /** Whether the Detail choices are unfolded. Not remembered, like `_layersOpen`. */
-  private _detailOpen = false;
   private _hiddenLayers: LayerId[] = [];
   /** What search or a row tap located under a hidden family: drawn anyway (`keep`) on its floor, with a note and Show. */
   private _kept: { floor: string; t: "dev" | "furn"; i: number; fam: LayerId } | null = null;
-  /** Whether the layer chips are unfolded (the Layers button). Not remembered: folded is where a sheet starts. */
-  private _layersOpen = false;
   /** S24.8 (F1): the search's entries, built once per layout and state source, not per keystroke (`<fp-search>` indexes on a new array). */
   private _searchMemo: { layout: Layout; known: boolean; floors: string; entries: SearchEntry[] } | null = null;
   /** S14.2: the tap popup, or `null` for none. One at a time; `s.key` is who it is about, `x`/`y` where the pointer landed (client px), `opener` the
@@ -550,19 +627,23 @@ export class FloorplanStudioCard extends LitElement {
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
   private _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
-  /** S9.5: the active-devices panel. `_activePos` is `null` for the CSS default position (top-left, below the
-   * floor chips); once dragged it holds the panel's position as a *fraction* (0..1) of the card's own free width
-   * and height (`hostSize - panelSize`), not raw px (Opus review findings 3/4: a px position stored at one size
-   * and reclamped only mid-drag could end up outside the card the moment the geometry it was clamped against
-   * changes — a reload at a narrower width, or expanding a panel that was dragged low while collapsed and much
-   * shorter). `_positionActivePanel` re-derives the actual px position from this fraction on every render and on
-   * a host resize, so the panel is inside the card by construction. Both fields are read from, and written to,
-   * `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the panel forgets
-   * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
+  /** S9.5: the Overview's fold, per card, in browser storage (try/catch: private browsing or blocked storage just means
+   * the sheet forgets between reloads). S31.5: the panel is no longer dragged, so the stored `x` and `y` of older builds
+   * are ignored and not written back; the fold is kept. */
   private _activeCollapsed = false;
   /** S14.6: the category groups the viewer folded, as `list:category` ids (`a:` Active list, `r:` Room panel). Per card, in browser storage. */
   private _foldedCats = new Set<string>();
-  private _activePos: { x: number; y: number } | null = null;
+  /** S31.5: what the card's width gives it (frame.ts). Measured in `render()` and by the ResizeObserver; 0 wide (not laid
+   * out) keeps the last answer. */
+  private _frame: FrameMode = "bottom";
+  /** S31.8: the bottom sheet's stop. Not remembered: a cold card is at peek, and `setConfig` puts it back. */
+  private _sheetStop: SheetStop = "peek";
+  /** S31.8: a drag in flight. `h` is the sheet's height now, `trail` the last heights with their times (for the fling). */
+  private _sheetDrag: { id: number; y0: number; h0: number; h: number; moved: boolean; stops: Stops; trail: { t: number; h: number }[] } | null = null;
+  /** S31.8: a drag just ended on the handle; the click the browser sends after it is not a tap. */
+  private _dragEnded = false;
+  /** S31.8: the selector of what the sheet just opened for; the next `updated()` pans it above the sheet. */
+  private _panTarget: string | null = null;
   /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
    * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
    * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
@@ -582,6 +663,9 @@ export class FloorplanStudioCard extends LitElement {
   private _overviewAll = false;
   /** S24.7: the thing a row tap went to, ringed on the plan for `PULSE_MS`; null when none. */
   private _pulse: ({ floor: string } & ThingRef) | null = null;
+  /** S31.10: the index (`data-x`) of the device the keys stand on, or null. Card state: kept through `hass`, dropped by a floor switch, `setConfig`,
+   *  a click on the plan and focus leaving the plan (its own popup excepted). */
+  private _focusDev: number | null = null;
   private _pulseTimer: ReturnType<typeof setTimeout> | null = null;
   /** `attention()` for the layout and states on show, computed once per pair: the pills and the Overview both read it. */
   private _attnMemo: { layout: Layout; states: unknown; reg: unknown; a: Attention } | null = null;
@@ -781,14 +865,115 @@ export class FloorplanStudioCard extends LitElement {
     if (isSearchChord(ev)) { if (this._openSearch()) ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._spider) { this._foldSpider(); ev.preventDefault(); return; }
-    if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
-      this._pickRoom(null);
+    // S31.10: a device key counts only while the plan itself has the focus; in the popup or a text field the keys are theirs.
+    const onStage = this._focusDev !== null && ev.composedPath()[0] === this._stageSvg();
+    if (ev.key === "Escape" && onStage) { this._dropFocus(); ev.preventDefault(); return; }
+    if (ev.key === "Escape" && this._frame === "bottom" && this._activeListVisible() && (this._pickedRoom || this._pickedFloor || this._sheetStop !== "peek")) {
+      this._back(); // S31.8: one level up, and from the Overview down to peek
       ev.preventDefault();
       return;
     }
-    const key = viewKeyFor(ev);
-    if (key && this._doViewKey(key)) ev.preventDefault();
+    if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
+      // Escape is Back: one level up in a side sheet too (room to floor to Overview). With no sheet there is no level, so it lets go.
+      if (this._activeListVisible()) this._back(); else this._pickRoom(null);
+      ev.preventDefault();
+      return;
+    }
+    const key = planKeyFor(ev, onStage);
+    if (!key) return;
+    if (key === "open") { if (this._openFocused()) ev.preventDefault(); return; }
+    if (key === "leave") return; // handled above, before the Escape rules that would take it
+    if (key === "focusLeft" || key === "focusRight" || key === "focusUp" || key === "focusDown") {
+      if (this._moveFocus(key.slice(5).toLowerCase() as FocusDir)) ev.preventDefault();
+      return;
+    }
+    if (this._doViewKey(key)) ev.preventDefault();
   };
+
+  // ---- S31.10: keys on the plan (D4) --------------------------------------------------------------------------------------------------
+
+  private _stageSvg(): SVGSVGElement | null {
+    return this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable") ?? null;
+  }
+
+  private _dropFocus = (): void => {
+    if (this._focusDev === null) return;
+    this._focusDev = null;
+    this.requestUpdate();
+  };
+
+  /** The plan got focus. By keyboard (a Tab or Shift+Tab, `:focus-visible`) the device nearest the middle of what is visible takes it; a mouse or a
+   *  finger on the plan gives focus to the plan only. Coming back from the popup the device is still set and stays. */
+  private _onStageFocus = (ev: FocusEvent): void => {
+    const svg = ev.currentTarget as SVGSVGElement;
+    if (this._focusDev !== null || !svg.matches(":focus-visible")) return;
+    const v = this._visibleBox(), pts = this._planPoints();
+    const at = firstFocus(pts, v ? { x: (v.left + v.right) / 2, y: (v.top + v.bottom) / 2 } : null);
+    if (at >= 0) this._focusOn(pts[at]!.i);
+  };
+
+  /** Focus left the plan: the device goes with it, unless it went into the popup that device opened. */
+  private _onStageBlur = (ev: FocusEvent): void => {
+    if ((ev.relatedTarget as Element | null)?.closest?.(".fp-pop")) return;
+    this._dropFocus();
+  };
+
+  /** The devices the plan draws, in reading order, with the centre of each one's box on screen. A device hidden by Layers or Detail has no box. */
+  private _planPoints(): { i: number; x: number; y: number }[] {
+    const out: { i: number; x: number; y: number }[] = [], seen = new Set<number>();
+    this._stageSvg()?.querySelectorAll<SVGGElement>("g[data-x]").forEach((g) => {
+      const i = Number(g.getAttribute("data-x")), r = g.getBoundingClientRect();
+      if (!Number.isInteger(i) || seen.has(i) || getComputedStyle(g).display === "none" || !(r.width + r.height > 0)) return;
+      seen.add(i);
+      out.push({ i, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    });
+    return out;
+  }
+
+  /** An arrow with a device focused: the nearest drawn device that way on screen. True when focus moved (the key is then taken). */
+  private _moveFocus(dir: FocusDir): boolean {
+    const pts = this._planPoints(), at = pts.findIndex((p) => p.i === this._focusDev);
+    const to = at < 0 ? firstFocus(pts, null) : nextInDirection(pts, at, dir);
+    if (to < 0 || to === at) return at >= 0; // the edge of the house: the key is ours, nothing moves
+    this._focusOn(pts[to]!.i);
+    return true;
+  }
+
+  /** The device `i` takes the keys' focus; off the visible part of the plan, the plan pans it in. The ring follows in `updated`. */
+  private _focusOn(i: number): void {
+    this._focusDev = i;
+    const g = this._stageSvg()?.querySelector(`g[data-x="${i}"]`);
+    if (g && !this._shows3d()) this._panBoxIn(g);
+    this.requestUpdate();
+  }
+
+  /** Enter or Space: the popup of the focused device, as a tap on it opens it (the Device level of the sheet on a phone). */
+  private _openFocused(): boolean {
+    const svg = this._stageSvg(), i = this._focusDev, t = i === null ? null : this._targetOf("x", i);
+    const r = i === null ? null : svg?.querySelector(`g[data-x="${i}"]`)?.getBoundingClientRect();
+    if (!svg || !t || !r) return false;
+    this._openPopup(t, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, svg);
+    return true;
+  }
+
+  /** What the hidden status line says: "Kitchen spot 1, light, on". */
+  private _focusText(): string {
+    const t = this._focusDev === null ? null : this._targetOf("x", this._focusDev), s = t && this._subjectOf(t);
+    return s ? [s.name, s.type, this._subjectText(s)].filter(Boolean).join(", ") : "";
+  }
+
+  /** After every render: the ring sits over the focused device's box, or hides when the plan does not show it. */
+  private _placeFocusRing(): void {
+    const ring = this.shadowRoot?.querySelector<HTMLElement>(".fp-focus");
+    if (!ring) return;
+    const g = this._focusDev === null ? null : this._stageSvg()?.querySelector(`g[data-x="${this._focusDev}"]`);
+    const r = g && getComputedStyle(g).display !== "none" ? g.getBoundingClientRect() : null, h = this.getBoundingClientRect();
+    if (!r || (r.width === 0 && r.height === 0)) { ring.hidden = true; return; }
+    ring.hidden = false;
+    ring.style.left = `${r.left - h.left + r.width / 2}px`;
+    ring.style.top = `${r.top - h.top + r.height / 2}px`;
+    ring.style.width = ring.style.height = `${Math.max(24, Math.min(r.width, r.height) + 16)}px`;
+  }
 
   /** Whether the two rotate buttons exist, which is when [ and ] turn the plan. `rotate_switch` decides
    * when it is a boolean; otherwise they come with any other control the card draws (zoom or the View dropdown)
@@ -867,25 +1052,18 @@ export class FloorplanStudioCard extends LitElement {
 
   private _loadActiveState(): void {
     this._activeCollapsed = false;
-    this._activePos = null;
     this._activeUserChose = false;
     this._overviewAll = false;
     try {
       const raw = globalThis.localStorage?.getItem(this._activeStorageKey());
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { collapsed?: unknown; chosen?: unknown; x?: unknown; y?: unknown; all?: unknown };
+      const parsed = JSON.parse(raw) as { collapsed?: unknown; chosen?: unknown; all?: unknown };
       this._overviewAll = parsed.all === true;
       // An entry from before `chosen` existed that says collapsed was a hand fold (nothing else wrote it as true);
-      // one that says open may only be a dragged position, so the width still decides.
+      // one that says open only recorded a drag (gone in S31.5), so the width still decides.
       if (parsed.chosen === true || parsed.collapsed === true) { this._activeUserChose = true; this._activeCollapsed = parsed.collapsed === true; }
-      // Opus review finding 3: untrusted storage, including an older build's raw-px entry — clamped into the 0..1
-      // fraction range rather than trusted or thrown on. A stale px value just lands at whichever edge it clamps
-      // to (never off-screen); it does not need to reproduce its exact old spot.
-      if (typeof parsed.x === "number" && typeof parsed.y === "number" && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
-        this._activePos = { x: Math.min(Math.max(parsed.x, 0), 1), y: Math.min(Math.max(parsed.y, 0), 1) };
-      }
     } catch {
-      /* malformed or unavailable storage: the panel just opens at its default place, uncollapsed */
+      /* malformed or unavailable storage: the sheet just opens at its default, unfolded */
     }
   }
 
@@ -922,9 +1100,9 @@ export class FloorplanStudioCard extends LitElement {
 
   private _saveActiveState(): void {
     try {
-      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, x: this._activePos?.x, y: this._activePos?.y, all: this._overviewAll }));
+      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, all: this._overviewAll }));
     } catch {
-      /* private browsing or storage blocked: position/collapse just don't persist */
+      /* private browsing or storage blocked: the fold just does not persist */
     }
   }
 
@@ -948,9 +1126,17 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionToolbar(); this._positionActivePanel(); this._measurePx(); });
+      this._activeResizeObserver = new ResizeObserver(() => { this._fitHeight(); this._applyWidthDefault(); this._positionActivePanel(); this._measurePx(); });
       this._activeResizeObserver.observe(this);
+      // S31.7: and the parent, whose height is what says whether the card is fitted: a sections row resized by hand moves it
+      // while the card, held at its own pixel height, would not move at all.
+      const parent = this.parentElement ?? (this.getRootNode() as ShadowRoot | undefined)?.host;
+      if (parent) this._activeResizeObserver.observe(parent);
     }
+    // S31.7: the screen's height is not the host's, so the observer above never hears of it. The visual viewport also
+    // shrinks when a phone's address bar comes back or the keyboard opens.
+    globalThis.addEventListener?.("resize", this._fitHeight);
+    globalThis.visualViewport?.addEventListener("resize", this._fitHeight);
     // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
     globalThis.addEventListener?.("pagehide", this._flushSave);
     // pagehide does not fire for a tab that is hidden and then discarded, or a phone app switched away from.
@@ -990,6 +1176,7 @@ export class FloorplanStudioCard extends LitElement {
     this._settleTurn(false);
     this._config = config ?? {};
     this._closePopup();
+    this._focusDev = null;
     this._hideTip();
     this._layout = null;
     this._error = null;
@@ -998,6 +1185,8 @@ export class FloorplanStudioCard extends LitElement {
     this._shownFloor = null;
     this._pickedRoom = null;
     this._pickedFloor = null;
+    this._sheetStop = "peek"; // S31.8: a new config starts the sheet over, at peek, on the Overview
+    this._panTarget = null;
     this._view = null;
     this._fallback3d = null;
     this._loadViewState();
@@ -1078,6 +1267,7 @@ export class FloorplanStudioCard extends LitElement {
   /** S8.3: HA's hui-card sets `layout` on the card element ("panel" in a panel view, "grid" in sections). */
   set layout(v: string | undefined) {
     this.toggleAttribute("panel", v === "panel");
+    this._fitHeight(); // a panel view bounds the card itself (the :host([panel]) rule): take the pixel height off
   }
   get layout(): string | undefined {
     return this.hasAttribute("panel") ? "panel" : undefined;
@@ -1124,6 +1314,8 @@ export class FloorplanStudioCard extends LitElement {
     this._actions3d = null;
     this._activeResizeObserver?.disconnect();
     this._activeResizeObserver = null;
+    globalThis.removeEventListener?.("resize", this._fitHeight);
+    globalThis.visualViewport?.removeEventListener("resize", this._fitHeight);
     this._dispose3d();
   }
 
@@ -1338,6 +1530,7 @@ export class FloorplanStudioCard extends LitElement {
     const from = this._floorKey(), keys = this._layout ? Object.keys(this._layout.floors) : [];
     this._switchDir = from && this._viewPick() !== "3d" ? floorSwitch(keys, from, key, this._reducedMotion())?.dir ?? null : null;
     this._closePopup(); // its subject is on the floor just left
+    this._focusDev = null; // and so is the device the keys stood on
     this._settleTurn(false); // a turn in flight ends where it was going, under the floor it began on
     this._saveViewNow(); // the floor just left keeps its zoom, turn and camera (S14.4)
     this._shownFloor = key;
@@ -1448,8 +1641,8 @@ export class FloorplanStudioCard extends LitElement {
     super.updated(changed);
     this._glidePeople();
     this._applyWidthDefault();
-    this._positionToolbar();
     this._positionActivePanel();
+    if (this._panTarget) this._panIntoVisible();
     // S24.8: the search box draws itself after this render; the panel grows by its height then, so place it again.
     const box = this.shadowRoot?.querySelector<HTMLElement & { hasUpdated: boolean; updateComplete: Promise<unknown> }>("fp-search");
     if (box && !box.hasUpdated) void box.updateComplete.then(() => this._positionActivePanel());
@@ -1560,6 +1753,7 @@ export class FloorplanStudioCard extends LitElement {
     this._syncPopup();
     this._syncTip();
     this._placePulse();
+    this._placeFocusRing();
   }
 
   /** Whether the 3D model is what the card draws: 3D is picked, its module is loaded, it has not failed, and there is a floor. */
@@ -1751,7 +1945,7 @@ export class FloorplanStudioCard extends LitElement {
     const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active"), h = host.getBoundingClientRect();
     let left = 0, right = 0;
     // A folded list is a 36 px header: at phone width its box spans half the view, but it hides almost none of the house. Only an open one insets.
-    if (panel && h.width > 0 && panel.querySelector(".fp-active-body")) {
+    if (panel && this._frame !== "bottom" && h.width > 0 && panel.querySelector(".fp-active-body")) {
       const p = panel.getBoundingClientRect();
       if (p.width > 0 && p.height > 0) {
         if (p.left + p.width / 2 < h.left + h.width / 2) left = Math.max(0, Math.min(1, (p.right - h.left) / h.width));
@@ -1822,7 +2016,7 @@ export class FloorplanStudioCard extends LitElement {
     if (!this._popup) return;
     for (const n of e.composedPath()) {
       // Only what is in this card's own shadow tree counts as inside: an icon of another card must close this card's popup.
-      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-3d") || n.matches(`${THINGS}, button[data-x], [data-pop]`))) return;
+      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-bottom") || n.classList.contains("fp-3d") || n.matches(`${THINGS}, button[data-x], [data-pop]`))) return;
     }
     this._closePopup();
   };
@@ -1908,6 +2102,7 @@ export class FloorplanStudioCard extends LitElement {
     if (piece) { const d = pieceDevice(piece); if (d) fireEvent(this, "hass-more-info", { entityId: d.entity }); }
     else if (device) this._openSubject(this._deviceSubject(device), point, from);
     else if (door) { const s = this._subjectOf({ door, index: ref.index }); if (s) this._openSubject(s, point, from); }
+    if (shows && (device || door) && this._popup) this._panTarget = this._thingSel(ref.what, ref.index); // S31.8: the plan goes to it, above the sheet
     this.requestUpdate();
   }
 
@@ -1915,14 +2110,19 @@ export class FloorplanStudioCard extends LitElement {
     this._pulse = p;
     if (this._pulseTimer !== null) globalThis.clearTimeout(this._pulseTimer);
     this._pulseTimer = globalThis.setTimeout(() => { this._pulseTimer = null; this._pulse = null; this.requestUpdate(); }, PULSE_MS);
+    // The ring is placed after a render, but the plan can move without one (a pan, a sheet rising, a layout settling): follow it every frame.
+    globalThis.cancelAnimationFrame(this._pulseRaf);
+    const follow = () => { if (!this._pulse) return; this._placePulse(); this._pulseRaf = globalThis.requestAnimationFrame(follow); };
+    this._pulseRaf = globalThis.requestAnimationFrame(follow);
   }
+  private _pulseRaf = 0;
 
   /** After every render: the ring sits over its thing's icon, door or piece on the plan, or hides when the plan does not show it. */
   private _placePulse(): void {
     const ring = this.shadowRoot?.querySelector<HTMLElement>(".fp-pulse");
     const p = this._pulse;
     if (!ring || !p) return;
-    const sel = p.what === "device" ? `svg g[data-x="${p.index}"]` : p.what === "piece" ? `svg g[data-f="${p.index}"]` : `svg line[data-d="${p.index}"]`;
+    const sel = this._thingSel(p.what, p.index);
     const el = p.floor === this._floorKey() ? this.shadowRoot?.querySelector(sel) : null;
     const r = el?.getBoundingClientRect(), h = this.getBoundingClientRect();
     if (!r || (r.width === 0 && r.height === 0)) { ring.hidden = true; return; }
@@ -1935,7 +2135,14 @@ export class FloorplanStudioCard extends LitElement {
 
   private _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
     const s = this._subjectOf(t);
-    if (s) this._openSubject(s, at, from);
+    if (!s) return;
+    this._openSubject(s, at, from);
+    if (this._popup?.s === s) this._panTarget = "device" in t ? this._thingSel("device", t.index) : "door" in t ? this._thingSel("door", t.index) : `svg g[data-u="${t.index}"]`;
+  }
+
+  /** The selector of a thing on the plan, as `_placePulse` finds it. */
+  private _thingSel(what: ThingRef["what"], index: number): string {
+    return what === "device" ? `svg g[data-x="${index}"]` : what === "piece" ? `svg g[data-f="${index}"]` : `svg line[data-d="${index}"]`;
   }
 
   /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
@@ -1944,6 +2151,7 @@ export class FloorplanStudioCard extends LitElement {
     this._hideTip();
     if (this._popup?.s.key === s.key) { this._closePopup(); return; }
     this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
+    this._sheetTo("half"); // S31.8: on a phone the popup is the Device level
     this.requestUpdate();
   }
 
@@ -2032,9 +2240,10 @@ export class FloorplanStudioCard extends LitElement {
     return s.lamp ? lampOp(s.lamp, this._hass?.states) : popupOp(s.type, s.entity, this._hass?.states[s.entity ?? ""]?.state);
   }
 
-  private _popupTemplate() {
+  /** The popup's markup: floating at the end of the card, or (`inSheet`) as the bottom sheet's Device level. Each caller asks for its place and gets nothing from the other. */
+  private _popupTemplate(inSheet = false) {
     const p = this._popup;
-    if (!p) return null;
+    if (!p || inSheet !== this._popupInSheet()) return null;
     const s = p.s, st = this._hass?.states[s.entity ?? ""], op = this._popupOp(s);
     const light = op !== null && s.entity?.startsWith("light.") && st?.state !== "off" ? true : op !== null && s.entity?.startsWith("light.");
     const caps = light ? lightCaps(st?.attributes) : null;
@@ -2052,6 +2261,7 @@ export class FloorplanStudioCard extends LitElement {
       more: () => this._popupMore(),
       key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); this._closePopup(); } },
       slide: (kind, value, commit) => this._popupSlide(kind, value, commit),
+      inSheet,
     });
   }
 
@@ -2098,7 +2308,7 @@ export class FloorplanStudioCard extends LitElement {
   /** After every render: the popup sits near where it was tapped, inside the card; focus goes to its button when it opens and back to what opened it when it closes. */
   private _syncPopup(): void {
     const key = this._popup?.s.key ?? null, el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
-    if (this._popup && el) {
+    if (this._popup && el && !this._popupInSheet()) {
       const o = this._popup.opener;
       placeNear(el, this, this._popup.x, this._popup.y, 14, o?.isConnected && o.matches(".fp-active-row, fp-search") ? this._besideRect(o) : null);
     }
@@ -2292,6 +2502,91 @@ export class FloorplanStudioCard extends LitElement {
     else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
   };
 
+  /** S31.5: the header bar, the top band of the card's grid: floor tabs on the left, Search and the ⋯ menu on the right.
+   *  Text, not icons, for Search: the plan's own `<svg>` stays the first one in the shadow root (`updated()` binds it by that).
+   *  Left out whole when it would be empty, and in kiosk (where the menu, if the config brings one, sits in the cluster).
+   *  Search needs the sheet it opens in, so `active_list: false` drops it. */
+  private _header() {
+    if (this._kiosk()) return null;
+    const tabs = this._floorChips();
+    const search = this._activeListVisible() && this._layout ? html`<button type="button" class="fp-head-btn" aria-label="Search" title="Search" @click=${() => { this._openSearch(); }}>Search</button>` : null;
+    const options = this._optionsMenu();
+    if (!tabs && !search && !options) return null;
+    return html`<div class="fp-head">${tabs}<span class="fp-head-gap"></span>${search}${options}</div>`;
+  }
+
+  /** S31.6: the ⋯ menu, or `null` when it would hold nothing (`view_switch: false` with no rotate, no layers, no detail). */
+  private _optionsMenu() {
+    const sections = this._menuSections();
+    return sections.length ? html`<fp-menu label="View options" .items=${sections} @fp-menu-pick=${this._onMenuPick}></fp-menu>` : null;
+  }
+
+  /** S31.6, spec D3, in its order: View, Tilt (2.5D), Walls (2.5D and 3D), Floors below (3D) or Floor below (2D and 2.5D), Theme,
+   *  Labels, Device names, Detail, Layers, Rotate left, Rotate right, Reset view. Each item is what the old control was and
+   *  `_onMenuPick` writes what that control wrote. `view_switch: false` drops everything up to Device names; Detail and Layers
+   *  keep the Overview's condition (the sheet is shown, no live 3D); the rotate pair and Reset view keep theirs (`_rotateOn`,
+   *  `_hasViewControls`) and are not in live 3D, where the camera has its own Reset camera. Kiosk has no menu unless
+   *  `rotate_switch: true` brings the rotate pair. */
+  private _menuSections(): MenuSection[] {
+    const out: MenuSection[] = [];
+    const view = this._viewPick(), live3d = view === "3d" && this._shows3d(), f = this._floor();
+    const radio = (label: string, value: string, checked: boolean): MenuItem => ({ kind: "radio", label, value, checked });
+    if (this._viewSwitchOn()) {
+      out.push({ label: "View", items: VIEW_OPTIONS.map((o) => radio(o.label, `view:${o.value}`, o.value === view)) });
+      if (view === "2.5d") {
+        const near = TILT_STEPS.reduce((a, b) => (Math.abs(b - this._tilt()) < Math.abs(a - this._tilt()) ? b : a));
+        out.push({ label: "Tilt", items: TILT_STEPS.map((t) => radio(`${Math.round(t * 100)}%`, `tilt:${t}`, t === near)) });
+      }
+      if (live3d || view === "2.5d") out.push({ label: "Walls", items: WALLS_MODES.map((m) => radio(WALLS_LABELS[m], `walls:${m}`, m === this._walls())) });
+      if (live3d) out.push({ label: "Floors below", items: BELOW_MODES.map((m) => radio(BELOW_LABELS[m], `below:${m}`, m === this._below())) });
+      else {
+        const key = this._floorKey(), none = !key || !this._layout || floorBelow(this._layout, key) === null;
+        out.push({ items: [{ kind: "check", label: "Floor below", value: "ghost", checked: this._ghostOn(), disabled: none }] });
+      }
+      out.push({ label: "Theme", items: THEMES.map((t) => radio(THEME_LABELS[t], `theme:${t}`, t === this._theme())) });
+      out.push({ items: [
+        { kind: "check", label: "Labels", value: "labels", checked: this._labels() },
+        { kind: "check", label: "Device names", value: "names", checked: this._names() },
+      ] });
+    }
+    if (this._activeListVisible() && f && !this._shows3d()) {
+      out.push({ label: "Detail", items: DETAIL_MODES.map((m) => radio(DETAIL_LABELS[m], `detail:${m}`, m === this._detailMode())) });
+      const n = layerCounts(f), hidden = this._hiddenLayers;
+      const layers = LAYERS.filter((l) => n[l.id] > 0).map((l): MenuItem => ({ kind: "check", label: l.label, value: `layer:${l.id}`, checked: !hidden.includes(l.id) }));
+      if (layers.length) out.push({ label: "Layers", items: layers });
+    }
+    if (!this._shows3d() && this._hasViewControls()) {
+      const acts: MenuItem[] = [];
+      if (this._rotateOn()) acts.push({ kind: "action", label: "Rotate left", value: "rotate:-1" }, { kind: "action", label: "Rotate right", value: "rotate:1" });
+      acts.push({ kind: "action", label: "Reset view", value: "reset", disabled: !this._modified() });
+      out.push({ items: acts });
+    }
+    return out;
+  }
+
+  /** One pick from the ⋯ menu. The value is `kind:arg`; every arg is checked against its list (the menu is the host's own
+   *  data, but a stale or forged event must change nothing). Each case does what the control it replaced did. */
+  private _onMenuPick = (ev: Event): void => {
+    const d = (ev as CustomEvent<MenuItem & { alt?: boolean }>).detail, v = d?.value;
+    if (typeof v !== "string") return;
+    const i = v.indexOf(":"), kind = i < 0 ? v : v.slice(0, i), arg = i < 0 ? "" : v.slice(i + 1);
+    const done = () => { this._saveViewNow(); this.requestUpdate(); };
+    switch (kind) {
+      case "view": if (isView(arg)) { this._pickedView = arg; this._fallback3d = null; done(); } break; // a new pick tries 3D again
+      case "tilt": if (TILT_STEPS.includes(Number(arg))) { this._pickedTilt = clampTilt(Number(arg)); done(); } break;
+      case "walls": if ((WALLS_MODES as readonly string[]).includes(arg)) { this._pickedWalls = arg as WallsMode; done(); } break;
+      case "below": if ((BELOW_MODES as readonly string[]).includes(arg)) { this._pickedBelow = arg as BelowMode; done(); } break;
+      case "ghost": this._pickedGhost = !this._ghostOn(); done(); break;
+      case "theme": if (isTheme(arg)) { this._pickedTheme = arg; done(); } break;
+      case "labels": this._pickedLabels = !this._labels(); done(); break;
+      case "names": this._pickedNames = !this._names(); done(); break;
+      case "detail": if ((DETAIL_MODES as readonly string[]).includes(arg)) { this._pickedDetail = arg as DetailMode; done(); } break;
+      case "layer": if (LAYERS.some((l) => l.id === arg)) this._setLayers(d?.alt === true ? soloLayer(this._hiddenLayers, arg as LayerId) : toggleLayer(this._hiddenLayers, arg as LayerId)); break; // Alt: this family alone, again: all
+      case "rotate": if (arg === "1" || arg === "-1") this._turnBy(Number(arg) * ROTATION_STEP); break;
+      case "reset": this._resetView(); break;
+    }
+  };
+
   /** S2.6/S6.5: `_floorList()`'s chips, one per switchable floor in its order, or `null` for anything else. Card
    * chrome (like the no-layout message): drawn outside the `<svg>` renderFloor returns, never inside the plan it
    * draws (CLAUDE.md finding 8, one draw path — the plan is drawn only by `renderFloor`, this is the card's own
@@ -2316,9 +2611,31 @@ export class FloorplanStudioCard extends LitElement {
    *  pill again lets go. With the panel off (`active_list: false`) there is nowhere to show a floor, so it only switches, as a
    *  room tap does nothing there. Kiosk has no pills, so it never gets here. */
   private _tapFloorChip(key: string): void {
-    const letGo = this._pickedFloorKey() === key;
+    // S31.8: with the Device level open, a floor tab goes to the Floor level, one level up, even when it names the floor already picked.
+    const letGo = this._pickedFloorKey() === key && !(this._popup && this._popupInSheet());
     this._selectFloor(key);
     this._pickFloor(letGo || !this._activeListVisible() ? null : key);
+  }
+
+  /** S31.5, Back in the side sheet: a room goes up to its floor, a floor to the Overview. Focus follows to what is now on top. */
+  private _back(): void {
+    if (this._popup && this._popupInSheet()) { this._closePopup(); return; } // S31.8: Device goes back to what was under it
+    const room = this._pickedRoom;
+    if (this._frame === "bottom" && !room && !this._pickedFloor) { this._sheetStop = "peek"; this.requestUpdate(); return; }
+    this._pickFloor(room && room.floor === this._floorKey() ? room.floor : null);
+    // Focus follows only if the card already had it. A card that owns the key by hover alone must not pull focus off the page's own control.
+    const had = !!this.shadowRoot?.activeElement;
+    void this.updateComplete.then(() => { if (had) this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-active-collapse, .fp-rail-open, .fp-handle")?.focus(); });
+  }
+
+  /** S31.8: whether the popup is drawn in the bottom sheet (the Device level) and not floating: a card with a sheet, under 640 px. */
+  private _popupInSheet(): boolean {
+    return this._frame === "bottom" && this._activeListVisible() && !!this._layout;
+  }
+
+  /** S31.8: the sheet goes to `stop` when this card has a bottom sheet. */
+  private _sheetTo(stop: SheetStop): void {
+    if (this._frame === "bottom" && this._activeListVisible()) this._sheetStop = stop;
   }
 
   /** The key of the selected floor while it is the one shown, else null (a floor the config no longer lists means nothing). */
@@ -2331,6 +2648,7 @@ export class FloorplanStudioCard extends LitElement {
     this._pickedFloor = key;
     this._roomFilter = true;
     this._sceneAsk = null;
+    if (key !== null) this._sheetTo("half");
     this.requestUpdate();
   }
 
@@ -2347,167 +2665,98 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** The toolbar is anchored top right and the floor chips top left, both over the plan. When the toolbar is wide
-   * enough to reach the chips (a wrapped one always is: it fills the card's width), the chips, which sit above it,
-   * would cover its first controls and the View select could not be clicked. It then moves down to just below the
-   * chips. Measured, not guessed: the toolbar's width depends on the config, the view and the theme's fonts. */
-  private _positionToolbar(): void {
-    const root = this.shadowRoot;
-    const bar = root?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
-    const stack = root?.querySelector<HTMLElement>(".fp-stack");
-    const chips = root?.querySelector<HTMLElement>(".fp-floors");
-    const belowChips = chips ? chips.offsetTop + chips.offsetHeight + 6 : 8;
-    if (bar) bar.style.top = "";
-    if (stack) { stack.style.top = ""; stack.classList.remove("fp-stack-row"); }
-    if (bar && chips && bar.getBoundingClientRect().left < chips.getBoundingClientRect().right + 6) bar.style.top = `${belowChips}px`;
-    if (!stack) return;
-    // The stack hangs under the toolbar, wherever the toolbar ended up; with no toolbar it keeps the CSS default.
-    if (bar) stack.style.top = `${bar.offsetTop + bar.offsetHeight + 4}px`;
-    // A card too short for the column (a ~200 px wide one, where the toolbar already takes most of the height):
-    // the stack lays out as a wrapping row under the chips and the toolbar moves below it. Zoom and rotate stay
-    // reachable; the toolbar's last row is what the card clips.
-    if (stack.offsetTop + stack.offsetHeight > this.clientHeight - 4) {
-      stack.classList.add("fp-stack-row");
-      stack.style.top = `${belowChips}px`;
-      if (bar) bar.style.top = `${stack.offsetTop + stack.offsetHeight + 4}px`;
-    }
-  }
-
-  /** Opus review findings 3/4: sets the panel's on-screen position directly (bypassing Lit's template, which does
-   * not bind `style` any more — see `_activePanel` — so this survives an unrelated re-render), from `_activePos`'s
-   * fraction and the *current* card/panel geometry. Called from `updated()` on every render and from the
-   * ResizeObserver on a host resize, so a stored fraction always lands inside the card, whatever changed since it
-   * was saved: a narrower viewport, a taller panel after expanding from collapsed, or nothing at all. With
-   * `_activePos` still `null` (never dragged) this clears any inline position, leaving the CSS default in place. */
+  /** After each render and resize: the 3D camera frames the house in what the side panel leaves. (The floating panel and its
+   * dock are gone: the side sheet is a grid cell and the bottom sheet sits below the house.) */
   private _positionActivePanel(): void {
-    this._positionActivePanelNow();
     this._apply3dInset();
   }
 
-  /** Puts the undragged panel at the top: the CSS default under a one-row toolbar, lower when the toolbar wraps. */
-  private _placeTopDock(panel: HTMLElement): void {
-    panel.style.left = "";
-    // The CSS default sits under a one-row toolbar. On a narrow card the toolbar wraps to more rows and would
-    // cover the panel's fold button, so the default moves down to just below it.
-    const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
-    const below = bar ? bar.offsetTop + bar.offsetHeight + 8 : 0; // 44 px for a one-row bar at the top, the CSS default
-    let top = below > 44 ? below : 0;
-    // The stack is on the right, the list on the left: they meet only on a very narrow card. Then the list goes
-    // under the stack, as it goes under the toolbar.
-    const stack = this.shadowRoot?.querySelector<HTMLElement>(".fp-stack");
-    if (stack && panel.offsetLeft + panel.offsetWidth + 6 > stack.offsetLeft) top = Math.max(top, stack.offsetTop + stack.offsetHeight + 8);
-    panel.style.top = top ? `${top}px` : "";
-  }
-
-  private _positionActivePanelNow(): void {
-    const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active");
-    if (!panel) return;
-    const sheet = panel.classList.contains("fp-room-open") && this.getBoundingClientRect().width < ACTIVE_FOLD_BELOW_PX;
-    panel.classList.toggle("fp-sheet", sheet);
-    // A sheet docks where it hides less of the picked room. Three places are laid out and the one whose box overlaps
-    // the room's bounding box least wins: under the toolbar (which wraps on a narrow card, so it can be low), at the
-    // bottom, or at the top over the toolbar (8 px; the controls are back when the panel closes). On a tie the dock
-    // away from the room's centre goes first.
-    let bottom = false;
-    if (sheet && !this._activePos) {
-      const poly = this.shadowRoot?.querySelector("svg polygon.room-picked");
-      if (poly) {
-        const h = this.getBoundingClientRect(), r = poly.getBoundingClientRect();
-        const hidden = () => {
-          const p = panel.getBoundingClientRect();
-          return Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left)) * Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top));
-        };
-        const place = {
-          below: () => { panel.classList.remove("fp-dock-bottom", "fp-dock-over"); this._placeTopDock(panel); },
-          bottom: () => { panel.classList.remove("fp-dock-over"); panel.classList.add("fp-dock-bottom"); panel.style.top = ""; panel.style.left = ""; },
-          over: () => { panel.classList.remove("fp-dock-bottom"); panel.classList.add("fp-dock-over"); panel.style.left = ""; panel.style.top = ""; },
-        };
-        const roomInUpperHalf = r.top + r.height / 2 - h.top < h.height / 2;
-        const order = (roomInUpperHalf ? ["bottom", "below", "over"] : ["below", "bottom", "over"]) as (keyof typeof place)[];
-        let best = order[0]!, least = Infinity;
-        for (const k of order) { place[k](); const o = hidden(); if (o < least) { least = o; best = k; } }
-        place[best]();
-        bottom = best === "bottom";
-        if (best === "over") return;
-      }
-    }
-    panel.classList.remove("fp-dock-over");
-    panel.classList.toggle("fp-dock-bottom", bottom);
-    if (bottom) { panel.style.top = ""; panel.style.left = ""; return; }
-    if (!this._activePos) { this._placeTopDock(panel); return; }
-    const hostRect = this.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    const maxX = Math.max(0, hostRect.width - panelRect.width);
-    const maxY = Math.max(0, hostRect.height - panelRect.height);
-    panel.style.left = `${this._activePos.x * maxX}px`;
-    panel.style.top = `${this._activePos.y * maxY}px`;
-  }
-
-  /** The list floats over the plan, so on a phone-width card it hides the plan: until the user has chosen, it is
-   * folded under 480px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
-   * `display:none`, not laid out yet) decides nothing. */
-  private _applyWidthDefault(): void {
-    if (this._activeUserChose) return;
+  /** S31.5: what the card's width gives it, from `frame.ts`: the side sheet from 640 px, the old floating panel under it, no
+   *  sheet in kiosk or with `active_list: false`. Reads the host's own width, which the sheet's column does not change.
+   *  True when the answer changed (the template differs by mode, so the caller renders again). */
+  private _measureFrame(): boolean {
     const width = this.getBoundingClientRect().width;
-    if (width === 0) return;
-    const narrow = width < ACTIVE_FOLD_BELOW_PX;
-    if (narrow === this._activeCollapsed) return;
-    this._activeCollapsed = narrow;
-    this.requestUpdate();
+    if (!(width > 0)) return false;
+    const mode = frameMode(width, { kiosk: this._kiosk(), sheet: this._config?.active_list !== false }), was = this._frame;
+    const sheetW = mode === "side" ? (this._sheetOpen() ? sideWidth(width) : HEADER_H) : 0;
+    this.style.setProperty("--fp-sheet-w", `${sheetW}px`);
+    this._sheetPx = sheetW;
+    this._frame = mode; // `_fitHeight` reads it: the peek is chrome on a phone
+    this._fitHeight();
+    // S31.8: the peek keeps a row of the grid to itself, and the three stops are the card's height now, as CSS lengths the sheet
+    // reads, so a resize moves the sheet without a render.
+    this.style.setProperty("--fp-peek-row", mode === "bottom" ? `${PEEK_H}px` : "0px");
+    if (mode === "bottom") {
+      const stops = sheetStops(this.getBoundingClientRect().height, HEADER_H);
+      for (const k of ["peek", "half", "full"] as const) this.style.setProperty(`--fp-sheet-${k}`, `${Math.round(stops[k])}px`);
+    }
+    return mode !== was;
   }
+
+  /** The sheet column's width in px, as `_measureFrame` last set it: what the stage is short of the card's width. */
+  private _sheetPx = 0;
+  /** The pixel height `_fitHeight` last gave the host. An inline height that is not this one is somebody else's. */
+  private _fitted = "";
 
   /**
-   * S9.5: drags the panel by its header, pointer-capture based like `_bindZoom`'s pan above, but clamped inside
-   * the card's own box on every move so the panel can never end up partly or wholly off-screen (the spec's own
-   * words). A press on the collapse button itself is left alone — `closest` finds it and this returns before
-   * `setPointerCapture`, so the button's own click still fires instead of being swallowed by a "drag" that never
-   * actually moved the panel. Below `TAP_SLOP_PX` of movement nothing is written, so a plain click on the header
-   * bar (not a button) cannot be mistaken for a drag and does not touch the saved position.
+   * S31.7, fit to height (docs/specs/card-layout-touch.md, the assumption). In a parent with no height of its own (masonry, a
+   * stack, `rows: auto`) the card was as tall as the plan at its width, so a wide plan on a short screen ran under the browser's
+   * bottom edge. Its height is now `cardHeight` (frame.ts): the plan's height plus the header, cut to the visual viewport less
+   * HA's header and 16 px, and on a phone at least the sheet's minimum. The plan letterboxes in what is left.
+   * A parent that does give a height (HA's sections row, a panel view) already bounds the card, so it is left alone: the row
+   * wins, as in 0.28.1. Arrow, so it can be a listener. Nothing laid out (jsdom, a hidden card) changes nothing.
    */
-  private _onActiveDragStart(e: PointerEvent): void {
-    if ((e.target as Element | null)?.closest?.("button")) return;
-    const head = e.currentTarget as HTMLElement;
-    const panel = head.closest(".fp-active") as HTMLElement | null;
-    if (!panel) return;
-    e.preventDefault();
-    const hostRect = this.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    const originLeft = panelRect.left - hostRect.left;
-    const originTop = panelRect.top - hostRect.top;
-    const startX = e.clientX, startY = e.clientY;
-    const pointerId = e.pointerId;
-    let moved = false;
-    try { head.setPointerCapture(pointerId); } catch { /* the pointer is already gone */ }
-
-    // Opus review findings 3/4: the drag itself still clamps in px against the geometry captured at drag-start
-    // (nothing else can resize mid-drag), but the *stored* position is the resulting fraction of that geometry's
-    // free width/height, not the px itself — `_positionActivePanel` is what turns it back into px, against
-    // whatever the geometry is by the time it runs.
-    const maxX = Math.max(0, hostRect.width - panelRect.width);
-    const maxY = Math.max(0, hostRect.height - panelRect.height);
-    const clampFraction = (x: number, y: number) => ({
-      x: maxX > 0 ? Math.min(Math.max(0, x), maxX) / maxX : 0,
-      y: maxY > 0 ? Math.min(Math.max(0, y), maxY) / maxY : 0,
+  private _fitHeight = (): void => {
+    const width = this.getBoundingClientRect().width, fit = this._fit;
+    if (this.style.height !== this._fitted) return; // a height set on the host by hand (an inline style) is the user's: leave it
+    const off = (): void => { this.style.removeProperty("height"); this._fitted = ""; };
+    if (!(width > 0) || !fit || !(fit.w > 0) || !(fit.h > 0) || this.hasAttribute("panel") || this._rowIsFixed()) return off();
+    const header = parseFloat(getComputedStyle(this).getPropertyValue("--header-height"));
+    const h = cardHeight({
+      planAspect: fit.w / fit.h,
+      // Side mode sizes from the sheet's RESTING state, never from a pick: open from 900 px (its width), the 52 px rail below that
+      // or once folded by hand. A room pick that opens the rail over the plan letterboxes it and never moves the card's edge.
+      width: width - (this._frame === "side" ? (this._activeCollapsed ? HEADER_H : sideWidth(width)) : this._sheetPx),
+      viewportH: globalThis.visualViewport?.height ?? globalThis.innerHeight,
+      haHeader: Number.isFinite(header) ? header : 56, // the same fallback `:host([panel])` uses
+      chrome: this._kiosk() ? 0 : HEADER_H + (this._frame === "bottom" ? PEEK_H : 0),
+      mode: this._frame,
     });
+    this.style.height = this._fitted = `${Math.round(h)}px`;
+  };
 
-    const onMove = (me: PointerEvent) => {
-      if (me.pointerId !== pointerId) return;
-      const dx = me.clientX - startX, dy = me.clientY - startY;
-      if (!moved && Math.hypot(dx, dy) <= TAP_SLOP_PX) return;
-      moved = true;
-      this._activePos = clampFraction(originLeft + dx, originTop + dy);
-      this._positionActivePanel();
-    };
-    const onEnd = (ue: PointerEvent) => {
-      if (ue.pointerId !== pointerId) return;
-      head.removeEventListener("pointermove", onMove);
-      head.removeEventListener("pointerup", onEnd);
-      head.removeEventListener("pointercancel", onEnd);
-      if (moved) this._saveActiveState();
-    };
-    head.addEventListener("pointermove", onMove);
-    head.addEventListener("pointerup", onEnd);
-    head.addEventListener("pointercancel", onEnd);
+  /** Whether the card's parent has a height that does not follow the card: shrink the card to 1 px and see if the parent
+   *  notices. A parent whose height comes from its content shrinks with it; a sections row or a panel does not. A parent
+   *  that another box holds up looks fixed too, and then the card is simply left at its plan's height, as before. */
+  private _rowIsFixed(): boolean {
+    const parent = this.parentElement ?? (this.getRootNode() as ShadowRoot | undefined)?.host;
+    if (!parent) return false;
+    const was = this.style.height, before = parent.getBoundingClientRect().height;
+    this.style.height = "1px";
+    const after = parent.getBoundingClientRect().height;
+    this.style.height = was;
+    return before > 2 && Math.abs(before - after) < 0.5;
+  }
+
+  /** Whether the sheet is open and not the 52 px rail: not folded, or a room or floor is picked (which opens it). */
+  private _sheetOpen(): boolean {
+    return !this._activeCollapsed || this._picked() !== null || this._pickedFloorKey() !== null;
+  }
+
+  /** Until the viewer has chosen by hand, the sheet's width decides: a side sheet is open from 900 px and a rail below,
+   * the floating panel under 640 px is folded under 480 px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
+   * `display:none`, not laid out yet) decides nothing. */
+  private _applyWidthDefault(): void {
+    const changed = this._measureFrame();
+    if (this._activeUserChose) { if (changed) this.requestUpdate(); return; }
+    const width = this.getBoundingClientRect().width;
+    if (width === 0) return;
+    // The side sheet starts open from 900 px (frame.ts), the floating panel from 480; until the viewer folds by hand.
+    const narrow = this._frame === "side" ? !sideOpenByDefault(width) : width < ACTIVE_FOLD_BELOW_PX;
+    if (narrow === this._activeCollapsed && !changed) return;
+    this._activeCollapsed = narrow;
+    this._measureFrame();
+    this.requestUpdate();
   }
 
   /** S11.3: the index of the picked room on the shown floor, or null: none picked, a room of another floor, or one the
@@ -2527,6 +2776,7 @@ export class FloorplanStudioCard extends LitElement {
     this._pickedFloor = null;
     this._roomFilter = true;
     this._sceneAsk = null;
+    if (this._pickedRoom) { this._sheetTo("half"); this._panTarget = "svg polygon.room-picked"; }
     this.requestUpdate();
   }
 
@@ -2662,7 +2912,7 @@ export class FloorplanStudioCard extends LitElement {
     return html`<div class="fp-room">
       <div class="fp-room-head">
         <span class="fp-room-name">${s.name || scope.unnamed}</span>
-        <button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>
+        ${this._frame === "side" ? nothing : html`<button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>`}
       </div>
       <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
       ${s.offEntities.length || scope === FLOOR_SCOPE ? html`<div class="fp-alloff-row">${s.offEntities.length ? html`<button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title=${this._layout ? allOffTitle(this._layout.floors, this._floorKey() ?? "", s) : ALL_OFF_TITLE} @click=${() => this._allOff(s.offEntities)}>Lights off</button>` : nothing}${scope === FLOOR_SCOPE ? this._floorOffButton() : nothing}</div>` : nothing}
@@ -2779,39 +3029,179 @@ export class FloorplanStudioCard extends LitElement {
     const items = inScope(activeDevices(this._layout, state, opts)).filter((it) => !flagged.has(it.entity));
     const badge = all && many;
     const list = this._overviewList(attn, items, badge, summary && this._roomFilter ? scope.nothingOn : "Nothing on");
-    const folded = this._activeCollapsed && !summary;
     const crumb = summary ? (shown ? this._floorTitle(shown) : "") : all && many ? "All floors" : shown ? this._floorTitle(shown) : "";
-    // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`
-    // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
-    // that function is the only thing that ever touches this element's inline position.
-    return html`<div class=${summary ? "fp-active fp-room-open" : folded ? "fp-active fp-active-folded" : "fp-active"} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
-      <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
+    // S31.5: from 640 px it is the side sheet (a cell of the grid, a 52 px rail when folded); S31.8: under it, the bottom sheet.
+    const side = this._frame === "side";
+    const name = summary ? summary.name || scope.unnamed : "Overview";
+    const content = () => summary
+      ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
+                <div class="fp-filtered">${list}</div>`, scope)
+      : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${this._searchEntries()} label="Search the plan" placeholder="Search rooms and devices" @fp-pick=${(e: CustomEvent<SearchEntry>) => this._onSearchPick(e)}></fp-search></div>
+                <div class="fp-ov-scopes">${this._floorOffButton()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
+                <div class="fp-ov-layers" data-slot="layers">${this._layerNote()}</div>
+                ${list}
+                <p class="fp-ov-hint">Tap a row: the plan goes to it.</p>`;
+    if (!side) return this._bottomSheet(name, crumb, summary !== null, this._chips(items, attn.items.length), content);
+    const folded = this._activeCollapsed && !summary;
+    const cls = ["fp-active", "fp-side", summary ? "fp-room-open" : folded ? "fp-rail" : ""].filter(Boolean).join(" ");
+    if (folded) {
+      const n = attn.items.length;
+      return html`<div class=${cls} role="region" aria-label="Overview">
+        <button type="button" class="fp-rail-open" aria-label="Open overview" aria-expanded="false" title=${n ? `Open overview, ${n} ${n === 1 ? "alert" : "alerts"}` : "Open overview"} @click=${() => this._toggleActiveCollapsed()}>▸${n ? html`<span class="fp-rail-count">${n}</span>` : nothing}</button>
+      </div>`;
+    }
+    return html`<div class=${cls} role="region" aria-label=${name}>
+      <div class="fp-active-head">
+        ${summary ? html`<button type="button" class="fp-back" aria-label="Back" title="Back" @click=${() => this._back()}>←</button>` : nothing}
         <span class="fp-active-title">Home${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}</span>
         ${summary
           ? nothing
           : html`<button
           type="button"
           class="fp-active-collapse"
-          aria-label=${this._activeCollapsed ? "Expand the overview" : "Collapse the overview"}
+          aria-label=${this._activeCollapsed ? "Open overview" : "Fold overview"}
           aria-expanded=${this._activeCollapsed ? "false" : "true"}
           @click=${() => this._toggleActiveCollapsed()}
         >${this._activeCollapsed ? "▸" : "▾"}</button>`}
         ${this._chips(items, attn.items.length)}
       </div>
-      ${folded
-        ? null
-        : html`<div class="fp-active-body">
-            ${summary
-              ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
-                <div class="fp-filtered">${list}</div>`, scope)
-              : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${this._searchEntries()} label="Search the plan" placeholder="Search rooms and devices" @fp-pick=${(e: CustomEvent<SearchEntry>) => this._onSearchPick(e)}></fp-search></div>
-                <div class="fp-ov-scopes">${this._floorOffButton()}${this._layersToggle()}${this._detailToggle()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
-                <div class="fp-ov-layers" data-slot="layers">${this._layerChips()}</div>
-                ${this._detailChips()}
-                ${list}
-                <p class="fp-ov-hint">Tap a row: the plan goes to it.</p>`}
-          </div>`}
+      <div class="fp-active-body">${content()}</div>
     </div>`;
+  }
+
+  /**
+   * S31.8: the phone's sheet. A top row (Back, then the handle: the grabber, where we are, the counts) and a body that is the
+   * level's content: the Overview, a floor or a room as the side sheet shows them, or the popup as the Device level. At peek the
+   * body is `inert`, so nothing under the clipped edge takes a Tab. The handle is one button: a tap or Enter or Space cycles the
+   * stops, a drag moves them (see the block comment above the class). Its name is "Overview" on every level, the spec's name; the
+   * region around it is named for the level.
+   */
+  private _bottomSheet(name: string, crumb: string, deeper: boolean, chips: unknown, content: () => unknown) {
+    const pop = this._popup && this._popupInSheet() ? this._popup.s : null;
+    const peek = this._sheetStop === "peek" && !this._sheetDrag;
+    const level = pop ? pop.name : name;
+    const drag = this._sheetDrag;
+    return html`<div class=${drag ? "fp-active fp-bottom fp-dragging" : "fp-active fp-bottom"} data-stop=${this._sheetStop} role="region" aria-label=${level} style=${drag ? `height:${drag.h}px` : ""}>
+      <div class="fp-sheet-top">
+        ${deeper || pop || this._sheetStop !== "peek" ? html`<button type="button" class="fp-back" aria-label="Back" title="Back" @click=${() => this._back()}>←</button>` : nothing}
+        <button type="button" class="fp-handle" aria-label="Overview" aria-expanded=${this._sheetStop === "peek" ? "false" : "true"}
+          @pointerdown=${this._onHandleDown} @pointermove=${this._onHandleMove} @pointerup=${this._onHandleUp} @pointercancel=${this._onHandleCancel}
+          @click=${this._onHandleClick} @keydown=${this._onHandleKey}>
+          <span class="fp-grab" aria-hidden="true"></span>
+          <span class="fp-handle-line"><span class="fp-active-title">${pop ? pop.name : deeper ? name : html`Home${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}`}</span>${pop ? html` <span class="fp-ov-chips">${this._subjectText(pop)}</span>` : chips}</span>
+        </button>
+      </div>
+      <div class="fp-active-body" ?inert=${peek}>${pop ? this._popupTemplate(true) : content()}</div>
+    </div>`;
+  }
+
+  // ---- S31.8: the bottom sheet's handle ---------------------------------------------------------------------------------------------
+
+  private _onHandleDown = (e: PointerEvent): void => {
+    if ((e.pointerType === "mouse" && e.button !== 0) || this._sheetDrag) return;
+    const stops = this._stopsNow();
+    if (!stops) return;
+    const h0 = stops[this._sheetStop];
+    this._sheetDrag = { id: e.pointerId, y0: e.clientY, h0, h: h0, moved: false, stops, trail: [{ t: e.timeStamp, h: h0 }] };
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* a synthetic event with no live pointer: the drag still works without capture */ }
+  };
+
+  private _onHandleMove = (e: PointerEvent): void => {
+    const d = this._sheetDrag;
+    if (!d || e.pointerId !== d.id) return;
+    const dy = e.clientY - d.y0;
+    if (!d.moved && Math.abs(dy) < TAP_SLOP_PX) return; // a finger wobbles: under the slop it is still a tap
+    d.moved = true;
+    d.h = Math.min(d.stops.full, Math.max(d.stops.peek, d.h0 - dy));
+    d.trail.push({ t: e.timeStamp, h: d.h });
+    if (d.trail.length > 24) d.trail.shift();
+    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
+    if (sheet) { sheet.classList.add("fp-dragging"); sheet.style.height = `${d.h}px`; } // straight to the element: no render per move
+  };
+
+  private _onHandleUp = (e: PointerEvent): void => {
+    const d = this._sheetDrag;
+    if (!d || e.pointerId !== d.id) return;
+    this._sheetDrag = null;
+    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
+    if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
+    if (d.moved) {
+      // The velocity of the last 100 ms, in px/ms, up positive. A finger that rested before it lifted has none.
+      const recent = d.trail.filter((p) => p.t >= e.timeStamp - 100);
+      const from = recent[0];
+      const v = from && recent.length > 1 ? (d.h - from.h) / Math.max(e.timeStamp - from.t, 16) : 0;
+      this._sheetStop = snapSheet(d.h, v, d.stops);
+      this._dragEnded = true; // the click that follows is the drag's own
+      globalThis.setTimeout(() => { this._dragEnded = false; }, 0);
+    }
+    this.requestUpdate();
+  };
+
+  private _onHandleCancel = (e: PointerEvent): void => {
+    const d = this._sheetDrag;
+    if (!d || e.pointerId !== d.id) return;
+    this._sheetDrag = null; // the browser took the gesture: the sheet goes back to its stop
+    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
+    if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
+    this.requestUpdate();
+  };
+
+  private _onHandleClick = (): void => {
+    if (this._dragEnded) { this._dragEnded = false; return; }
+    this._sheetStop = nextOnHandleTap(this._sheetStop);
+    this.requestUpdate();
+  };
+
+  /** Arrow keys on the handle move one stop, so the sheet is reachable without a tap or a drag. */
+  private _onHandleKey = (e: KeyboardEvent): void => {
+    const order: SheetStop[] = ["peek", "half", "full"], i = order.indexOf(this._sheetStop);
+    const to = e.key === "ArrowUp" ? order[Math.min(2, i + 1)] : e.key === "ArrowDown" ? order[Math.max(0, i - 1)] : null;
+    if (!to) return;
+    e.preventDefault();
+    e.stopPropagation(); // the card's own arrows pan the plan
+    this._sheetStop = to;
+    this.requestUpdate();
+  };
+
+  /** The three stops for the card's height now, in px, or null when the card is not laid out. */
+  private _stopsNow(): Stops | null {
+    const h = this.getBoundingClientRect().height;
+    return h > 0 ? sheetStops(h, HEADER_H) : null;
+  }
+
+  /** After the render that opened the sheet for a room or a thing: moves the plan so that thing's box is inside what the sheet at
+   *  its stop leaves, by the pixel difference that centres it there. Nothing moves when it is already inside, or in 3D. */
+  private _panIntoVisible(): void {
+    const sel = this._panTarget;
+    this._panTarget = null;
+    if (!sel || this._frame !== "bottom" || this._shows3d() || this._turn) return;
+    const el = this.shadowRoot?.querySelector(sel);
+    if (el && this._stopsNow()) this._panBoxIn(el);
+  }
+
+  /** The part of the plan the eye can use: the stage's box, less the bottom sheet at its stop (S31.8). Null before the first layout. */
+  private _visibleBox(): { left: number; top: number; right: number; bottom: number } | null {
+    const svg = this._stageSvg();
+    if (!svg) return null;
+    const s = svg.getBoundingClientRect(), stops = this._frame === "bottom" ? this._stopsNow() : null;
+    if (!(s.width > 0)) return null;
+    return { left: s.left, right: s.right, top: s.top, bottom: stops ? Math.min(s.bottom, this.getBoundingClientRect().bottom - stops[this._sheetStop]) : s.bottom };
+  }
+
+  /** Moves the plan so `el`'s box is inside the visible part, by the pixel difference that centres it there. Nothing moves when it is already inside. */
+  private _panBoxIn(el: Element): void {
+    const svg = this._stageSvg(), vis = this._visibleBox(), v = this._current();
+    if (!svg || !vis || !v || this._turn) return;
+    const s = svg.getBoundingClientRect(), r = el.getBoundingClientRect();
+    if (!(r.width + r.height > 0)) return;
+    const m = 8; // a hair of air, so an icon is not touching the sheet's edge
+    if (r.top >= vis.top + m && r.bottom <= vis.bottom - m && r.left >= vis.left && r.right <= vis.right) return;
+    const dx = (vis.left + vis.right) / 2 - (r.left + r.width / 2), dy = (vis.top + vis.bottom) / 2 - (r.top + r.height / 2);
+    const k = Math.min(s.width / v.w, s.height / v.h); // screen px per plan unit: the svg letterboxes its view box
+    // A view at fit cannot be panned: `clamp` hands fit back for any box as wide as fit. A hair of zoom (0.1 %, invisible) makes it
+    // a view that can move; the Fit button still takes it home.
+    const base = this._view ? v : zoomAt(v, 1.001, v.x + v.w / 2, v.y + v.h / 2);
+    this._setView(panBy(base, -dx / k, -dy / k));
   }
 
   private _toggleOverviewAll(): void {
@@ -2844,6 +3234,7 @@ export class FloorplanStudioCard extends LitElement {
   private _openSearch(): boolean {
     if (!this._activeListVisible() || !this._layout) return false;
     if (this._pickedRoom || this._pickedFloor) this._pickRoom(null);
+    this._sheetTo("full"); // S31.8: Search opens the phone's sheet full
     if (this._activeCollapsed) { this._activeCollapsed = false; this._activeUserChose = true; this._saveActiveState(); }
     this._closePopup();
     this.requestUpdate();
@@ -2870,7 +3261,7 @@ export class FloorplanStudioCard extends LitElement {
       this._selectFloor(e.floor);
       if (this._floorKey() !== e.floor) return;
       this._pickRoom(e.room);
-      void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-room-clear")?.focus());
+      void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-room-clear")?.focus());
     }
   }
 
@@ -2888,46 +3279,16 @@ export class FloorplanStudioCard extends LitElement {
     return canChange ? "auto" : "full";
   }
 
-  /** The Detail button beside Layers; it unfolds the three choices. Its text never changes (the title names the mode): a
-   *  longer one wraps the tools row in a 260 px sheet and the taller sheet covers devices. The pressed chip shows the mode. */
-  private _detailToggle() {
-    if (!this._floor() || this._shows3d()) return nothing;
-    const m = this._detailMode();
-    return html`<button type="button" class="fp-detail-toggle" aria-expanded=${this._detailOpen ? "true" : "false"} title=${`Detail: ${DETAIL_LABELS[m]}. How much of the plan is drawn at each zoom`} @click=${() => { this._detailOpen = !this._detailOpen; this.requestUpdate(); }}>Detail</button>`;
-  }
+  // ---- S24.8: layer note ---------------------------------------------------------------------------------------------------------
 
-  /** Auto, Full, Minimal as pressable chips; the active one is pressed. A pick is remembered at once. */
-  private _detailChips() {
-    if (!this._detailOpen || !this._floor() || this._shows3d()) return nothing;
-    const cur = this._detailMode();
-    const titles: Record<DetailMode, string> = { auto: "Follow the zoom: rooms far out, devices closer in", full: "Always draw everything", minimal: "Always draw only rooms and what needs attention" };
-    return html`<div class="fp-ov-detail fp-layer-chips" role="group" aria-label="Detail">${DETAIL_MODES.map((m) => html`<button type="button" class="fp-detail" data-detail=${m} aria-pressed=${m === cur ? "true" : "false"} title=${titles[m]} @click=${() => { this._pickedDetail = m; this._saveViewNow(); this.requestUpdate(); }}>${DETAIL_LABELS[m]}</button>`)}</div>`;
-  }
-
-  // ---- S24.8: layer chips --------------------------------------------------------------------------------------------------------
-
-  /** The Layers button in the tools row: it unfolds the chips, and counts what is hidden ("Layers · 2 hidden"), with the
-   *  Studio's sentence as its title ("Layers: lights hidden"), so a folded sheet still tells. Short, so it shares a line
-   *  with All floors in a 260 px sheet. Folded by default: the sheet covers no more of the plan. Not in live 3D. */
-  private _layersToggle() {
-    if (!this._floor() || this._shows3d()) return nothing;
-    const n = this._hiddenLayers.length;
-    return html`<button type="button" class="fp-layers-toggle" aria-expanded=${this._layersOpen ? "true" : "false"} title=${layersSummary(this._hiddenLayers) || "Hide or show families on the plan"} @click=${() => { this._layersOpen = !this._layersOpen; this.requestUpdate(); }}>${n ? `Layers · ${n} hidden` : "Layers"}</button>`;
-  }
-
-  /** One text chip per family with something on the floor on show (`layerCounts`); pressed means shown. A click hides or
-   *  shows the family, Alt-click shows it alone (again: all). Not in live 3D, which draws every family. Then, unfolded or
-   *  not, the note for a thing located under a hidden family, with Show for that family. */
-  private _layerChips() {
-    const f = this._floor();
-    if (!f || this._shows3d()) return nothing;
-    const n = layerCounts(f), hidden = this._hiddenLayers, k = this._keptHere();
+  /** The note for a thing located under a hidden family, with Show for that family. The family chips themselves are the ⋯
+   *  menu's Layers section since S31.6; this stays in the Overview, where the located thing was found. */
+  private _layerNote() {
+    const f = this._floor(), k = this._keptHere();
+    if (!f || this._shows3d() || !k) return nothing;
+    const hidden = this._hiddenLayers;
     const word = (id: LayerId) => (LAYERS.find((l) => l.id === id)?.label ?? id).toLowerCase();
-    const chips = LAYERS.filter((l) => n[l.id] > 0).map((l) => {
-      const shown = !hidden.includes(l.id);
-      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} title=${`${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id))}>${l.label}</button>`;
-    });
-    return html`${this._layersOpen ? html`<div class="fp-layer-chips">${chips}</div>` : nothing}${k ? html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>` : nothing}`;
+    return html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>`;
   }
 
   private _setLayers(next: LayerId[]): void {
@@ -3005,8 +3366,6 @@ export class FloorplanStudioCard extends LitElement {
     const turn = this._turn;
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
-    const showViewSwitch = this._viewSwitchOn();
-    const showRotate = this._rotateOn();
     // S9.6: `home` is the whole floor unless `center`/`zoom_level` pin the card to part of it — the base the box
     // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
     // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
@@ -3032,9 +3391,9 @@ export class FloorplanStudioCard extends LitElement {
     const live3d = this._shows3d();
     const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
-      px: this._px || undefined, // S23.2: the 11 px floor for names and discs
+      px: qpx(this._px) || undefined, // S23.2: the 11 px floor for names and discs (quantised: see `qpx`)
       zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
-      bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - this._strip) } : undefined, // S23 review S3: names stay off the control stack
+      bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - qstrip(this._strip, fit.w)) } : undefined, // S23 review S3: names stay off the control stack
       state: this._stateForRender(),
       now: Date.now(),
       fade: this._config.fade,
@@ -3063,10 +3422,15 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" ${planPatch(body)}></svg>`;
+    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" tabindex="0" role="group" aria-label=${`Floor plan, ${this._floorTitle(this._floorKey() ?? "")}`} @focus=${this._onStageFocus} @blur=${this._onStageBlur} @pointerdown=${this._dropFocus} ${planPatch(body)}></svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
+    this._measureFrame();
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
-    return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    const stackEl = stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit) : null;
+    // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
+    const kioskMenu = this._kiosk() ? this._optionsMenu() : null;
+    const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
+    return html`${this._header()}${stage}${note}${this._activePanel()}${cluster}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
@@ -3095,12 +3459,6 @@ export class FloorplanStudioCard extends LitElement {
     return { floor: layout.floors[below], shift: place.shift, turn: place.turn };
   }
 
-  /** S27.13: the Floor below button, 2D and 2.5D. Disabled on the lowest floor, which has nothing under it. */
-  private _ghostButton() {
-    const key = this._floorKey(), none = !key || !this._layout || floorBelow(this._layout, key) === null, on = this._ghostOn();
-    return html`<button type="button" aria-label="Floor below" aria-pressed=${on ? "true" : "false"} ?disabled=${none} title=${none ? "Floor below: this is the lowest floor" : "Floor below: show the floor under this one as faint lines"} @click=${() => { this._pickedGhost = !on; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(GHOST_ICON)}</button>`;
-  }
-
   /** The tilt on show: the slider's, else `config.tilt`, else the default. Clamped, since config is untrusted. */
   private _tilt(): number {
     return clampTilt(this._pickedTilt ?? this._config.tilt);
@@ -3111,81 +3469,14 @@ export class FloorplanStudioCard extends LitElement {
     return this._pickedWalls ?? wallsModeOf(this._config.walls);
   }
 
-  /** Next to the Tilt slider, 2.5D only (the caller decides). A pick redraws the plan only and is remembered at once. */
-  private _wallsSelect() {
-    const current = this._walls();
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!(WALLS_MODES as readonly string[]).includes(v)) return;
-      this._pickedWalls = v as WallsMode;
-      this._saveViewNow();
-      this.requestUpdate();
-    };
-    return html`<select aria-label="Walls" title="Walls" @change=${onChange}>${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${m === current}>${WALLS_LABELS[m]}</option>`)}</select>`;
-  }
-
   /** S27.14: the floors below in 3D: this viewer's pick, else `config.floors_below`, else off. Junk is off. */
   private _below(): BelowMode {
     return this._pickedBelow ?? belowModeOf(this._config.floors_below);
   }
 
-  /** Next to Walls, 3D only. A pick is remembered at once; `_sync3d` gives the view its floors on the render that follows. */
-  private _belowSelect() {
-    const current = this._below();
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!(BELOW_MODES as readonly string[]).includes(v)) return;
-      this._pickedBelow = v as BelowMode;
-      this._saveViewNow();
-      this.requestUpdate();
-    };
-    return html`<select aria-label="Floors below" title="Floors below" @change=${onChange}>${BELOW_MODES.map((m) => html`<option value=${m} ?selected=${m === current}>${BELOW_LABELS[m]}</option>`)}</select>`;
-  }
-
-  /** The slider is for 2.5D only: in 2D there is no lift to tilt. Dragging redraws the plan only, like the View select. */
-  private _tiltSlider() {
-    const onInput = (e: Event) => {
-      this._pickedTilt = clampTilt(Number((e.target as HTMLInputElement).value));
-      this._scheduleSave(); // a drag is a burst of inputs
-      this.requestUpdate();
-    };
-    return html`<input type="range" aria-label="Tilt" title="Tilt" min="0" max="1" step="0.01" .value=${String(this._tilt())} @input=${onInput} />`;
-  }
-
-  /** Everything that changes how the plan looks, but not where it is zoomed: the View select, the Tilt slider while
-   * the view is 2.5D, the Theme select and the Labels toggle. All hidden together (`view_switch: false`, kiosk). */
-  private _viewControls(current: CardView) {
-    const labels = this._labels();
-    const names = this._names();
-    const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider
-    return html`${this._viewSelect(current)}${in3d ? html`${this._wallsSelect()}${this._belowSelect()}` : current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
-      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
-      <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => { this._pickedNames = !names; this._saveViewNow(); this.requestUpdate(); }}>Aa</button>${in3d ? null : this._ghostButton()}`;
-  }
-
-  /** The two rotate buttons, next to the zoom buttons: a control of their own (`rotate_switch`), so a card with
-   * `view_switch: false` still turns. */
-  private _rotateButtons() {
-    return html`<button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
-      <button type="button" aria-label="Rotate right" title="Rotate right" @click=${() => this._turnBy(ROTATION_STEP)}>${this._icon(UI_ICONS.rotateRight)}</button>`;
-  }
-
   /** A toolbar icon: 24x24 path from the inlined set, drawn in the button's own colour. */
   private _icon(path: string) {
     return html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d=${path} fill="currentColor"/></svg>`;
-  }
-
-  /** Choosing a theme sets the card's own theme live: the host's `data-theme` follows in `updated`. Remembered at once. */
-  private _themeSelect() {
-    const current = this._theme();
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!isTheme(v)) return;
-      this._pickedTheme = v;
-      this._saveViewNow();
-      this.requestUpdate();
-    };
-    return html`<select aria-label="Theme" title="Theme" @change=${onChange}>${THEMES.map((t) => html`<option value=${t} ?selected=${t === current}>${THEME_LABELS[t]}</option>`)}</select>`;
   }
 
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
@@ -3223,24 +3514,6 @@ export class FloorplanStudioCard extends LitElement {
     }
   }
 
-  private _resetButton() {
-    return html`<button type="button" aria-label="Reset view" title="Reset view" ?disabled=${!this._modified()} @click=${() => this._resetView()}>${this._icon(UI_ICONS.reset)}</button>`;
-  }
-
-  /** Compact `<select>` in the card chrome, outside the plan's `<svg>` like the zoom buttons. A pick redraws the
-   * plan only: `_view` (zoom and pan) is left alone, `render` clamps it against the new fit. */
-  private _viewSelect(current: CardView) {
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!isView(v)) return;
-      this._pickedView = v;
-      this._fallback3d = null; // a new pick tries 3D again
-      this._saveViewNow();
-      this.requestUpdate();
-    };
-    return html`<select aria-label="View" title="View" @change=${onChange}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</select>`;
-  }
-
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
   private _zoomMode(): boolean | "wheel" {
     const z = this._config.zoom;
@@ -3275,7 +3548,7 @@ export class FloorplanStudioCard extends LitElement {
     if (!svg || !fit || !r || !(fit.w > 0) || !(fit.h > 0) || r.width <= 0 || r.height <= 0) return;
     const px = Math.min(r.width / fit.w, r.height / fit.h), base = 1 / this._scale(fit);
     const k = (p: number) => Math.max(base, p ? NAME_MIN_PX / (12 * p) : 0);
-    const was = k(this._px), old = this._px;
+    const was = k(qpx(this._px)), old = this._px;
     this._px = px;
     // S23 review S3: the stack of buttons at the right covers a strip of the plan; names keep out of it. The svg keeps
     // its aspect (meet, centred), so the fit box starts (r.width - fit.w * px) / 2 in. A stack laid out as a row is
@@ -3284,12 +3557,12 @@ export class FloorplanStudioCard extends LitElement {
     const sr = stack && !stack.classList.contains("fp-stack-row") ? stack.getBoundingClientRect() : null;
     const right = r.left + (r.width + fit.w * px) / 2, strip = sr && sr.width > 0 ? Math.max(0, (right - sr.left + 4) / px) : 0, stripWas = this._strip;
     this._strip = strip;
-    if (Math.abs(strip - stripWas) > fit.w * 0.005) return void this.requestUpdate();
-    if (Math.abs(k(px) - was) > was * 0.01) return void this.requestUpdate();
+    if (qstrip(strip, fit.w) !== qstrip(stripWas, fit.w)) return void this.requestUpdate();
+    if (k(qpx(px)) !== was) return void this.requestUpdate();
     // k holds, but a name shrunk to fit its room has its own floor of 11 px: re-render when that floor binds now or did.
     const sizes = [...svg.querySelectorAll("text.lbl[data-rl]")].map((t) => Number(t.getAttribute("font-size"))).filter((s) => s > 0);
-    if (!sizes.length || Math.abs(px - old) <= old * 0.01) return;
-    const least = Math.min(...sizes), floorNow = NAME_MIN_PX / px, floorWas = old ? NAME_MIN_PX / old : 0;
+    if (!sizes.length || qpx(px) === qpx(old)) return;
+    const least = Math.min(...sizes), floorNow = NAME_MIN_PX / qpx(px), floorWas = old ? NAME_MIN_PX / qpx(old) : 0;
     if (floorNow > least * 1.01 || floorWas >= least * 0.99) this.requestUpdate();
   }
 
@@ -3402,12 +3675,12 @@ export class FloorplanStudioCard extends LitElement {
    * Diego field report, 0.12.14: "−" used to disable at `fit` itself, so a shed or a corner `viewBoxFor` did not
    * bound on had no way to come into view. It now disables only at `MIN_ZOOM` (`viewport.ts`), the same floor
    * `clamp` itself enforces, so the button and the drag/pinch gesture agree on how far out the card goes. */
-  private _viewStack(box: View, home: View, fit: View, withViewSwitch: boolean, withRotate: boolean) {
+  private _viewStack(box: View, home: View, fit: View) {
     const atMin = box.w >= (fit.w / MIN_ZOOM) * (1 - 1e-6);
     const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
     const pinned = !sameView(home, fit, fit);
-    // "Reset view" is the stack's own last button (every view option back to the config); Fit only fits.
+    // Fit only fits; "Reset view" (every view option back to the config) is in the ⋯ menu since S31.6.
     const resetLabel = pinned ? "Home view" : "Fit";
     return html`<div class="fp-stack">
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
@@ -3415,8 +3688,6 @@ export class FloorplanStudioCard extends LitElement {
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
-      ${withRotate ? this._rotateButtons() : null}
-      ${withViewSwitch || withRotate ? this._resetButton() : null}
     </div>`;
   }
 

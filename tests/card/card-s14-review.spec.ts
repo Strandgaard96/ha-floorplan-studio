@@ -1,3 +1,4 @@
+import { sheetStops } from "../../src/card/frame";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -173,6 +174,8 @@ const bareFloor = (page: Page, i: number) => card(page).evaluate((el, i) => {
   for (let y = r.top + 2; y < r.bottom; y += 4) for (let x = r.left + 2; x < r.right; x += 4) if (sr.elementFromPoint(x, y) === poly) n++;
   return n;
 }, i);
+/** S31.8: the phone sheet rises over 0.2 s; measure what a person sees once it has stopped. */
+const settle = async (page: Page) => { let last = -1, same = 0; await expect.poll(async () => { const h = (await card(page).locator("css=.fp-active").boundingBox())!.height; same = Math.abs(h - last) < 0.01 ? same + 1 : 0; last = h; return same; }, { timeout: 4000 }).toBeGreaterThanOrEqual(3); };
 const boxOf = (l: Locator) => l.evaluate((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
 
 test.describe("S14 review 5: the room panel on a narrow card", () => {
@@ -187,8 +190,11 @@ test.describe("S14 review 5: the room panel on a narrow card", () => {
       });
       await page.mouse.click(p!.x, p!.y);
       await expect(card(page).locator("css=.fp-room")).toHaveCount(1);
+      await settle(page);
       const c = await boxOf(card(page)), panel = await boxOf(card(page).locator("css=.fp-active"));
-      expect(panel.h, `panel ${panel.w}x${panel.h} in card ${c.w}x${c.h}`).toBeLessThanOrEqual(c.h * 0.46);
+      // S31.8: the 46 % cap was the floating panel's. The phone sheet with a room is at the half stop (frame.ts), and must be no taller.
+      expect(panel.h, `panel ${panel.w}x${panel.h} in card ${c.w}x${c.h}`).toBeCloseTo(sheetStops(c.h, 52).half, 0);
+      expect(panel.h).toBeLessThanOrEqual(c.h * 0.6);
       expect(panel.x).toBeGreaterThanOrEqual(c.x);
       expect(panel.x + panel.w).toBeLessThanOrEqual(c.x + c.w + 0.5);
       expect(panel.y + panel.h).toBeLessThanOrEqual(c.y + c.h + 0.5);
@@ -208,7 +214,7 @@ test.describe("S14 review 5: the room panel on a narrow card", () => {
     await page.mouse.click(p!.x, p!.y);
     await expect(card(page).locator("css=.fp-room")).toHaveCount(1);
     const c = await boxOf(card(page)), panel = await boxOf(card(page).locator("css=.fp-active"));
-    expect(panel.y - c.y).toBeLessThan(50);
+    expect(panel.y - c.y, "S31.5: the sheet starts right under the 52 px header").toBeLessThan(52 + 8);
     expect(panel.x - c.x).toBeLessThan(20);
     expect(panel.h).toBeGreaterThan(c.h * 0.6);
   });
@@ -233,6 +239,7 @@ test.describe("S14 recheck: every ground room stays mostly visible under the doc
           expect(p, `room ${i} has a clickable point`).not.toBeNull();
           await page.mouse.click(p!.x, p!.y);
           await expect(card(page).locator("css=.fp-room")).toHaveCount(1);
+          await settle(page);
           // wherever the sheet docks, its own header and body are the top element at their corners: no toolbar draws over it
           const pb = await boxOf(card(page).locator("css=.fp-active"));
           for (const [x, y] of [[pb.x + 12, pb.y + 12], [pb.x + pb.w - 12, pb.y + pb.h - 12]] as const) {

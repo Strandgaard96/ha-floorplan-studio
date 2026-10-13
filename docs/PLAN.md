@@ -3833,7 +3833,7 @@ and the coordinator reads the coder's note (a comment block at the top of the ch
 reviews the integrated build once.
 
 Wave 0, on `task/s31-card-touch`, one coder, before any product code:
-- [ ] S31.1 Tap tasks red, and the baseline (Sonnet). A helper `tests/card/touch-helpers.ts`: `bootTouch(page, size,
+- [x] S31.1 Tap tasks red, and the baseline (Sonnet). A helper `tests/card/touch-helpers.ts`: `bootTouch(page, size,
       config)` (stress layout, the `card-find.spec.ts` states, `__realDetailDefault`, storage cleared, `hasTouch` and
       `isMobile` so `pointer: coarse` matches, asserted), `tapRole(page, role, name)` (finds the control by the spec's
       accessible name inside the card's shadow root, scrolls it in, checks it is the top element at the tap point,
@@ -3849,7 +3849,7 @@ Wave 0, on `task/s31-card-touch`, one coder, before any product code:
 Wave 1, three lanes in parallel after S31.1, new files only, each in its own worktree:
 
 Lane frame (a new `src/card/frame.ts`, pure, no DOM):
-- [ ] S31.2 Frame maths (Sonnet, **judgement**: the phone minimum and the snap rule). `frameMode(width)` (`side` at 640
+- [x] S31.2 Frame maths (Sonnet, **judgement**: the phone minimum and the snap rule). `frameMode(width)` (`side` at 640
       and up, `bottom` under, `none` for kiosk or no sheet); `sideWidth(width)` (`clamp(260, 32 %, 320)`);
       `sideOpenByDefault(width)` (900 and up); `cardHeight({ planAspect, width, viewportH, haHeader, chrome, mode })`
       (D4 assumption and D2's phone minimum); `sheetStops(cardH, headerH)` (peek 64, half `max(50 %, 340)` capped, full);
@@ -3861,7 +3861,7 @@ Lane frame (a new `src/card/frame.ts`, pure, no DOM):
       Files: new `src/card/frame.ts`, new `tests/card/frame.test.ts`.
 
 Lane menu (a new `src/card/more-menu.ts`):
-- [ ] S31.3 `<fp-menu>` (Sonnet). A menu button and its menu, like `<fp-search>`: takes `items` (sections of
+- [x] S31.3 `<fp-menu>` (Sonnet). A menu button and its menu, like `<fp-search>`: takes `items` (sections of
       `radio`, `check` and `action` items with label, value, checked, disabled), fires `fp-menu-pick` with the item;
       ARIA menu (`aria-haspopup`, `aria-expanded`, `menuitemradio`, `menuitemcheckbox`, `menuitem`); Enter, Space and
       ArrowDown open it on the first checked or first item; arrows, Home, End move; Escape and Tab close it and give
@@ -3874,7 +3874,7 @@ Lane menu (a new `src/card/more-menu.ts`):
       new `tests/card/more-menu.spec.ts`.
 
 Lane focus (a new `src/card/plan-focus.ts`, and `src/card/view-keys.ts`):
-- [ ] S31.4 Spatial focus and the plan's keys (Sonnet, **judgement**: the direction cone and the tie-break).
+- [x] S31.4 Spatial focus and the plan's keys (Sonnet, **judgement**: the direction cone and the tie-break).
       `nextInDirection(points, from, dir)` over screen points: the nearest point inside a 45 degree half-cone about
       `dir`, by distance along `dir` plus twice the cross distance; none, `from`. `firstFocus(points, centre)`.
       `planKeyFor(ev, deviceFocused)` beside `viewKeyFor`: plain arrows move focus when a device has focus and pan
@@ -3890,7 +3890,7 @@ Wave 2, one lane after wave 1 is merged and Diego has answered; tasks run in ord
 `src/card/floorplan-studio-card.ts`):
 
 Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `src/card/touch-css.ts`):
-- [ ] S31.5 Chrome around the plan (Sonnet, **judgement**: the grid and the test migration). The host becomes a grid:
+- [x] S31.5 Chrome around the plan (Sonnet, **judgement**: the grid and the test migration). The host becomes a grid:
       header bar, side sheet, stage (the `svg` or `.fp-3d`), cluster on the stage. Floor tabs move into the header;
       Search and View options buttons there (View options opens today's toolbar in a plain box until S31.6); the
       Overview becomes the side sheet at 640 and up through `frameMode`, with the rail, Back and the crumb; drag and
@@ -3900,19 +3900,19 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       pinch and a double tap land where they did (the zoom maths read the stage). Migrate the tests that read
       `.fp-zoom`, `.fp-stack`, `.fp-floors` positions or `.fp-active` drag; list each one and why in the report.
       Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-chrome.spec.ts` (new), the migrated specs.
-- [ ] S31.6 ⋯ holds the look (Sonnet). `<fp-menu>` with D3's items; Layers and Detail leave the Overview; the old
+- [x] S31.6 ⋯ holds the look (Sonnet). `<fp-menu>` with D3's items; Layers and Detail leave the Overview; the old
       toolbar and stack go, the cluster keeps +, −, Fit (Reset camera in 3D). Each item writes what the old control
       wrote, through the same view memory. `docs/card.md` "Studio and card" table: the "In the card" column for each
       moved control. Test, failing first: criterion 7; each item changes the plan as the old control did (the S7.4,
       S12, S25.8 and S24.8 specs that drove the old controls now drive the menu); `view-parity.spec.ts` passes.
       Files: `src/card/floorplan-studio-card.ts`, `docs/card.md`, `tests/card/card-menu.spec.ts` (new),
       `tests/card/view-parity.spec.ts`, the specs of the old controls.
-- [ ] S31.7 Fit to height (Sonnet). The host's height from `cardHeight`, read from `visualViewport` and HA's
+- [x] S31.7 Fit to height (Sonnet). The host's height from `cardHeight`, read from `visualViewport` and HA's
       `--header-height`; a resize recomputes. Sections rows and `:host([panel])` unchanged. Test, failing first:
       criterion 4, on the demo and the stress house at 1024 x 768, 768 x 1024 and 390 x 844; a sections-like parent
       with a fixed height gives the 0.28.1 box; a panel-view host gives it too.
       Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-fit-height.spec.ts` (new).
-- [ ] S31.8 The phone bottom sheet (Sonnet, **judgement**: the drag and the pan-to-visible). Under 640: the sheet at
+- [x] S31.8 The phone bottom sheet (Sonnet, **judgement**: the drag and the pan-to-visible). Under 640: the sheet at
       peek under the plan; the handle drags with pointer capture through `snapSheet`; levels Overview › Floor › Room ›
       Device; a device tap and a locate open the Device level at half with today's popup content (the popup does not
       float on a phone); the plan pans so the room or device is in the visible part; Back and Escape step up. Test,
@@ -3920,13 +3920,13 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       phone reach their screens (counts are S31.11's); the icon box above the sheet after a locate; reduced motion;
       `hass` mid-drag; a floor switch at Device level.
       Files: `src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, `tests/card/card-bottom-sheet.spec.ts` (new).
-- [ ] S31.9 44 px on a coarse pointer (Sonnet). `TOUCH_CSS` in a new `src/card/touch-css.ts`, joined to the card's
+- [x] S31.9 44 px on a coarse pointer (Sonnet). `TOUCH_CSS` in a new `src/card/touch-css.ts`, joined to the card's
       styles: header controls, tabs, rail, Back, handle, rows (40 to 44), layer and detail chips, popup buttons and
       sliders, dialog buttons and checkbox rows, the cluster; fine pointer unchanged. Test, failing first: criterion 3
       over every state it lists, at 768 x 1024 and 390 x 844, by walking every control in the shadow root and in
       `<fp-search>`; a computed-style pair per rule (coarse 44, fine its old size), each red with its rule removed.
       Files: new `src/card/touch-css.ts`, `src/card/floorplan-studio-card.ts`, `tests/card/touch-targets.spec.ts` (new).
-- [ ] S31.10 Keys on the plan (Sonnet). The stage is one Tab stop with D4's role and name; the focus ring is chrome
+- [x] S31.10 Keys on the plan (Sonnet). The stage is one Tab stop with D4's role and name; the focus ring is chrome
       placed over the device's screen box (like `.fp-pulse`), with a hidden status line; `planKeyFor` and
       `nextInDirection` over the drawn devices' screen centres (`g[data-x]` boxes; hidden ones skipped); a focused
       device off view pans in; Enter opens the popup or the Device level; focus survives `hass`, is dropped on a floor
@@ -3935,7 +3935,7 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-plan-keys.spec.ts` (new).
 
 Wave 3, in order on `task/s31-card-touch`:
-- [ ] S31.11 Exit test, docs, shots, verify (Sonnet; the docs part may go to Haiku). Remove every `test.fail()` from
+- [x] S31.11 Exit test, docs, shots, verify (Sonnet; the docs part may go to Haiku). Remove every `test.fail()` from
       `card-tasks.spec.ts`; K1 to K5 pass at their counts on both sizes, `--repeat-each=10`. Docs: `docs/card.md`
       (Size, Studio and card, Kiosk mode, Overview, Picking a room, Tap hold and hover, View memory keys), `docs/SPEC.md`
       card behaviours, the README state table, CHANGELOG under Unreleased, DECISIONS (each assumption that held, each

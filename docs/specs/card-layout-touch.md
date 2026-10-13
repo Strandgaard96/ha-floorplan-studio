@@ -58,7 +58,7 @@ Each has the default this plan builds and the alternative. Until he answers, the
    it is a **side sheet** on the left, `clamp(260px, 32%, 320px)` wide, beside the plan. It folds to a 52 px rail (a
    button with the alert count). It starts open at 900 px or more and folded below. On a phone (under 640 px) it is a
    **bottom sheet** (D2).
-3. The **plan** takes what is left. A zoom cluster (+, −, Fit; Reset camera in 3D) sits on it, bottom right.
+3. The **plan** takes what is left. A zoom cluster (+, −, Fit; Reset camera in 3D) sits on it, top right (`.fp-cluster` is `align-self: start`; corrected after the Sprint 31 review, the spec first said bottom right).
 
 The device: on a side-sheet card a tap on the plan opens today's popup beside the icon (fast, near the finger), and a
 row tap opens the Device level in the sheet. On a phone both open the Device level in the bottom sheet; no popup

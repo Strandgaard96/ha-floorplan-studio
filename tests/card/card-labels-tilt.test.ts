@@ -10,6 +10,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 });
 import { renderFloor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
+import { hasMenuItem, menuOf, openMenu, pickItem, stateOfItem } from "./menu-dom";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 const L = demo as unknown as Layout;
@@ -22,13 +23,15 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   await el.updateComplete;
   return el;
 }
-const slider = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector<HTMLInputElement>('input[type="range"][aria-label="Tilt"]');
-const drag = async (el: FloorplanStudioCard, value: string) => {
-  const s = slider(el)!;
-  s.value = value;
-  s.dispatchEvent(new Event("input", { bubbles: true }));
-  await el.updateComplete;
+// S31.6: the Tilt slider became five radio steps of the header menu, `tilt:0`, `tilt:0.25`, `tilt:0.5`, `tilt:0.75`, `tilt:1`.
+const STEPS = ["0", "0.25", "0.5", "0.75", "1"];
+const hasTilt = (el: FloorplanStudioCard) => hasMenuItem(el, "tilt:0.5");
+/** The step that is checked in the menu, as a number; null when none is (there is no Tilt). */
+const step = async (el: FloorplanStudioCard) => {
+  for (const v of STEPS) if ((await stateOfItem(el, `tilt:${v}`)) === "true") return Number(v);
+  return null;
 };
+const drag = (el: FloorplanStudioCard, value: string) => pickItem(el, `tilt:${value}`);
 const box = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
 
 afterEach(() => {
@@ -56,12 +59,12 @@ describe("card labels option", () => {
   });
 });
 
-describe("card tilt option and slider", () => {
-  it("has no slider in 2D; in 2.5D the slider starts at the default 0.5 and renders with it", async () => {
-    expect(slider(await mount())).toBeNull();
+describe("card tilt option and menu steps", () => {
+  it("has no Tilt in 2D; in 2.5D the steps start at the default 0.5 and render with it", async () => {
+    expect(await hasTilt(await mount())).toBe(false);
     const el = await mount({ view: "2.5d" });
-    expect(slider(el)).not.toBeNull();
-    expect(Number(slider(el)!.value)).toBe(0.5);
+    expect(await hasTilt(el)).toBe(true);
+    expect(await step(el)).toBe(0.5);
     expect(last().tilt).toBe(0.5);
   });
 
@@ -78,50 +81,52 @@ describe("card tilt option and slider", () => {
     }
   });
 
-  it("the slider has a range of 0..1 and changes the render and the box, not the zoom", async () => {
+  it("the steps run 0..1 and change the render and the box, not the zoom", async () => {
     const el = await mount({ view: "2.5d" });
-    const s = slider(el)!;
-    expect([s.min, s.max].map(Number)).toEqual([0, 1]);
+    await openMenu(el);
+    expect([...menuOf(el)!.shadowRoot!.querySelectorAll('[data-value^="tilt:"]')].map((o) => o.getAttribute("data-value"))).toEqual(STEPS.map((v) => `tilt:${v}`));
     const before = el.shadowRoot!.querySelector("svg")!.innerHTML, boxBefore = box(el);
     await drag(el, "1");
     expect(last().tilt).toBe(1);
+    expect(await step(el)).toBe(1);
     expect(el.shadowRoot!.querySelector("svg")!.innerHTML).not.toBe(before);
     expect(box(el)[1]).toBeLessThan(boxBefore[1]!); // steeper: the box reaches higher
     await drag(el, "0");
     expect(last().tilt).toBe(0);
   });
 
-  it("dragging keeps the zoom", async () => {
+  it("a step keeps the zoom", async () => {
     const el = await mount({ view: "2.5d" });
     el.shadowRoot!.querySelector<HTMLButtonElement>('button[aria-label="Zoom in"]')!.click();
     await el.updateComplete;
     const w = box(el)[2]!;
-    await drag(el, "0.9");
+    await drag(el, "0.75");
     expect(el.shadowRoot!.querySelector("svg")!.getAttribute("class")).toContain("fp-zoomed");
     expect(box(el)[2]).toBeCloseTo(w, 6);
   });
 
-  it("switching to 2D hides the slider and the tilt stays put for when 2.5D comes back", async () => {
+  it("switching to 2D drops the Tilt items and the tilt stays put for when 2.5D comes back", async () => {
     const el = await mount({ view: "2.5d" });
-    await drag(el, "0.2");
-    const s = el.shadowRoot!.querySelector<HTMLSelectElement>('select[aria-label="View"]')!;
-    s.value = "2d";
-    s.dispatchEvent(new Event("change", { bubbles: true }));
-    await el.updateComplete;
-    expect(slider(el)).toBeNull();
-    s.value = "2.5d";
-    s.dispatchEvent(new Event("change", { bubbles: true }));
-    await el.updateComplete;
-    expect(Number(slider(el)!.value)).toBe(0.2);
+    await drag(el, "0.25");
+    await pickItem(el, "view:2d");
+    expect(await hasTilt(el)).toBe(false);
+    await pickItem(el, "view:2.5d");
+    expect(await step(el)).toBe(0.25);
   });
 
-  it("view_switch false and kiosk hide the slider", async () => {
-    expect(slider(await mount({ view: "2.5d", view_switch: false }))).toBeNull();
-    expect(slider(await mount({ view: "2.5d", kiosk: true }))).toBeNull();
+  it("a config tilt between two steps checks the nearest one and the render keeps the exact value", async () => {
+    const el = await mount({ view: "2.5d", tilt: 0.8 });
+    expect(last().tilt).toBe(0.8);
+    expect(await step(el)).toBe(0.75);
   });
 
-  it("the slider sits in the same group as the select, also when zoom is off", async () => {
+  it("view_switch false and kiosk have no Tilt items", async () => {
+    expect(await hasTilt(await mount({ view: "2.5d", view_switch: false }))).toBe(false);
+    expect(await hasTilt(await mount({ view: "2.5d", kiosk: true }))).toBe(false);
+  });
+
+  it("zoom: false keeps the Tilt steps in the menu", async () => {
     const el = await mount({ view: "2.5d", zoom: false });
-    expect(slider(el)!.closest(".fp-viewonly")).toBe(el.shadowRoot!.querySelector('select[aria-label="View"]')!.closest(".fp-viewonly"));
+    expect(await hasTilt(el)).toBe(true);
   });
 });

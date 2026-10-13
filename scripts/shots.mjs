@@ -560,6 +560,86 @@ try {
     shots.push(name);
     await ctx.close();
   }
+  // S31.11 (criterion 12): the card's new frame on a phone (390 x 844) and a tablet (768 x 1024), touch devices (`pointer: coarse`), in
+  // blueprint, light and ha-dark, the demo's ground floor with its lights on, every state reached by real input (finding 3): the
+  // phone at peek, half and full (a real drag on the handle), a room, the Device level and the ⋯ menu; the tablet with the rail, the
+  // side sheet opened, a room, the ⋯ menu, a device popup and the plan's focus ring after Tab and an arrow.
+  {
+    const FRAME_THEMES = THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id));
+    const PHONE = { width: 390, height: 844 }, TABLET = { width: 768, height: 1024 };
+    const settle = (page) => page.evaluate(async () => { await document.getElementById("c").updateComplete; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
+    // A point on the device's own icon where it is the top element, then a real touch tap there.
+    const tapDevice = async (page, i) => {
+      const at = await page.evaluate((i) => {
+        const sr = document.getElementById("c").shadowRoot, r = sr.querySelector(`svg g[data-x="${i}"]`).getBoundingClientRect();
+        for (let a = 4; a < 12; a++) for (let b = 4; b < 12; b++) { const x = r.left + (r.width * a) / 16, y = r.top + (r.height * b) / 16; if (sr.elementFromPoint(x, y)?.closest(`g[data-x="${i}"]`)) return { x, y }; }
+        return null;
+      }, i);
+      if (!at) return false;
+      await page.touchscreen.tap(at.x, at.y);
+      return true;
+    };
+    const tapRoom = async (page, i) => {
+      const at = await page.evaluate((i) => {
+        const sr = document.getElementById("c").shadowRoot, poly = sr.querySelector(`svg polygon[data-r="${i}"]`), r = poly.getBoundingClientRect();
+        for (let y = r.top + 6; y < r.bottom; y += 6) for (let x = r.left + 6; x < r.right; x += 6) if (sr.elementFromPoint(x, y) === poly) return { x, y };
+        return null;
+      }, i);
+      if (!at) return false;
+      await page.touchscreen.tap(at.x, at.y);
+      return true;
+    };
+    const STEPS = {
+      phone: {
+        peek: async () => true,
+        half: async (page) => { await page.locator("#c .fp-handle").tap(); return true; },
+        full: async (page) => {
+          await page.locator("#c .fp-handle").tap(); await settle(page);
+          const b = await page.locator("#c .fp-handle").boundingBox(), x = b.x + b.width / 2, y = b.y + b.height / 2;
+          await page.mouse.move(x, y); await page.mouse.down();
+          for (let k = 1; k <= 10; k++) await page.mouse.move(x, y - k * 40);
+          await page.mouse.up(); return true;
+        },
+        room: (page) => tapRoom(page, 1),
+        device: (page) => tapDevice(page, 1),
+        menu: async (page) => { await page.locator("#c fp-menu button").first().tap(); await page.locator("#c fp-menu [role=menu]").waitFor(); return true; },
+      },
+      tablet: {
+        rail: async () => true,
+        sheet: async (page) => { await page.locator("#c .fp-rail-open").tap(); return true; },
+        room: (page) => tapRoom(page, 1),
+        menu: async (page) => { await page.locator("#c fp-menu button").first().tap(); await page.locator("#c fp-menu [role=menu]").waitFor(); return true; },
+        popup: async (page) => { const ok = await tapDevice(page, 1); if (ok) await page.locator("#c .fp-pop").waitFor(); return ok; },
+        focus: async (page) => {
+          await page.locator("#c fp-menu button").first().focus();
+          await page.keyboard.press("Tab");
+          await page.locator("#c .fp-focus").waitFor();
+          await page.keyboard.press("ArrowRight");
+          return true;
+        },
+      },
+    };
+    for (const [kind, size] of [["phone", PHONE], ["tablet", TABLET]]) for (const state of Object.keys(STEPS[kind])) for (const t of FRAME_THEMES) {
+      const name = `card-frame-${kind}-${state}-${t.id}`;
+      const ctx = await browser.newContext({ viewport: size, hasTouch: true, isMobile: true, colorScheme: t.dark ? "dark" : "light", reducedMotion: "reduce" });
+      const page = await ctx.newPage();
+      page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
+      page.on("console", (m) => { if (m.type() === "error") errors.push(`${name}: console.error ${m.text()}`); });
+      await page.setContent(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><body style="margin:0;background:${t.page};${t.vars}"><floorplan-studio-card id="c"></floorplan-studio-card></body>`);
+      await page.addScriptTag({ content: cardJs, type: "module" });
+      await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+      await page.evaluate(([config, hass]) => { const el = document.getElementById("c"); el.setConfig(config); el.hass = hass; return el.updateComplete; },
+        [{ layout: monLayout, floor: "ground", theme: t.theme }, hassFor("on", t.dark)]);
+      await page.locator("#c svg polygon[data-r]").first().waitFor();
+      await settle(page);
+      if (!(await STEPS[kind][state](page))) errors.push(`${name}: could not reach the state by a real input`);
+      await settle(page);
+      await page.mouse.move(0, 0);
+      await page.screenshot({ path: `${OUT}/${name}.png` });
+      shots.push(name);
+      await ctx.close();
+    }
+  }
   // Review 27: the Studio with the floor below on (View, Floor below) and with the Align tab open, over the L-shaped house whose
   // first floor is 137 cm out. Real clicks on the menu items.
   for (const theme of ["blueprint", "light", "ha"]) for (const mode of ["ghost", "align"]) {

@@ -2,6 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { checkedIn, hasItem, menuPanel, openMenu, pick, resetView, rotateRight } from "./menu-helper";
+import { THEMES } from "../../src/core";
 
 // The card's rotation, its animation and its view memory in real Chromium: real mouse coordinates (CLAUDE.md
 // finding 3), computed styles (finding 10), and a reload that goes through the real localStorage.
@@ -50,7 +52,11 @@ const planDeg = (page: Page) =>
     return m ? Number(m[1]) : 0;
   });
 const hostTheme = (page: Page) => card(page).evaluate((el) => el.getAttribute("data-theme"));
-const select = (page: Page, label: string) => card(page).locator(`css=select[aria-label="${label}"]`);
+// S31.6: View and Theme are radio groups of the header menu; Rotate and Reset view are its actions; the zoom stack keeps its buttons.
+const themeNow = (page: Page) => checkedIn(page, "theme", THEMES);
+const viewNow = (page: Page) => checkedIn(page, "view", ["2d", "2.5d", "3d"]);
+/** Opens the menu with a real click, then clicks Rotate right inside the page in the same task as the first frame check (no await in between). */
+const ROTATE_IN_PAGE = (el: Element) => el.shadowRoot!.querySelector("fp-menu")!.shadowRoot!.querySelector<HTMLElement>('[data-value="rotate:1"]')!.click();
 const lightCentre = async (page: Page) => {
   const g = card(page).locator(`css=g[data-x="${KITCHEN_LIGHT}"]`);
   await g.scrollIntoViewIfNeeded(); // a turned plan is taller; the light can sit below the fold
@@ -75,7 +81,7 @@ test.describe("rotation: the visible turn", () => {
       };
       requestAnimationFrame(loop);
     });
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await settled(page);
     const seen = await page.evaluate(() => (window as unknown as { __seen: number[] }).__seen);
     const between = seen.filter((d) => d > 0.5 && d < 44.5);
@@ -91,7 +97,7 @@ test.describe("rotation: the visible turn", () => {
     const direct = await card(page).evaluate((el) => el.shadowRoot!.querySelector("svg")!.outerHTML);
     await page.evaluate(() => localStorage.clear());
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await settled(page);
     const turned = await card(page).evaluate((el) => el.shadowRoot!.querySelector("svg")!.outerHTML);
     expect(turned).toBe(direct);
@@ -100,10 +106,10 @@ test.describe("rotation: the visible turn", () => {
   test("a second click mid-turn goes on to 90 with no jump back", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await expect.poll(() => planDeg(page)).toBeGreaterThan(2);
     const mid = await planDeg(page);
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     expect(await planDeg(page)).toBeGreaterThanOrEqual(mid - 1e-9);
     await settled(page);
     expect(await planDeg(page)).toBe(90);
@@ -120,6 +126,7 @@ test.describe("rotation: the visible turn", () => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
+    await openMenu(page);
     const seen = await card(page).evaluate(async (el) => {
       const out: number[] = [];
       const read = () => {
@@ -127,7 +134,7 @@ test.describe("rotation: the visible turn", () => {
         const m = g?.getAttribute("transform")?.match(/^rotate\((-?[\d.]+)/);
         return m ? Number(m[1]) : 0;
       };
-      el.shadowRoot!.querySelector<HTMLButtonElement>('button[aria-label="Rotate right"]')!.click();
+      el.shadowRoot!.querySelector("fp-menu")!.shadowRoot!.querySelector<HTMLElement>('[data-value="rotate:1"]')!.click();
       for (let i = 0; i < 20; i++) {
         await new Promise((r) => requestAnimationFrame(r));
         out.push(read());
@@ -143,7 +150,7 @@ test.describe("rotation: taps", () => {
   test("a tap on a light after a turn still reaches that light: its popup button makes the call (hit-test at real coordinates)", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await settled(page);
     const at = await lightCentre(page);
     await page.mouse.click(at.x, at.y);
@@ -156,7 +163,7 @@ test.describe("rotation: taps", () => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
     const before = await lightCentre(page);
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await page.mouse.click(before.x, before.y); // where the light was a moment ago, and the plan is moving
     expect(await calls(page)).toEqual([]);
     await settled(page);
@@ -181,7 +188,8 @@ test.describe("rotation: taps", () => {
       });
     const idle = await read();
     expect(idle.device).not.toBe("none");
-    await card(page).evaluate((el) => el.shadowRoot!.querySelector<HTMLButtonElement>('button[aria-label="Rotate right"]')!.click());
+    await openMenu(page);
+    await card(page).evaluate(ROTATE_IN_PAGE);
     await expect(card(page).locator("css=svg.fp-turning")).toHaveCount(1);
     expect(await read()).toEqual({ svg: "none", device: "none", room: "none" });
     await settled(page);
@@ -193,13 +201,13 @@ test.describe("the card remembers its view", () => {
   const cfg = () => ({ layout: structuredClone(demo), floor: "ground" });
 
   async function changeEverything(page: Page) {
-    await select(page, "View").selectOption("2.5d");
-    await select(page, "Theme").selectOption("light");
+    await pick(page, "view:2.5d");
+    await pick(page, "theme:light");
     await button(page, "Zoom in").click();
     await button(page, "Zoom in").click();
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await settled(page);
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await settled(page);
   }
 
@@ -219,15 +227,15 @@ test.describe("the card remembers its view", () => {
     const back = await viewBox(page);
     for (let i = 0; i < 4; i++) expect(back[i]!).toBeCloseTo(zoomed[i]!, 2);
     expect(await planDeg(page)).toBe(90);
-    expect(await select(page, "View").inputValue()).toBe("2.5d");
-    expect(await select(page, "Theme").inputValue()).toBe("light");
+    expect(await viewNow(page)).toBe("2.5d");
+    expect(await themeNow(page)).toBe("light");
     expect(await hostTheme(page)).toBe("light");
     expect(await card(page).evaluate((el) => !!el.shadowRoot!.querySelector("svg .ws"))).toBe(true); // 2.5D walls are drawn
 
-    await button(page, "Reset view").click();
+    await resetView(page);
     await settled(page);
     expect(await planDeg(page)).toBe(0);
-    expect(await select(page, "View").inputValue()).toBe("2d");
+    expect(await viewNow(page)).toBe("2d");
     expect(await hostTheme(page)).toBe(freshTheme);
     const reset = await viewBox(page);
     for (let i = 0; i < 4; i++) expect(reset[i]!).toBeCloseTo(fresh[i]!, 2);
@@ -244,9 +252,9 @@ test.describe("the card remembers its view", () => {
   test("there is no flash of the default: the first frame after a reload is already the remembered one", async ({ page }) => {
     await open(page);
     await configure(page, cfg());
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await settled(page);
-    await select(page, "Theme").selectOption("terminal");
+    await pick(page, "theme:terminal");
     await page.reload();
     await page.addScriptTag({ content: CARD_JS, type: "module" });
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
@@ -269,7 +277,7 @@ test.describe("the card remembers its view", () => {
   test("a second card on the same page with another floor does not share the memory", async ({ page }) => {
     await open(page);
     await configure(page, cfg());
-    await button(page, "Rotate right").click();
+    await rotateRight(page);
     await settled(page);
     await configure(page, { ...cfg(), floor: "first" }); // another card to the memory
     expect(await planDeg(page)).toBe(0);
@@ -279,32 +287,35 @@ test.describe("the card remembers its view", () => {
 });
 
 test.describe("toolbar", () => {
-  test("view_switch: false hides the View controls (theme, labels, names) but keeps the zoom, rotate and reset buttons (Diego, 0.12.22)", async ({ page }) => {
+  test("view_switch: false drops the View items (theme, labels, names) but keeps zoom, rotate and reset (Diego, 0.12.22)", async ({ page }) => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view_switch: false });
-    await expect(select(page, "Theme")).toHaveCount(0);
-    for (const l of ["Labels", "Device names"]) await expect(button(page, l)).toHaveCount(0);
-    for (const l of ["Zoom in", "Rotate left", "Rotate right", "Reset view"]) await expect(button(page, l)).toHaveCount(1);
+    for (const v of ["theme:light", "labels", "names"]) expect(await hasItem(page, v), v).toBe(false);
+    for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasItem(page, v), v).toBe(true);
+    await expect(button(page, "Zoom in")).toHaveCount(1);
   });
 
-  test("rotate_switch: false and kiosk hide rotate and reset", async ({ page }) => {
+  test("rotate_switch: false and kiosk have no rotate and reset items", async ({ page }) => {
     for (const cfg of [{ rotate_switch: false, view_switch: false }, { kiosk: true }]) {
       await open(page);
       await configure(page, { layout: structuredClone(demo), floor: "ground", ...cfg });
-      for (const l of ["Rotate left", "Rotate right", "Reset view"]) await expect(button(page, l), JSON.stringify(cfg)).toHaveCount(0);
+      for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasItem(page, v), `${v} ${JSON.stringify(cfg)}`).toBe(false);
     }
   });
 
-  test("on a 375 px card the toolbar stays inside the card and clear of the card's edges", async ({ page }) => {
+  test("on a 375 px card the open View options menu stays inside the card and clear of its edges", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
+    await openMenu(page); // S31.6: the box is the header menu's panel
     const r = await card(page).evaluate((el) => {
       const host = el.getBoundingClientRect();
-      const bar = el.shadowRoot!.querySelector(".fp-zoom")!.getBoundingClientRect();
-      const kids = [...el.shadowRoot!.querySelectorAll(".fp-zoom > *")].map((k) => k.getBoundingClientRect());
+      const panel = el.shadowRoot!.querySelector("fp-menu")!.shadowRoot!.querySelector('[role="menu"]')!;
+      const bar = panel.getBoundingClientRect();
+      const kids = [...panel.querySelectorAll("[role^=menuitem]")].map((k) => k.getBoundingClientRect());
       return { host: { l: host.left, r: host.right }, bar: { l: bar.left, r: bar.right }, kids: kids.map((k) => ({ l: k.left, r: k.right })) };
     });
+    expect(r.kids.length).toBeGreaterThan(10);
     expect(r.bar.l).toBeGreaterThanOrEqual(r.host.l);
     expect(r.bar.r).toBeLessThanOrEqual(r.host.r);
     for (const k of r.kids) {
@@ -313,16 +324,25 @@ test.describe("toolbar", () => {
     }
   });
 
-  test("a wrapped toolbar on a narrow card does not cover the Active list's fold button", async ({ page }) => {
+  // S31.6: the old test measured a box that wrapped to rows and could sit on the fold button. The menu is a popover that covers
+  // what is under it while it is open, on purpose; what must hold is that closing it leaves the fold button reachable.
+  // S31.8: under 640 px the fold button is the bottom sheet's handle.
+  test("on a narrow card a closed menu leaves the sheet's handle the real top element, and a real click on it opens the sheet", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
-    const r = await card(page).evaluate((el) => {
-      const bar = el.shadowRoot!.querySelector(".fp-zoom")!.getBoundingClientRect();
-      const head = el.shadowRoot!.querySelector(".fp-active-collapse")!.getBoundingClientRect();
-      return { barBottom: bar.bottom, barHeight: bar.height, headTop: head.top };
+    await openMenu(page);
+    await expect(menuPanel(page)).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(menuPanel(page)).toHaveCount(0);
+    const foldIsTop = await card(page).evaluate((el) => {
+      const head = el.shadowRoot!.querySelector(".fp-handle")!.getBoundingClientRect();
+      return !!el.shadowRoot!.elementFromPoint(head.x + head.width / 2, head.y + head.height / 2)?.closest(".fp-handle");
     });
-    expect(r.barHeight).toBeGreaterThan(36); // the premise: it really wrapped
-    expect(r.headTop).toBeGreaterThanOrEqual(r.barBottom);
+    expect(foldIsTop, "the handle is the real top element at its centre").toBe(true);
+    const fold = card(page).locator("css=.fp-handle");
+    const before = await fold.getAttribute("aria-expanded");
+    await fold.click();
+    await expect(fold).not.toHaveAttribute("aria-expanded", before!);
   });
 });

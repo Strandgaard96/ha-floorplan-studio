@@ -1,3 +1,4 @@
+import { hasItem, rotateLeft, rotateRight } from "./menu-helper";
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -38,16 +39,6 @@ async function boot(page: Page, config: Record<string, unknown>, width: number, 
   }, { config, layout: structuredClone(demo), hass, nested });
 }
 
-/** Whether a real pointer at the middle of the button would land on it: in the card's box and not under anything else. */
-const reachable = (page: Page, label: string) => card(page).evaluate((el, label) => {
-  const b = el.shadowRoot!.querySelector<HTMLElement>(`button[aria-label="${label}"]`);
-  if (!b) return false;
-  const r = b.getBoundingClientRect(), host = el.getBoundingClientRect();
-  const x = r.x + r.width / 2, y = r.y + r.height / 2;
-  if (x < host.x || x > host.x + host.width || y < host.y || y > host.y + host.height) return false;
-  const top = el.shadowRoot!.elementFromPoint(x, y);
-  return !!top && b.contains(top);
-}, label);
 const planDeg = (page: Page) => card(page).evaluate((el) => {
   const m = el.shadowRoot!.querySelector("svg g.plan-turn")?.getAttribute("transform")?.match(/^rotate\((-?[\d.]+)/);
   return m ? Number(m[1]) : 0;
@@ -81,8 +72,9 @@ const MATRIX: Row[] = [
 for (const row of MATRIX) {
   test(`card config matrix: ${row.name}`, async ({ page }) => {
     await boot(page, row.config, row.width, row.hass);
-    expect(await reachable(page, "Rotate left")).toBe(row.rotate);
-    expect(await reachable(page, "Rotate right")).toBe(row.rotate);
+    // S31.6: the pair is two items of the ⋯ menu; a card with no menu has none.
+    expect(await hasItem(page, "rotate:-1")).toBe(row.rotate);
+    expect(await hasItem(page, "rotate:1")).toBe(row.rotate);
     // The pointer over the card, no click: the keys belong to the card under it.
     const box = (await card(page).boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.8);
@@ -90,7 +82,7 @@ for (const row of MATRIX) {
     await page.keyboard.press("ArrowRight");
     await page.waitForTimeout(150);
     expect(await planDeg(page)).toBe(0);
-    if (row.rotate) { await card(page).locator('css=button[aria-label="Rotate right"]').click(); await settled(page); expect(await planDeg(page)).toBe(45); }
+    if (row.rotate) { await rotateRight(page); await settled(page); expect(await planDeg(page)).toBe(45); }
     const w0 = await vbW(page); // after the turn: a turned plan has another bounding box
     await page.keyboard.press("+");
     if (row.zoomKeys) {
@@ -114,25 +106,27 @@ test("the built card names its version in the console, and an older copy that ow
 });
 
 for (const width of [375, 500, 700, 900, 1280]) {
-  test(`with three floor chips at ${width} px, every toolbar control is reachable and none sits under a chip`, async ({ page }) => {
+  // S31.6: the toolbar is gone; its stand-in is the header's ⋯ button and the zoom cluster. Premise moved: none of them sits
+  // under a floor chip or under another control, and a real pointer at the middle of each lands on it.
+  test(`with three floor chips at ${width} px, the menu button and the cluster are reachable and none sits under a chip`, async ({ page }) => {
     await boot(page, { ...BASE, view: "2.5d" }, width);
     const r = await card(page).evaluate((el) => {
       const root = el.shadowRoot!;
       const chips = [...root.querySelectorAll<HTMLElement>(".fp-floors button")].map((b) => b.getBoundingClientRect());
-      const hit = (r: DOMRect) => !(r.right <= 0);
-      const controls = [...root.querySelectorAll<HTMLElement>(".fp-zoom button, .fp-zoom select, .fp-zoom input")];
+      const controls = [...root.querySelectorAll<HTMLElement>("fp-menu, .fp-stack button")];
       const covered = controls.filter((c) => {
         const b = c.getBoundingClientRect();
         const top = root.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
         return !top || !c.contains(top);
-      }).map((c) => c.getAttribute("aria-label"));
+      }).map((c) => c.getAttribute("aria-label") ?? c.localName);
       const overlap = controls.filter((c) => {
         const b = c.getBoundingClientRect();
-        return chips.some((k) => hit(k) && b.left < k.right && b.right > k.left && b.top < k.bottom && b.bottom > k.top);
-      }).map((c) => c.getAttribute("aria-label"));
-      return { n: chips.length, covered, overlap };
+        return chips.some((k) => b.left < k.right && b.right > k.left && b.top < k.bottom && b.bottom > k.top);
+      }).map((c) => c.getAttribute("aria-label") ?? c.localName);
+      return { n: chips.length, nControls: controls.length, covered, overlap };
     });
     expect(r.n).toBe(3);
+    expect(r.nControls).toBeGreaterThanOrEqual(4); // ⋯, +, -, Fit
     expect(r.covered).toEqual([]);
     expect(r.overlap).toEqual([]);
   });
@@ -187,7 +181,7 @@ test("in Home Assistant's shadow roots: after a click away from the card the key
 
 test("a click on a rotate button, then the keys: the keys still reach the card, and still do not turn it", async ({ page }) => {
   await boot(page, BASE, 1280);
-  await card(page).locator('css=button[aria-label="Rotate right"]').click();
+  await rotateRight(page);
   await settled(page);
   await page.mouse.move(1, 1);
   const w0 = await vbW(page);
@@ -200,7 +194,7 @@ test("a click on a rotate button, then the keys: the keys still reach the card, 
 
 test("2.5D: the rotate buttons turn the plan and it keeps its depth", async ({ page }) => {
   await boot(page, { ...BASE, view: "2.5d" }, 375);
-  await card(page).locator('css=button[aria-label="Rotate left"]').click();
+  await rotateLeft(page);
   await settled(page);
   expect(await planDeg(page)).toBe(315);
   await expect(card(page).locator("css=svg .bs").first()).toBeAttached();

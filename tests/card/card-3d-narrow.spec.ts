@@ -29,19 +29,25 @@ for (const [w, h] of [[375, 700], [260, 800]] as const) {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d", active_list: true });
     await page.evaluate((w) => { (document.getElementById("wrap") as HTMLElement).style.width = `${w}px`; }, w);
     await drawn(page);
-    await expect(card(page).locator("css=.fp-active-body")).toHaveCount(0); // folded: the header only
+    await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "peek"); // S31.8: folded is the sheet at its peek
     await expect.poll(async () => (await inset(page)).join()).toBe("0,0");
     const s = await spread(page);
     expect(s.width, JSON.stringify(s)).toBeGreaterThan(0.7); // the house fills the width; half of it was lost before
   });
 }
 
-test("375x700: an opened Active list still keeps the house clear of it", async ({ page }) => {
+// S31.8: under 640 px the list is a bottom sheet across the whole width, not a box beside the house, so it asks the camera for no
+// left or right inset (`_apply3dInset` skips the bottom frame; the inset is two horizontal shares and cannot say "the lower half").
+// The house is framed in the full width at every stop. The old test asserted an inset above 0.05 for the floating box, which is gone.
+test("375x700: an opened sheet takes no side inset from the house", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 700 });
   await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d", active_list: true });
   await page.evaluate(() => { (document.getElementById("wrap") as HTMLElement).style.width = "375px"; });
   await drawn(page);
-  await card(page).getByRole("button", { name: /Expand the overview/ }).click();
-  await expect(card(page).locator("css=.fp-active-body")).toHaveCount(1);
-  await expect.poll(async () => (await inset(page))[0] + (await inset(page))[1]).toBeGreaterThan(0.05);
+  await card(page).getByRole("button", { name: "Overview" }).click();
+  await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
+  await expect(card(page).locator("css=.fp-active-body")).not.toHaveAttribute("inert", "");
+  await expect.poll(async () => (await inset(page)).join()).toBe("0,0");
+  const s = await spread(page);
+  expect(s.width, JSON.stringify(s)).toBeGreaterThan(0.7);
 });

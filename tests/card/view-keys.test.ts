@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSaveChord, takesSpace, takesTyping, viewKeyFor, viewKeyOf } from "../../src/card/view-keys";
+import { isSaveChord, planKeyFor, takesSpace, takesTyping, viewKeyFor, viewKeyOf } from "../../src/card/view-keys";
 
 type Answer = ReturnType<typeof viewKeyFor>;
 
@@ -88,5 +88,73 @@ describe("who keeps the keys", () => {
     const r = press(root.querySelector("input")!, { key: "ArrowLeft" });
     expect(r.seenTarget).toBe(host); // retargeted: only composedPath sees the input
     expect(r.answer).toBeNull();
+  });
+});
+
+describe("planKeyFor (S31.4)", () => {
+  type K = { key: string; shiftKey?: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean };
+  /** The answer for a real event started on `target`, taken while it is in flight. */
+  const plan = (init: K, deviceFocused: boolean, target: Element = el("<div></div>")): ReturnType<typeof planKeyFor> => {
+    let answer: ReturnType<typeof planKeyFor> = null;
+    const catcher = (e: Event) => { answer = planKeyFor(e as KeyboardEvent, deviceFocused); };
+    document.addEventListener("keydown", catcher);
+    target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, composed: true, cancelable: true, ...init }));
+    document.removeEventListener("keydown", catcher);
+    return answer;
+  };
+  const ARROWS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"] as const;
+  const FOCUS = { ArrowLeft: "focusLeft", ArrowRight: "focusRight", ArrowUp: "focusUp", ArrowDown: "focusDown" } as const;
+  const PAN = { ArrowLeft: "panLeft", ArrowRight: "panRight", ArrowUp: "panUp", ArrowDown: "panDown" } as const;
+
+  it("every key x device focused x Shift x text field", () => {
+    const keys = [...ARROWS, "Enter", " ", "Escape", "+", "=", "-", "_", "[", "]", "a", "Tab"];
+    for (const key of keys) for (const dev of [false, true]) for (const shiftKey of [false, true]) for (const typing of [false, true]) {
+      const target = typing ? el('<input type="text">') : el("<div></div>");
+      const got = plan({ key, shiftKey }, dev, target);
+      const label = `${JSON.stringify(key)} dev=${dev} shift=${shiftKey} typing=${typing}`;
+      let want: ReturnType<typeof planKeyFor>;
+      if (typing) want = null;
+      else if ((ARROWS as readonly string[]).includes(key)) want = shiftKey || !dev ? PAN[key as keyof typeof PAN] : FOCUS[key as keyof typeof FOCUS];
+      else if (key === "Enter") want = dev ? "open" : null;
+      else if (key === " ") want = dev ? "open" : "reset";
+      else if (key === "Escape") want = dev ? "leave" : null;
+      else if (key === "+" || key === "=") want = "zoomIn";
+      else if (key === "-" || key === "_") want = "zoomOut";
+      else if (key === "[") want = "rotateLeft";
+      else if (key === "]") want = "rotateRight";
+      else want = null;
+      expect(got, label).toBe(want);
+    }
+  });
+  it("Ctrl and Cmd chords are never plan keys", () => {
+    for (const key of [...ARROWS, "Enter", " ", "Escape"]) for (const dev of [false, true]) {
+      expect(plan({ key, ctrlKey: true }, dev), key).toBeNull();
+      expect(plan({ key, metaKey: true }, dev), key).toBeNull();
+    }
+  });
+  it("Enter and Space stay with a focused button, a link or a checkbox", () => {
+    for (const h of ["<button></button>", '<a href="#x">x</a>', '<div role="button"></div>', '<input type="checkbox">']) {
+      expect(plan({ key: "Enter" }, true, el(h)), h).toBeNull();
+      expect(plan({ key: " " }, true, el(h)), h).toBeNull();
+    }
+  });
+  it("Escape and the arrows with a device focused still reach the plan from a button", () => {
+    expect(plan({ key: "Escape" }, true, el("<button></button>"))).toBe("leave");
+    expect(plan({ key: "ArrowRight" }, true, el("<button></button>"))).toBe("focusRight");
+  });
+  it("a handled key or IME composition is not a plan key", () => {
+    const t = el("<div></div>");
+    let a: ReturnType<typeof planKeyFor> = "x" as never;
+    const h = (e: Event) => { e.preventDefault(); };
+    const c = (e: Event) => { a = planKeyFor(e as KeyboardEvent, true); };
+    document.addEventListener("keydown", h, true); document.addEventListener("keydown", c);
+    t.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, composed: true, cancelable: true }));
+    document.removeEventListener("keydown", h, true); document.removeEventListener("keydown", c);
+    expect(a).toBeNull();
+    expect(plan({ key: "ArrowRight", isComposing: true } as never, true)).toBeNull();
+  });
+  it("viewKeyOf and viewKeyFor are unchanged: arrows pan, Space resets, Enter and Escape are nothing", () => {
+    const k = (key: string) => viewKeyOf({ key, ctrlKey: false, metaKey: false });
+    expect([k("ArrowLeft"), k(" "), k("Enter"), k("Escape")]).toEqual(["panLeft", "reset", null, null]);
   });
 });

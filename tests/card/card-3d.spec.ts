@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { demo, open, serve, configure, card, viewSelect, canvas, holder, cam, drawn, ORIGIN } from "./helpers-3d";
+import { demo, open, serve, configure, card, canvas, holder, cam, drawn, ORIGIN } from "./helpers-3d";
+import { checkedIn, hasItem, pick } from "./menu-helper";
 
 // S12.3: the card's 3D view in real Chromium, loaded the way Home Assistant loads the card (a module under
 // /floorplan_studio_static/ with a ?v= query, from the built www/ folder), so the chunk delivery is tested as shipped
@@ -31,15 +32,15 @@ test.describe("3D view: delivery (spec gate K, criterion 3)", () => {
     await page.waitForTimeout(300);
     expect(chunkRequests(seen), "the chunk is not fetched with the card").toEqual([]);
     expect(seen.some((u) => u.includes("floorplan-studio-card.js?v=9.9.9"))).toBe(true); // the card itself, as HA loads it
-    await viewSelect(page).selectOption("3d");
+    await pick(page, "view:3d");
     await expect(canvas(page)).toHaveCount(1);
     await drawn(page);
     const chunks = chunkRequests(seen);
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toMatch(/^http:\/\/fp\.test\/floorplan_studio_static\/floorplan-studio-3d-[\w-]{6,}\.js$/); // beside the card, content-hashed
     // back to 2D and to 3D again: the module is cached, no second request
-    await viewSelect(page).selectOption("2d");
-    await viewSelect(page).selectOption("3d");
+    await pick(page, "view:2d");
+    await pick(page, "view:3d");
     await drawn(page);
     expect(chunkRequests(seen)).toHaveLength(1);
     expect(seen.filter((u) => !u.startsWith(`${ORIGIN}/`)), "no request leaves the page's own origin").toEqual([]);
@@ -55,7 +56,7 @@ test.describe("3D view: the canvas", () => {
     expect(box.height).toBeGreaterThan(200);
     const light = await canvas(page).screenshot();
     expect(await colours(page, light)).toBeGreaterThan(12);
-    await card(page).locator('css=select[aria-label="Theme"]').selectOption("midnight");
+    await pick(page, "theme:midnight");
     await expect.poll(() => card(page).evaluate((el) => el.getAttribute("data-theme"))).toBe("midnight");
     await expect.poll(async () => (await cam(page)).drawn).toBeGreaterThan(1);
     const dark = await canvas(page).screenshot();
@@ -108,30 +109,30 @@ test.describe("3D view: the canvas", () => {
   test("3D, then back to 2D: the plan's svg is back, the canvas and its renderer are gone", async ({ page }) => {
     await open(page);
     expect(await renderers(page)).toBe(0);
-    await viewSelect(page).selectOption("3d");
+    await pick(page, "view:3d");
     await drawn(page);
     expect(await renderers(page)).toBe(1);
     await expect(card(page).locator("css=svg g[data-x]").first()).toHaveCount(0); // the plan is not drawn under the canvas
-    await viewSelect(page).selectOption("2d");
+    await pick(page, "view:2d");
     await expect(canvas(page)).toHaveCount(0);
     await expect(card(page).locator("css=svg g[data-x]").first()).toBeVisible();
     expect(await renderers(page)).toBe(0);
     // the tilt and walls controls belong to 2.5D alone
-    await viewSelect(page).selectOption("3d");
-    await expect(card(page).locator('css=input[aria-label="Tilt"]')).toHaveCount(0);
-    await viewSelect(page).selectOption("2.5d");
-    await expect(card(page).locator('css=input[aria-label="Tilt"]')).toHaveCount(1);
+    await pick(page, "view:3d");
+    expect(await hasItem(page, "tilt:0.5")).toBe(false);
+    await pick(page, "view:2.5d");
+    expect(await hasItem(page, "tilt:0.5")).toBe(true);
   });
 
   test("the view is remembered across a reload, and `view: 3d` in the config opens it", async ({ page }) => {
     await open(page);
-    await viewSelect(page).selectOption("3d");
+    await pick(page, "view:3d");
     await drawn(page);
     await page.reload();
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
     await configure(page, { layout: structuredClone(demo), floor: "ground" });
     await expect(canvas(page)).toHaveCount(1);
-    expect(await viewSelect(page).inputValue()).toBe("3d");
+    expect(await checkedIn(page, "view", ["2d", "2.5d", "3d"])).toBe("3d");
   });
 });
 
@@ -152,14 +153,14 @@ test.describe("3D view: fallback (criterion 7)", () => {
     await expect(card(page).locator("css=svg g[data-x]").first()).toBeVisible();
     expect(await renderers(page)).toBe(0);
     // picking 2D clears the line
-    await viewSelect(page).selectOption("2d");
+    await pick(page, "view:2d");
     await expect(note).toHaveCount(0);
   });
 
   test("the chunk fails to load: 2D and one line", async ({ page }) => {
     await open(page);
     await page.route(/floorplan-studio-3d-.*\.js/, (r) => r.fulfill({ status: 500, body: "boom" }));
-    await viewSelect(page).selectOption("3d");
+    await pick(page, "view:3d");
     const note = card(page).locator("css=.fp-3d-note");
     await expect(note).toHaveCount(1);
     await expect(note).toContainText(/did not load/i);
@@ -225,24 +226,25 @@ test.describe("3D view: lifecycle and hostile input", () => {
   });
 });
 
-const wallsSelect = (page: Page) => card(page).locator('css=select[aria-label="Walls"]');
+// S31.6: Walls is a radio group of the header menu (`walls:<mode>`), no longer a select.
+const wallsNow = (page: Page) => checkedIn(page, "walls", ["full", "cut", "low"]);
 const lowered = async (page: Page) => ((await holder(page).getAttribute("data-lowered")) ?? "").split(" ").filter(Boolean);
 
 test.describe("3D view: walls mode (S12.4)", () => {
-  test("Walls is a select in 3D, cut by default: walls facing the camera drop, the far ones stand; full none, low all", async ({ page }) => {
+  test("Walls is a group in the menu in 3D, cut by default: walls facing the camera drop, the far ones stand; full none, low all", async ({ page }) => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
     await drawn(page);
-    await expect(wallsSelect(page)).toHaveCount(1);
-    expect(await wallsSelect(page).inputValue()).toBe("cut");
+    expect(await hasItem(page, "walls:cut")).toBe(true);
+    expect(await wallsNow(page)).toBe("cut");
     await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(0);
     const cut = await lowered(page);
-    await wallsSelect(page).selectOption("low");
+    await pick(page, "walls:low");
     await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(cut.length);
     const all = await lowered(page);
     expect(all).toEqual(expect.arrayContaining(cut));
-    await wallsSelect(page).selectOption("full");
+    await pick(page, "walls:full");
     await expect.poll(async () => (await lowered(page)).length).toBe(0);
-    await wallsSelect(page).selectOption("cut");
+    await pick(page, "walls:cut");
     await expect.poll(async () => (await lowered(page)).length).toBe(cut.length);
   });
 
@@ -259,39 +261,36 @@ test.describe("3D view: walls mode (S12.4)", () => {
     await expect.poll(async () => (await lowered(page)).join(" ")).not.toBe(south.join(" "));
   });
 
-  test("the config's walls value is the 3D select's value, as in 2.5D", async ({ page }) => {
+  test("the config's walls value is the 3D menu's checked item, as in 2.5D", async ({ page }) => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d", walls: "low" });
     await drawn(page);
-    expect(await wallsSelect(page).inputValue()).toBe("low");
-    await viewSelect(page).selectOption("2.5d");
-    expect(await wallsSelect(page).inputValue()).toBe("low");
+    expect(await wallsNow(page)).toBe("low");
+    await pick(page, "view:2.5d");
+    expect(await wallsNow(page)).toBe("low");
   });
 });
 
 test.describe("3D view: the Active list does not hide the model (S12.4)", () => {
-  test("with the list open the camera frames the house in the free width", async ({ page }) => {
+  test("S31.5: from 640 px the sheet is beside the model, not over it: the canvas does not meet it and the camera has no inset", async ({ page }) => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
     await drawn(page);
     const h = (await holder(page).boundingBox())!, p = (await card(page).locator("css=.fp-active").boundingBox())!;
-    await expect.poll(async () => +((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",")[0]).toBeGreaterThan(0.05);
-    const [l, r] = ((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",").map(Number);
-    expect(r).toBe(0);
-    expect(l).toBeCloseTo((p.x + p.width - h.x) / h.width, 2); // the list's right edge, as a share of the view
-    // a house centred in the free part: its pixels lie right of the list's edge, not under it
-    await card(page).locator("css=.fp-active").evaluate((el: HTMLElement) => { el.style.visibility = "hidden"; }); // the list paints over the canvas: read the model alone
-    // S28.8: the ground plane reaches past the house on purpose (1.5x), so read the model without it and its shadows.
-    await page.evaluate(() => (window as unknown as { __fp3d: { shadeVisible(on: boolean): void } }).__fp3d.shadeVisible(false));
-    const png = await canvas(page).screenshot();
-    const edge = await page.evaluate(async (b64) => {
-      const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();
-      const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
-      const g = c.getContext("2d")!; g.drawImage(img, 0, 0);
-      const d = g.getImageData(0, 0, c.width, c.height).data;
-      let min = c.width, max = 0;
-      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (Math.abs(d[(y * c.width + x) * 4] - d[0]) + Math.abs(d[(y * c.width + x) * 4 + 1] - d[1]) + Math.abs(d[(y * c.width + x) * 4 + 2] - d[2]) > 24) { min = Math.min(min, x); max = Math.max(max, x); }
-      return { min: min / c.width, max: max / c.width };
-    }, png.toString("base64"));
-    expect(edge.min).toBeGreaterThan((p.x + p.width - h.x) / h.width - 0.02); // nothing of the model under the list
-    expect(edge.max).toBeLessThan(1.0);
+    expect(p.x + p.width, "the sheet ends where the stage begins").toBeLessThanOrEqual(h.x + 0.5);
+    await expect.poll(async () => (await holder(page).getAttribute("data-inset")) ?? "0,0").toMatch(/^0(\.0+)?,0(\.0+)?$/);
+  });
+
+  // S31.8: a card under 640 px has the bottom sheet, across the width, not a box beside the house: no inset (see card-3d-narrow.spec.ts).
+  test("a card under 640 px: the sheet is at the bottom, takes no side inset, and the house is framed in the whole width", async ({ page }) => {
+    await serve(page);
+    await page.goto(`${ORIGIN}/harness.html`);
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await card(page).evaluate((el) => { el.style.width = "639px"; el.style.height = "300px"; });
+    await configure(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
+    await drawn(page);
+    const h = (await holder(page).boundingBox())!, p = (await card(page).locator("css=.fp-active").boundingBox())!;
+    expect(p.x, "the sheet starts at the card's left edge").toBeLessThanOrEqual(h.x + 0.5);
+    expect(p.x + p.width, "and spans the width").toBeGreaterThanOrEqual(h.x + h.width - 0.5);
+    expect(p.y, "at the bottom").toBeGreaterThan(h.y + h.height / 2);
+    await expect.poll(async () => (await holder(page).getAttribute("data-inset")) ?? "0,0").toMatch(/^0(\.0+)?,0(\.0+)?$/);
   });
 });

@@ -168,7 +168,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     expect(await picked(page)).toEqual([]);
   });
 
-  test("clicking the selected pill again, Escape, the empty plan and the x each clear it", async ({ page }) => {
+  test("clicking the selected pill again, Escape, the empty plan and Back each clear it", async ({ page }) => {
     await boot(page);
     await pill(page, "Ground").click();
     await pill(page, "Ground").click();
@@ -180,7 +180,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await expect(panel(page)).toHaveCount(0);
 
     await pill(page, "Ground").click();
-    await card(page).locator("css=.fp-room-clear").click();
+    await card(page).locator("css=.fp-back").click(); // S31.5: from 640 px the sheet has Back (floor to Overview), not the x
     await expect(panel(page)).toHaveCount(0);
 
     await pill(page, "Ground").click();
@@ -284,6 +284,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await expect(panel(page).locator("css=.fp-room-name")).toHaveText("First");
     await page.keyboard.press("Escape"); // focus is in the card, so it owns the key
     await expect(panel(page)).toHaveCount(0);
+    await pill(page, "First").focus(); // Escape is Back: it moves focus to the sheet's own control, as the Back button does
     await page.keyboard.press("Space");
     await expect(panel(page).locator("css=.fp-room-name")).toHaveText("First");
   });
@@ -291,8 +292,9 @@ test.describe("S20.2 selecting a floor from its pill", () => {
   test("a narrow card shows the panel on top of nothing else", async ({ page }) => {
     await boot(page, 375);
     await pill(page, "First").click();
-    const covered = await panel(page).evaluate((el) => { const r = el.getBoundingClientRect(); return !(el.getRootNode() as ShadowRoot).elementFromPoint(r.x + 8, r.y + 8)?.closest(".fp-room"); });
-    expect(covered).toBe(false);
+    // S31.8: on a phone the panel is inside the bottom sheet, which rises to half over 0.2 s: wait for it to stop, then ask what is on top.
+    await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
+    await expect.poll(async () => panel(page).evaluate((el) => { const r = el.getBoundingClientRect(); return !(el.getRootNode() as ShadowRoot).elementFromPoint(r.x + 8, r.y + 8)?.closest(".fp-room"); })).toBe(false);
   });
 
   test("kiosk draws no pills, so nothing selects a floor", async ({ page }) => {

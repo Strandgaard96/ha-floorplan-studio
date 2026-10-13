@@ -4,8 +4,9 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { readGhostIn } from "../fixtures/ghost-contrast";
 import { floorPlace, renderFloor } from "../../src/core";
+import { isDisabled, pick, stateOf } from "./menu-helper";
 
-// S27.13: the card's ghost floor. `ghost_floor` in YAML and the Floor below button. Real page.mouse clicks on the real top element
+// S27.13: the card's ghost floor. `ghost_floor` in YAML and the Floor below item of the header menu (S31.6: it was a button). Real page.mouse clicks on the real top element
 // (finding 3). The first floor sits 200 cm east of the ground floor (offset), so the ground floor's ghost is drawn 200 cm to the
 // left of the first floor's own outline: part of it falls where the first floor draws nothing.
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
@@ -34,7 +35,6 @@ async function configure(page: Page, config: Record<string, unknown>) {
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const ghosts = (page: Page) => card(page).locator("css=svg g.ghost");
-const button = (page: Page) => card(page).locator('css=button[aria-label="Floor below"]');
 
 test.describe("S27.13 the card's ghost floor", () => {
   test("ghost_floor: true draws it at the floors' relative offset; false, absent and junk draw none", async ({ page }) => {
@@ -52,34 +52,34 @@ test.describe("S27.13 the card's ghost floor", () => {
     await expect(ghosts(page)).toHaveCount(0);
   });
 
-  test("a real click on the Floor below button toggles g.ghost; the button says which", async ({ page }) => {
+  test("a real click on the Floor below menu item toggles g.ghost; the item says which", async ({ page }) => {
     await boot(page);
-    await expect(button(page)).toHaveAttribute("aria-pressed", "false");
-    await button(page).click();
+    expect(await stateOf(page, "ghost")).toBe("false");
+    await pick(page, "ghost");
     await expect(ghosts(page)).toHaveCount(1);
-    await expect(button(page)).toHaveAttribute("aria-pressed", "true");
-    await button(page).click();
+    expect(await stateOf(page, "ghost")).toBe("true");
+    await pick(page, "ghost");
     await expect(ghosts(page)).toHaveCount(0);
-    await expect(button(page)).toHaveAttribute("aria-pressed", "false");
+    expect(await stateOf(page, "ghost")).toBe("false");
   });
 
   test("a stored viewer choice wins over YAML, both ways, and survives a reload of the card", async ({ page }) => {
     await boot(page, { ghost_floor: true });
-    await button(page).click(); // off, against the YAML
+    await pick(page, "ghost"); // off, against the YAML
     await expect(ghosts(page)).toHaveCount(0);
     await configure(page, { ghost_floor: true });
     await expect(ghosts(page)).toHaveCount(0);
     await configure(page, { ghost_floor: false });
-    await button(page).click(); // on, against the YAML (another card key set: a memory of its own)
+    await pick(page, "ghost"); // on, against the YAML (another card key set: a memory of its own)
     await expect(ghosts(page)).toHaveCount(1);
     await configure(page, { ghost_floor: false });
     await expect(ghosts(page)).toHaveCount(1);
   });
 
-  test("the lowest floor draws none, whatever the YAML says, and the button is disabled", async ({ page }) => {
+  test("the lowest floor draws none, whatever the YAML says, and the item is disabled", async ({ page }) => {
     await boot(page, { ghost_floor: true, floor: "ground" });
     await expect(ghosts(page)).toHaveCount(0);
-    await expect(button(page)).toBeDisabled();
+    expect(await isDisabled(page, "ghost")).toBe(true);
   });
 
   test("a tap on a spot where only the ghost is drawn opens nothing", async ({ page }) => {

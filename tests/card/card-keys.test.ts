@@ -9,6 +9,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 });
 import { renderFloor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
+import { hasMenuItem, itemOf, menuOf, openMenu, pickItem } from "./menu-dom";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 // The keys of the card: Up and Down zoom, Left and Right pan, Space resets. Who is listening is the point of these tests: the
@@ -125,9 +126,9 @@ describe("card keys: what each key does", () => {
     expect(press("[")).toBe(false);
   });
 
-  it("the rotate buttons still turn the plan 45 degrees, and the steps wrap", async () => {
+  it("the Rotate items of the menu still turn the plan 45 degrees, and the steps wrap", async () => {
     const el = await mount();
-    q<HTMLButtonElement>(el, 'button[aria-label="Rotate left"]')!.click();
+    await pickItem(el, "rotate:-1");
     await settle(el);
     expect(deg()).toBe(315);
   });
@@ -137,7 +138,7 @@ describe("card keys: what each key does", () => {
     hover(el);
     const w0 = vbW(el);
     press("+");
-    q<HTMLButtonElement>(el, 'button[aria-label="Rotate right"]')!.click();
+    await pickItem(el, "rotate:1");
     await settle(el);
     expect(vbW(el)).not.toBe(w0);
     expect(deg()).toBe(45);
@@ -261,31 +262,45 @@ describe("card keys: what they never take", () => {
     }
   });
 
-  it("a range slider keeps its arrows: the Tilt slider in the card's own toolbar", async () => {
+  // S31.6: the Tilt slider is gone, so the premise "a control that takes arrows for itself" moves to the open menu: its arrows move
+  // the focus (the menu prevents the default), and Space picks the item. Neither may also pan the plan or reset the view.
+  it("an open menu keeps its arrows and its Space: they do not pan the plan or reset the view", async () => {
     const el = await mount({ view: "2.5d" });
     hover(el);
-    const tilt = q<HTMLInputElement>(el, 'input[type="range"][aria-label="Tilt"]')!;
-    expect(press("ArrowLeft", tilt)).toBe(false);
-    expect(press("+", tilt)).toBe(false);
+    press("+");
+    await settle(el);
+    const [x0, w0] = [vbX(el), vbW(el)];
+    const item = (await itemOf(el, "tilt:0.25"))!;
+    expect(press("ArrowDown", item)).toBe(true); // the menu's own: focus moves, and the card did not pan
+    expect(press("ArrowUp", item)).toBe(true);
+    expect(press(" ", item)).toBe(true); // picks the item (a Tilt step: not a reset)
+    await settle(el);
+    expect(vbX(el)).toBe(x0);
+    expect(vbW(el)).toBe(w0);
+    expect(deg()).toBe(0);
   });
 
   it("Space on a focused toolbar button still activates that button, not Reset view", async () => {
     const el = await mount();
     hover(el);
-    const rotate = q<HTMLButtonElement>(el, 'button[aria-label="Rotate right"]')!;
-    expect(press(" ", rotate)).toBe(false);
+    press("+");
     await settle(el);
-    expect(deg()).toBe(0);
+    const w0 = vbW(el);
+    const zoomOut = q<HTMLButtonElement>(el, 'button[aria-label="Zoom out"]')!;
+    expect(press(" ", zoomOut)).toBe(false);
+    await settle(el);
+    expect(vbW(el)).toBe(w0);
   });
 
   it("arrows on a focused toolbar button do work: a button has no use for them", async () => {
     const el = await mount();
     hover(el);
-    const labels = q<HTMLButtonElement>(el, 'button[aria-label="Labels"]')!;
+    await openMenu(el);
+    const menuButton = menuOf(el)!.shadowRoot!.querySelector<HTMLButtonElement>("button.btn")!;
     press("+");
     await settle(el);
     const x0 = vbX(el);
-    expect(press("ArrowRight", labels)).toBe(true);
+    expect(press("ArrowRight", menuButton)).toBe(true);
     await settle(el);
     expect(vbX(el)).toBeGreaterThan(x0);
   });
@@ -303,9 +318,9 @@ describe("card keys: what they never take", () => {
 describe("card keys are remembered like any other touch", () => {
   const stored = () => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:")).map(([, v]) => JSON.parse(v));
 
-  it("a turn by button is in storage the moment it settles", async () => {
+  it("a turn by menu item is in storage the moment it settles", async () => {
     const el = await mount();
-    q<HTMLButtonElement>(el, 'button[aria-label="Rotate right"]')!.click();
+    await pickItem(el, "rotate:1");
     await settle(el);
     expect(stored()[0].floors[0][1].rotation).toBe(45);
   });
@@ -321,8 +336,7 @@ describe("card keys are remembered like any other touch", () => {
 });
 
 describe("rotate_switch: the pair follows the other controls unless the key says otherwise", () => {
-  const btn = (el: FloorplanStudioCard, l: string) => q(el, `button[aria-label="${l}"]`);
-  it("every config with zoom or the View dropdown draws the pair; no control at all draws none", async () => {
+  it("every config with zoom or the View items has the pair; no control at all has none", async () => {
     for (const [cfg, want] of [
       [{}, true], [{ view: "2.5d" }, true], [{ zoom: false }, true], [{ view_switch: false }, true],
       [{ zoom: false, view_switch: false }, false], [{ kiosk: true }, false],
@@ -330,7 +344,7 @@ describe("rotate_switch: the pair follows the other controls unless the key says
       [{ rotate_switch: false }, false], [{ rotate_switch: "yes" as never }, true],
     ] as const) {
       const el = await mount(cfg);
-      expect(btn(el, "Rotate left") !== null, JSON.stringify(cfg)).toBe(want);
+      expect(await hasMenuItem(el, "rotate:-1"), JSON.stringify(cfg)).toBe(want);
       el.remove();
     }
   });
