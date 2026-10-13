@@ -75,3 +75,27 @@ export function viewKeyFor(ev: KeyboardEvent): ViewKey | null {
   if (key === "reset" && takesSpace(target)) return null;
   return key;
 }
+
+/** S31.4, spec D4: what a key does on the card's plan. The view keys plus device focus. */
+export type PlanKey = ViewKey | "focusLeft" | "focusRight" | "focusUp" | "focusDown" | "open" | "leave";
+
+const FOCUS_OF: Record<string, PlanKey> = { ArrowLeft: "focusLeft", ArrowRight: "focusRight", ArrowUp: "focusUp", ArrowDown: "focusDown" };
+
+/** Beside `viewKeyFor`, which the Studio keeps. With a device focused, plain arrows move focus, Enter and Space open it
+ * and Escape leaves; Shift + arrows pan either way. Without one, arrows pan, Space resets and Enter and Escape are not
+ * the plan's. `+ - [ ]` are the view's always. A text field keeps every key; Enter and Space stay with a focused button,
+ * link or checkbox (they activate it); Ctrl and Cmd chords are the browser's. */
+export function planKeyFor(ev: KeyboardEvent, deviceFocused: boolean): PlanKey | null {
+  if (ev.defaultPrevented || ev.isComposing || ev.ctrlKey || ev.metaKey) return null;
+  const target = ev.composedPath()[0];
+  if (takesTyping(target)) return null;
+  const view = viewKeyOf(ev);
+  if (FOCUS_OF[ev.key]) return deviceFocused && !ev.shiftKey ? FOCUS_OF[ev.key] : view;
+  if (ev.key === "Escape") return deviceFocused ? "leave" : null;
+  if (ev.key === "Enter" || view === "reset") {
+    if (takesSpace(target)) return null;
+    if (deviceFocused) return "open";
+    return view; // Space resets; Enter is null here
+  }
+  return view;
+}

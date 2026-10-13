@@ -3874,7 +3874,7 @@ Lane menu (a new `src/card/more-menu.ts`):
       new `tests/card/more-menu.spec.ts`.
 
 Lane focus (a new `src/card/plan-focus.ts`, and `src/card/view-keys.ts`):
-- [ ] S31.4 Spatial focus and the plan's keys (Sonnet, **judgement**: the direction cone and the tie-break).
+- [x] S31.4 Spatial focus and the plan's keys (Sonnet, **judgement**: the direction cone and the tie-break).
       `nextInDirection(points, from, dir)` over screen points: the nearest point inside a 45 degree half-cone about
       `dir`, by distance along `dir` plus twice the cross distance; none, `from`. `firstFocus(points, centre)`.
       `planKeyFor(ev, deviceFocused)` beside `viewKeyFor`: plain arrows move focus when a device has focus and pan

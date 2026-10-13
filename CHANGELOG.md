@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Card (unreleased, S31.4): `src/card/plan-focus.ts` gives `nextInDirection` and `firstFocus` (nearest device in a 45 degree half-cone, cost along + 2 x across, ties to the lower index, junk skipped) and `planKeyFor` in `view-keys.ts` decides the plan's keys with and without a focused device. Not wired into the card yet; `viewKeyOf` and `viewKeyFor` answer as before.
+
 ## 0.28.1 - 2026-10-13
 
 - Studio: doors are visible again. A door or glass door with no closed sensor is a hole in the card (0.12.x S25.D1), and the Studio has no live state, so every door there was an invisible gap. In the Studio alone such a door now draws a faint dashed guide line (`.door.guide`, thin, 55 % of --fp-door or --fp-glass). The card and 2.5D/3D keep the hole; a selected door, a window and the doorway kind look as before.

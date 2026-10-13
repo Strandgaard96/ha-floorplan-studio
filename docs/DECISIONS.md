@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.4 plan focus: cone, cost and ties (Sonnet)
+
+`src/card/plan-focus.ts` (reasoning in its header comment). Decisions: the cone is 45 degrees about the arrow with the edge in,
+because a plan turned 45 degrees puts every grid neighbour exactly on an edge; "on the edge" and "equal cost" use a 1e-9 relative
+tolerance, since rotation leaves float noise. Cost is along + 2 x across. Equal cost goes to the lower index, so the host's point
+order (reading order) is the tie-break. Not reversible by design. `firstFocus` returns -1 for no point; `nextInDirection` returns
+`from` for none. `planKeyFor(ev, deviceFocused)` sits beside `viewKeyFor`, which the Studio keeps unchanged: plain arrows move focus
+only with a device focused, Shift + arrows pan always, Enter and Space open (stay with a focused button or link), Escape leaves,
+Space resets only without a device. Not wired into the card until S31.9.
+
 ## 2026-10-13: Sprint 31 planned: card layout and touch (Sonnet)
 
 Spec `docs/specs/card-layout-touch.md`, plan `docs/PLAN.md` Sprint 31. Docs only; nothing built. Four decisions wait for
