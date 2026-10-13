@@ -16,7 +16,8 @@ import "./config-editor";
 import { defineElement } from "./define";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
-import { PAN_STEP, isSearchChord, viewKeyFor, type ViewKey } from "./view-keys";
+import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
+import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
 import { HEADER_H, PEEK_H, cardHeight, frameMode, nextOnHandleTap, sheetStops, sideOpenByDefault, sideWidth, snapSheet, type FrameMode, type SheetStop, type Stops } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
 import "./search-box";
@@ -469,6 +470,14 @@ export class FloorplanStudioCard extends LitElement {
     /* Not fp-locate: that is the plan's own ring (render.ts), and one name in one shadow root means one wins (S24.R7). */
     @keyframes fp-pulse-ring { 0% { opacity: 1; box-shadow: 0 0 0 0 var(--fp-primary); } 100% { opacity: 0.6; box-shadow: 0 0 0 10px transparent; } }
     @media (prefers-reduced-motion: reduce) { .fp-pulse { animation: none; } }
+    /* S31.10 (D4): the ring of the device a key stands on, and the line a screen reader reads. Chrome over the plan like the pulse, never a hit
+       target: the behaviour is this class rule, not an attribute (a presentation attribute loses to the editor's own \`.room { pointer-events }\`
+       kind of rule, finding 18). The plan itself is the Tab stop; its outline is the thin frame of the focused stop, the ring says which device. Ink inside a bg and a primary halo, so it reads on every theme. */
+    .fp-focus { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-ink); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--fp-bg, #fff), 0 0 0 4px var(--fp-primary); }
+    .fp-focus[hidden] { display: none; }
+    .fp-focus-status { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    svg.fp-zoomable:focus { outline: none; }
+    svg.fp-zoomable:focus-visible { outline: 2px solid var(--fp-primary); outline-offset: -2px; }
     .fp-room { padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--fp-idle); }
     .fp-room-head { display: flex; align-items: center; gap: 6px; font: 600 13px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-room-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -646,6 +655,9 @@ export class FloorplanStudioCard extends LitElement {
   private _overviewAll = false;
   /** S24.7: the thing a row tap went to, ringed on the plan for `PULSE_MS`; null when none. */
   private _pulse: ({ floor: string } & ThingRef) | null = null;
+  /** S31.10: the index (`data-x`) of the device the keys stand on, or null. Card state: kept through `hass`, dropped by a floor switch, `setConfig`,
+   *  a click on the plan and focus leaving the plan (its own popup excepted). */
+  private _focusDev: number | null = null;
   private _pulseTimer: ReturnType<typeof setTimeout> | null = null;
   /** `attention()` for the layout and states on show, computed once per pair: the pills and the Overview both read it. */
   private _attnMemo: { layout: Layout; states: unknown; reg: unknown; a: Attention } | null = null;
@@ -845,6 +857,9 @@ export class FloorplanStudioCard extends LitElement {
     if (isSearchChord(ev)) { if (this._openSearch()) ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._spider) { this._foldSpider(); ev.preventDefault(); return; }
+    // S31.10: a device key counts only while the plan itself has the focus; in the popup or a text field the keys are theirs.
+    const onStage = this._focusDev !== null && ev.composedPath()[0] === this._stageSvg();
+    if (ev.key === "Escape" && onStage) { this._dropFocus(); ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._frame === "bottom" && this._activeListVisible() && (this._pickedRoom || this._pickedFloor || this._sheetStop !== "peek")) {
       this._back(); // S31.8: one level up, and from the Overview down to peek
       ev.preventDefault();
@@ -855,9 +870,101 @@ export class FloorplanStudioCard extends LitElement {
       ev.preventDefault();
       return;
     }
-    const key = viewKeyFor(ev);
-    if (key && this._doViewKey(key)) ev.preventDefault();
+    const key = planKeyFor(ev, onStage);
+    if (!key) return;
+    if (key === "open") { if (this._openFocused()) ev.preventDefault(); return; }
+    if (key === "leave") return; // handled above, before the Escape rules that would take it
+    if (key === "focusLeft" || key === "focusRight" || key === "focusUp" || key === "focusDown") {
+      if (this._moveFocus(key.slice(5).toLowerCase() as FocusDir)) ev.preventDefault();
+      return;
+    }
+    if (this._doViewKey(key)) ev.preventDefault();
   };
+
+  // ---- S31.10: keys on the plan (D4) --------------------------------------------------------------------------------------------------
+
+  private _stageSvg(): SVGSVGElement | null {
+    return this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable") ?? null;
+  }
+
+  private _dropFocus = (): void => {
+    if (this._focusDev === null) return;
+    this._focusDev = null;
+    this.requestUpdate();
+  };
+
+  /** The plan got focus. By keyboard (a Tab or Shift+Tab, `:focus-visible`) the device nearest the middle of what is visible takes it; a mouse or a
+   *  finger on the plan gives focus to the plan only. Coming back from the popup the device is still set and stays. */
+  private _onStageFocus = (ev: FocusEvent): void => {
+    const svg = ev.currentTarget as SVGSVGElement;
+    if (this._focusDev !== null || !svg.matches(":focus-visible")) return;
+    const v = this._visibleBox(), pts = this._planPoints();
+    const at = firstFocus(pts, v ? { x: (v.left + v.right) / 2, y: (v.top + v.bottom) / 2 } : null);
+    if (at >= 0) this._focusOn(pts[at]!.i);
+  };
+
+  /** Focus left the plan: the device goes with it, unless it went into the popup that device opened. */
+  private _onStageBlur = (ev: FocusEvent): void => {
+    if ((ev.relatedTarget as Element | null)?.closest?.(".fp-pop")) return;
+    this._dropFocus();
+  };
+
+  /** The devices the plan draws, in reading order, with the centre of each one's box on screen. A device hidden by Layers or Detail has no box. */
+  private _planPoints(): { i: number; x: number; y: number }[] {
+    const out: { i: number; x: number; y: number }[] = [], seen = new Set<number>();
+    this._stageSvg()?.querySelectorAll<SVGGElement>("g[data-x]").forEach((g) => {
+      const i = Number(g.getAttribute("data-x")), r = g.getBoundingClientRect();
+      if (!Number.isInteger(i) || seen.has(i) || getComputedStyle(g).display === "none" || !(r.width + r.height > 0)) return;
+      seen.add(i);
+      out.push({ i, x: r.left + r.width / 2, y: r.top + r.height / 2 });
+    });
+    return out;
+  }
+
+  /** An arrow with a device focused: the nearest drawn device that way on screen. True when focus moved (the key is then taken). */
+  private _moveFocus(dir: FocusDir): boolean {
+    const pts = this._planPoints(), at = pts.findIndex((p) => p.i === this._focusDev);
+    const to = at < 0 ? firstFocus(pts, null) : nextInDirection(pts, at, dir);
+    if (to < 0 || to === at) return at >= 0; // the edge of the house: the key is ours, nothing moves
+    this._focusOn(pts[to]!.i);
+    return true;
+  }
+
+  /** The device `i` takes the keys' focus; off the visible part of the plan, the plan pans it in. The ring follows in `updated`. */
+  private _focusOn(i: number): void {
+    this._focusDev = i;
+    const g = this._stageSvg()?.querySelector(`g[data-x="${i}"]`);
+    if (g && !this._shows3d()) this._panBoxIn(g);
+    this.requestUpdate();
+  }
+
+  /** Enter or Space: the popup of the focused device, as a tap on it opens it (the Device level of the sheet on a phone). */
+  private _openFocused(): boolean {
+    const svg = this._stageSvg(), i = this._focusDev, t = i === null ? null : this._targetOf("x", i);
+    const r = i === null ? null : svg?.querySelector(`g[data-x="${i}"]`)?.getBoundingClientRect();
+    if (!svg || !t || !r) return false;
+    this._openPopup(t, { x: r.left + r.width / 2, y: r.top + r.height / 2 }, svg);
+    return true;
+  }
+
+  /** What the hidden status line says: "Kitchen spot 1, light, on". */
+  private _focusText(): string {
+    const t = this._focusDev === null ? null : this._targetOf("x", this._focusDev), s = t && this._subjectOf(t);
+    return s ? [s.name, s.type, this._subjectText(s)].filter(Boolean).join(", ") : "";
+  }
+
+  /** After every render: the ring sits over the focused device's box, or hides when the plan does not show it. */
+  private _placeFocusRing(): void {
+    const ring = this.shadowRoot?.querySelector<HTMLElement>(".fp-focus");
+    if (!ring) return;
+    const g = this._focusDev === null ? null : this._stageSvg()?.querySelector(`g[data-x="${this._focusDev}"]`);
+    const r = g && getComputedStyle(g).display !== "none" ? g.getBoundingClientRect() : null, h = this.getBoundingClientRect();
+    if (!r || (r.width === 0 && r.height === 0)) { ring.hidden = true; return; }
+    ring.hidden = false;
+    ring.style.left = `${r.left - h.left + r.width / 2}px`;
+    ring.style.top = `${r.top - h.top + r.height / 2}px`;
+    ring.style.width = ring.style.height = `${Math.max(24, Math.min(r.width, r.height) + 16)}px`;
+  }
 
   /** Whether the two rotate buttons exist, which is when [ and ] turn the plan. `rotate_switch` decides
    * when it is a boolean; otherwise they come with any other control the card draws (zoom or the View dropdown)
@@ -1060,6 +1167,7 @@ export class FloorplanStudioCard extends LitElement {
     this._settleTurn(false);
     this._config = config ?? {};
     this._closePopup();
+    this._focusDev = null;
     this._hideTip();
     this._layout = null;
     this._error = null;
@@ -1413,6 +1521,7 @@ export class FloorplanStudioCard extends LitElement {
     const from = this._floorKey(), keys = this._layout ? Object.keys(this._layout.floors) : [];
     this._switchDir = from && this._viewPick() !== "3d" ? floorSwitch(keys, from, key, this._reducedMotion())?.dir ?? null : null;
     this._closePopup(); // its subject is on the floor just left
+    this._focusDev = null; // and so is the device the keys stood on
     this._settleTurn(false); // a turn in flight ends where it was going, under the floor it began on
     this._saveViewNow(); // the floor just left keeps its zoom, turn and camera (S14.4)
     this._shownFloor = key;
@@ -1635,6 +1744,7 @@ export class FloorplanStudioCard extends LitElement {
     this._syncPopup();
     this._syncTip();
     this._placePulse();
+    this._placeFocusRing();
   }
 
   /** Whether the 3D model is what the card draws: 3D is picked, its module is loaded, it has not failed, and there is a floor. */
@@ -3047,14 +3157,28 @@ export class FloorplanStudioCard extends LitElement {
     const sel = this._panTarget;
     this._panTarget = null;
     if (!sel || this._frame !== "bottom" || this._shows3d() || this._turn) return;
-    const svg = this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable"), el = this.shadowRoot?.querySelector(sel), stops = this._stopsNow(), v = this._current();
-    if (!svg || !el || !stops || !v) return;
-    const s = svg.getBoundingClientRect(), r = el.getBoundingClientRect(), host = this.getBoundingClientRect();
-    if (!(s.width > 0) || !(r.width + r.height > 0)) return;
-    const top = s.top, bottom = Math.min(s.bottom, host.bottom - stops[this._sheetStop]);
+    const el = this.shadowRoot?.querySelector(sel);
+    if (el && this._stopsNow()) this._panBoxIn(el);
+  }
+
+  /** The part of the plan the eye can use: the stage's box, less the bottom sheet at its stop (S31.8). Null before the first layout. */
+  private _visibleBox(): { left: number; top: number; right: number; bottom: number } | null {
+    const svg = this._stageSvg();
+    if (!svg) return null;
+    const s = svg.getBoundingClientRect(), stops = this._frame === "bottom" ? this._stopsNow() : null;
+    if (!(s.width > 0)) return null;
+    return { left: s.left, right: s.right, top: s.top, bottom: stops ? Math.min(s.bottom, this.getBoundingClientRect().bottom - stops[this._sheetStop]) : s.bottom };
+  }
+
+  /** Moves the plan so `el`'s box is inside the visible part, by the pixel difference that centres it there. Nothing moves when it is already inside. */
+  private _panBoxIn(el: Element): void {
+    const svg = this._stageSvg(), vis = this._visibleBox(), v = this._current();
+    if (!svg || !vis || !v || this._turn) return;
+    const s = svg.getBoundingClientRect(), r = el.getBoundingClientRect();
+    if (!(r.width + r.height > 0)) return;
     const m = 8; // a hair of air, so an icon is not touching the sheet's edge
-    if (r.top >= top + m && r.bottom <= bottom - m && r.left >= s.left && r.right <= s.right) return;
-    const dx = s.left + s.width / 2 - (r.left + r.width / 2), dy = (top + bottom) / 2 - (r.top + r.height / 2);
+    if (r.top >= vis.top + m && r.bottom <= vis.bottom - m && r.left >= vis.left && r.right <= vis.right) return;
+    const dx = (vis.left + vis.right) / 2 - (r.left + r.width / 2), dy = (vis.top + vis.bottom) / 2 - (r.top + r.height / 2);
     const k = Math.min(s.width / v.w, s.height / v.h); // screen px per plan unit: the svg letterboxes its view box
     // A view at fit cannot be panned: `clamp` hands fit back for any box as wide as fit. A hair of zoom (0.1 %, invisible) makes it
     // a view that can move; the Fit button still takes it home.
@@ -3280,7 +3404,7 @@ export class FloorplanStudioCard extends LitElement {
     });
     // The zoom buttons come after the plan's <svg> in the DOM (they are positioned, so order is not placement):
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
-    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" ${planPatch(body)}></svg>`;
+    const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" tabindex="0" role="group" aria-label=${`Floor plan, ${this._floorTitle(this._floorKey() ?? "")}`} @focus=${this._onStageFocus} @blur=${this._onStageBlur} @pointerdown=${this._dropFocus} ${planPatch(body)}></svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
     this._measureFrame();
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
@@ -3288,7 +3412,7 @@ export class FloorplanStudioCard extends LitElement {
     // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
     const kioskMenu = this._kiosk() ? this._optionsMenu() : null;
     const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
-    return html`${this._header()}${stage}${note}${this._activePanel()}${cluster}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    return html`${this._header()}${stage}${note}${this._activePanel()}${cluster}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._focusDev !== null ? html`<div class="fp-focus" aria-hidden="true" hidden></div>` : null}<div class="fp-focus-status" role="status">${this._focusText()}</div>${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */

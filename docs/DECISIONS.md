@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.10 keys on the plan (Sonnet)
+
+D4 as the spec has it, in `src/card/floorplan-studio-card.ts` with `plan-focus.ts` and `planKeyFor` from S31.4 doing the thinking. Judgement calls:
+- The stage `<svg>` is the Tab stop (`tabindex="0"`, `role="group"`, `aria-label="Floor plan, <title>"`). The card keeps its window `keydown` listener and its focused-else-hovered ownership gate; a device key counts only when the key's real target is the plan, so a popup button or a text field keeps Enter, Space and arrows.
+- A Tab in picks the device by `:focus-visible`, so a click or a tap on the plan gives the plan focus and no ring. A pointer down on the plan drops the device.
+- Device focus lives as long as the focus is on the plan or in the popup it opened (`blur` with `relatedTarget` in `.fp-pop` keeps it). Floor switch and `setConfig` drop it; a `hass` update does not touch it. The plan stays focused after Escape; arrows pan again; Tab out and in picks a device again.
+- Points are the centres of the drawn `g[data-x]` boxes, in DOM (reading) order, skipped when `display: none` or boxless. Off-view devices are reachable; focus pans them in with the S31.8 pan (generalised to `_panBoxIn`, which now works in any frame, the visible part being the stage less the bottom sheet).
+- The ring is `.fp-focus`, a card-level chrome element placed in `updated()` like `.fp-pulse`, `pointer-events: none` by class. Ink inside a bg and a primary halo: primary alone vanished on blueprint and HA dark. The status line is `.fp-focus-status`, `role="status"`, clipped to 1 px, text through a Lit binding. The svg gets an outline only on `:focus-visible`.
+- Not added: a class on the svg for "has ring" (a card test pins the svg's class string), and no keys for doors, pieces or unlinked devices (the spec says devices).
+
 ## 2026-10-13: S31.9 44 px on a coarse pointer (Sonnet)
 
 Every control is at least 44 x 44 CSS px under `(pointer: coarse)`; a fine pointer keeps what it had. Judgement calls:

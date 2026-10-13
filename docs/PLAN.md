@@ -3926,7 +3926,7 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       over every state it lists, at 768 x 1024 and 390 x 844, by walking every control in the shadow root and in
       `<fp-search>`; a computed-style pair per rule (coarse 44, fine its old size), each red with its rule removed.
       Files: new `src/card/touch-css.ts`, `src/card/floorplan-studio-card.ts`, `tests/card/touch-targets.spec.ts` (new).
-- [ ] S31.10 Keys on the plan (Sonnet). The stage is one Tab stop with D4's role and name; the focus ring is chrome
+- [x] S31.10 Keys on the plan (Sonnet). The stage is one Tab stop with D4's role and name; the focus ring is chrome
       placed over the device's screen box (like `.fp-pulse`), with a hidden status line; `planKeyFor` and
       `nextInDirection` over the drawn devices' screen centres (`g[data-x]` boxes; hidden ones skipped); a focused
       device off view pans in; Enter opens the popup or the Device level; focus survives `hass`, is dropped on a floor
