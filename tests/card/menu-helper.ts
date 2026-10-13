@@ -28,6 +28,13 @@ export async function pick(page: Page, value: string): Promise<void> {
   await menuItem(page, value).click();
 }
 
+/** Opens the menu and clicks the item with Alt held (Layers: show this one alone). */
+export async function pickAlt(page: Page, value: string): Promise<void> {
+  await openMenu(page);
+  await page.keyboard.down("Alt");
+  try { await menuItem(page, value).click(); } finally { await page.keyboard.up("Alt"); }
+}
+
 /** `aria-checked` of an item ("true", "false"), or `null` for an item that has no state (an action); throws if absent. Closes after reading. */
 export async function stateOf(page: Page, value: string): Promise<string | null> {
   await openMenu(page);

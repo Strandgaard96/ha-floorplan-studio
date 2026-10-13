@@ -1,9 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
+import { closeMenu, menuItem, menuPanel, openMenu, pick, pickAlt, stateOf } from "./menu-helper";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-// S24.8 (layers): the card's layer chips on the stress house (ground: 182 devices, 75 of them lights, 39 pieces). Real
+// S24.8 (layers; S31.6: the chips are the Layers section of the ⋯ menu, so every click goes through the real menu): the card's layer chips on the stress house (ground: 182 devices, 75 of them lights, 39 pieces). Real
 // page.mouse and page.keyboard only (finding 3); the memory goes through the real localStorage and a real reload.
 
 const layout = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
@@ -30,7 +31,6 @@ async function configure(page: Page, config: Record<string, unknown> = {}, clear
   );
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
-const chip = (page: Page, id: string) => card(page).locator(`css=.fp-ov-layers button.fp-layer[data-layer="${id}"]`);
 const count = (page: Page, sel: string) => card(page).evaluate((el, sel) => el.shadowRoot!.querySelectorAll(sel).length, sel);
 const pills = (page: Page) => card(page).locator("css=.fp-floors button");
 
@@ -49,42 +49,33 @@ async function clickOn(page: Page, sel: string, alt = false) {
   await page.mouse.click(p!.x, p!.y);
   if (alt) await page.keyboard.up("Alt");
 }
-const layerChip = (id: string) => `.fp-ov-layers button.fp-layer[data-layer="${id}"]`;
-/** The chips fold under the Layers button; a real click on it unfolds them. */
-const toggle = (page: Page) => card(page).locator("css=.fp-ov-scopes button.fp-layers-toggle");
-async function openLayers(page: Page) {
-  await clickOn(page, ".fp-ov-scopes button.fp-layers-toggle");
-  await expect(toggle(page)).toHaveAttribute("aria-expanded", "true");
-}
+const layerOn = (page: Page, id: string) => stateOf(page, `layer:${id}`);
 
 test.describe("S24.8 layer chips in the card", () => {
-  test("one chip per family on the floor on show; a click hides that family's icons and only them", async ({ page }) => {
+  test("one layer per family on the floor on show; a pick hides that family's icons and only them", async ({ page }) => {
     await open(page);
     const noCovers = structuredClone(layout);
     noCovers.floors.ground.devices = noCovers.floors.ground.devices.filter((d: { type: string }) => d.type !== "cover");
     await configure(page, { layout: noCovers });
-    // Folded by default: the sheet covers no more of the plan; the summary says nothing is hidden.
-    await expect(toggle(page)).toHaveText("Layers");
-    await expect(toggle(page)).toHaveAttribute("aria-expanded", "false");
-    await expect(chip(page, "lights")).toHaveCount(0);
-    await openLayers(page);
-    const ids = await card(page).evaluate((el) => [...el.shadowRoot!.querySelectorAll(".fp-ov-layers button.fp-layer")].map((b) => b.getAttribute("data-layer")));
+    // Moved premise (S31.6): the Overview has no Layers button and no chips; the menu has one check per family.
+    await expect(card(page).locator("css=.fp-layers-toggle, button.fp-layer")).toHaveCount(0);
+    await openMenu(page);
+    const ids = await menuPanel(page).evaluate((el) => [...el.querySelectorAll("[data-value^='layer:']")].map((b) => b.getAttribute("data-value")!.slice(6)));
     expect(ids).toEqual(["lights", "climate", "security", "media", "power", "computing", "sensors", "people", "other", "furniture"]);
-    await expect(chip(page, "lights")).toHaveText("Lights");
-    await expect(chip(page, "lights")).toHaveAttribute("aria-pressed", "true");
+    await expect(menuItem(page, "layer:lights")).toHaveText(/Lights/);
+    await expect(menuItem(page, "layer:lights")).toHaveAttribute("aria-checked", "true");
+    await closeMenu(page);
     const all = await count(page, "svg g[data-x]");
     await expect.poll(() => count(page, "svg g.dev-light")).toBe(GROUND_LIGHTS);
-    await clickOn(page, layerChip("lights"));
-    await expect(chip(page, "lights")).toHaveAttribute("aria-pressed", "false");
-    await expect(toggle(page)).toHaveText("Layers · 1 hidden");
-    await expect(toggle(page)).toHaveAttribute("title", "Layers: lights hidden");
+    await pick(page, "layer:lights");
+    expect(await layerOn(page, "lights")).toBe("false");
     await expect.poll(() => count(page, "svg g.dev-light")).toBe(0);
     await expect.poll(() => count(page, "svg g[data-x]")).toBe(all - GROUND_LIGHTS);
     await expect.poll(() => count(page, "svg g[data-f]")).toBe(GROUND_PIECES);
-    await clickOn(page, layerChip("furniture"));
+    await pick(page, "layer:furniture");
     await expect.poll(() => count(page, "svg g[data-f]")).toBe(0);
-    await clickOn(page, layerChip("lights"));
-    await expect(chip(page, "lights")).toHaveAttribute("aria-pressed", "true");
+    await pick(page, "layer:lights");
+    expect(await layerOn(page, "lights")).toBe("true");
     await expect.poll(() => count(page, "svg g.dev-light")).toBe(GROUND_LIGHTS);
     await expect.poll(() => count(page, "svg g[data-f]")).toBe(0);
   });
@@ -92,15 +83,14 @@ test.describe("S24.8 layer chips in the card", () => {
   test("Alt-click shows one family alone; Alt-click on it again shows all", async ({ page }) => {
     await open(page);
     await configure(page);
-    await openLayers(page);
     await expect.poll(() => count(page, "svg g[data-x]")).toBe(GROUND_DEVICES);
-    await clickOn(page, layerChip("lights"), true);
+    await pickAlt(page, "layer:lights");
     await expect.poll(() => count(page, "svg g[data-x]")).toBe(GROUND_LIGHTS);
     await expect.poll(() => count(page, "svg g.dev-light")).toBe(GROUND_LIGHTS);
     await expect.poll(() => count(page, "svg g[data-f]")).toBe(0);
-    await expect(chip(page, "lights")).toHaveAttribute("aria-pressed", "true");
-    await expect(chip(page, "power")).toHaveAttribute("aria-pressed", "false");
-    await clickOn(page, layerChip("lights"), true);
+    expect(await layerOn(page, "lights")).toBe("true");
+    expect(await layerOn(page, "power")).toBe("false");
+    await pickAlt(page, "layer:lights");
     await expect.poll(() => count(page, "svg g[data-x]")).toBe(GROUND_DEVICES);
     await expect.poll(() => count(page, "svg g[data-f]")).toBe(GROUND_PIECES);
   });
@@ -108,18 +98,15 @@ test.describe("S24.8 layer chips in the card", () => {
   test("the hidden families are this viewer's: they survive a reload and hold on every floor", async ({ page }) => {
     await open(page);
     await configure(page);
-    await openLayers(page);
-    await clickOn(page, layerChip("lights"));
-    await clickOn(page, layerChip("furniture"));
+    await pick(page, "layer:lights");
+    await pick(page, "layer:furniture");
     await page.reload();
     await page.addScriptTag({ content: CARD_JS, type: "module" });
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
     await configure(page, {}, false);
-    await expect(toggle(page)).toHaveText("Layers · 2 hidden");
-    await openLayers(page);
-    await expect(chip(page, "lights")).toHaveAttribute("aria-pressed", "false");
-    await expect(chip(page, "furniture")).toHaveAttribute("aria-pressed", "false");
-    await expect(chip(page, "power")).toHaveAttribute("aria-pressed", "true");
+    expect(await layerOn(page, "lights")).toBe("false");
+    expect(await layerOn(page, "furniture")).toBe("false");
+    expect(await layerOn(page, "power")).toBe("true");
     await expect.poll(() => count(page, "svg g.dev-light")).toBe(0);
     await expect.poll(() => count(page, "svg g[data-f]")).toBe(0);
     await pills(page).nth(1).click();
@@ -131,8 +118,7 @@ test.describe("S24.8 layer chips in the card", () => {
   test("search does not follow layers: a located hidden lamp is drawn alone, with a note and Show", async ({ page }) => {
     await open(page);
     await configure(page);
-    await openLayers(page);
-    await clickOn(page, layerChip("lights"));
+    await pick(page, "layer:lights");
     const b = (await card(page).locator("css=svg.fp-zoomable").boundingBox())!;
     await page.mouse.move(b.x + b.width * 0.7, b.y + b.height * 0.6);
     await page.keyboard.press("/");
@@ -147,15 +133,14 @@ test.describe("S24.8 layer chips in the card", () => {
     await page.keyboard.press("Escape"); // the popup goes; the note stays with the kept lamp
     await clickOn(page, ".fp-layer-note button");
     await expect(note).toHaveCount(0);
-    await expect(chip(page, "lights")).toHaveAttribute("aria-pressed", "true");
+    expect(await layerOn(page, "lights")).toBe("true");
     await expect.poll(() => count(page, "svg g.dev-light")).toBeGreaterThan(1);
   });
 
   test("a kept lamp goes when another floor is shown or the layers change", async ({ page }) => {
     await open(page);
     await configure(page);
-    await openLayers(page);
-    await clickOn(page, layerChip("lights"));
+    await pick(page, "layer:lights");
     const find = async () => {
       const b = (await card(page).locator("css=svg.fp-zoomable").boundingBox())!;
       await page.mouse.move(b.x + b.width * 0.7, b.y + b.height * 0.6);
@@ -174,7 +159,7 @@ test.describe("S24.8 layer chips in the card", () => {
     await expect.poll(() => count(page, "svg g.dev-light")).toBe(0);
     await expect(card(page).locator("css=.fp-layer-note")).toHaveCount(0);
     await find();
-    await clickOn(page, layerChip("power"));
+    await pick(page, "layer:power");
     await expect.poll(() => count(page, "svg g.dev-light")).toBe(0);
     await expect(card(page).locator("css=.fp-layer-note")).toHaveCount(0);
   });

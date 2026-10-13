@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { hasItem, menuButton, menuPanel } from "./menu-helper";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -6,7 +7,7 @@ import { pathToFileURL } from "node:url";
 // S31.5 (docs/specs/card-layout-touch.md, D1; criteria 2, 5, 9): the card's chrome sits around the plan, not over it. The host is a
 // grid: header bar, side sheet, stage (the plan's own `<svg>`), the zoom cluster on the stage. Real `page.mouse` clicks on the real
 // top element (finding 3); the hass stub has the shape the card gets from Home Assistant (finding 21). Keys of the card that are
-// not in the spec's table (rotate, which S31.6 moves into the menu) stay where 0.28.1 had them.
+// not in the spec's table (rotate, which S31.6 moved into the menu) stay where 0.28.1 had them.
 
 const layout = JSON.parse(readFileSync("tests/fixtures/stress-layout.json", "utf8"));
 const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
@@ -253,25 +254,30 @@ test.describe("S31.5 criterion 9: the old keys in the new frame", () => {
     await boot(page, { active_list: false }, size);
     expect(await present(page, ".fp-active")).toBe(false);
     expect(await present(page, ".fp-floors")).toBe(true);
-    expect(await present(page, "button[aria-label='View options']")).toBe(true);
+    expect(await present(page, "fp-menu")).toBe(true);
     expect(await present(page, "button[aria-label='Search']")).toBe(false);
     const b = await boxes(page, [":host", "svg"]);
     expect(right(b["svg"]!)).toBeCloseTo(right(b[":host"]!), 0);
     expect(b["svg"]!.x).toBeCloseTo(b[":host"]!.x, 0);
   });
 
-  test("view_switch: false: no View options; the header keeps tabs and Search", async ({ page }) => {
+  test("view_switch: false: the menu has no look items; the header keeps tabs and Search", async ({ page }) => {
     await boot(page, { view_switch: false }, size);
-    expect(await present(page, "button[aria-label='View options']")).toBe(false);
+    // Moved premise (S31.6): the menu stays for Detail, Layers, Rotate and Reset; what the switch removes is the look items.
+    expect(await present(page, "fp-menu")).toBe(true);
+    for (const v of ["view:2d", "theme:light", "labels", "names"]) expect(await hasItem(page, v), v).toBe(false);
+    expect(await hasItem(page, "detail:auto")).toBe(true);
     expect(await present(page, ".fp-zoom")).toBe(false);
     expect(await present(page, "button[aria-label='Search']")).toBe(true);
   });
 
-  test("rotate_switch alone: the rotate buttons are in the cluster (S31.6 moves them into the menu)", async ({ page }) => {
+  test("rotate_switch alone: the header has no menu; the rotate items are in the cluster's menu (S31.6; they were buttons in the stack)", async ({ page }) => {
     await boot(page, { view_switch: false, zoom: false, rotate_switch: true }, size);
-    expect(await present(page, "button[aria-label='View options']")).toBe(false);
-    expect(await present(page, ".fp-stack button[aria-label='Rotate left']")).toBe(true);
-    expect(await present(page, ".fp-stack button[aria-label='Rotate right']")).toBe(true);
+    // Moved premise: with view_switch off Detail, Layers, Rotate and Reset stay, so the header's menu is there after all.
+    expect(await present(page, ".fp-stack")).toBe(false);
+    expect(await present(page, ".fp-stack button[aria-label='Rotate left']")).toBe(false);
+    expect(await hasItem(page, "rotate:-1")).toBe(true);
+    expect(await hasItem(page, "rotate:1")).toBe(true);
   });
 
   test("zoom: false: no zoom buttons, the header and the sheet stay", async ({ page }) => {
@@ -292,15 +298,19 @@ test.describe("S31.5 criterion 9: the old keys in the new frame", () => {
     expect(await present(page, ".fp-head")).toBe(true);
   });
 
-  test("View options opens today's toolbar in a plain box and closes again", async ({ page }) => {
+  test("View options opens the menu in a popover over the plan and closes again", async ({ page }) => {
     await boot(page, {}, size);
-    const open = () => card(page).evaluate((el) => { const t = el.shadowRoot!.querySelector<HTMLElement>(".fp-zoom"); return !!t && getComputedStyle(t).display !== "none" && t.getBoundingClientRect().width > 0; });
-    expect(await open()).toBe(false);
-    expect(await card(page).evaluate((el) => el.shadowRoot!.querySelector("button[aria-label='View options']")!.getAttribute("aria-expanded"))).toBe("false");
-    await clickOn(page, "button[aria-label='View options']");
-    expect(await open()).toBe(true);
-    expect(await card(page).evaluate((el) => el.shadowRoot!.querySelector("button[aria-label='View options']")!.getAttribute("aria-expanded"))).toBe("true");
-    await clickOn(page, "button[aria-label='View options']");
-    expect(await open()).toBe(false);
+    // Moved premise: it used to unfold the old toolbar in a plain box; the menu is a popover on purpose (it must not push the plan).
+    const planBefore = (await boxes(page, ["svg"]))["svg"]!;
+    await expect(menuPanel(page)).toHaveCount(0);
+    await expect(menuButton(page)).toHaveAttribute("aria-expanded", "false");
+    await menuButton(page).click();
+    await expect(menuPanel(page)).toBeVisible();
+    await expect(menuButton(page)).toHaveAttribute("aria-expanded", "true");
+    const planOpen = (await boxes(page, ["svg"]))["svg"]!;
+    expect(planOpen).toEqual(planBefore);
+    await menuButton(page).click();
+    await expect(menuPanel(page)).toHaveCount(0);
+    await expect(menuButton(page)).toHaveAttribute("aria-expanded", "false");
   });
 });

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { closeOptions, openOptions } from "./options-helper";
+import { hasItem, menuButton, menuPanel, openMenu, pick } from "./menu-helper";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
@@ -529,63 +529,44 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await calls(page)).toEqual([]);
   });
 
-  test("the View select sits clear of the zoom buttons, picks 2.5D in a real browser, and a real click on a light still toggles it", async ({ page }) => {
+  test("the View menu button sits clear of the zoom buttons, picks 2.5D in a real browser, and a real click on a light still toggles it", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const flat = await viewBox(page);
-    const sel = card(page).locator('css=.fp-zoom select[aria-label="View"]');
-    await expect(sel).toBeHidden(); // S31.5: the look controls wait in View options
-    await openOptions(page);
-    await expect(sel).toBeVisible();
-    const s = (await sel.boundingBox())!;
+    await expect(menuPanel(page)).toHaveCount(0); // S31.6: the look controls wait in the ⋯ menu, closed
+    await expect(menuButton(page)).toBeVisible();
+    const m = (await menuButton(page).boundingBox())!;
     const z = (await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').boundingBox())!;
-    // S31.5: the box and the zoom buttons are one column (cluster) now, not two toolbars side by side: the select is above the buttons, not over them.
-    expect(s.y + s.height).toBeLessThanOrEqual(z.y + 0.5);
-    expect(Math.abs(s.height - z.height)).toBeLessThan(2); // same row height
+    // S31.6: the menu button is in the header, the zoom buttons in the cluster on the stage: the button is above them, not over them.
+    expect(m.y + m.height).toBeLessThanOrEqual(z.y + 0.5);
 
-    await sel.selectOption("2.5d");
+    await pick(page, "view:2.5d");
     expect(await card(page).locator("css=svg .ws").count()).toBeGreaterThan(0);
     expect((await viewBox(page)).h).toBeGreaterThan(flat.h); // the lift widened the box
-    await closeOptions(page); // S31.5: the open box floats over the stage's corner, where a light may be
+    await expect(menuPanel(page)).toHaveCount(0); // a pick closes the menu, so it is not left over the stage's corner, where a light may be
     const l = await lightAt(page);
     await page.mouse.click(l.x, l.y);
     await popupDo(page);
     expect((await calls(page)).length).toBe(1); // a tap where the (lifted) icon is drawn reaches it
 
-    await openOptions(page);
-    await sel.selectOption("2d");
+    await pick(page, "view:2d");
     expect(await card(page).locator("css=svg .ws").count()).toBe(0);
     expect(await viewBox(page)).toEqual(flat);
   });
 
-  test("the Tilt slider shows only in 2.5D, a real mouse drag across it redraws the walls and the box", async ({ page }) => {
+  test("the Tilt steps show only in 2.5D, a real click on a step redraws the walls and the box", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-    const slider = card(page).locator('css=.fp-zoom input[aria-label="Tilt"]');
-    await expect(slider).toHaveCount(0);
-    await openOptions(page);
-    await card(page).locator('css=.fp-zoom select[aria-label="View"]').selectOption("2.5d");
-    await expect(slider).toBeVisible();
-    const s = (await slider.boundingBox())!, sel = (await card(page).locator('css=.fp-zoom select[aria-label="View"]').boundingBox())!;
-    expect(s.x).toBeGreaterThanOrEqual(sel.x + sel.width - 0.5); // beside the select, not over it
-    expect(await slider.evaluate((el) => getComputedStyle(el).width)).toBe("72px"); // CSS pair: the rule reaches the pixel, not just the string
+    expect(await hasItem(page, "tilt:1")).toBe(false);
+    await pick(page, "view:2.5d");
+    expect(await hasItem(page, "tilt:1")).toBe(true);
     const wall = () => card(page).locator("css=svg .ws").first().getAttribute("points");
     const before = await wall(), boxBefore = await viewBox(page);
-    // Real pointer: grab the thumb at its middle (0.5) and drag to the right end.
-    const y = s.y + s.height / 2;
-    await page.mouse.move(s.x + s.width / 2, y);
-    await page.mouse.down();
-    await page.mouse.move(s.x + s.width + 10, y, { steps: 5 });
-    await page.mouse.up();
-    expect(Number(await slider.inputValue())).toBeCloseTo(1, 1);
+    await pick(page, "tilt:1");
     expect(await wall()).not.toBe(before);
     expect((await viewBox(page)).y).toBeLessThan(boxBefore.y); // steeper: the box reaches higher
-    // And all the way left: no lift, the faces collapse onto their base line.
-    await page.mouse.move(s.x + s.width - 8, y);
-    await page.mouse.down();
-    await page.mouse.move(s.x - 10, y, { steps: 5 });
-    await page.mouse.up();
-    expect(Number(await slider.inputValue())).toBeCloseTo(0, 1);
+    // And the flattest step: no lift, the faces collapse onto their base line.
+    await pick(page, "tilt:0");
     expect(Math.abs((await viewBox(page)).y - boxBefore.y)).toBeGreaterThan(0.5);
   });
 
@@ -653,7 +634,7 @@ test.describe("S7.4 zoom and pan", () => {
     await page.mouse.dblclick(b.x + 8, b.y + 8);
     await page.waitForTimeout(50);
     expect(await viewBox(page)).toEqual(fit);
-    await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
+    await expect(card(page).locator("css=.fp-stack")).toHaveCount(0); // S31.6: the old .fp-zoom toolbar; the stack is what zoom: false removes
 
     // Diego field report, 0.12.14: "make the card always draggable" — `zoom: false` turns off pinch, wheel and the
     // buttons, not the one-finger pan, so `touch-action` stays `pan-y` (the same value the zoomable card starts
@@ -732,21 +713,31 @@ test.describe("S7.4 zoom and pan", () => {
     expect(await viewBox(page)).toEqual(fit);
   });
 
-  test("the zoom buttons read at 3:1 or better against their own background in all seven themes", async ({ page }) => {
+  test("the zoom buttons, the menu button and the open menu's items read at 3:1 or better against their own background in all seven themes", async ({ page }) => {
     await open(page);
     for (const theme of ["blueprint", "midnight", "light", "slate", "terminal", "solarized", "ha"]) {
       for (const dark of [false, true]) {
         await configure(page, { layout: structuredClone(demo), theme }, { states: {}, themes: { darkMode: dark } });
-        const got = await card(page).evaluate((el) =>
-          [...el.shadowRoot!.querySelectorAll(".fp-zoom button, .fp-stack button")].map((btn) => {
+        // S31.6: the stack has Zoom in, Zoom out and Fit. Rotate, Reset view, Labels, Device names and Floor below are menu items now, so
+        // the menu's own button, its panel, an idle item and the focused item are held to the same contrast.
+        const stack = await card(page).evaluate((el) =>
+          [...el.shadowRoot!.querySelectorAll(".fp-stack button")].map((btn) => {
             const s = getComputedStyle(btn);
-            return { bg: s.backgroundColor, fg: s.color, vis: s.visibility, disp: s.display };
+            return { bg: s.backgroundColor, fg: s.color, disp: s.display };
           }),
         );
-        // Zoom in, out, Fit, plus the rotate pair, the labels and device names toggles and Reset view, and the Floor below ghost toggle
-        // (all share the zoom bar): all nine must read, so the new ones are held to the same contrast.
-        expect(got.length, `${theme} dark=${dark}`).toBe(9);
-        for (const g of got) {
+        expect(stack.length, `${theme} dark=${dark}`).toBe(3);
+        await openMenu(page);
+        const menu = await card(page).evaluate((el) => {
+          const root = el.shadowRoot!.querySelector("fp-menu")!.shadowRoot!;
+          const read = (e: Element, bg: Element = e) => ({ bg: getComputedStyle(bg).backgroundColor, fg: getComputedStyle(e).color, disp: getComputedStyle(e).display });
+          const panel = root.querySelector('[role="menu"]')!;
+          const items = root.querySelectorAll('[role^="menuitem"]');
+          // The first item has focus on open (inverted: ink on its own fill); the second is idle (ink on the panel).
+          return [read(root.querySelector(".btn")!), read(panel), read(items[1]!, panel), read(items[0]!)];
+        });
+        expect(menu.length).toBe(4);
+        for (const g of [...stack, ...menu]) {
           expect(g.disp).not.toBe("none");
           expect(ratio(rgbOf(g.bg), rgbOf(g.fg)), `${theme} dark=${dark}`).toBeGreaterThanOrEqual(3);
         }
@@ -1175,11 +1166,13 @@ test.describe("S7.5 kiosk mode", () => {
     await open(page);
     await configure(page, { layout: structuredClone(demo), floors: ["ground", "first"], kiosk: true }, { states: states() });
     await expect(card(page).locator("css=.fp-floors")).toHaveCount(0);
-    await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
+    await expect(card(page).locator("css=.fp-stack")).toHaveCount(0);
+    await expect(card(page).locator("fp-menu")).toHaveCount(0); // S31.6: the old .fp-zoom toolbar is the header menu
 
     await configure(page, { layout: structuredClone(demo), floors: ["ground", "first"] }, { states: states() });
     await expect(card(page).locator("css=.fp-floors")).toHaveCount(1);
-    await expect(card(page).locator("css=.fp-zoom")).toHaveCount(1);
+    await expect(card(page).locator("css=.fp-stack")).toHaveCount(1);
+    await expect(card(page).locator("fp-menu")).toHaveCount(1);
   });
 
   test("a hold of HOLD_MS + 100 on a light fires no hass-more-info under kiosk, and does otherwise", async ({ page }) => {
