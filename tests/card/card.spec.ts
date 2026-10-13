@@ -1474,7 +1474,9 @@ test.describe("S8.3: in HA's panel view the plan fits the screen", () => {
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
     const before = await svgBox(page);
-    expect(before.height).toBeGreaterThan(400 - 56); // the bug: taller than the screen
+    // S31.7: the card in an auto-height parent is cut to the screen (below HA's header, less 16 px) before the panel view
+    // ever bounds it, so "taller than the screen" no longer shows without the panel: the card ends above the window's bottom.
+    expect((await card(page).boundingBox())!.height).toBeLessThanOrEqual(400 - 56 - 16 + 0.5);
     await card(page).evaluate((el) => { (el as unknown as { layout: string }).layout = "panel"; });
     await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(400 - 56 - 52, 0); // S31.5: the card is what is capped, the plan is the card minus the 52 px header
     expect((await card(page).boundingBox())!.height).toBeCloseTo(400 - 56, 0);
@@ -1665,6 +1667,9 @@ test("S8.11 fix (blocker, card): a wall far from the origin, seen through a zoom
 // zoomed-in view, so the entire wall group under the mask is erased and this pixel reads as room fill instead.
 
 test("S8.11 fix (blocker, card): a floor offset by +5000 still shows its walls", async ({ page }) => {
+  // S31.7: a tall window. The card is cut to the screen now, so in the default 720 px one the plan is drawn smaller and the
+  // probe pixel falls where the wall's edge blends; the pixel is read on the plan at the size this test was written for.
+  await page.setViewportSize({ width: 1280, height: 1100 });
   await open(page);
   const layout = structuredClone(demo);
   layout.floors.first = shiftFirstFloor(layout.floors.first, 5000, 5000);
@@ -1757,6 +1762,8 @@ function bigLayout() {
 }
 
 test("S9.2: a real click still hits the icon on a 2000 cm plan, drawn at 2x", async ({ page }) => {
+  // S31.7: a tall window, so the card is not cut to the screen and the plan is the size the 30 px bound was set for.
+  await page.setViewportSize({ width: 1280, height: 1100 });
   await open(page);
   const layout = bigLayout();
   await configureWithCallServiceSpy(page, { layout, floor: "big" }, { "light.demo_big": { state: "off", attributes: {}, last_changed: new Date().toISOString() } });

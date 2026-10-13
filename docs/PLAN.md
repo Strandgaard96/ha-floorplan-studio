@@ -3907,7 +3907,7 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       S12, S25.8 and S24.8 specs that drove the old controls now drive the menu); `view-parity.spec.ts` passes.
       Files: `src/card/floorplan-studio-card.ts`, `docs/card.md`, `tests/card/card-menu.spec.ts` (new),
       `tests/card/view-parity.spec.ts`, the specs of the old controls.
-- [ ] S31.7 Fit to height (Sonnet). The host's height from `cardHeight`, read from `visualViewport` and HA's
+- [x] S31.7 Fit to height (Sonnet). The host's height from `cardHeight`, read from `visualViewport` and HA's
       `--header-height`; a resize recomputes. Sections rows and `:host([panel])` unchanged. Test, failing first:
       criterion 4, on the demo and the stress house at 1024 x 768, 768 x 1024 and 390 x 844; a sections-like parent
       with a fixed height gives the 0.28.1 box; a panel-view host gives it too.
