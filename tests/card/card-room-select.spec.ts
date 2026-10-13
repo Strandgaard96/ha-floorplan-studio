@@ -81,6 +81,9 @@ async function iconPoint(page: Page, i: number) {
 }
 /** A point of the plan's own svg that is no room, door or device: bare background. */
 async function backgroundPoint(page: Page) {
+  // S31.8: a phone sheet rises over 0.2 s and covers part of the plan; a point read mid-rise is under the sheet when the finger lands.
+  let last = -1, same = 0;
+  await expect.poll(async () => { const b = await card(page).locator("css=.fp-active").boundingBox(); const h = b ? b.height : 0; same = Math.abs(h - last) < 0.01 ? same + 1 : 0; last = h; return same; }, { timeout: 4000 }).toBeGreaterThanOrEqual(3);
   const p = await card(page).evaluate((el) => {
     const svg = el.shadowRoot!.querySelector("svg")!, r = svg.getBoundingClientRect();
     for (let y = r.bottom - 4; y > r.top; y -= 6) for (let x = r.left + 4; x < r.right; x += 6) if (el.shadowRoot!.elementFromPoint(x, y) === svg) return { x, y };
