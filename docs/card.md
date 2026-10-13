@@ -245,10 +245,12 @@ across the room.
 
 ## Studio and card
 
-The card lays its controls out like the studio: one vertical stack on the plan (+, −, Fit,
-rotate left, rotate right, Reset view) under a horizontal toolbar that keeps the look
-controls (View, Tilt, Walls, Theme, Labels, Names). On a card too short for the column
-the stack lays out as a row under the floor chips.
+The card keeps a small zoom cluster on the plan (+, −, Fit; Reset camera in 3D) and puts
+everything about how the plan looks in the header's ⋯ menu ("View options"): View, Tilt,
+Walls, Floor below, Theme, Labels, Device names, Detail, Layers, Rotate left, Rotate right
+and Reset view. Each item writes what the old control wrote, into the same view memory.
+`view_switch: false` drops the look items and keeps Detail, Layers, Rotate and Reset; a
+kiosk has no menu, except that `rotate_switch: true` shows one with Rotate and Reset.
 
 "Everything you do in the studio you can do in the card", for **viewing**. Each
 control of the editor's View menu, its zoom group and its Layers tab, and what
@@ -257,24 +259,24 @@ editor and fails on a control that has no row here, so a new one gets a decision
 
 | Studio control | In the card | Why |
 |---|---|---|
-| `#labelsSub` Labels submenu | yes | holds the two rows below; the card's Labels and Device names buttons |
-| `#labels` Names and values | yes | the Labels toggle |
-| `#names` Names | yes | the Device names toggle (`Aa`), config `names` |
-| `#thSub` Theme | yes | the Theme dropdown |
+| `#labelsSub` Labels submenu | yes | holds the two rows below; the Labels and Device names items of the ⋯ menu |
+| `#labels` Names and values | yes | the Labels item of the ⋯ menu |
+| `#names` Names | yes | the Device names item of the ⋯ menu, config `names` |
+| `#thSub` Theme | yes | the Theme radios of the ⋯ menu |
 | `#fit` Fit to window | yes | the Fit button (Home view on a pinned card) |
 | `#recenter` Re-center | yes | the same Fit button |
-| `#zin` `#zout` Zoom | yes | the + and − buttons, first in the stack, the Up and Down keys, pinch and wheel |
-| `#zreset` Reset view | yes | the Reset view button, last in the stack, and Space |
-| `#vrotl` `#vrotr` Rotate view | yes | the two rotate buttons in the stack and the Left and Right keys |
+| `#zin` `#zout` Zoom | yes | the + and − buttons in the cluster, the Up and Down keys, pinch and wheel |
+| `#zreset` Reset view | yes | the Reset view item of the ⋯ menu, and Space |
+| `#vrotl` `#vrotr` Rotate view | yes | the Rotate left and Rotate right items of the ⋯ menu (and the Left and Right keys) |
 | `#snap` Snap grid | no | an editing aid: a viewer places nothing |
 | `#mgrid` Measure grid | no | an editing aid, drawn by the editor over the plan, not by `renderFloor` |
 | `#lens` Lengths | no | an editing aid |
-| `#ghostFloor` Floor below | yes | the Floor below button in the view controls (2D and 2.5D), kept per viewer; config `ghost_floor`. In 3D the same choice is the Floors below select (off, ghost, solid); config `floors_below` |
+| `#ghostFloor` Floor below | yes | the Floor below item of the ⋯ menu (2D and 2.5D), kept per viewer; config `ghost_floor`. In 3D the same choice is the Floors below radios (off, ghost, solid); config `floors_below` |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
-| `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail button beside Layers in the Overview, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |
-| `#tabLayers` Layers (hide a family) | yes | the Layers button in the Overview unfolds a text chip per family: a click hides it, Alt-click shows it alone; kept per viewer. Not in 3D |
-| Plan view, Tilt, Walls | card only | the View dropdown, the Tilt slider and the Walls select. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
+| `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail radios of the ⋯ menu, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |
+| `#tabLayers` Layers (hide a family) | yes | the Layers section of the ⋯ menu has a check per family: a pick hides it, Alt-click shows it alone; kept per viewer. Not in 3D |
+| Plan view, Tilt, Walls | card only | the View radios, the Tilt presets (flat to steep) and the Walls radios of the ⋯ menu. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
 | Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
 Also the same in both: the floor switcher (chips and tabs), pan and zoom by

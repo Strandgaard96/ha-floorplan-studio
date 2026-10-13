@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.6 the ⋯ menu holds the look (Sonnet)
+
+`<fp-menu>` replaces the View options box, the toolbar, the Layers and Detail buttons and the stack's rotate and reset. Items are named by a `data-value` (`view:2.5d`, `tilt:0.25`, `layer:lights`, `rotate:1`, `reset`), which tests use; the accessible names follow the spec. Judgement calls:
+- Tilt was a slider; it is five radio presets (0, 0.25, 0.5, 0.75, 1). A slider does not belong in a menu, and a touch user hits a preset.
+- Layers and Detail keep their old availability (an active list on a floor, not in 3D). The Layers section label is constant: the "N hidden" count is gone, the checks say it. The "Hidden by Layers ... Show" note stays in the Overview, since it explains a lamp drawn alone.
+- Alt-click on a layer still shows that family alone: `fp-menu-pick` carries `alt`.
+- `view_switch: false` drops View, Tilt, Walls, Theme, Labels, Device names and Floor below; Detail, Layers, Rotate and Reset stay. A kiosk has no header, so no menu; with `rotate_switch: true` a menu with only Rotate and Reset sits in the cluster. No menu when no section is left.
+- The menu is a popover on purpose: opening it never moves the plan. The old fold-button premise (the box pushed the panel down) was moved, not weakened.
+- Keys: the menu takes ArrowDown, ArrowUp and Space while open (the card ignores a `defaultPrevented` key); ArrowRight and + still reach the card.
+- Dropped assertions, with the control they described: the 28 versus 32 px row height, the Tilt slider's 72 px width, the "N hidden" label. K4 now passes and lost its `test.fail`; K2 on a phone stays marked (the sheet still covers the lit lamp, S31.8).
+Studio parity: no twin. The editor keeps its own View menu; the card gets the same choices in its own menu, and `view-parity.spec.ts` ties the two (items by `data-value`).
 ## 2026-10-13: S31.5 the chrome around the plan (Sonnet)
 
 The card host is a grid (`"head head" "sheet stage"`); the reasoning is in the comment block above the class in `src/card/floorplan-studio-card.ts`. Decisions made on the way:
