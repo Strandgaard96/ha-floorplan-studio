@@ -44,6 +44,8 @@ export interface PopupView {
   key(e: KeyboardEvent): void;
   /** `input` moves the shown value only; `change` (a release) is the one service call. */
   slide(kind: SliderKind, value: number, commit: boolean): void;
+  /** S31.8: drawn in the phone's bottom sheet (the Device level), not floating: no absolute position, no border. */
+  inSheet?: boolean;
 }
 
 export const POPUP_CSS = css`
@@ -97,7 +99,7 @@ export function popupTemplate(v: PopupView) {
     : v.confirming && v.op?.confirm
       ? html`<div class="fp-pop-confirm"><button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${v.op.confirm}</button><button type="button" class="fp-pop-cancel" @click=${v.cancel}>Cancel</button></div>`
       : html`<button type="button" class="fp-pop-primary fp-pop-do" @click=${v.act}>${label}</button>`;
-  return html`<div class="fp-pop" role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
+  return html`<div class=${v.inSheet ? "fp-pop fp-pop-sheet" : "fp-pop"} role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
     <div class="fp-pop-name">${s.name}</div>
     <div class="fp-pop-state">${v.text}</div>
     ${v.caps && (v.caps.brightness || v.caps.temp || v.caps.hue) ? html`<div class="fp-pop-sliders">

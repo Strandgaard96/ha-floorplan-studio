@@ -137,8 +137,18 @@ async function tapAt(page: Page, p: { x: number; y: number }) {
 export async function tapRole(page: Page, role: string, name: string | RegExp) {
   const label = `${role} "${name}"`;
   const script = `(() => { ${FINDER} ${POINT_FN} const found = ${findScript(role, matcher(name))}; if (found.length === 0) return { missing: true }; if (found.length > 1) return { many: found.length }; const p = pointOn(found[0]); return p ? { p } : { covered: true }; })()`;
-  let res: { missing?: boolean; many?: number; covered?: boolean; p?: { x: number; y: number } } = {};
-  await expect.poll(async () => { res = await page.evaluate(script); return res.p ? "ready" : res.missing ? "missing" : res.many ? "many" : "covered"; }, { message: `${label} in the card`, timeout: 3000 }).toBe("ready");
+  type Probe = { missing?: boolean; many?: number; covered?: boolean; p?: { x: number; y: number } };
+  let res: Probe = {};
+  // S31.8: a sheet slides for 0.2 s when it opens, so a point read now may be elsewhere when the finger lands. Ready means the same
+  // point twice, two animation frames apart; a finger waits for a control to hold still, as a person does.
+  await expect.poll(async () => {
+    const a: Probe = await page.evaluate(script);
+    if (!a.p) { res = a; return a.missing ? "missing" : a.many ? "many" : "covered"; }
+    await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+    const b: Probe = await page.evaluate(script);
+    res = b;
+    return b.p && Math.abs(b.p.x - a.p.x) < 0.5 && Math.abs(b.p.y - a.p.y) < 0.5 ? "ready" : "moving";
+  }, { message: `${label} in the card`, timeout: 3000 }).toBe("ready");
   await tapAt(page, res.p!);
 }
 

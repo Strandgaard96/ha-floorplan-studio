@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.8 the phone bottom sheet (Sonnet)
+
+Under 640 px the Overview is a bottom sheet; the floating panel and its dock logic are removed. Judgement calls:
+- Levels are derived, not stored: Overview (nothing picked), Floor (`_pickedFloor`), Room (`_pickedRoom`), Device (the popup, drawn inside the sheet). Only the stop (peek, half, full) is new state. A pick raises the sheet to half; Search raises it to full; Back and Escape step up one level, and from the Overview at half or full go to peek.
+- The drag writes the height straight to the element (no render per move) and ends through `snapSheet`. The velocity is the last 100 ms of the drag, floored at a 16 ms span, so a mouse that pauses before it lifts has none and snaps to the nearest stop. A tap is the click, so Enter and Space work; a drag swallows its own click. The handle element is never replaced, so a `hass` update mid-drag keeps the capture, and the render repaints the same height.
+- Pan to visible is measured on screen after the render: the target's box against the plan above the sheet (stage top to the sheet's top at the new stop). If outside, the view pans by the pixel difference. A view at fit cannot pan (`clamp` hands fit back), so it gets a 0.1 % zoom first, invisible.
+- The stage reserves the 64 px peek as a grid row; half and full overlay the plan. The card's fitted height counts the peek.
+- The handle's accessible name is fixed ("Overview") whatever the level; the region carries the level's name.
+- 2.5D/3D: the camera inset (room for a floating panel) is skipped in the bottom frame; the sheet covers the lower plan and the pan reaches the room. Not tested beyond a render check.
+- Studio parity: no twin. The sheet is card chrome; the Studio editor has no overview.
+
 ## 2026-10-13: S31.7 fit to height (Sonnet)
 
 The host's inline `height` is set from `cardHeight` (frame.ts) when its parent has no height of its own. Judgement calls:

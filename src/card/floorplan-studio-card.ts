@@ -16,7 +16,7 @@ import { defineElement } from "./define";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, viewKeyFor, type ViewKey } from "./view-keys";
-import { HEADER_H, cardHeight, frameMode, sideOpenByDefault, sideWidth, type FrameMode } from "./frame";
+import { HEADER_H, PEEK_H, cardHeight, frameMode, nextOnHandleTap, sheetStops, sideOpenByDefault, sideWidth, snapSheet, type FrameMode, type SheetStop, type Stops } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
 import "./search-box";
 // S31.6: <fp-menu>, the header's ⋯: everything about how the plan looks.
@@ -261,6 +261,33 @@ let focusedCard: FloorplanStudioCard | null = null;
  * expected the plan to be the card measures the stage. The drag tests became "a stored position is ignored" and "the
  * head moves nothing". Each one is listed in the S31.5 commit message and the report.
  */
+/*
+ * S31.8: the phone bottom sheet (D2, criterion 6). JUDGEMENT: the drag and the pan-to-visible. Why each is the way it is.
+ *
+ * Under 640 px the Overview is one sheet along the bottom of the card, three stops (frame.ts: peek 64, half, full). The peek
+ * has a row of its own in the grid (`--fp-peek-row`), so the plan ends where the peek starts: at rest nothing is over the plan.
+ * Half and full lie over it, on purpose, and the plan is panned so what the sheet opened for stands in what is left.
+ *
+ * The levels (Overview, Floor, Room, Device) are not a new state: they are what the card already holds (`_pickedFloor`,
+ * `_pickedRoom`, `_popup`). The Device level is the popup, drawn in the sheet instead of floating. So a tap, a locate, a row,
+ * the search and the keyboard all reach the same code as on a tablet, and only where it is drawn differs. `active_list: false`
+ * and kiosk have no sheet, so the popup floats there on every width, as before.
+ *
+ * The drag. The handle takes the pointer (`setPointerCapture`) and the sheet's height follows the finger one to one, written
+ * straight into the element's style: a re-render per move would redraw the whole plan sixty times a second. The render reads
+ * the same number (`_sheetDrag`), so a `hass` update in the middle of a drag repaints the same height, and the handle element
+ * is never replaced, so the capture holds. The release goes to `snapSheet` with the velocity of the last 100 ms of the drag: a
+ * finger that stopped before it lifted has no velocity, however fast it came. A press that never moved 6 px is a tap, which
+ * is the click that follows (so Enter and Space on the handle work too); a drag that moved swallows the click it ends with.
+ * Reduced motion: no transition, the height jumps.
+ *
+ * The pan. After a render that opened the sheet for a room or a thing (`_panTarget`), the thing's own box is measured on screen
+ * and, if it is not wholly inside the part the sheet at its new stop leaves, the plan is moved by the pixel difference that
+ * puts its centre in the middle of that part. Measured, not computed from plan coordinates, so a turned plan, a letterboxed
+ * plan and any zoom give the same answer; the box that is wanted is the stop's height, not the animating one, so it is right
+ * at once. A thing already in view stays where it is. In 3D there is nothing to pan, and the camera is not inset (it was, for
+ * a floating panel): the sheet is lower than the house.
+ */
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
@@ -270,7 +297,7 @@ export class FloorplanStudioCard extends LitElement {
        fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
        the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
        than cropped or stretched. */
-    :host { display: grid; grid-template-columns: var(--fp-sheet-w, 0px) minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "head head" "sheet stage"; position: relative; height: 100%; }
+    :host { display: grid; grid-template-columns: var(--fp-sheet-w, 0px) minmax(0, 1fr); grid-template-rows: auto 1fr var(--fp-peek-row, 0px); grid-template-areas: "head head" "sheet stage" "peek peek"; position: relative; height: 100%; }
     /* S8.3: hui-panel-view gives the card no definite height either, so the plan grew by width past the bottom of
        the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
     :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
@@ -368,14 +395,27 @@ export class FloorplanStudioCard extends LitElement {
     .fp-active-row svg { width: 16px; height: 16px; flex: 0 0 16px; fill: var(--fp-active-row-color, var(--fp-ink)); }
     .fp-active-empty { margin: 4px 2px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* S11.3/S11.4: the room section and the details under a row. Same card chrome and tokens as the list above. */
-    .fp-active.fp-room-open { width: min(260px, 70%); }
-    /* S14 review: on a card narrower than ACTIVE_FOLD_BELOW_PX an open room panel is a short sheet, not a column down the card: at most 45% of the card high, its body scrolling, and docked on the half opposite the picked room (class set in _positionActivePanelNow) so that room stays in view. */
-    .fp-active.fp-sheet { max-height: 45%; }
-    .fp-active.fp-sheet.fp-dock-bottom { top: auto; bottom: 8px; }
     /* S31.5: from 640 px the Overview is the side sheet: the whole sheet cell of the grid, beside the plan, not over it.
        It is absolute inside its cell (inset 0), so a long list scrolls in the body and never makes the card taller. */
     .fp-active.fp-side { inset: 0; width: auto; max-width: none; max-height: none; border-radius: 0; border-width: 0 1px 0 0; box-shadow: none; z-index: 0; grid-area: sheet; }
-    .fp-active.fp-side .fp-active-body { flex: 1 1 auto; min-height: 0; }
+    .fp-active.fp-side .fp-active-body, .fp-active.fp-bottom .fp-active-body { flex: 1 1 auto; min-height: 0; }
+    /* S31.8: the phone's sheet: along the bottom, over the plan above its 64 px peek (the peek has its own grid row). The stops are
+       lengths on the host (\`_measureFrame\`); a drag writes the height inline, with the transition off. Reduced motion: it jumps. */
+    .fp-active.fp-bottom { grid-area: 1 / 1 / -1 / -1; inset: auto 0 0 0; width: auto; max-width: none; max-height: none; box-sizing: border-box; border-radius: 12px 12px 0 0; border-width: 1px 0 0; z-index: 2; height: var(--fp-sheet-peek, 64px); transition: height 0.2s ease; }
+    .fp-active.fp-bottom[data-stop="half"] { height: var(--fp-sheet-half, 50%); }
+    .fp-active.fp-bottom[data-stop="full"] { height: var(--fp-sheet-full, 100%); }
+    .fp-active.fp-bottom.fp-dragging { transition: none; }
+    @media (prefers-reduced-motion: reduce) { .fp-active.fp-bottom { transition: none; } }
+    .fp-sheet-top { flex: 0 0 64px; box-sizing: border-box; height: 64px; display: flex; align-items: stretch; }
+    .fp-sheet-top .fp-back { align-self: center; flex: 0 0 auto; margin-left: 4px; font-size: 18px; min-width: 40px; min-height: 40px; }
+    .fp-handle { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 0 12px; border: 0; background: transparent; color: inherit; font: 600 13px/1.2 var(--fp-font, system-ui, sans-serif); text-align: left; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .fp-handle:focus-visible { outline: 2px solid var(--fp-primary); outline-offset: -2px; }
+    .fp-grab { flex: 0 0 4px; width: 36px; height: 4px; border-radius: 2px; background: var(--fp-idle); }
+    .fp-handle-line { max-width: 100%; box-sizing: border-box; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fp-handle-line .fp-active-title { flex: none; }
+    .fp-handle-line .fp-ov-chips { flex: none; display: inline; }
+    .fp-handle-line .fp-ov-chips::before { content: " · "; }
+    .fp-pop.fp-pop-sheet { position: static; width: auto; max-height: none; border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 4px 4px 12px; }
     .fp-active.fp-rail { align-items: center; padding-top: 8px; }
     .fp-rail-open { position: relative; width: 36px; height: 36px; border: 1px solid var(--fp-idle); border-radius: 8px; background: var(--fp-bg); color: var(--fp-ink); font: 14px/1 var(--fp-font, system-ui, sans-serif); cursor: pointer; }
     .fp-rail-count { position: absolute; top: -6px; right: -6px; min-width: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; background: var(--fp-warn); color: var(--fp-on-light); font: 600 11px/16px var(--fp-font, system-ui, sans-serif); text-align: center; }
@@ -393,11 +433,6 @@ export class FloorplanStudioCard extends LitElement {
     .fp-ov-chips { flex: 0 0 100%; font: 400 11px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     .fp-chip-warn { color: var(--fp-warn); font-weight: 600; }
     /* Folded, the header is one line so it covers as little plan as before S24.7; the crumb goes, the chips end in an ellipsis. */
-    .fp-active-folded .fp-active-head { flex-wrap: nowrap; }
-    .fp-active-folded .fp-active-title { flex: 0 0 auto; }
-    .fp-active-folded .fp-crumb { display: none; }
-    .fp-active-folded .fp-ov-chips { flex: 1 1 auto; order: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .fp-active-folded .fp-active-collapse { order: 2; }
     .fp-ov-search:empty { display: none; }
     /* S24.8: the search at the top of the sheet; its list drops over the rows below. */
     .fp-ov-search { margin: 2px 0 6px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); }
@@ -584,6 +619,14 @@ export class FloorplanStudioCard extends LitElement {
   /** S31.5: what the card's width gives it (frame.ts). Measured in `render()` and by the ResizeObserver; 0 wide (not laid
    * out) keeps the last answer. */
   private _frame: FrameMode = "bottom";
+  /** S31.8: the bottom sheet's stop. Not remembered: a cold card is at peek, and `setConfig` puts it back. */
+  private _sheetStop: SheetStop = "peek";
+  /** S31.8: a drag in flight. `h` is the sheet's height now, `trail` the last heights with their times (for the fling). */
+  private _sheetDrag: { id: number; y0: number; h0: number; h: number; moved: boolean; stops: Stops; trail: { t: number; h: number }[] } | null = null;
+  /** S31.8: a drag just ended on the handle; the click the browser sends after it is not a tap. */
+  private _dragEnded = false;
+  /** S31.8: the selector of what the sheet just opened for; the next `updated()` pans it above the sheet. */
+  private _panTarget: string | null = null;
   /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
    * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
    * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
@@ -802,6 +845,11 @@ export class FloorplanStudioCard extends LitElement {
     if (isSearchChord(ev)) { if (this._openSearch()) ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._popup) { this._closePopup(); ev.preventDefault(); return; }
     if (ev.key === "Escape" && this._spider) { this._foldSpider(); ev.preventDefault(); return; }
+    if (ev.key === "Escape" && this._frame === "bottom" && this._activeListVisible() && (this._pickedRoom || this._pickedFloor || this._sheetStop !== "peek")) {
+      this._back(); // S31.8: one level up, and from the Overview down to peek
+      ev.preventDefault();
+      return;
+    }
     if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
       this._pickRoom(null);
       ev.preventDefault();
@@ -1020,6 +1068,8 @@ export class FloorplanStudioCard extends LitElement {
     this._shownFloor = null;
     this._pickedRoom = null;
     this._pickedFloor = null;
+    this._sheetStop = "peek"; // S31.8: a new config starts the sheet over, at peek, on the Overview
+    this._panTarget = null;
     this._view = null;
     this._fallback3d = null;
     this._loadViewState();
@@ -1474,6 +1524,7 @@ export class FloorplanStudioCard extends LitElement {
     this._glidePeople();
     this._applyWidthDefault();
     this._positionActivePanel();
+    if (this._panTarget) this._panIntoVisible();
     // S24.8: the search box draws itself after this render; the panel grows by its height then, so place it again.
     const box = this.shadowRoot?.querySelector<HTMLElement & { hasUpdated: boolean; updateComplete: Promise<unknown> }>("fp-search");
     if (box && !box.hasUpdated) void box.updateComplete.then(() => this._positionActivePanel());
@@ -1775,7 +1826,7 @@ export class FloorplanStudioCard extends LitElement {
     const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active"), h = host.getBoundingClientRect();
     let left = 0, right = 0;
     // A folded list is a 36 px header: at phone width its box spans half the view, but it hides almost none of the house. Only an open one insets.
-    if (panel && h.width > 0 && panel.querySelector(".fp-active-body")) {
+    if (panel && this._frame !== "bottom" && h.width > 0 && panel.querySelector(".fp-active-body")) {
       const p = panel.getBoundingClientRect();
       if (p.width > 0 && p.height > 0) {
         if (p.left + p.width / 2 < h.left + h.width / 2) left = Math.max(0, Math.min(1, (p.right - h.left) / h.width));
@@ -1846,7 +1897,7 @@ export class FloorplanStudioCard extends LitElement {
     if (!this._popup) return;
     for (const n of e.composedPath()) {
       // Only what is in this card's own shadow tree counts as inside: an icon of another card must close this card's popup.
-      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-3d") || n.matches(`${THINGS}, button[data-x], [data-pop]`))) return;
+      if (n instanceof Element && n.getRootNode() === this.shadowRoot && (n.classList.contains("fp-pop") || n.classList.contains("fp-bottom") || n.classList.contains("fp-3d") || n.matches(`${THINGS}, button[data-x], [data-pop]`))) return;
     }
     this._closePopup();
   };
@@ -1932,6 +1983,7 @@ export class FloorplanStudioCard extends LitElement {
     if (piece) { const d = pieceDevice(piece); if (d) fireEvent(this, "hass-more-info", { entityId: d.entity }); }
     else if (device) this._openSubject(this._deviceSubject(device), point, from);
     else if (door) { const s = this._subjectOf({ door, index: ref.index }); if (s) this._openSubject(s, point, from); }
+    if (shows && (device || door) && this._popup) this._panTarget = this._thingSel(ref.what, ref.index); // S31.8: the plan goes to it, above the sheet
     this.requestUpdate();
   }
 
@@ -1946,7 +1998,7 @@ export class FloorplanStudioCard extends LitElement {
     const ring = this.shadowRoot?.querySelector<HTMLElement>(".fp-pulse");
     const p = this._pulse;
     if (!ring || !p) return;
-    const sel = p.what === "device" ? `svg g[data-x="${p.index}"]` : p.what === "piece" ? `svg g[data-f="${p.index}"]` : `svg line[data-d="${p.index}"]`;
+    const sel = this._thingSel(p.what, p.index);
     const el = p.floor === this._floorKey() ? this.shadowRoot?.querySelector(sel) : null;
     const r = el?.getBoundingClientRect(), h = this.getBoundingClientRect();
     if (!r || (r.width === 0 && r.height === 0)) { ring.hidden = true; return; }
@@ -1959,7 +2011,14 @@ export class FloorplanStudioCard extends LitElement {
 
   private _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
     const s = this._subjectOf(t);
-    if (s) this._openSubject(s, at, from);
+    if (!s) return;
+    this._openSubject(s, at, from);
+    if (this._popup?.s === s) this._panTarget = "device" in t ? this._thingSel("device", t.index) : "door" in t ? this._thingSel("door", t.index) : `svg g[data-u="${t.index}"]`;
+  }
+
+  /** The selector of a thing on the plan, as `_placePulse` finds it. */
+  private _thingSel(what: ThingRef["what"], index: number): string {
+    return what === "device" ? `svg g[data-x="${index}"]` : what === "piece" ? `svg g[data-f="${index}"]` : `svg line[data-d="${index}"]`;
   }
 
   /** Opens the popup, swaps it for another subject's, or closes it when the same subject is tapped again. Nothing is operated here. */
@@ -1968,6 +2027,7 @@ export class FloorplanStudioCard extends LitElement {
     this._hideTip();
     if (this._popup?.s.key === s.key) { this._closePopup(); return; }
     this._popup = { s, x: at.x, y: at.y, opener: from, confirming: false, draft: null };
+    this._sheetTo("half"); // S31.8: on a phone the popup is the Device level
     this.requestUpdate();
   }
 
@@ -2056,9 +2116,10 @@ export class FloorplanStudioCard extends LitElement {
     return s.lamp ? lampOp(s.lamp, this._hass?.states) : popupOp(s.type, s.entity, this._hass?.states[s.entity ?? ""]?.state);
   }
 
-  private _popupTemplate() {
+  /** The popup's markup: floating at the end of the card, or (`inSheet`) as the bottom sheet's Device level. Each caller asks for its place and gets nothing from the other. */
+  private _popupTemplate(inSheet = false) {
     const p = this._popup;
-    if (!p) return null;
+    if (!p || inSheet !== this._popupInSheet()) return null;
     const s = p.s, st = this._hass?.states[s.entity ?? ""], op = this._popupOp(s);
     const light = op !== null && s.entity?.startsWith("light.") && st?.state !== "off" ? true : op !== null && s.entity?.startsWith("light.");
     const caps = light ? lightCaps(st?.attributes) : null;
@@ -2076,6 +2137,7 @@ export class FloorplanStudioCard extends LitElement {
       more: () => this._popupMore(),
       key: (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); this._closePopup(); } },
       slide: (kind, value, commit) => this._popupSlide(kind, value, commit),
+      inSheet,
     });
   }
 
@@ -2122,7 +2184,7 @@ export class FloorplanStudioCard extends LitElement {
   /** After every render: the popup sits near where it was tapped, inside the card; focus goes to its button when it opens and back to what opened it when it closes. */
   private _syncPopup(): void {
     const key = this._popup?.s.key ?? null, el = this.shadowRoot?.querySelector<HTMLElement>(".fp-pop") ?? null;
-    if (this._popup && el) {
+    if (this._popup && el && !this._popupInSheet()) {
       const o = this._popup.opener;
       placeNear(el, this, this._popup.x, this._popup.y, 14, o?.isConnected && o.matches(".fp-active-row, fp-search") ? this._besideRect(o) : null);
     }
@@ -2425,16 +2487,29 @@ export class FloorplanStudioCard extends LitElement {
    *  pill again lets go. With the panel off (`active_list: false`) there is nowhere to show a floor, so it only switches, as a
    *  room tap does nothing there. Kiosk has no pills, so it never gets here. */
   private _tapFloorChip(key: string): void {
-    const letGo = this._pickedFloorKey() === key;
+    // S31.8: with the Device level open, a floor tab goes to the Floor level, one level up, even when it names the floor already picked.
+    const letGo = this._pickedFloorKey() === key && !(this._popup && this._popupInSheet());
     this._selectFloor(key);
     this._pickFloor(letGo || !this._activeListVisible() ? null : key);
   }
 
   /** S31.5, Back in the side sheet: a room goes up to its floor, a floor to the Overview. Focus follows to what is now on top. */
   private _back(): void {
+    if (this._popup && this._popupInSheet()) { this._closePopup(); return; } // S31.8: Device goes back to what was under it
     const room = this._pickedRoom;
+    if (this._frame === "bottom" && !room && !this._pickedFloor) { this._sheetStop = "peek"; this.requestUpdate(); return; }
     this._pickFloor(room && room.floor === this._floorKey() ? room.floor : null);
-    void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-active-collapse")?.focus());
+    void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-active-collapse, .fp-handle")?.focus());
+  }
+
+  /** S31.8: whether the popup is drawn in the bottom sheet (the Device level) and not floating: a card with a sheet, under 640 px. */
+  private _popupInSheet(): boolean {
+    return this._frame === "bottom" && this._activeListVisible() && !!this._layout;
+  }
+
+  /** S31.8: the sheet goes to `stop` when this card has a bottom sheet. */
+  private _sheetTo(stop: SheetStop): void {
+    if (this._frame === "bottom" && this._activeListVisible()) this._sheetStop = stop;
   }
 
   /** The key of the selected floor while it is the one shown, else null (a floor the config no longer lists means nothing). */
@@ -2447,6 +2522,7 @@ export class FloorplanStudioCard extends LitElement {
     this._pickedFloor = key;
     this._roomFilter = true;
     this._sceneAsk = null;
+    if (key !== null) this._sheetTo("half");
     this.requestUpdate();
   }
 
@@ -2463,38 +2539,10 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** Docks the floating panel of a narrow card (bottom mode, under 640 px: today's panel until S31.8) after each render and
-   * resize. Class changes only: nothing is dragged any more, so no position is stored or computed. The side sheet has no
-   * dock, it is a grid cell. */
+  /** After each render and resize: the 3D camera frames the house in what the side panel leaves. (The floating panel and its
+   * dock are gone: the side sheet is a grid cell and the bottom sheet sits below the house.) */
   private _positionActivePanel(): void {
-    this._positionActivePanelNow();
     this._apply3dInset();
-  }
-
-  private _positionActivePanelNow(): void {
-    const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active");
-    if (!panel) return;
-    if (this._frame === "side") { panel.classList.remove("fp-sheet", "fp-dock-bottom"); return; }
-    const sheet = panel.classList.contains("fp-room-open") && this.getBoundingClientRect().width < ACTIVE_FOLD_BELOW_PX;
-    panel.classList.toggle("fp-sheet", sheet);
-    // A sheet docks where it hides less of the picked room: at the top of the stage or at the bottom, whichever box
-    // overlaps the room's bounding box least. On a tie the dock away from the room's centre goes first.
-    let bottom = false;
-    if (sheet) {
-      const poly = this.shadowRoot?.querySelector("svg polygon.room-picked");
-      if (poly) {
-        const h = this.getBoundingClientRect(), r = poly.getBoundingClientRect();
-        const hidden = () => {
-          const p = panel.getBoundingClientRect();
-          return Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left)) * Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top));
-        };
-        const roomInUpperHalf = r.top + r.height / 2 - h.top < h.height / 2;
-        const order: boolean[] = roomInUpperHalf ? [true, false] : [false, true];
-        let least = Infinity;
-        for (const atBottom of order) { panel.classList.toggle("fp-dock-bottom", atBottom); const o = hidden(); if (o < least) { least = o; bottom = atBottom; } }
-      }
-    }
-    panel.classList.toggle("fp-dock-bottom", bottom);
   }
 
   /** S31.5: what the card's width gives it, from `frame.ts`: the side sheet from 640 px, the old floating panel under it, no
@@ -2503,14 +2551,20 @@ export class FloorplanStudioCard extends LitElement {
   private _measureFrame(): boolean {
     const width = this.getBoundingClientRect().width;
     if (!(width > 0)) return false;
-    const mode = frameMode(width, { kiosk: this._kiosk(), sheet: this._config?.active_list !== false });
+    const mode = frameMode(width, { kiosk: this._kiosk(), sheet: this._config?.active_list !== false }), was = this._frame;
     const sheetW = mode === "side" ? (this._sheetOpen() ? sideWidth(width) : HEADER_H) : 0;
     this.style.setProperty("--fp-sheet-w", `${sheetW}px`);
     this._sheetPx = sheetW;
+    this._frame = mode; // `_fitHeight` reads it: the peek is chrome on a phone
     this._fitHeight();
-    if (mode === this._frame) return false;
-    this._frame = mode;
-    return true;
+    // S31.8: the peek keeps a row of the grid to itself, and the three stops are the card's height now, as CSS lengths the sheet
+    // reads, so a resize moves the sheet without a render.
+    this.style.setProperty("--fp-peek-row", mode === "bottom" ? `${PEEK_H}px` : "0px");
+    if (mode === "bottom") {
+      const stops = sheetStops(this.getBoundingClientRect().height, HEADER_H);
+      for (const k of ["peek", "half", "full"] as const) this.style.setProperty(`--fp-sheet-${k}`, `${Math.round(stops[k])}px`);
+    }
+    return mode !== was;
   }
 
   /** The sheet column's width in px, as `_measureFrame` last set it: what the stage is short of the card's width. */
@@ -2537,7 +2591,7 @@ export class FloorplanStudioCard extends LitElement {
       width: width - this._sheetPx,
       viewportH: globalThis.visualViewport?.height ?? globalThis.innerHeight,
       haHeader: Number.isFinite(header) ? header : 56, // the same fallback `:host([panel])` uses
-      chrome: this._kiosk() ? 0 : HEADER_H,
+      chrome: this._kiosk() ? 0 : HEADER_H + (this._frame === "bottom" ? PEEK_H : 0),
       mode: this._frame,
     });
     this.style.height = this._fitted = `${Math.round(h)}px`;
@@ -2594,6 +2648,7 @@ export class FloorplanStudioCard extends LitElement {
     this._pickedFloor = null;
     this._roomFilter = true;
     this._sceneAsk = null;
+    if (this._pickedRoom) { this._sheetTo("half"); this._panTarget = "svg polygon.room-picked"; }
     this.requestUpdate();
   }
 
@@ -2846,46 +2901,165 @@ export class FloorplanStudioCard extends LitElement {
     const items = inScope(activeDevices(this._layout, state, opts)).filter((it) => !flagged.has(it.entity));
     const badge = all && many;
     const list = this._overviewList(attn, items, badge, summary && this._roomFilter ? scope.nothingOn : "Nothing on");
-    const folded = this._activeCollapsed && !summary;
     const crumb = summary ? (shown ? this._floorTitle(shown) : "") : all && many ? "All floors" : shown ? this._floorTitle(shown) : "";
-    // S31.5: from 640 px it is the side sheet (a cell of the grid, a 52 px rail when folded); under it the floating panel as before.
+    // S31.5: from 640 px it is the side sheet (a cell of the grid, a 52 px rail when folded); S31.8: under it, the bottom sheet.
     const side = this._frame === "side";
-    const cls = ["fp-active", side ? "fp-side" : "", summary ? "fp-room-open" : folded ? (side ? "fp-rail" : "fp-active-folded") : ""].filter(Boolean).join(" ");
-    if (side && folded) {
+    const name = summary ? summary.name || scope.unnamed : "Overview";
+    const content = () => summary
+      ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
+                <div class="fp-filtered">${list}</div>`, scope)
+      : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${this._searchEntries()} label="Search the plan" placeholder="Search rooms and devices" @fp-pick=${(e: CustomEvent<SearchEntry>) => this._onSearchPick(e)}></fp-search></div>
+                <div class="fp-ov-scopes">${this._floorOffButton()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
+                <div class="fp-ov-layers" data-slot="layers">${this._layerNote()}</div>
+                ${list}
+                <p class="fp-ov-hint">Tap a row: the plan goes to it.</p>`;
+    if (!side) return this._bottomSheet(name, crumb, summary !== null, this._chips(items, attn.items.length), content);
+    const folded = this._activeCollapsed && !summary;
+    const cls = ["fp-active", "fp-side", summary ? "fp-room-open" : folded ? "fp-rail" : ""].filter(Boolean).join(" ");
+    if (folded) {
       const n = attn.items.length;
       return html`<div class=${cls} role="region" aria-label="Overview">
         <button type="button" class="fp-rail-open" aria-label="Open overview" aria-expanded="false" title=${n ? `Open overview, ${n} ${n === 1 ? "alert" : "alerts"}` : "Open overview"} @click=${() => this._toggleActiveCollapsed()}>▸${n ? html`<span class="fp-rail-count">${n}</span>` : nothing}</button>
       </div>`;
     }
-    const foldLabel = side ? (this._activeCollapsed ? "Open overview" : "Fold overview") : this._activeCollapsed ? "Expand the overview" : "Collapse the overview";
-    return html`<div class=${cls} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
+    return html`<div class=${cls} role="region" aria-label=${name}>
       <div class="fp-active-head">
-        ${side && summary ? html`<button type="button" class="fp-back" aria-label="Back" title="Back" @click=${() => this._back()}>←</button>` : nothing}
+        ${summary ? html`<button type="button" class="fp-back" aria-label="Back" title="Back" @click=${() => this._back()}>←</button>` : nothing}
         <span class="fp-active-title">Home${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}</span>
         ${summary
           ? nothing
           : html`<button
           type="button"
           class="fp-active-collapse"
-          aria-label=${foldLabel}
+          aria-label=${this._activeCollapsed ? "Open overview" : "Fold overview"}
           aria-expanded=${this._activeCollapsed ? "false" : "true"}
           @click=${() => this._toggleActiveCollapsed()}
         >${this._activeCollapsed ? "▸" : "▾"}</button>`}
         ${this._chips(items, attn.items.length)}
       </div>
-      ${folded
-        ? null
-        : html`<div class="fp-active-body">
-            ${summary
-              ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
-                <div class="fp-filtered">${list}</div>`, scope)
-              : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${this._searchEntries()} label="Search the plan" placeholder="Search rooms and devices" @fp-pick=${(e: CustomEvent<SearchEntry>) => this._onSearchPick(e)}></fp-search></div>
-                <div class="fp-ov-scopes">${this._floorOffButton()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
-                <div class="fp-ov-layers" data-slot="layers">${this._layerNote()}</div>
-                ${list}
-                <p class="fp-ov-hint">Tap a row: the plan goes to it.</p>`}
-          </div>`}
+      <div class="fp-active-body">${content()}</div>
     </div>`;
+  }
+
+  /**
+   * S31.8: the phone's sheet. A top row (Back, then the handle: the grabber, where we are, the counts) and a body that is the
+   * level's content: the Overview, a floor or a room as the side sheet shows them, or the popup as the Device level. At peek the
+   * body is `inert`, so nothing under the clipped edge takes a Tab. The handle is one button: a tap or Enter or Space cycles the
+   * stops, a drag moves them (see the block comment above the class). Its name is "Overview" on every level, the spec's name; the
+   * region around it is named for the level.
+   */
+  private _bottomSheet(name: string, crumb: string, deeper: boolean, chips: unknown, content: () => unknown) {
+    const pop = this._popup && this._popupInSheet() ? this._popup.s : null;
+    const peek = this._sheetStop === "peek" && !this._sheetDrag;
+    const level = pop ? pop.name : name;
+    const drag = this._sheetDrag;
+    return html`<div class=${drag ? "fp-active fp-bottom fp-dragging" : "fp-active fp-bottom"} data-stop=${this._sheetStop} role="region" aria-label=${level} style=${drag ? `height:${drag.h}px` : ""}>
+      <div class="fp-sheet-top">
+        ${deeper || pop || this._sheetStop !== "peek" ? html`<button type="button" class="fp-back" aria-label="Back" title="Back" @click=${() => this._back()}>←</button>` : nothing}
+        <button type="button" class="fp-handle" aria-label="Overview" aria-expanded=${this._sheetStop === "peek" ? "false" : "true"}
+          @pointerdown=${this._onHandleDown} @pointermove=${this._onHandleMove} @pointerup=${this._onHandleUp} @pointercancel=${this._onHandleCancel}
+          @click=${this._onHandleClick} @keydown=${this._onHandleKey}>
+          <span class="fp-grab" aria-hidden="true"></span>
+          <span class="fp-handle-line"><span class="fp-active-title">${pop ? pop.name : deeper ? name : html`Home${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}`}</span>${pop ? html` <span class="fp-ov-chips">${this._subjectText(pop)}</span>` : chips}</span>
+        </button>
+      </div>
+      <div class="fp-active-body" ?inert=${peek}>${pop ? this._popupTemplate(true) : content()}</div>
+    </div>`;
+  }
+
+  // ---- S31.8: the bottom sheet's handle ---------------------------------------------------------------------------------------------
+
+  private _onHandleDown = (e: PointerEvent): void => {
+    if ((e.pointerType === "mouse" && e.button !== 0) || this._sheetDrag) return;
+    const stops = this._stopsNow();
+    if (!stops) return;
+    const h0 = stops[this._sheetStop];
+    this._sheetDrag = { id: e.pointerId, y0: e.clientY, h0, h: h0, moved: false, stops, trail: [{ t: e.timeStamp, h: h0 }] };
+    try { (e.currentTarget as Element).setPointerCapture(e.pointerId); } catch { /* a synthetic event with no live pointer: the drag still works without capture */ }
+  };
+
+  private _onHandleMove = (e: PointerEvent): void => {
+    const d = this._sheetDrag;
+    if (!d || e.pointerId !== d.id) return;
+    const dy = e.clientY - d.y0;
+    if (!d.moved && Math.abs(dy) < TAP_SLOP_PX) return; // a finger wobbles: under the slop it is still a tap
+    d.moved = true;
+    d.h = Math.min(d.stops.full, Math.max(d.stops.peek, d.h0 - dy));
+    d.trail.push({ t: e.timeStamp, h: d.h });
+    if (d.trail.length > 24) d.trail.shift();
+    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
+    if (sheet) { sheet.classList.add("fp-dragging"); sheet.style.height = `${d.h}px`; } // straight to the element: no render per move
+  };
+
+  private _onHandleUp = (e: PointerEvent): void => {
+    const d = this._sheetDrag;
+    if (!d || e.pointerId !== d.id) return;
+    this._sheetDrag = null;
+    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
+    if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
+    if (d.moved) {
+      // The velocity of the last 100 ms, in px/ms, up positive. A finger that rested before it lifted has none.
+      const recent = d.trail.filter((p) => p.t >= e.timeStamp - 100);
+      const from = recent[0];
+      const v = from && recent.length > 1 ? (d.h - from.h) / Math.max(e.timeStamp - from.t, 16) : 0;
+      this._sheetStop = snapSheet(d.h, v, d.stops);
+      this._dragEnded = true; // the click that follows is the drag's own
+      globalThis.setTimeout(() => { this._dragEnded = false; }, 0);
+    }
+    this.requestUpdate();
+  };
+
+  private _onHandleCancel = (e: PointerEvent): void => {
+    const d = this._sheetDrag;
+    if (!d || e.pointerId !== d.id) return;
+    this._sheetDrag = null; // the browser took the gesture: the sheet goes back to its stop
+    const sheet = this.shadowRoot?.querySelector<HTMLElement>(".fp-bottom");
+    if (sheet) { sheet.classList.remove("fp-dragging"); sheet.style.removeProperty("height"); }
+    this.requestUpdate();
+  };
+
+  private _onHandleClick = (): void => {
+    if (this._dragEnded) { this._dragEnded = false; return; }
+    this._sheetStop = nextOnHandleTap(this._sheetStop);
+    this.requestUpdate();
+  };
+
+  /** Arrow keys on the handle move one stop, so the sheet is reachable without a tap or a drag. */
+  private _onHandleKey = (e: KeyboardEvent): void => {
+    const order: SheetStop[] = ["peek", "half", "full"], i = order.indexOf(this._sheetStop);
+    const to = e.key === "ArrowUp" ? order[Math.min(2, i + 1)] : e.key === "ArrowDown" ? order[Math.max(0, i - 1)] : null;
+    if (!to) return;
+    e.preventDefault();
+    e.stopPropagation(); // the card's own arrows pan the plan
+    this._sheetStop = to;
+    this.requestUpdate();
+  };
+
+  /** The three stops for the card's height now, in px, or null when the card is not laid out. */
+  private _stopsNow(): Stops | null {
+    const h = this.getBoundingClientRect().height;
+    return h > 0 ? sheetStops(h, HEADER_H) : null;
+  }
+
+  /** After the render that opened the sheet for a room or a thing: moves the plan so that thing's box is inside what the sheet at
+   *  its stop leaves, by the pixel difference that centres it there. Nothing moves when it is already inside, or in 3D. */
+  private _panIntoVisible(): void {
+    const sel = this._panTarget;
+    this._panTarget = null;
+    if (!sel || this._frame !== "bottom" || this._shows3d() || this._turn) return;
+    const svg = this.shadowRoot?.querySelector<SVGSVGElement>("svg.fp-zoomable"), el = this.shadowRoot?.querySelector(sel), stops = this._stopsNow(), v = this._current();
+    if (!svg || !el || !stops || !v) return;
+    const s = svg.getBoundingClientRect(), r = el.getBoundingClientRect(), host = this.getBoundingClientRect();
+    if (!(s.width > 0) || !(r.width + r.height > 0)) return;
+    const top = s.top, bottom = Math.min(s.bottom, host.bottom - stops[this._sheetStop]);
+    const m = 8; // a hair of air, so an icon is not touching the sheet's edge
+    if (r.top >= top + m && r.bottom <= bottom - m && r.left >= s.left && r.right <= s.right) return;
+    const dx = s.left + s.width / 2 - (r.left + r.width / 2), dy = (top + bottom) / 2 - (r.top + r.height / 2);
+    const k = Math.min(s.width / v.w, s.height / v.h); // screen px per plan unit: the svg letterboxes its view box
+    // A view at fit cannot be panned: `clamp` hands fit back for any box as wide as fit. A hair of zoom (0.1 %, invisible) makes it
+    // a view that can move; the Fit button still takes it home.
+    const base = this._view ? v : zoomAt(v, 1.001, v.x + v.w / 2, v.y + v.h / 2);
+    this._setView(panBy(base, -dx / k, -dy / k));
   }
 
   private _toggleOverviewAll(): void {
@@ -2918,6 +3092,7 @@ export class FloorplanStudioCard extends LitElement {
   private _openSearch(): boolean {
     if (!this._activeListVisible() || !this._layout) return false;
     if (this._pickedRoom || this._pickedFloor) this._pickRoom(null);
+    this._sheetTo("full"); // S31.8: Search opens the phone's sheet full
     if (this._activeCollapsed) { this._activeCollapsed = false; this._activeUserChose = true; this._saveActiveState(); }
     this._closePopup();
     this.requestUpdate();

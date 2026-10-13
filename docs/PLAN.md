@@ -3912,7 +3912,7 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       criterion 4, on the demo and the stress house at 1024 x 768, 768 x 1024 and 390 x 844; a sections-like parent
       with a fixed height gives the 0.28.1 box; a panel-view host gives it too.
       Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-fit-height.spec.ts` (new).
-- [ ] S31.8 The phone bottom sheet (Sonnet, **judgement**: the drag and the pan-to-visible). Under 640: the sheet at
+- [x] S31.8 The phone bottom sheet (Sonnet, **judgement**: the drag and the pan-to-visible). Under 640: the sheet at
       peek under the plan; the handle drags with pointer capture through `snapSheet`; levels Overview › Floor › Room ›
       Device; a device tap and a locate open the Device level at half with today's popup content (the popup does not
       float on a phone); the plan pans so the room or device is in the visible part; Back and Escape step up. Test,
