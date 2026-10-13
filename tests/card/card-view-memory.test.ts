@@ -11,6 +11,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 });
 import { THEMES, planPivot, renderFloor, rotateAbout, viewBoxFor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
+import { hasMenuItem, menuItemDisabled, menuOf, openMenu, pickItem, stateOfItem } from "./menu-dom";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 const L = demo as unknown as Layout;
@@ -31,18 +32,23 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}, layout: La
 }
 const q = <T extends Element>(el: FloorplanStudioCard, sel: string) => el.shadowRoot!.querySelector<T>(sel);
 const btn = (el: FloorplanStudioCard, label: string) => q<HTMLButtonElement>(el, `button[aria-label="${label}"]`);
+// S31.6: Rotate left and right, Reset view, Labels and Floor below are items of the header menu now, not buttons; the zoom stack
+// keeps its buttons. `click` takes the old label and does what a viewer does today: the item through the real menu, or the button.
+const MENU_ITEM: Record<string, string> = { "Rotate left": "rotate:-1", "Rotate right": "rotate:1", "Reset view": "reset", Labels: "labels", "Floor below": "ghost" };
 const click = async (el: FloorplanStudioCard, label: string) => {
+  if (MENU_ITEM[label]) { await pickItem(el, MENU_ITEM[label]!); return; }
   btn(el, label)!.click();
   await el.updateComplete;
 };
 const vb = (el: FloorplanStudioCard) => q<SVGSVGElement>(el, "svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number) as [number, number, number, number];
-const themeSelect = (el: FloorplanStudioCard) => q<HTMLSelectElement>(el, 'select[aria-label="Theme"]');
-const viewSelect = (el: FloorplanStudioCard) => q<HTMLSelectElement>(el, 'select[aria-label="View"]');
-const choose = async (el: FloorplanStudioCard, s: HTMLSelectElement, value: string) => {
-  s.value = value;
-  s.dispatchEvent(new Event("change", { bubbles: true }));
-  await el.updateComplete;
+const theme = (el: FloorplanStudioCard, value: string) => pickItem(el, `theme:${value}`);
+const view = (el: FloorplanStudioCard, value: string) => pickItem(el, `view:${value}`);
+const checkedOf = async (el: FloorplanStudioCard, group: string, values: readonly string[]) => {
+  for (const v of values) if ((await stateOfItem(el, `${group}:${v}`)) === "true") return v;
+  return null;
 };
+const themeNow = (el: FloorplanStudioCard) => checkedOf(el, "theme", THEMES);
+const viewNow = (el: FloorplanStudioCard) => checkedOf(el, "view", ["2d", "2.5d", "3d"]);
 const stored = () => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:"));
 const fakeClock = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
 const advance = async (el: FloorplanStudioCard, ms: number) => {
@@ -62,26 +68,27 @@ afterEach(() => {
 });
 
 describe("rotate buttons and the config rotation", () => {
-  it("has zoom, rotate and Reset view in one stack, and Theme in the toolbar", async () => {
+  it("has zoom in one stack; rotate, Reset view and Theme are items of the header menu", async () => {
     const el = await mount();
-    // Layout changed (card-stack): the buttons are the studio's vertical stack, the look controls stay in the toolbar.
+    // S31.6: the stack keeps +, - and Fit; the rotate pair and Reset view moved into the menu, with Theme.
     const group = btn(el, "Zoom in")!.closest(".fp-stack");
     expect(group).not.toBeNull();
-    for (const l of ["Zoom out", "Fit", "Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l)!.closest(".fp-stack"), l).toBe(group);
-    expect(themeSelect(el)!.closest(".fp-zoom")).not.toBeNull();
-    expect(themeSelect(el)!.closest(".fp-stack")).toBeNull();
+    for (const l of ["Zoom out", "Fit"]) expect(btn(el, l)!.closest(".fp-stack"), l).toBe(group);
+    for (const l of ["Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l), l).toBeNull();
+    for (const v of ["rotate:-1", "rotate:1", "reset", "theme:light"]) expect(await hasMenuItem(el, v), v).toBe(true);
+    expect(menuOf(el)!.closest(".fp-stack")).toBeNull();
   });
 
-  it("kiosk and rotate_switch: false hide them with the View select; view_switch: false hides the select but not the pair (Diego, 0.12.22)", async () => {
+  it("kiosk and rotate_switch: false drop them with the View items; view_switch: false drops Theme but not the pair (Diego, 0.12.22)", async () => {
     for (const cfg of [{ kiosk: true }, { rotate_switch: false, view_switch: false }]) {
       const el = await mount(cfg);
-      for (const l of ["Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l), `${l} ${JSON.stringify(cfg)}`).toBeNull();
-      expect(themeSelect(el)).toBeNull();
+      for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasMenuItem(el, v), `${v} ${JSON.stringify(cfg)}`).toBe(false);
+      expect(await hasMenuItem(el, "theme:light")).toBe(false);
       el.remove();
     }
     const el = await mount({ view_switch: false });
-    for (const l of ["Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l), l).not.toBeNull();
-    expect(themeSelect(el)).toBeNull();
+    for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasMenuItem(el, v), v).toBe(true);
+    expect(await hasMenuItem(el, "theme:light")).toBe(false);
   });
 
   it("config rotation is the starting angle: junk is 0, anything else a multiple of 45 in 0..315", async () => {
@@ -261,8 +268,8 @@ describe("the card remembers its view", () => {
     const a = await mount();
     await click(a, "Rotate right");
     await click(a, "Rotate right");
-    await choose(a, viewSelect(a)!, "2.5d");
-    await choose(a, themeSelect(a)!, "light");
+    await view(a, "2.5d");
+    await theme(a, "light");
     await click(a, "Labels");
     expect(stored()).toHaveLength(1);
     a.remove();
@@ -273,14 +280,14 @@ describe("the card remembers its view", () => {
     expect(lastOpts().theme).toBe("light");
     expect(lastOpts().labels).toBe(false);
     expect(b.getAttribute("data-theme")).toBe("light");
-    expect(viewSelect(b)!.value).toBe("2.5d");
-    expect(themeSelect(b)!.value).toBe("light");
+    expect(await viewNow(b)).toBe("2.5d");
+    expect(await themeNow(b)).toBe("light");
   });
 
   it("restores before the first render: no frame is drawn with the default first", async () => {
     const a = await mount();
     await click(a, "Rotate right");
-    await choose(a, themeSelect(a)!, "midnight");
+    await theme(a, "midnight");
     a.remove();
     (renderFloor as unknown as Mock).mockClear();
     await mount();
@@ -323,7 +330,7 @@ describe("the card remembers its view", () => {
     expect(deg()).toBe(90);
     expect(lastOpts().labels).toBe(false);
     expect(stored()).toHaveLength(0); // looking is not choosing: nothing is written
-    await choose(plain, themeSelect(plain)!, "terminal");
+    await theme(plain, "terminal");
     plain.remove();
     await mount({ theme: "slate", view: "2.5d", rotation: 90, labels: false });
     expect(lastOpts().theme).toBe("terminal"); // stored wins
@@ -333,7 +340,7 @@ describe("the card remembers its view", () => {
 
   it("junk in storage is dropped field by field and never throws", async () => {
     const seed = await mount();
-    await choose(seed, themeSelect(seed)!, "light");
+    await theme(seed, "light");
     const [key] = stored()[0]!;
     seed.remove();
     for (const raw of ["{", "null", "[]", '{"rotation":"x","theme":"neon","view":"9d","tilt":"a","zoom":2,"focus":"no"}', '{"theme":"midnight","rotation":999999}', "\u0000"]) {
@@ -352,7 +359,7 @@ describe("the card remembers its view", () => {
   it("a stored focus far off the plan is pulled back so the plan stays in view", async () => {
     const seed = await mount();
     await click(seed, "Zoom in");
-    await choose(seed, themeSelect(seed)!, "light"); // forces a write
+    await theme(seed, "light"); // forces a write
     const [key] = stored()[0]!;
     seed.remove();
     localStorage.setItem(key, JSON.stringify({ zoom: 4, focus: [9e5, -9e5] }));
@@ -371,7 +378,7 @@ describe("the card remembers its view", () => {
     a.remove();
     const other = await mount({ floor: "first" });
     expect(deg()).toBe(0);
-    await choose(other, themeSelect(other)!, "light");
+    await theme(other, "light");
     other.remove();
     await mount({ floor: "ground" });
     expect(deg()).toBe(45);
@@ -393,7 +400,7 @@ describe("the card remembers its view", () => {
     vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => { throw new Error("blocked"); });
     const el = await mount();
     await click(el, "Rotate right");
-    await choose(el, themeSelect(el)!, "light");
+    await theme(el, "light");
     await click(el, "Zoom in");
     await click(el, "Reset view");
     expect(deg()).toBe(0);
@@ -415,30 +422,30 @@ describe("the card remembers its view", () => {
   it("a discrete choice (theme) is written at once", async () => {
     const set = vi.spyOn(Storage.prototype, "setItem");
     const el = await mount();
-    await choose(el, themeSelect(el)!, "light");
+    await theme(el, "light");
     expect(set.mock.calls.some(([k]) => String(k).startsWith("fp-view:"))).toBe(true);
   });
 });
 
-describe("the theme select", () => {
+describe("the theme items of the menu", () => {
   it("lists every theme with a readable label, and choosing sets the host theme live", async () => {
     const el = await mount({ theme: "midnight" });
-    const s = themeSelect(el)!;
-    expect([...s.options].map((o) => o.value)).toEqual([...THEMES]);
-    for (const o of s.options) expect(o.textContent!.trim(), o.value).toMatch(/^[A-Z]/);
-    expect(s.value).toBe("midnight");
-    await choose(el, s, "terminal");
+    await openMenu(el);
+    const items = [...menuOf(el)!.shadowRoot!.querySelectorAll('[data-value^="theme:"]')];
+    expect(items.map((o) => o.getAttribute("data-value"))).toEqual(THEMES.map((t) => `theme:${t}`));
+    for (const o of items) expect(o.querySelector(".text")!.textContent!.trim(), o.getAttribute("data-value")!).toMatch(/^[A-Z]/);
+    expect(await themeNow(el)).toBe("midnight");
+    await theme(el, "terminal");
     expect(el.getAttribute("data-theme")).toBe("terminal");
   });
 
   it("ignores a value that is not a theme", async () => {
     const el = await mount({ theme: "midnight" });
-    const s = themeSelect(el)!;
-    const o = document.createElement("option");
-    o.value = "neon";
-    s.append(o);
-    await choose(el, s, "neon");
-    expect(el.getAttribute("data-theme")).toBe("midnight");
+    for (const value of ["theme:neon", "theme:", "theme:__proto__"]) {
+      menuOf(el)!.dispatchEvent(new CustomEvent("fp-menu-pick", { detail: { value }, bubbles: true, composed: true }));
+      await el.updateComplete;
+      expect(el.getAttribute("data-theme"), value).toBe("midnight");
+    }
   });
 });
 
@@ -450,8 +457,8 @@ describe("Reset view", () => {
     await el.updateComplete;
     await click(el, "Zoom in");
     await click(el, "Rotate right");
-    await choose(el, viewSelect(el)!, "2.5d");
-    await choose(el, themeSelect(el)!, "light");
+    await view(el, "2.5d");
+    await theme(el, "light");
     await click(el, "Labels");
     expect(stored()).toHaveLength(1);
     await click(el, "Reset view");
@@ -488,17 +495,17 @@ describe("Reset view", () => {
 
   it("is disabled when nothing differs from the config, enabled after a change", async () => {
     const el = await mount();
-    expect(btn(el, "Reset view")!.disabled).toBe(true);
+    expect(await menuItemDisabled(el, "reset")).toBe(true);
     await click(el, "Rotate right");
-    expect(btn(el, "Reset view")!.disabled).toBe(false);
+    expect(await menuItemDisabled(el, "reset")).toBe(false);
     await click(el, "Reset view");
-    expect(btn(el, "Reset view")!.disabled).toBe(true);
+    expect(await menuItemDisabled(el, "reset")).toBe(true);
   });
 
   it("the Fit button stays and fits only: rotation and theme are untouched", async () => {
     const el = await mount();
     await click(el, "Rotate right");
-    await choose(el, themeSelect(el)!, "light");
+    await theme(el, "light");
     await click(el, "Zoom in");
     await click(el, "Fit");
     expect(deg()).toBe(45);
@@ -647,7 +654,8 @@ describe("the view is remembered per floor (S14.4)", () => {
 describe("the ghost floor: YAML default and the viewer's choice (S27.13)", () => {
   // The demo's first floor has the ground under it; "test" is the third. The card hands renderFloor the floor below and its place (floorPlace).
   const ghostOf = () => lastOpts().ghost;
-  const ghostBtn = (el: FloorplanStudioCard) => btn(el, "Floor below");
+  // S31.6: Floor below is the `ghost` checkbox item of the menu.
+  const ghostOn = (el: FloorplanStudioCard) => stateOfItem(el, "ghost");
 
   it("ghost_floor: true draws the floor below with its shift; false, absent and junk draw none", async () => {
     const lay = structuredClone(L);
@@ -666,18 +674,18 @@ describe("the ghost floor: YAML default and the viewer's choice (S27.13)", () =>
     }
   });
 
-  it("the lowest floor has no floor below: nothing is drawn and the button is disabled", async () => {
+  it("the lowest floor has no floor below: nothing is drawn and the item is disabled", async () => {
     const el = await mount({ floor: "ground", ghost_floor: true });
     expect(ghostOf()).toBeUndefined();
-    expect(ghostBtn(el)!.disabled).toBe(true);
+    expect(await menuItemDisabled(el, "ghost")).toBe(true);
   });
 
-  it("the button toggles it, is remembered, and the stored choice wins over YAML either way; Reset view drops it", async () => {
+  it("the item toggles it, is remembered, and the stored choice wins over YAML either way; Reset view drops it", async () => {
     const a = await mount({ floor: "first", ghost_floor: true });
-    expect(ghostBtn(a)!.getAttribute("aria-pressed")).toBe("true");
+    expect(await ghostOn(a)).toBe("true");
     await click(a, "Floor below");
     expect(ghostOf()).toBeUndefined();
-    expect(ghostBtn(a)!.getAttribute("aria-pressed")).toBe("false");
+    expect(await ghostOn(a)).toBe("false");
     a.remove();
     const b = await mount({ floor: "first", ghost_floor: true }); // same YAML, the viewer said off
     expect(ghostOf()).toBeUndefined();

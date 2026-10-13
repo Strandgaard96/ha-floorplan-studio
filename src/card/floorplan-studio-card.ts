@@ -1,6 +1,6 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from "lit";
 import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not replaced, on a state update
-import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, layersSummary, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
+import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
@@ -19,6 +19,9 @@ import { PAN_STEP, isSearchChord, viewKeyFor, type ViewKey } from "./view-keys";
 import { HEADER_H, frameMode, sideOpenByDefault, sideWidth, type FrameMode } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
 import "./search-box";
+// S31.6: <fp-menu>, the header's ⋯: everything about how the plan looks.
+import "./more-menu";
+import type { MenuItem, MenuSection } from "./more-menu";
 import type { View3D } from "./three/view3d";
 import type { Pick as Pick3D } from "./three/pick";
 import { liveDeps, sceneDeps, textureDeps } from "../core/three-deps";
@@ -124,9 +127,6 @@ export interface FloorplanStudioCardConfig {
   floors_below?: BelowMode;
 }
 
-/** The Floor below button's icon: Material Design Icons "layers-outline", 24x24 (inlined, no runtime import: CLAUDE.md finding 9). */
-const GHOST_ICON = "M12 16L19.36 10.27L21 9L12 2L3 9L4.63 10.27M12 18.54L4.62 12.81L3 14.07L12 21.07L21 14.07L19.37 12.8L12 18.54Z";
-
 /** What the View dropdown offers: the two flat plans `renderFloor` draws and the 3D model, which is a renderer of its own. */
 export type CardView = PlanView | "3d";
 /** The View dropdown's options, one list for the markup and for reading the choice back (a value that is not here
@@ -136,6 +136,8 @@ const VIEW_OPTIONS: readonly { value: CardView; label: string }[] = [
   { value: "2.5d", label: "2.5D" },
   { value: "3d", label: "3D" },
 ];
+/** S31.6: the Tilt slider is a menu of steps. A stored or YAML tilt in between reads as the nearest step. */
+const TILT_STEPS: readonly number[] = [0, 0.25, 0.5, 0.75, 1];
 const isView = (v: unknown): v is CardView => VIEW_OPTIONS.some((o) => o.value === v);
 
 /** The Theme dropdown's labels. A Record over `Theme`, so a theme added to core fails the build here until it has a name. */
@@ -254,8 +256,8 @@ let focusedCard: FloorplanStudioCard | null = null;
  * `_positionToolbar` and `_placeTopDock` (nothing floats over the top any more, bar the cluster).
  *
  * The test migration. Tests that read an old chrome position or reached a control now behind View options moved their
- * premise, not their assertion. The look controls are in the closed View options box, so those tests open it first
- * (tests/card/options-helper.ts). The plan is smaller than the card (header 52 px, sheet 320 px), so a test that
+ * premise, not their assertion. The look controls are in the closed ⋯ menu, so those tests open it first
+ * (tests/card/menu-helper.ts, since S31.6). The plan is smaller than the card (header 52 px, sheet 320 px), so a test that
  * expected the plan to be the card measures the stage. The drag tests became "a stored position is ignored" and "the
  * head moves nothing". Each one is listed in the S31.5 commit message and the report.
  */
@@ -282,11 +284,9 @@ export class FloorplanStudioCard extends LitElement {
     .fp-head { grid-area: head; box-sizing: border-box; height: 52px; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--fp-idle); }
     .fp-head-gap { flex: 1 1 0; min-width: 0; }
     .fp-head-btn { flex: 0 0 auto; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; min-width: 32px; cursor: pointer; }
-    .fp-head-btn[aria-expanded="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
-    /* The cluster: the View options box (when open) and the zoom stack, top right of the stage. Over the plan on purpose; the one thing that is. */
+    /* The cluster: +, - and Fit (Reset camera in 3D), top right of the stage. Over the plan on purpose; the one thing that is.
+       In kiosk it also holds the ⋯ menu when \`rotate_switch: true\` brings one. */
     .fp-cluster { grid-area: stage; justify-self: end; align-self: start; z-index: 1; margin: 8px; min-width: 0; max-width: calc(100% - 16px); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-    /* Under 640 px the Overview is the floating panel at the stage's top left; an open options box starts under its 36 px header, not over its fold button. */
-    .fp-cluster.fp-below { margin-top: 52px; }
     /* One line, over the plan, when 3D cannot run: why, and that 2D is what is shown. */
     .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: 4px 8px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; }
     p.msg { grid-area: 1 / 1 / -1 / -1; padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
@@ -315,26 +315,16 @@ export class FloorplanStudioCard extends LitElement {
     .fp-dialog p { margin: 0 0 14px; font: 14px/1.3 var(--fp-font, system-ui, sans-serif); }
     .fp-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
     .fp-dialog-actions button { font: 13px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 6px; padding: 6px 14px; cursor: pointer; }
-    /* S7.4: the view controls are card chrome, the same colours as the floor chips, in the other top corner.
-       Like the studio: a horizontal toolbar (.fp-zoom) for the look controls and a vertical stack (.fp-stack) for
-       zoom, fit, rotate and reset, just below it. .fp-viewonly is the toolbar when zoom is off, not .fp-zoom, so
-       "zoom: false shows no zoom chrome" holds. */
-    /* The toolbar wraps: on a narrow card (375 px) its controls take two rows, right-aligned, rather than running
-       off the left edge. The right-hand 8 px plus the floor chips' room on the left are what max-width leaves.
-       The stack's top is set in _positionToolbar, from where the toolbar ends. */
-    .fp-zoom, .fp-viewonly { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 100%; box-sizing: border-box; padding: 4px; background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; }
-    .fp-zoom[hidden], .fp-viewonly[hidden] { display: none; }
+    /* S7.4: the zoom buttons are card chrome, the same colours as the floor chips, in the corner of the stage. S31.6: only +, - and
+       Fit (Reset camera in 3D) are left here; the look controls are the ⋯ menu's (more-menu.ts). */
     .fp-stack { display: flex; flex-direction: column; gap: 4px; }
-    .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
-    .fp-zoom button:disabled, .fp-viewonly button:disabled, .fp-stack button:disabled { opacity: 0.45; cursor: default; }
-    .fp-zoom button[aria-pressed="false"], .fp-viewonly button[aria-pressed="false"] { opacity: 0.6; }
-    .fp-zoom svg, .fp-viewonly svg, .fp-stack svg { width: 14px; height: 14px; }
+    .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
+    .fp-stack button:disabled { opacity: 0.45; cursor: default; }
+    .fp-stack svg { width: 14px; height: 14px; }
     /* While the plan turns it takes no taps: a tap would land on a device that is moving away from the finger.
        The star reaches the children that carry their own pointer-events (.room{pointer-events:all} in the editor's
        rules, .extra, .door-hit), which an inherited value on the svg alone would lose to. */
     svg.fp-turning, svg.fp-turning * { pointer-events: none; }
-    .fp-zoom input[type="range"], .fp-viewonly input[type="range"] { width: 72px; height: 28px; margin: 0; accent-color: var(--fp-primary); cursor: pointer; }
-    .fp-zoom select, .fp-viewonly select { height: 28px; padding: 0 4px; font: 13px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     /* S7.15: with zoom on, the plan takes every touch once it is zoomed in, so the page does not scroll or zoom under
        a pan or a pinch. At fit there is nothing to pan, so a vertical swipe scrolls the dashboard as it would over
        any other card; the browser still leaves a pinch and a double-tap to the plan (pan-y allows neither). */
@@ -414,16 +404,11 @@ export class FloorplanStudioCard extends LitElement {
     /* S24.8: one row of tools: Turn off on this floor…, Layers, All floors. */
     .fp-ov-scopes { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-bottom: 6px; }
     .fp-ov-scopes .fp-floor-off { margin-right: auto; }
-    /* S24.8: the layer chips, one per family, unfolded by the Layers button; and the note for a kept thing. */
+    /* S24.8: the note for a kept thing (the family chips are the ⋯ menu's Layers section since S31.6). */
     .fp-ov-layers:empty { display: none; }
     .fp-ov-layers { margin: 0 0 6px; }
-    .fp-layer-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-    .fp-ov-detail { margin: 0 0 6px; }
-    .fp-layer, .fp-layers-toggle, .fp-detail, .fp-detail-toggle, .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
-    .fp-layer[aria-pressed="false"] { border-style: dashed; text-decoration: line-through; }
-    .fp-detail[aria-pressed="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
-    .fp-layers-toggle[aria-expanded="true"], .fp-detail-toggle[aria-expanded="true"] { border-color: var(--fp-ink); }
-    .fp-layer:hover, .fp-layer:focus-visible, .fp-layers-toggle:hover, .fp-layers-toggle:focus-visible, .fp-detail:hover, .fp-detail:focus-visible, .fp-detail-toggle:hover, .fp-detail-toggle:focus-visible, .fp-layer-note button:hover, .fp-layer-note button:focus-visible { border-color: var(--fp-primary); }
+    .fp-layer-note button { border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); border-radius: 999px; padding: 2px 8px; cursor: pointer; min-height: 24px; }
+    .fp-layer-note button:hover, .fp-layer-note button:focus-visible { border-color: var(--fp-primary); }
     .fp-layer-note { margin: 4px 0 0; font: 12px/1.4 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-floor-off:disabled { opacity: 0.5; cursor: default; }
     .fp-floor-off:disabled:hover { border-color: var(--fp-idle); }
@@ -514,13 +499,9 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedGhost: boolean | null = null;
   /** S27.14: the Floors below select's pick (3D); `null` leaves the card's YAML `floors_below` in charge. */
   private _pickedBelow: BelowMode | null = null;
-  /** Whether the Detail choices are unfolded. Not remembered, like `_layersOpen`. */
-  private _detailOpen = false;
   private _hiddenLayers: LayerId[] = [];
   /** What search or a row tap located under a hidden family: drawn anyway (`keep`) on its floor, with a note and Show. */
   private _kept: { floor: string; t: "dev" | "furn"; i: number; fam: LayerId } | null = null;
-  /** Whether the layer chips are unfolded (the Layers button). Not remembered: folded is where a sheet starts. */
-  private _layersOpen = false;
   /** S24.8 (F1): the search's entries, built once per layout and state source, not per keystroke (`<fp-search>` indexes on a new array). */
   private _searchMemo: { layout: Layout; known: boolean; floors: string; entries: SearchEntry[] } | null = null;
   /** S14.2: the tap popup, or `null` for none. One at a time; `s.key` is who it is about, `x`/`y` where the pointer landed (client px), `opener` the
@@ -603,8 +584,6 @@ export class FloorplanStudioCard extends LitElement {
   /** S31.5: what the card's width gives it (frame.ts). Measured in `render()` and by the ResizeObserver; 0 wide (not laid
    * out) keeps the last answer. */
   private _frame: FrameMode = "bottom";
-  /** S31.5: View options is open: today's toolbar, in a plain box on the stage, until S31.6 turns it into the menu. */
-  private _optionsOpen = false;
   /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
    * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
    * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
@@ -2326,17 +2305,90 @@ export class FloorplanStudioCard extends LitElement {
     else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
   };
 
-  /** S31.5: the header bar, the top band of the card's grid: floor tabs on the left, Search and View options on the right.
-   *  Text, not icons: the plan's own `<svg>` stays the first one in the shadow root (`updated()` binds it by that). Left out
-   *  whole when it would be empty, and in kiosk. Search needs the sheet it opens in, so `active_list: false` drops it. */
-  private _header(withOptions: boolean) {
+  /** S31.5: the header bar, the top band of the card's grid: floor tabs on the left, Search and the ⋯ menu on the right.
+   *  Text, not icons, for Search: the plan's own `<svg>` stays the first one in the shadow root (`updated()` binds it by that).
+   *  Left out whole when it would be empty, and in kiosk (where the menu, if the config brings one, sits in the cluster).
+   *  Search needs the sheet it opens in, so `active_list: false` drops it. */
+  private _header() {
     if (this._kiosk()) return null;
     const tabs = this._floorChips();
     const search = this._activeListVisible() && this._layout ? html`<button type="button" class="fp-head-btn" aria-label="Search" title="Search" @click=${() => { this._openSearch(); }}>Search</button>` : null;
-    const options = withOptions ? html`<button type="button" class="fp-head-btn" aria-label="View options" title="View options" aria-expanded=${this._optionsOpen ? "true" : "false"} aria-controls="fp-options" @click=${() => { this._optionsOpen = !this._optionsOpen; this.requestUpdate(); }}>⋯</button>` : null;
+    const options = this._optionsMenu();
     if (!tabs && !search && !options) return null;
     return html`<div class="fp-head">${tabs}<span class="fp-head-gap"></span>${search}${options}</div>`;
   }
+
+  /** S31.6: the ⋯ menu, or `null` when it would hold nothing (`view_switch: false` with no rotate, no layers, no detail). */
+  private _optionsMenu() {
+    const sections = this._menuSections();
+    return sections.length ? html`<fp-menu label="View options" .items=${sections} @fp-menu-pick=${this._onMenuPick}></fp-menu>` : null;
+  }
+
+  /** S31.6, spec D3, in its order: View, Tilt (2.5D), Walls (2.5D and 3D), Floors below (3D) or Floor below (2D and 2.5D), Theme,
+   *  Labels, Device names, Detail, Layers, Rotate left, Rotate right, Reset view. Each item is what the old control was and
+   *  `_onMenuPick` writes what that control wrote. `view_switch: false` drops everything up to Device names; Detail and Layers
+   *  keep the Overview's condition (the sheet is shown, no live 3D); the rotate pair and Reset view keep theirs (`_rotateOn`,
+   *  `_hasViewControls`) and are not in live 3D, where the camera has its own Reset camera. Kiosk has no menu unless
+   *  `rotate_switch: true` brings the rotate pair. */
+  private _menuSections(): MenuSection[] {
+    const out: MenuSection[] = [];
+    const view = this._viewPick(), live3d = view === "3d" && this._shows3d(), f = this._floor();
+    const radio = (label: string, value: string, checked: boolean): MenuItem => ({ kind: "radio", label, value, checked });
+    if (this._viewSwitchOn()) {
+      out.push({ label: "View", items: VIEW_OPTIONS.map((o) => radio(o.label, `view:${o.value}`, o.value === view)) });
+      if (view === "2.5d") {
+        const near = TILT_STEPS.reduce((a, b) => (Math.abs(b - this._tilt()) < Math.abs(a - this._tilt()) ? b : a));
+        out.push({ label: "Tilt", items: TILT_STEPS.map((t) => radio(`${Math.round(t * 100)}%`, `tilt:${t}`, t === near)) });
+      }
+      if (live3d || view === "2.5d") out.push({ label: "Walls", items: WALLS_MODES.map((m) => radio(WALLS_LABELS[m], `walls:${m}`, m === this._walls())) });
+      if (live3d) out.push({ label: "Floors below", items: BELOW_MODES.map((m) => radio(BELOW_LABELS[m], `below:${m}`, m === this._below())) });
+      else {
+        const key = this._floorKey(), none = !key || !this._layout || floorBelow(this._layout, key) === null;
+        out.push({ items: [{ kind: "check", label: "Floor below", value: "ghost", checked: this._ghostOn(), disabled: none }] });
+      }
+      out.push({ label: "Theme", items: THEMES.map((t) => radio(THEME_LABELS[t], `theme:${t}`, t === this._theme())) });
+      out.push({ items: [
+        { kind: "check", label: "Labels", value: "labels", checked: this._labels() },
+        { kind: "check", label: "Device names", value: "names", checked: this._names() },
+      ] });
+    }
+    if (this._activeListVisible() && f && !this._shows3d()) {
+      out.push({ label: "Detail", items: DETAIL_MODES.map((m) => radio(DETAIL_LABELS[m], `detail:${m}`, m === this._detailMode())) });
+      const n = layerCounts(f), hidden = this._hiddenLayers;
+      const layers = LAYERS.filter((l) => n[l.id] > 0).map((l): MenuItem => ({ kind: "check", label: l.label, value: `layer:${l.id}`, checked: !hidden.includes(l.id) }));
+      if (layers.length) out.push({ label: "Layers", items: layers });
+    }
+    if (!this._shows3d() && this._hasViewControls()) {
+      const acts: MenuItem[] = [];
+      if (this._rotateOn()) acts.push({ kind: "action", label: "Rotate left", value: "rotate:-1" }, { kind: "action", label: "Rotate right", value: "rotate:1" });
+      acts.push({ kind: "action", label: "Reset view", value: "reset", disabled: !this._modified() });
+      out.push({ items: acts });
+    }
+    return out;
+  }
+
+  /** One pick from the ⋯ menu. The value is `kind:arg`; every arg is checked against its list (the menu is the host's own
+   *  data, but a stale or forged event must change nothing). Each case does what the control it replaced did. */
+  private _onMenuPick = (ev: Event): void => {
+    const d = (ev as CustomEvent<MenuItem & { alt?: boolean }>).detail, v = d?.value;
+    if (typeof v !== "string") return;
+    const i = v.indexOf(":"), kind = i < 0 ? v : v.slice(0, i), arg = i < 0 ? "" : v.slice(i + 1);
+    const done = () => { this._saveViewNow(); this.requestUpdate(); };
+    switch (kind) {
+      case "view": if (isView(arg)) { this._pickedView = arg; this._fallback3d = null; done(); } break; // a new pick tries 3D again
+      case "tilt": if (TILT_STEPS.includes(Number(arg))) { this._pickedTilt = clampTilt(Number(arg)); done(); } break;
+      case "walls": if ((WALLS_MODES as readonly string[]).includes(arg)) { this._pickedWalls = arg as WallsMode; done(); } break;
+      case "below": if ((BELOW_MODES as readonly string[]).includes(arg)) { this._pickedBelow = arg as BelowMode; done(); } break;
+      case "ghost": this._pickedGhost = !this._ghostOn(); done(); break;
+      case "theme": if (isTheme(arg)) { this._pickedTheme = arg; done(); } break;
+      case "labels": this._pickedLabels = !this._labels(); done(); break;
+      case "names": this._pickedNames = !this._names(); done(); break;
+      case "detail": if ((DETAIL_MODES as readonly string[]).includes(arg)) { this._pickedDetail = arg as DetailMode; done(); } break;
+      case "layer": if (LAYERS.some((l) => l.id === arg)) this._setLayers(d?.alt === true ? soloLayer(this._hiddenLayers, arg as LayerId) : toggleLayer(this._hiddenLayers, arg as LayerId)); break; // Alt: this family alone, again: all
+      case "rotate": if (arg === "1" || arg === "-1") this._turnBy(Number(arg) * ROTATION_STEP); break;
+      case "reset": this._resetView(); break;
+    }
+  };
 
   /** S2.6/S6.5: `_floorList()`'s chips, one per switchable floor in its order, or `null` for anything else. Card
    * chrome (like the no-layout message): drawn outside the `<svg>` renderFloor returns, never inside the plan it
@@ -2772,9 +2824,8 @@ export class FloorplanStudioCard extends LitElement {
               ? this._roomSection(summary, html`<div class="fp-filter"><span>${this._roomFilter ? scope.activeHere : "Active everywhere"}</span><button type="button" class="fp-show-all" @click=${() => { this._roomFilter = !this._roomFilter; this.requestUpdate(); }}>${this._roomFilter ? "Show all" : scope.onlyHere}</button></div>
                 <div class="fp-filtered">${list}</div>`, scope)
               : html`<div class="fp-ov-search" data-slot="search"><fp-search .entries=${this._searchEntries()} label="Search the plan" placeholder="Search rooms and devices" @fp-pick=${(e: CustomEvent<SearchEntry>) => this._onSearchPick(e)}></fp-search></div>
-                <div class="fp-ov-scopes">${this._floorOffButton()}${this._layersToggle()}${this._detailToggle()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
-                <div class="fp-ov-layers" data-slot="layers">${this._layerChips()}</div>
-                ${this._detailChips()}
+                <div class="fp-ov-scopes">${this._floorOffButton()}${many ? html`<button type="button" class="fp-ov-scope" aria-pressed=${this._overviewAll ? "true" : "false"} @click=${() => this._toggleOverviewAll()}>All floors</button>` : nothing}</div>
+                <div class="fp-ov-layers" data-slot="layers">${this._layerNote()}</div>
                 ${list}
                 <p class="fp-ov-hint">Tap a row: the plan goes to it.</p>`}
           </div>`}
@@ -2855,46 +2906,16 @@ export class FloorplanStudioCard extends LitElement {
     return canChange ? "auto" : "full";
   }
 
-  /** The Detail button beside Layers; it unfolds the three choices. Its text never changes (the title names the mode): a
-   *  longer one wraps the tools row in a 260 px sheet and the taller sheet covers devices. The pressed chip shows the mode. */
-  private _detailToggle() {
-    if (!this._floor() || this._shows3d()) return nothing;
-    const m = this._detailMode();
-    return html`<button type="button" class="fp-detail-toggle" aria-expanded=${this._detailOpen ? "true" : "false"} title=${`Detail: ${DETAIL_LABELS[m]}. How much of the plan is drawn at each zoom`} @click=${() => { this._detailOpen = !this._detailOpen; this.requestUpdate(); }}>Detail</button>`;
-  }
+  // ---- S24.8: layer note ---------------------------------------------------------------------------------------------------------
 
-  /** Auto, Full, Minimal as pressable chips; the active one is pressed. A pick is remembered at once. */
-  private _detailChips() {
-    if (!this._detailOpen || !this._floor() || this._shows3d()) return nothing;
-    const cur = this._detailMode();
-    const titles: Record<DetailMode, string> = { auto: "Follow the zoom: rooms far out, devices closer in", full: "Always draw everything", minimal: "Always draw only rooms and what needs attention" };
-    return html`<div class="fp-ov-detail fp-layer-chips" role="group" aria-label="Detail">${DETAIL_MODES.map((m) => html`<button type="button" class="fp-detail" data-detail=${m} aria-pressed=${m === cur ? "true" : "false"} title=${titles[m]} @click=${() => { this._pickedDetail = m; this._saveViewNow(); this.requestUpdate(); }}>${DETAIL_LABELS[m]}</button>`)}</div>`;
-  }
-
-  // ---- S24.8: layer chips --------------------------------------------------------------------------------------------------------
-
-  /** The Layers button in the tools row: it unfolds the chips, and counts what is hidden ("Layers · 2 hidden"), with the
-   *  Studio's sentence as its title ("Layers: lights hidden"), so a folded sheet still tells. Short, so it shares a line
-   *  with All floors in a 260 px sheet. Folded by default: the sheet covers no more of the plan. Not in live 3D. */
-  private _layersToggle() {
-    if (!this._floor() || this._shows3d()) return nothing;
-    const n = this._hiddenLayers.length;
-    return html`<button type="button" class="fp-layers-toggle" aria-expanded=${this._layersOpen ? "true" : "false"} title=${layersSummary(this._hiddenLayers) || "Hide or show families on the plan"} @click=${() => { this._layersOpen = !this._layersOpen; this.requestUpdate(); }}>${n ? `Layers · ${n} hidden` : "Layers"}</button>`;
-  }
-
-  /** One text chip per family with something on the floor on show (`layerCounts`); pressed means shown. A click hides or
-   *  shows the family, Alt-click shows it alone (again: all). Not in live 3D, which draws every family. Then, unfolded or
-   *  not, the note for a thing located under a hidden family, with Show for that family. */
-  private _layerChips() {
-    const f = this._floor();
-    if (!f || this._shows3d()) return nothing;
-    const n = layerCounts(f), hidden = this._hiddenLayers, k = this._keptHere();
+  /** The note for a thing located under a hidden family, with Show for that family. The family chips themselves are the ⋯
+   *  menu's Layers section since S31.6; this stays in the Overview, where the located thing was found. */
+  private _layerNote() {
+    const f = this._floor(), k = this._keptHere();
+    if (!f || this._shows3d() || !k) return nothing;
+    const hidden = this._hiddenLayers;
     const word = (id: LayerId) => (LAYERS.find((l) => l.id === id)?.label ?? id).toLowerCase();
-    const chips = LAYERS.filter((l) => n[l.id] > 0).map((l) => {
-      const shown = !hidden.includes(l.id);
-      return html`<button type="button" class="fp-layer" data-layer=${l.id} aria-pressed=${shown ? "true" : "false"} title=${`${shown ? "Hide" : "Show"} ${word(l.id)} (${n[l.id]}). Alt-click: ${word(l.id)} only`} @click=${(e: MouseEvent) => this._setLayers(e.altKey ? soloLayer(hidden, l.id) : toggleLayer(hidden, l.id))}>${l.label}</button>`;
-    });
-    return html`${this._layersOpen ? html`<div class="fp-layer-chips">${chips}</div>` : nothing}${k ? html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>` : nothing}`;
+    return html`<p class="fp-layer-note" role="status">Hidden by Layers: ${word(k.fam)} <button type="button" @click=${() => this._setLayers(hidden.filter((x) => x !== k.fam))}>Show</button></p>`;
   }
 
   private _setLayers(next: LayerId[]): void {
@@ -2972,8 +2993,6 @@ export class FloorplanStudioCard extends LitElement {
     const turn = this._turn;
     const zoom = this._zoomMode() !== false;
     const showZoomButtons = zoom && !this._kiosk(); // S7.5: kiosk still zooms/pans by gesture, just draws no buttons
-    const showViewSwitch = this._viewSwitchOn();
-    const showRotate = this._rotateOn();
     // S9.6: `home` is the whole floor unless `center`/`zoom_level` pin the card to part of it — the base the box
     // rests on when there is no explicit `_view`, and what "zoomed" (the fp-zoomed class, below) is measured
     // against, so a pinned card reads as its own resting state, not as permanently zoomed in from the full plan.
@@ -3034,10 +3053,11 @@ export class FloorplanStudioCard extends LitElement {
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
     this._measureFrame();
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
-    const stackEl = stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null;
-    const options = showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"} id="fp-options" ?hidden=${!this._optionsOpen}>${this._viewControls(this._viewPick())}</div>` : null;
-    const cluster = options || stackEl ? html`<div class=${this._frame !== "side" && this._optionsOpen ? "fp-cluster fp-below" : "fp-cluster"}>${options}${stackEl}</div>` : null;
-    return html`${this._header(showViewSwitch)}${stage}${note}${this._activePanel()}${cluster}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    const stackEl = stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit) : null;
+    // Kiosk has no header: a menu the config still brings (`rotate_switch: true`) sits in the cluster, over the stack.
+    const kioskMenu = this._kiosk() ? this._optionsMenu() : null;
+    const cluster = kioskMenu || stackEl ? html`<div class="fp-cluster">${kioskMenu}${stackEl}</div>` : null;
+    return html`${this._header()}${stage}${note}${this._activePanel()}${cluster}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */
@@ -3066,12 +3086,6 @@ export class FloorplanStudioCard extends LitElement {
     return { floor: layout.floors[below], shift: place.shift, turn: place.turn };
   }
 
-  /** S27.13: the Floor below button, 2D and 2.5D. Disabled on the lowest floor, which has nothing under it. */
-  private _ghostButton() {
-    const key = this._floorKey(), none = !key || !this._layout || floorBelow(this._layout, key) === null, on = this._ghostOn();
-    return html`<button type="button" aria-label="Floor below" aria-pressed=${on ? "true" : "false"} ?disabled=${none} title=${none ? "Floor below: this is the lowest floor" : "Floor below: show the floor under this one as faint lines"} @click=${() => { this._pickedGhost = !on; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(GHOST_ICON)}</button>`;
-  }
-
   /** The tilt on show: the slider's, else `config.tilt`, else the default. Clamped, since config is untrusted. */
   private _tilt(): number {
     return clampTilt(this._pickedTilt ?? this._config.tilt);
@@ -3082,81 +3096,14 @@ export class FloorplanStudioCard extends LitElement {
     return this._pickedWalls ?? wallsModeOf(this._config.walls);
   }
 
-  /** Next to the Tilt slider, 2.5D only (the caller decides). A pick redraws the plan only and is remembered at once. */
-  private _wallsSelect() {
-    const current = this._walls();
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!(WALLS_MODES as readonly string[]).includes(v)) return;
-      this._pickedWalls = v as WallsMode;
-      this._saveViewNow();
-      this.requestUpdate();
-    };
-    return html`<select aria-label="Walls" title="Walls" @change=${onChange}>${WALLS_MODES.map((m) => html`<option value=${m} ?selected=${m === current}>${WALLS_LABELS[m]}</option>`)}</select>`;
-  }
-
   /** S27.14: the floors below in 3D: this viewer's pick, else `config.floors_below`, else off. Junk is off. */
   private _below(): BelowMode {
     return this._pickedBelow ?? belowModeOf(this._config.floors_below);
   }
 
-  /** Next to Walls, 3D only. A pick is remembered at once; `_sync3d` gives the view its floors on the render that follows. */
-  private _belowSelect() {
-    const current = this._below();
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!(BELOW_MODES as readonly string[]).includes(v)) return;
-      this._pickedBelow = v as BelowMode;
-      this._saveViewNow();
-      this.requestUpdate();
-    };
-    return html`<select aria-label="Floors below" title="Floors below" @change=${onChange}>${BELOW_MODES.map((m) => html`<option value=${m} ?selected=${m === current}>${BELOW_LABELS[m]}</option>`)}</select>`;
-  }
-
-  /** The slider is for 2.5D only: in 2D there is no lift to tilt. Dragging redraws the plan only, like the View select. */
-  private _tiltSlider() {
-    const onInput = (e: Event) => {
-      this._pickedTilt = clampTilt(Number((e.target as HTMLInputElement).value));
-      this._scheduleSave(); // a drag is a burst of inputs
-      this.requestUpdate();
-    };
-    return html`<input type="range" aria-label="Tilt" title="Tilt" min="0" max="1" step="0.01" .value=${String(this._tilt())} @input=${onInput} />`;
-  }
-
-  /** Everything that changes how the plan looks, but not where it is zoomed: the View select, the Tilt slider while
-   * the view is 2.5D, the Theme select and the Labels toggle. All hidden together (`view_switch: false`, kiosk). */
-  private _viewControls(current: CardView) {
-    const labels = this._labels();
-    const names = this._names();
-    const in3d = current === "3d" && this._shows3d(); // Walls is the 2.5D select's value; the model has no tilt slider
-    return html`${this._viewSelect(current)}${in3d ? html`${this._wallsSelect()}${this._belowSelect()}` : current === "2.5d" ? html`${this._tiltSlider()}${this._wallsSelect()}` : null}${this._themeSelect()}
-      <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => { this._pickedLabels = !labels; this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.labels)}</button>
-      <button type="button" aria-label="Device names" title="Device names" aria-pressed=${names ? "true" : "false"} @click=${() => { this._pickedNames = !names; this._saveViewNow(); this.requestUpdate(); }}>Aa</button>${in3d ? null : this._ghostButton()}`;
-  }
-
-  /** The two rotate buttons, next to the zoom buttons: a control of their own (`rotate_switch`), so a card with
-   * `view_switch: false` still turns. */
-  private _rotateButtons() {
-    return html`<button type="button" aria-label="Rotate left" title="Rotate left" @click=${() => this._turnBy(-ROTATION_STEP)}>${this._icon(UI_ICONS.rotateLeft)}</button>
-      <button type="button" aria-label="Rotate right" title="Rotate right" @click=${() => this._turnBy(ROTATION_STEP)}>${this._icon(UI_ICONS.rotateRight)}</button>`;
-  }
-
   /** A toolbar icon: 24x24 path from the inlined set, drawn in the button's own colour. */
   private _icon(path: string) {
     return html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d=${path} fill="currentColor"/></svg>`;
-  }
-
-  /** Choosing a theme sets the card's own theme live: the host's `data-theme` follows in `updated`. Remembered at once. */
-  private _themeSelect() {
-    const current = this._theme();
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!isTheme(v)) return;
-      this._pickedTheme = v;
-      this._saveViewNow();
-      this.requestUpdate();
-    };
-    return html`<select aria-label="Theme" title="Theme" @change=${onChange}>${THEMES.map((t) => html`<option value=${t} ?selected=${t === current}>${THEME_LABELS[t]}</option>`)}</select>`;
   }
 
   /** Whether anything about the view differs from what the config alone would show: a pick, a zoom, a turn. */
@@ -3192,24 +3139,6 @@ export class FloorplanStudioCard extends LitElement {
       delete fv.cam;
       if (!Object.keys(fv).length) this._floorViews.delete(key);
     }
-  }
-
-  private _resetButton() {
-    return html`<button type="button" aria-label="Reset view" title="Reset view" ?disabled=${!this._modified()} @click=${() => this._resetView()}>${this._icon(UI_ICONS.reset)}</button>`;
-  }
-
-  /** Compact `<select>` in the card chrome, outside the plan's `<svg>` like the zoom buttons. A pick redraws the
-   * plan only: `_view` (zoom and pan) is left alone, `render` clamps it against the new fit. */
-  private _viewSelect(current: CardView) {
-    const onChange = (e: Event) => {
-      const v = (e.target as HTMLSelectElement).value;
-      if (!isView(v)) return;
-      this._pickedView = v;
-      this._fallback3d = null; // a new pick tries 3D again
-      this._saveViewNow();
-      this.requestUpdate();
-    };
-    return html`<select aria-label="View" title="View" @change=${onChange}>${VIEW_OPTIONS.map((o) => html`<option value=${o.value} ?selected=${o.value === current}>${o.label}</option>`)}</select>`;
   }
 
   /** S7.4: `config.zoom`, read as untrusted: only `false` turns zoom off and only `"wheel"` widens it. */
@@ -3373,12 +3302,12 @@ export class FloorplanStudioCard extends LitElement {
    * Diego field report, 0.12.14: "−" used to disable at `fit` itself, so a shed or a corner `viewBoxFor` did not
    * bound on had no way to come into view. It now disables only at `MIN_ZOOM` (`viewport.ts`), the same floor
    * `clamp` itself enforces, so the button and the drag/pinch gesture agree on how far out the card goes. */
-  private _viewStack(box: View, home: View, fit: View, withViewSwitch: boolean, withRotate: boolean) {
+  private _viewStack(box: View, home: View, fit: View) {
     const atMin = box.w >= (fit.w / MIN_ZOOM) * (1 - 1e-6);
     const atHome = !this._zoomed();
     const atMax = box.w <= (fit.w / MAX_ZOOM) * (1 + 1e-6);
     const pinned = !sameView(home, fit, fit);
-    // "Reset view" is the stack's own last button (every view option back to the config); Fit only fits.
+    // Fit only fits; "Reset view" (every view option back to the config) is in the ⋯ menu since S31.6.
     const resetLabel = pinned ? "Home view" : "Fit";
     return html`<div class="fp-stack">
       <button type="button" aria-label="Zoom in" title="Zoom in" ?disabled=${atMax} @click=${() => this._zoomCentre(BUTTON_ZOOM)}>+</button>
@@ -3386,8 +3315,6 @@ export class FloorplanStudioCard extends LitElement {
       <button type="button" aria-label=${resetLabel} title=${resetLabel} ?disabled=${atHome} @click=${() => this._fitView()}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 5V1h4M11 1h4v4M15 11v4h-4M5 15H1v-4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
       </button>
-      ${withRotate ? this._rotateButtons() : null}
-      ${withViewSwitch || withRotate ? this._resetButton() : null}
     </div>`;
   }
 

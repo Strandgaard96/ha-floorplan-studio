@@ -92,9 +92,10 @@ export class FpMenu extends LitElement {
     if (refocus) this.btn?.focus();
   }
 
-  private pick(item: MenuItem) {
+  /** `alt`: Alt was held for the click or the key (S31.6: the Layers items show one family alone, as the chips did). */
+  private pick(item: MenuItem, alt = false) {
     if (item.disabled) return;
-    this.dispatchEvent(new CustomEvent("fp-menu-pick", { detail: { ...item }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent("fp-menu-pick", { detail: { ...item, alt }, bubbles: true, composed: true }));
     this.close(true);
   }
 
@@ -159,7 +160,7 @@ export class FpMenu extends LitElement {
       case "Enter":
       case " ": {
         const item = this.flat()[Number((ev.target as HTMLElement).dataset.i)];
-        if (item) { ev.preventDefault(); this.pick(item); }
+        if (item) { ev.preventDefault(); this.pick(item, ev.altKey); }
         break;
       }
     }
@@ -207,7 +208,8 @@ export class FpMenu extends LitElement {
                   aria-disabled=${it.disabled ? "true" : nothing}
                   tabindex="-1"
                   data-i=${i}
-                  @click=${() => this.pick(it)}
+                  data-value=${it.value ?? nothing}
+                  @click=${(ev: MouseEvent) => this.pick(it, ev.altKey)}
                 ><span class="mark${on ? " on" : ""}" aria-hidden="true"></span><span class="text">${it.label}</span></div>`;
               })}
             </div>`)}
@@ -216,11 +218,11 @@ export class FpMenu extends LitElement {
   }
 
   static styles = css`
-    :host{display:inline-block;position:relative;box-sizing:border-box}
+    :host{display:inline-block;position:relative;box-sizing:border-box;font:13px/1.3 var(--fp-font, system-ui, sans-serif)}
     .btn{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;
       min-width:32px;min-height:32px;padding:0 8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
     [role=menu]{position:absolute;z-index:50;top:calc(100% + 4px);left:0;box-sizing:border-box;min-width:200px;width:max-content;
-      overflow:auto;padding:2px;color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;
+      overflow:auto;max-height:min(70vh,520px);padding:2px;color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;
       box-shadow:0 4px 16px color-mix(in srgb, var(--fp-ink) 25%, transparent)}
     [role=menu]:focus{outline:none}
     .group + .group{border-top:1px solid color-mix(in srgb, var(--fp-ink) 20%, transparent);margin-top:2px;padding-top:2px}

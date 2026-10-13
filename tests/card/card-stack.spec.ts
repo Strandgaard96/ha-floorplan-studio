@@ -2,9 +2,10 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { hasItem, isDisabled, rotateLeft, rotateRight } from "./menu-helper";
 
-// The card's view controls, laid out like the studio's: one vertical stack (zoom in, zoom out, fit, rotate left,
-// rotate right, reset) under a horizontal toolbar that keeps only the look controls. Real mouse coordinates
+// The card's zoom cluster: one vertical stack (zoom in, zoom out, fit) at the top right of the stage. S31.6: rotate and
+// reset moved into the header's ⋯ menu with the look controls, and the toolbar is gone. Real mouse coordinates
 // (CLAUDE.md finding 3): a click that lands on the wrong element is the defect this guards against.
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
@@ -12,7 +13,8 @@ const URL_ = pathToFileURL(resolve("tests/card/harness.html")).href;
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 
 type Cfg = Record<string, unknown>;
-const STACK = ["Zoom in", "Zoom out", "Fit", "Rotate left", "Rotate right", "Reset view"];
+const STACK = ["Zoom in", "Zoom out", "Fit"];
+const GONE = ["Rotate left", "Rotate right", "Reset view"]; // now menu items, not buttons
 
 async function boot(page: Page, config: Cfg, width: number) {
   await page.setViewportSize({ width, height: 900 });
@@ -50,7 +52,7 @@ const probe = (page: Page, label: string) =>
 
 for (const width of [1280, 375]) {
   test.describe(`stack at ${width} px`, () => {
-    test("the six buttons sit in one column, in order, below the toolbar, and each takes a real click", async ({ page }) => {
+    test("the three buttons sit in one column, in order, and each takes a real click; rotate and reset are no buttons any more", async ({ page }) => {
       await boot(page, BASE, width);
       const ps = [];
       for (const l of STACK) ps.push({ l, ...(await probe(page, l))! });
@@ -65,38 +67,39 @@ for (const width of [1280, 375]) {
       }
       const g = await card(page).evaluate((el) => {
         const root = el.shadowRoot!;
-        const bar = root.querySelector(".fp-zoom")!.getBoundingClientRect();
         const stack = root.querySelector(".fp-stack")!.getBoundingClientRect();
         const host = el.getBoundingClientRect();
         const panel = root.querySelector(".fp-active")?.getBoundingClientRect();
         const chips = root.querySelector(".fp-floors")?.getBoundingClientRect();
         const meets = (a: DOMRect, b?: DOMRect) => !!b && a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
         return {
-          barBottom: bar.bottom, stackTop: stack.top, stackRight: stack.right, hostRight: host.right,
-          toolbarButtons: [...root.querySelectorAll(".fp-zoom button, .fp-zoom select, .fp-zoom input")].map((c) => c.getAttribute("aria-label")),
+          stackTop: stack.top, stackRight: stack.right, hostRight: host.right,
+          stageTop: root.querySelector("svg")!.getBoundingClientRect().top,
+          loose: [...root.querySelectorAll("button, select, input")].map((c) => c.getAttribute("aria-label")),
+          toolbar: root.querySelectorAll(".fp-zoom, .fp-viewonly").length,
           panelMeets: meets(stack, panel), chipsMeet: meets(stack, chips),
         };
       });
-      expect(g.stackTop).toBeGreaterThanOrEqual(g.barBottom);
+      expect(g.stackTop - g.stageTop, "the stack is 8 px in from the top of the stage").toBeCloseTo(8, 0);
       expect(g.hostRight - g.stackRight).toBeCloseTo(8, 0);
       expect(g.panelMeets).toBe(false);
       expect(g.chipsMeet).toBe(false);
-      // The toolbar keeps the look controls only.
-      for (const l of STACK) expect(g.toolbarButtons).not.toContain(l);
-      for (const l of ["View", "Tilt", "Walls", "Theme", "Labels", "Device names"]) expect(g.toolbarButtons).toContain(l);
+      // The toolbar is gone; the old look controls and the rotate pair are not loose in the card (they are in the menu).
+      expect(g.toolbar).toBe(0);
+      for (const l of [...GONE, "View", "Tilt", "Walls", "Theme", "Labels", "Device names"]) expect(g.loose).not.toContain(l);
+      for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasItem(page, v), v).toBe(true);
     });
 
-    test("a click on Rotate right at its real coordinates turns the plan, and Rotate left turns it back", async ({ page }) => {
+    test("the menu's Rotate right turns the plan, and Rotate left turns it back; Reset view is enabled after a turn", async ({ page }) => {
       await boot(page, BASE, width);
       const before = await planDeg(page);
-      const r = (await probe(page, "Rotate right"))!;
-      await page.mouse.click(r.x, r.y);
+      await rotateRight(page);
       await expect.poll(() => planDeg(page)).not.toBe(before);
       await expect(card(page).locator("css=svg.fp-turning")).toHaveCount(0);
       const turned = await planDeg(page);
       expect(Math.abs(turned - before)).toBe(45);
-      const l = (await probe(page, "Rotate left"))!;
-      await page.mouse.click(l.x, l.y);
+      expect(await isDisabled(page, "reset"), "a turn is a difference to reset").toBe(false);
+      await rotateLeft(page);
       await expect.poll(() => planDeg(page)).toBe(before);
     });
   });
@@ -111,40 +114,32 @@ test("zoom in at its real coordinates zooms the plan", async ({ page }) => {
   await expect.poll(vb).toBeLessThan(w0);
 });
 
-test("rotate_switch: false drops the rotate pair and keeps the rest of the stack", async ({ page }) => {
+test("rotate_switch: false drops the rotate pair from the menu and keeps the cluster", async ({ page }) => {
   await boot(page, { ...BASE, rotate_switch: false }, 1280);
-  expect(await probe(page, "Rotate left")).toBeNull();
-  expect(await probe(page, "Rotate right")).toBeNull();
-  for (const l of ["Zoom in", "Zoom out", "Fit", "Reset view"]) expect(await probe(page, l), l).not.toBeNull();
+  expect(await hasItem(page, "rotate:-1")).toBe(false);
+  expect(await hasItem(page, "rotate:1")).toBe(false);
+  for (const l of STACK) expect(await probe(page, l), l).not.toBeNull();
 });
 
-test("kiosk draws neither toolbar nor stack", async ({ page }) => {
+test("kiosk draws neither toolbar, stack nor menu", async ({ page }) => {
   await boot(page, { ...BASE, kiosk: true }, 1280);
-  await expect(card(page).locator("css=.fp-zoom, .fp-stack, .fp-viewonly")).toHaveCount(0);
+  await expect(card(page).locator("css=.fp-zoom, .fp-stack, .fp-viewonly, fp-menu")).toHaveCount(0);
 });
 
-test("zoom: false shows no zoom chrome; the stack holds only rotate and reset", async ({ page }) => {
+test("zoom: false shows no zoom chrome; rotate and reset stay in the menu", async ({ page }) => {
   await boot(page, { ...BASE, zoom: false }, 1280);
-  await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
-  for (const l of ["Zoom in", "Zoom out", "Fit"]) expect(await probe(page, l), l).toBeNull();
-  const ps = [];
-  for (const l of ["Rotate left", "Rotate right", "Reset view"]) ps.push((await probe(page, l))!);
-  for (const p of ps) expect(p.hit).toBe(true);
-  expect(ps[1].y).toBeGreaterThan(ps[0].y);
-  expect(ps[2].y).toBeGreaterThan(ps[1].y);
-  const below = await card(page).evaluate((el) => {
-    const bar = el.shadowRoot!.querySelector(".fp-viewonly")!.getBoundingClientRect();
-    return el.shadowRoot!.querySelector(".fp-stack")!.getBoundingClientRect().top >= bar.bottom;
-  });
-  expect(below).toBe(true);
+  await expect(card(page).locator("css=.fp-zoom, .fp-stack")).toHaveCount(0);
+  for (const l of STACK) expect(await probe(page, l), l).toBeNull();
+  for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasItem(page, v), v).toBe(true);
 });
 
-test("view_switch: false leaves the stack alone at the top right, with no toolbar", async ({ page }) => {
+test("view_switch: false leaves the stack alone at the top right, with no toolbar; Rotate and Reset stay in the menu", async ({ page }) => {
   await boot(page, { ...BASE, view_switch: false }, 1280);
   await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
   // S31.5: the stack is at the top right of the stage (the plan's box), 8 px in; the header band is above the stage.
   const top = await card(page).evaluate((el) => el.shadowRoot!.querySelector(".fp-stack")!.getBoundingClientRect().top - el.shadowRoot!.querySelector("svg")!.getBoundingClientRect().top);
   expect(top).toBeCloseTo(8, 0);
-  // Rotate is on, so Reset view stays: it is the way back from a turn.
   for (const l of STACK) expect((await probe(page, l))!.hit, l).toBe(true);
+  // Rotate is on, so Reset view stays: it is the way back from a turn.
+  for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasItem(page, v), v).toBe(true);
 });

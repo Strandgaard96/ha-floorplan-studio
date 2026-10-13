@@ -3900,7 +3900,7 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       pinch and a double tap land where they did (the zoom maths read the stage). Migrate the tests that read
       `.fp-zoom`, `.fp-stack`, `.fp-floors` positions or `.fp-active` drag; list each one and why in the report.
       Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-chrome.spec.ts` (new), the migrated specs.
-- [ ] S31.6 ⋯ holds the look (Sonnet). `<fp-menu>` with D3's items; Layers and Detail leave the Overview; the old
+- [x] S31.6 ⋯ holds the look (Sonnet). `<fp-menu>` with D3's items; Layers and Detail leave the Overview; the old
       toolbar and stack go, the cluster keeps +, −, Fit (Reset camera in 3D). Each item writes what the old control
       wrote, through the same view memory. `docs/card.md` "Studio and card" table: the "In the card" column for each
       moved control. Test, failing first: criterion 7; each item changes the plan as the old control did (the S7.4,

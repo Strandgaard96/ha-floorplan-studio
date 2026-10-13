@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
-import { demo, serve, ORIGIN, card, canvas, cam, drawn, viewSelect, open, holder } from "./helpers-3d";
-import { openOptions } from "./options-helper";
+import { demo, serve, ORIGIN, card, canvas, cam, drawn, open, holder } from "./helpers-3d";
+import { pick } from "./menu-helper";
 
 // S12 review fixes: 3D recovers from a failed chunk load and from a lost graphics context, and never leaves a blank canvas
 // with no word. Every test drives the real browser; the GPU failures are real (WEBGL_lose_context, a draw call that throws).
@@ -17,12 +17,10 @@ test("S1: a chunk that failed to load is fetched again on the next pick, and 3D 
   await page.goto(`${ORIGIN}/harness.html`);
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
   await page.evaluate((layout) => { const el = document.getElementById("card") as unknown as { setConfig(c: unknown): void; hass: unknown }; el.setConfig({ layout, floor: "ground", view: "2d" }); el.hass = { states: {}, callService() {} }; }, structuredClone(demo));
-  await openOptions(page);
-  await viewSelect(page).selectOption("3d");
+  await pick(page, "view:3d");
   await expect(note(page)).toContainText(/code did not load/);
   fail = false;
-  await openOptions(page);
-  for (const v of ["2d", "3d"]) await viewSelect(page).selectOption(v);
+  for (const v of ["2d", "3d"]) await pick(page, `view:${v}`);
   await drawn(page);
   await expect(note(page)).toHaveCount(0);
   expect(hits.length, hits.join(" ")).toBe(2); // the first, which failed, and exactly one more
