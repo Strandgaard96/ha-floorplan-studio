@@ -291,8 +291,9 @@ test.describe("S20.2 selecting a floor from its pill", () => {
   test("a narrow card shows the panel on top of nothing else", async ({ page }) => {
     await boot(page, 375);
     await pill(page, "First").click();
-    const covered = await panel(page).evaluate((el) => { const r = el.getBoundingClientRect(); return !(el.getRootNode() as ShadowRoot).elementFromPoint(r.x + 8, r.y + 8)?.closest(".fp-room"); });
-    expect(covered).toBe(false);
+    // S31.8: on a phone the panel is inside the bottom sheet, which rises to half over 0.2 s: wait for it to stop, then ask what is on top.
+    await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
+    await expect.poll(async () => panel(page).evaluate((el) => { const r = el.getBoundingClientRect(); return !(el.getRootNode() as ShadowRoot).elementFromPoint(r.x + 8, r.y + 8)?.closest(".fp-room"); })).toBe(false);
   });
 
   test("kiosk draws no pills, so nothing selects a floor", async ({ page }) => {

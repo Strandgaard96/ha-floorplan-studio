@@ -1446,7 +1446,8 @@ test.describe("S8.2: the card fills a fixed-height container instead of cropping
     const wrapBox = (await page.locator("#fixed-wrap").boundingBox())!;
     const box = await svgBox(page);
     // S31.5: the plan is the stage, the container minus the 52 px header band (and the card still fills the container).
-    expect(box.height).toBeCloseTo(wrapBox.height - 52, 0);
+    // S31.8: this container is 400 px wide, a phone: the stage also leaves the 64 px peek of the bottom sheet its own row.
+    expect(box.height).toBeCloseTo(wrapBox.height - 52 - 64, 0);
     expect((await card(page).boundingBox())!.height).toBeCloseTo(wrapBox.height, 0);
     expect(box.width).toBeLessThanOrEqual(wrapBox.width + 0.5);
   });
@@ -1996,10 +1997,12 @@ test.describe("S9.5: the active-devices panel", () => {
   // Opus review finding 5 (phone-width default, an assumption Diego may overrule — see docs/DECISIONS.md): with
   // nothing stored yet, a card narrower than 500px starts collapsed; a wider one starts open as always.
   test("Opus review finding 5: a narrow card with nothing stored starts collapsed; a wide one starts open", async ({ page }) => {
+    // S31.8: "collapsed" on a phone is the bottom sheet at its peek (the handle says aria-expanded false); wide, the side sheet is open.
     await page.setViewportSize({ width: 380, height: 700 });
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(0);
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-handle")).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("floorplan-studio-card").locator("css=.fp-bottom")).toHaveAttribute("data-stop", "peek");
 
     await page.setViewportSize({ width: 1000, height: 700 });
     await page.reload();
@@ -2009,51 +2012,56 @@ test.describe("S9.5: the active-devices panel", () => {
     await expect(page.locator("floorplan-studio-card").locator("css=.fp-active-body")).toHaveCount(1);
   });
 
-  // 2026-10-02: the list covered the plan on narrow cards. Folded by default under 480px (it was 500px, and only
-  // with nothing stored, so a panel that had merely been dragged once stayed open on a phone); the width is followed
-  // until the user folds or unfolds it by hand, and from then on the choice is theirs.
-  test("under 480px the list starts folded and over 480px it starts open, at the line and not at the old 500", async ({ page }) => {
-    const body = () => page.locator("floorplan-studio-card").locator("css=.fp-active-body");
-    await page.setViewportSize({ width: 500, height: 700 }); // the page body's 8px margins make the card 484
+  // 2026-10-02 rule: the width is followed until the user folds or unfolds by hand. S31.5/S31.8 moved the lines: under 640 px the sheet
+  // is the bottom sheet at peek; from 640 the side sheet, a rail until 900 px, open from 900.
+  test("the sheet follows the card's width: peek under 640, a rail from 640, open from 900", async ({ page }) => {
+    const card = page.locator("floorplan-studio-card");
+    await page.setViewportSize({ width: 656, height: 700 }); // the page body's 8px margins make the card 640
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    await expect(body()).toHaveCount(1); // 484 is wide enough now
-    await page.setViewportSize({ width: 480, height: 700 });
-    await expect(body()).toHaveCount(0); // and 464 is not; the width is followed while nobody has chosen
-    await page.setViewportSize({ width: 1000, height: 700 });
-    await expect(body()).toHaveCount(1);
+    await expect(card.locator("css=.fp-rail-open")).toHaveCount(1); // 640 is the side sheet, folded as a rail
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+    await page.setViewportSize({ width: 654, height: 700 }); // 638
+    await expect(card.locator("css=.fp-handle")).toHaveCount(1);
+    await expect(card.locator("css=.fp-rail-open")).toHaveCount(0);
+    await page.setViewportSize({ width: 916, height: 700 }); // 900
+    await expect(card.locator("css=.fp-active-body")).toHaveCount(1);
+    await expect(card.locator("css=.fp-handle")).toHaveCount(0);
   });
 
-  test("a panel that was only dragged, never folded by hand, still starts folded on a narrow card", async ({ page }) => {
-    const config = { layout: structuredClone(demo) };
+  test("a phone sheet that was dragged to full starts at peek again after a reload: the stop is not stored", async ({ page }) => {
+    // S31.8: the old test dragged the floating panel and checked that the stored position did not unfold it. The sheet has no stored
+    // position; its stop is not stored either.
+    await page.setViewportSize({ width: 400, height: 800 });
     await open(page);
-    await configure(page, config, { states: states() });
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
     const card = page.locator("floorplan-studio-card");
-    const head = (await card.locator("css=.fp-active-head").boundingBox())!;
-    await page.mouse.move(head.x + head.width / 2, head.y + head.height / 2);
+    const handle = (await card.locator("css=.fp-handle").boundingBox())!;
+    const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2;
+    await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(head.x + head.width / 2 + 60, head.y + head.height / 2 + 60, { steps: 6 });
-    await page.mouse.up(); // writes a stored position, and nothing else
-    await page.setViewportSize({ width: 400, height: 700 });
+    await page.mouse.move(x, y - 700, { steps: 8 });
+    await page.mouse.up();
+    await expect(card.locator("css=.fp-bottom")).toHaveAttribute("data-stop", "full");
     await page.reload();
     await page.addScriptTag({ content: CARD_JS, type: "module" });
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-    await configure(page, config, { states: states() });
-    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
+    await configure(page, { layout: structuredClone(demo) }, { states: states() });
+    await expect(card.locator("css=.fp-bottom")).toHaveAttribute("data-stop", "peek");
   });
 
-  test("once the user unfolds it on a narrow card, or folds it on a wide one, widening or narrowing the card leaves it alone", async ({ page }) => {
+  test("once the user opens the phone sheet, or folds the side sheet on a wide card, resizing the card leaves it alone", async ({ page }) => {
     const card = page.locator("floorplan-studio-card");
     await page.setViewportSize({ width: 400, height: 700 });
     await open(page);
     await configure(page, { layout: structuredClone(demo) }, { states: states() });
-    await expect(card.locator("css=.fp-active-body")).toHaveCount(0);
-    await card.locator("css=.fp-active-collapse").click(); // unfold by hand
-    await expect(card.locator("css=.fp-active-body")).toHaveCount(1);
-    await page.setViewportSize({ width: 420, height: 700 }); // still narrow, but a resize must not refold it
+    await expect(card.locator("css=.fp-bottom")).toHaveAttribute("data-stop", "peek");
+    await card.locator("css=.fp-handle").click(); // open by hand
+    await expect(card.locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
+    await page.setViewportSize({ width: 420, height: 700 }); // still narrow, but a resize must not close it
     await page.setViewportSize({ width: 1000, height: 700 });
     await page.setViewportSize({ width: 380, height: 700 });
-    await expect(card.locator("css=.fp-active-body")).toHaveCount(1);
+    await expect(card.locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
 
     await page.setViewportSize({ width: 1000, height: 700 });
     await card.locator("css=.fp-active-collapse").click(); // fold by hand on a wide card

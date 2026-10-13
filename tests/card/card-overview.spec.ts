@@ -184,19 +184,21 @@ test.describe("S24.7 the Overview sheet", () => {
     await expect(pop(page)).toHaveAttribute("aria-label", "Garage side door");
   });
 
-  test("folded at phone width, the header is one line that still shows the alerts first (computed style pair)", async ({ page }) => {
+  test("at rest on a phone, the handle is one line that still shows the alerts first (computed style pair)", async ({ page }) => {
+    // S31.8: the folded floating header (`.fp-active-head`, collapse button) is the bottom sheet's handle at its 64 px peek. The rules
+    // that kept it to one line move to `.fp-handle-line`: no wrap, an ellipsis, the alerts chip first and not cut.
     await boot(page, { floor: "ground" }, { width: 390, height: 844 });
-    await expect(card(page).locator("css=.fp-active-collapse")).toHaveAttribute("aria-expanded", "false"); // below 480 px it starts folded
-    const head = await card(page).locator("css=.fp-active-head").evaluate((h) => {
-      const chips = h.querySelector<HTMLElement>(".fp-ov-chips")!, first = chips.querySelector<HTMLElement>(".fp-chip")!;
-      const cs = getComputedStyle(chips), r = h.getBoundingClientRect(), f = first.getBoundingClientRect(), c = chips.getBoundingClientRect();
-      return { h: r.height, wrap: getComputedStyle(h).flexWrap, ws: cs.whiteSpace, ellipsis: cs.textOverflow, first: first.textContent, firstShown: f.right <= c.right + 0.5, crumb: getComputedStyle(h.querySelector(".fp-crumb")!).display };
+    await expect(card(page).locator("css=.fp-handle")).toHaveAttribute("aria-expanded", "false");
+    const head = await card(page).locator("css=.fp-handle-line").evaluate((line) => {
+      const chips = line.querySelector<HTMLElement>(".fp-ov-chips")!, first = chips.querySelector<HTMLElement>(".fp-chip")!;
+      const cs = getComputedStyle(line), r = line.getBoundingClientRect(), f = first.getBoundingClientRect();
+      return { h: r.height, ws: cs.whiteSpace, ellipsis: cs.textOverflow, overflow: cs.overflowX, first: first.textContent, firstShown: f.right <= r.right + 0.5, sheetH: line.closest(".fp-bottom")!.getBoundingClientRect().height };
     });
-    expect(head.wrap).toBe("nowrap");
     expect(head.ws).toBe("nowrap");
     expect(head.ellipsis).toBe("ellipsis");
-    expect(head.crumb).toBe("none");
-    expect(head.h, "one line: no taller than the header was before S24.7").toBeLessThanOrEqual(32);
+    expect(head.overflow).toBe("hidden");
+    expect(head.h, "one line of 13 px text, no taller").toBeLessThanOrEqual(24);
+    expect(head.sheetH, "the whole sheet at rest is the 64 px peek").toBeCloseTo(64, 0);
     expect(head.first).toBe("11 alerts");
     expect(head.firstShown, "the alerts chip is not cut").toBe(true);
   });

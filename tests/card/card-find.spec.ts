@@ -104,12 +104,14 @@ test.describe("S24.8 search in the card", () => {
     expect(boxes.popLeft).toBeGreaterThanOrEqual(boxes.sheetRight);
   });
 
-  test("Ctrl+K on a folded phone sheet unfolds it and focuses the search; Enter on a linked TV piece opens it too", async ({ page }) => {
+  test("Ctrl+K on a phone sheet at peek opens it to full and focuses the search; Enter on a linked TV piece opens it too", async ({ page }) => {
+    // S31.8: the folded phone sheet is the bottom sheet at peek; its handle's aria-expanded is the fold.
     await boot(page, {}, { width: 390, height: 844 });
-    await expect(card(page).locator("css=.fp-active-collapse")).toHaveAttribute("aria-expanded", "false");
+    await expect(card(page).locator("css=.fp-handle")).toHaveAttribute("aria-expanded", "false");
     await hover(page);
     await page.keyboard.press("Control+k");
-    await expect(card(page).locator("css=.fp-active-collapse")).toHaveAttribute("aria-expanded", "true");
+    await expect(card(page).locator("css=.fp-handle")).toHaveAttribute("aria-expanded", "true");
+    await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "full");
     expect(await focused(page)).toBe("fp-search>input");
     await page.keyboard.type("kitchen echo");
     await page.keyboard.press("Enter");

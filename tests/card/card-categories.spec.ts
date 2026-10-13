@@ -36,9 +36,11 @@ async function boot(page: Page, width: number, extra: Record<string, unknown> = 
     el.hass = { states, callService: (d: string, s: string) => { w.__calls.push(`${d}.${s}`); } };
     return el.updateComplete;
   }, [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const);
-  // below 480 px the list starts folded: open it, as a person would
-  const collapse = card(page).locator("css=.fp-active-collapse");
-  if ((await collapse.getAttribute("aria-expanded")) === "false") await collapse.click();
+  // S31.8: under 640 px the list is a bottom sheet that rests at its peek: open it to half with a real click on the handle, as a person
+  // would. (Before S31.8 this was the floating panel's collapse button, folded under 480 px.)
+  const handle = card(page).locator("css=.fp-bottom .fp-handle");
+  if (await handle.count() && (await handle.getAttribute("aria-expanded")) === "false") await handle.click();
+  if (await handle.count()) await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
 }
 const card = (page: Page) => page.locator("floorplan-studio-card");
 const calls = (page: Page) => page.evaluate(() => (window as unknown as { __calls: string[] }).__calls);
@@ -126,6 +128,9 @@ test.describe("the Room panel is grouped too", () => {
   for (const width of [1100, 375]) {
     test(`at ${width} px a picked room lists its devices by category and folds them apart from the Active list`, async ({ page }) => {
       await boot(page, width);
+      // S31.8: boot opened the phone's sheet to half over the plan; a person taps the room on a plan they can see, so it goes back to peek
+      const sheet = card(page).locator("css=.fp-bottom");
+      if (await sheet.count()) { await card(page).locator("css=.fp-bottom .fp-handle").click(); await expect(sheet).toHaveAttribute("data-stop", "peek"); await expect.poll(async () => (await sheet.boundingBox())!.height).toBeLessThan(70); }
       const p = await card(page).evaluate((el) => {
         const poly = el.shadowRoot!.querySelector<SVGPolygonElement>('svg polygon[data-r="0"]')!;
         const r = poly.getBoundingClientRect();

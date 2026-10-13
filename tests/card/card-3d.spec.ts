@@ -279,36 +279,18 @@ test.describe("3D view: the Active list does not hide the model (S12.4)", () => 
     await expect.poll(async () => (await holder(page).getAttribute("data-inset")) ?? "0,0").toMatch(/^0(\.0+)?,0(\.0+)?$/);
   });
 
-  // S31.5: from 640 px the list is the side sheet, beside the stage, so nothing of it is over the model and the inset is 0 (next test).
-  // The floating list, and the camera framing around it, are what a card under 640 px has until S31.8: this one runs at 600 px.
-  test("with the list open the camera frames the house in the free width (a card under 640 px, the floating list)", async ({ page }) => {
-    // The harness card is 900 wide whatever the window is: narrow it before the first frame, as a narrow dashboard column would be.
+  // S31.8: a card under 640 px has the bottom sheet, across the width, not a box beside the house: no inset (see card-3d-narrow.spec.ts).
+  test("a card under 640 px: the sheet is at the bottom, takes no side inset, and the house is framed in the whole width", async ({ page }) => {
     await serve(page);
     await page.goto(`${ORIGIN}/harness.html`);
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
-    await card(page).evaluate((el) => { el.style.width = "639px"; el.style.height = "300px"; }); // short, so the house is limited by height as it was in the 900 px card
+    await card(page).evaluate((el) => { el.style.width = "639px"; el.style.height = "300px"; });
     await configure(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
     await drawn(page);
     const h = (await holder(page).boundingBox())!, p = (await card(page).locator("css=.fp-active").boundingBox())!;
-    await expect.poll(async () => +((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",")[0]).toBeGreaterThan(0.05);
-    const [l, r] = ((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",").map(Number);
-    expect(r).toBe(0);
-    expect(l).toBeCloseTo((p.x + p.width - h.x) / h.width, 2); // the list's right edge, as a share of the view
-    // a house centred in the free part: its pixels lie right of the list's edge, not under it
-    await card(page).locator("css=.fp-active").evaluate((el: HTMLElement) => { el.style.visibility = "hidden"; }); // the list paints over the canvas: read the model alone
-    // S28.8: the ground plane reaches past the house on purpose (1.5x), so read the model without it and its shadows.
-    await page.evaluate(() => (window as unknown as { __fp3d: { shadeVisible(on: boolean): void } }).__fp3d.shadeVisible(false));
-    const png = await canvas(page).screenshot();
-    const edge = await page.evaluate(async (b64) => {
-      const img = new Image(); img.src = `data:image/png;base64,${b64}`; await img.decode();
-      const c = document.createElement("canvas"); c.width = img.width; c.height = img.height;
-      const g = c.getContext("2d")!; g.drawImage(img, 0, 0);
-      const d = g.getImageData(0, 0, c.width, c.height).data;
-      let min = c.width, max = 0;
-      for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) if (Math.abs(d[(y * c.width + x) * 4] - d[0]) + Math.abs(d[(y * c.width + x) * 4 + 1] - d[1]) + Math.abs(d[(y * c.width + x) * 4 + 2] - d[2]) > 24) { min = Math.min(min, x); max = Math.max(max, x); }
-      return { min: min / c.width, max: max / c.width };
-    }, png.toString("base64"));
-    expect(edge.min).toBeGreaterThan((p.x + p.width - h.x) / h.width - 0.02); // nothing of the model under the list
-    expect(edge.max).toBeLessThan(1.0);
+    expect(p.x, "the sheet starts at the card's left edge").toBeLessThanOrEqual(h.x + 0.5);
+    expect(p.x + p.width, "and spans the width").toBeGreaterThanOrEqual(h.x + h.width - 0.5);
+    expect(p.y, "at the bottom").toBeGreaterThan(h.y + h.height / 2);
+    await expect.poll(async () => (await holder(page).getAttribute("data-inset")) ?? "0,0").toMatch(/^0(\.0+)?,0(\.0+)?$/);
   });
 });

@@ -146,6 +146,11 @@ for (const width of [1280, 375]) {
       expect(await picked(page)).toEqual([0]);
       await page.keyboard.press("Escape"); // the pointer is still over the card, so it owns the key
       expect(await picked(page)).toEqual([]);
+      // S31.8: on a phone Escape steps up one level, Room to Floor; the Floor level is a panel too. A second Escape reaches the Overview.
+      if (width < 640) {
+        await expect(room(page)).toHaveCount(1);
+        await page.keyboard.press("Escape");
+      }
       await expect(room(page)).toHaveCount(0);
     });
 
@@ -169,7 +174,8 @@ for (const width of [1280, 375]) {
     test("a tap on a door does not select a room either", async ({ page }) => {
       await boot(page, width);
       // S24.7: the open Overview (Attention, scope, two-line rows) stands over door 1 at 1280 px; fold it, as a person would.
-      const fold = card(page).locator("css=.fp-active-collapse");
+      // S31.8: a phone has no fold button; its sheet rests at peek (the handle's aria-expanded is false), which is the folded state.
+      const fold = card(page).locator("css=.fp-active-collapse, .fp-handle");
       if ((await fold.getAttribute("aria-expanded")) === "true") await fold.click();
       const p = await card(page).evaluate((el) => { const l = el.shadowRoot!.querySelector("svg line[data-d='1']")!, r = l.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2, hit: !!el.shadowRoot!.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest("line[data-d]") }; });
       expect(p.hit).toBe(true);
@@ -318,12 +324,18 @@ test.describe("CSS pairs (finding 10): the rule reaches the pixel", () => {
     expect(r.events).toBe("none");
     expect(r.fill).toBe("none");
   });
-  test("the panel is wider with a room section, and the popup's Details is a real, clickable size", async ({ page }) => {
-    await boot(page, 600); // S31.5: from 640 px the sheet has one width; the floating panel under it still grows with its room section
-    const w0 = (await card(page).locator("css=.fp-active").boundingBox())!.width;
+  test("the sheet is taller with a room section, and the popup's Details is a real, clickable size", async ({ page }) => {
+    // S31.8: under 640 px the floating panel (which grew wider with a room section) is the bottom sheet: as wide as the card always,
+    // 64 px at rest, half the card with a room. The growth the old test asserted is now in height.
+    await boot(page, 600);
+    const box = async () => (await card(page).locator("css=.fp-active").boundingBox())!;
+    const host = (await card(page).boundingBox())!;
+    const b0 = await box();
+    expect(b0.width, "full width at rest").toBeCloseTo(host.width, 0);
+    expect(b0.height, "the 64 px peek").toBeCloseTo(64, 0);
     await click(page, await floorPoint(page, 0));
-    const w1 = (await card(page).locator("css=.fp-active").boundingBox())!.width;
-    expect(w1).toBeGreaterThan(w0);
+    await expect.poll(async () => (await box()).height).toBeGreaterThan(b0.height + 100);
+    expect((await box()).width).toBeCloseTo(host.width, 0);
     await card(page).locator("css=.fp-room-devices .fp-active-row").first().click();
     const sum = card(page).locator("css=.fp-pop .fp-pop-info > summary");
     const b = (await sum.boundingBox())!; // S24.7: Details replaced the 24 px chevron; its row is at least 32 px tall

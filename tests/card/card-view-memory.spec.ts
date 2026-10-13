@@ -326,7 +326,8 @@ test.describe("toolbar", () => {
 
   // S31.6: the old test measured a box that wrapped to rows and could sit on the fold button. The menu is a popover that covers
   // what is under it while it is open, on purpose; what must hold is that closing it leaves the fold button reachable.
-  test("on a narrow card a closed menu leaves the Active list's fold button the real top element, and a real click on it folds", async ({ page }) => {
+  // S31.8: under 640 px the fold button is the bottom sheet's handle.
+  test("on a narrow card a closed menu leaves the sheet's handle the real top element, and a real click on it opens the sheet", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
@@ -335,13 +336,13 @@ test.describe("toolbar", () => {
     await page.keyboard.press("Escape");
     await expect(menuPanel(page)).toHaveCount(0);
     const foldIsTop = await card(page).evaluate((el) => {
-      const head = el.shadowRoot!.querySelector(".fp-active-collapse")!.getBoundingClientRect();
-      return !!el.shadowRoot!.elementFromPoint(head.x + head.width / 2, head.y + head.height / 2)?.closest(".fp-active-collapse");
+      const head = el.shadowRoot!.querySelector(".fp-handle")!.getBoundingClientRect();
+      return !!el.shadowRoot!.elementFromPoint(head.x + head.width / 2, head.y + head.height / 2)?.closest(".fp-handle");
     });
-    expect(foldIsTop, "the fold button is the real top element at its centre").toBe(true);
-    const fold = card(page).locator("css=.fp-active-collapse");
+    expect(foldIsTop, "the handle is the real top element at its centre").toBe(true);
+    const fold = card(page).locator("css=.fp-handle");
     const before = await fold.getAttribute("aria-expanded");
     await fold.click();
-    expect(await fold.getAttribute("aria-expanded")).not.toBe(before);
+    await expect(fold).not.toHaveAttribute("aria-expanded", before!);
   });
 });
