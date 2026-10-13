@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Studio: doors are visible again. A door or glass door with no closed sensor is a hole in the card (0.12.x S25.D1), and the Studio has no live state, so every door there was an invisible gap. In the Studio alone such a door now draws a faint dashed guide line (`.door.guide`, thin, 55 % of --fp-door or --fp-glass). The card and 2.5D/3D keep the hole; a selected door, a window and the doorway kind look as before.
+
 ## 0.28.0 - 2026-10-12
 
 - Editor state: `alignToBelow` applies the turn the search finds, preferring a small change from the floor's current turn; one undo step, none when the pose is unchanged, refused under Lock plan. On the hand-align house, Align then Apply on the ground and the first floor lands every outline corner within 2 cm and the turn within 0.2 degree.

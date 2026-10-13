@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-12: The Studio draws a faint guide for a door that is a hole (Sonnet)
+
+Supersedes the S25.D1 line "Editor: no live state, so a door is a hole there". Diego: "in studio doors are not visible". Cause: S25.D1
+made a door or glass door with no closed sensor a plain hole (`quiet`, stroke transparent), and the Studio has no live state, so every
+door there was an invisible gap. Assumption (not asked): only with `o.editor`, a hole that is not selected, open or alarmed gets class
+`guide` instead of `quiet`: `.door.guide`, 1.5 px non-scaling, dashed `4 4`, stroke-opacity .55, in --fp-door (--fp-glass for glass), like
+`.e.none`. The card, 2.5D and 3D keep the hole; a closed door keeps its thick line; the selected look, the hit line, window symbols and the
+`open` doorway kind are unchanged. Windows have a symbol, so they get no guide. Tests: `tests/core/door-guide.test.ts` and a
+computed-style pair in `tests/editor/door-guide.spec.ts` (guide not transparent in the Studio, same door transparent in the card).
+
 ## 2026-10-12: Opus review of Sprint 30: short lines vote (Sonnet)
 
 Supersedes "Shortest line counted | 20 cm" in S30.1. An L outline cut into 15 or 19 cm pieces (a click every 15 cm), turned 7.3
