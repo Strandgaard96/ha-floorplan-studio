@@ -92,9 +92,10 @@ export class FpMenu extends LitElement {
     if (refocus) this.btn?.focus();
   }
 
-  private pick(item: MenuItem) {
+  /** `alt`: Alt was held for the click or the key (S31.6: the Layers items show one family alone, as the chips did). */
+  private pick(item: MenuItem, alt = false) {
     if (item.disabled) return;
-    this.dispatchEvent(new CustomEvent("fp-menu-pick", { detail: { ...item }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent("fp-menu-pick", { detail: { ...item, alt }, bubbles: true, composed: true }));
     this.close(true);
   }
 
@@ -159,7 +160,7 @@ export class FpMenu extends LitElement {
       case "Enter":
       case " ": {
         const item = this.flat()[Number((ev.target as HTMLElement).dataset.i)];
-        if (item) { ev.preventDefault(); this.pick(item); }
+        if (item) { ev.preventDefault(); this.pick(item, ev.altKey); }
         break;
       }
     }
@@ -207,7 +208,8 @@ export class FpMenu extends LitElement {
                   aria-disabled=${it.disabled ? "true" : nothing}
                   tabindex="-1"
                   data-i=${i}
-                  @click=${() => this.pick(it)}
+                  data-value=${it.value ?? nothing}
+                  @click=${(ev: MouseEvent) => this.pick(it, ev.altKey)}
                 ><span class="mark${on ? " on" : ""}" aria-hidden="true"></span><span class="text">${it.label}</span></div>`;
               })}
             </div>`)}
