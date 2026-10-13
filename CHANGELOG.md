@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.29.0 - 2026-10-13
+
 - Card (fix, review of S31): Back and Escape no longer take keyboard focus from another control on the page when the card only has the pointer over it; focus moves to the sheet's control only if it was already in the card.
 - Card (fix, review of S31): on a tablet, Back or Escape from the Floor level to the rail keeps keyboard focus, on the rail's open button, instead of dropping it.
 - Card (fix, review of S31): the ⋯ menu is never taller than 70 % of the screen, 520 px or the room below its button on screen, whichever is least, and scrolls inside that. A card taller than the screen (a tablet with a tall plan) used to let it run off the bottom.
