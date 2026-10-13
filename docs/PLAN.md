@@ -3861,7 +3861,7 @@ Lane frame (a new `src/card/frame.ts`, pure, no DOM):
       Files: new `src/card/frame.ts`, new `tests/card/frame.test.ts`.
 
 Lane menu (a new `src/card/more-menu.ts`):
-- [ ] S31.3 `<fp-menu>` (Sonnet). A menu button and its menu, like `<fp-search>`: takes `items` (sections of
+- [x] S31.3 `<fp-menu>` (Sonnet). A menu button and its menu, like `<fp-search>`: takes `items` (sections of
       `radio`, `check` and `action` items with label, value, checked, disabled), fires `fp-menu-pick` with the item;
       ARIA menu (`aria-haspopup`, `aria-expanded`, `menuitemradio`, `menuitemcheckbox`, `menuitem`); Enter, Space and
       ArrowDown open it on the first checked or first item; arrows, Home, End move; Escape and Tab close it and give

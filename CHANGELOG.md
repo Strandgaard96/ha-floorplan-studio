@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Card (S31.3, not wired in yet): `<fp-menu>` in `src/card/more-menu.ts`, a menu button with an ARIA menu of radio, check and action items in labelled sections. Keyboard (Enter, Space, ArrowDown, arrows, Home, End, Escape, Tab), a press outside closes it, it opens under the button inside the card (a full-width panel under 640 px), items are 32 px, 44 px on a coarse pointer. A pick fires `fp-menu-pick`.
+
 ## 0.28.1 - 2026-10-13
 
 - Studio: doors are visible again. A door or glass door with no closed sensor is a hole in the card (0.12.x S25.D1), and the Studio has no live state, so every door there was an invisible gap. In the Studio alone such a door now draws a faint dashed guide line (`.door.guide`, thin, 55 % of --fp-door or --fp-glass). The card and 2.5D/3D keep the hole; a selected door, a window and the doorway kind look as before.

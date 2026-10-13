@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.3 `<fp-menu>` (Sonnet)
+
+New `src/card/more-menu.ts`, used by nothing yet (S31.6 puts the look in it). Assumptions, not asked: a pick closes the menu for all three kinds (a check item too) and the host owns the checked state: the menu changes nothing, the host sets `items` again; `fp-menu-pick` carries a copy of the item as `detail`. The menu aligns with the button's edge on the side with more room and is clamped into the box of its shadow root's host (the body outside a shadow root); under 640 px that box wide it is a panel as wide as the box. Focus moves to the first checked enabled item, else the first, on every open, mouse included. Disabled items are skipped by arrows and stay open on a click. Tab is taken (closes, focus to the button). Studio parity: card chrome, no Studio twin. Tests: `tests/card/more-menu.spec.ts` on `tests/card/menu-harness.html` (two menus in a stand-in card's shadow root); with the Tab handler, the outside-press close and the 44 px rule removed, four tests fail.
+
 ## 2026-10-13: Sprint 31 planned: card layout and touch (Sonnet)
 
 Spec `docs/specs/card-layout-touch.md`, plan `docs/PLAN.md` Sprint 31. Docs only; nothing built. Four decisions wait for
