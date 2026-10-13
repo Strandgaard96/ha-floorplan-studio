@@ -56,6 +56,20 @@ test("768 x 1024: Escape twice from a room lands focus on the rail's open button
   await expect.poll(async () => (await focusIn(page)).inside).toContain("fp-rail-open");
 });
 
+test("1280 x 1000: Back with focus on a button outside the card leaves it there, though the pointer is over the card", async ({ page }) => {
+  await boot(page, { width: 1280, height: 1000 });
+  await page.evaluate(() => { const b = document.createElement("button"); b.id = "elsewhere"; b.textContent = "elsewhere"; b.style.cssText = "position:fixed;right:0;bottom:0"; document.body.append(b); });
+  const pt = await roomPoint(page);
+  await page.mouse.click(pt!.x, pt!.y); // a real pick; the pointer stays over the plan
+  await expect.poll(() => picked(page)).toMatchObject({ room: true });
+  await page.evaluate(() => document.getElementById("elsewhere")!.focus());
+  await page.keyboard.press("Escape"); // the card owns the key by hover only
+  await expect.poll(() => picked(page)).toEqual({ room: false, floor: true });
+  const f = await focusIn(page);
+  expect(f.outside, "focus is still on the page's own button").toBe("elsewhere");
+  expect(f.inside).toBeNull();
+});
+
 test("1280 x 1000: Back with focus inside the card moves it to the sheet's own control", async ({ page }) => {
   await boot(page, { width: 1280, height: 1000 });
   const pt = await roomPoint(page);
