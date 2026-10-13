@@ -3798,3 +3798,165 @@ run and in another line order), then fixes with their tests and the re-check. Ex
    show every time. Other option: name it only when both turns are within 10 degrees of the current one.
 3. **Preview before Apply?** Default: no. Apply is one undo step, so Apply, look, Undo is the preview. Other option: draw
    the proposed place as a second ghost while the panel is open (a render change, a day more).
+
+## Sprint 31: Release 0.29.0, card layout and touch
+
+Branch `task/s31-card-touch`. Lanes branch off it as `task/s31-<lane>`, each in its own worktree with its own `PW_PORT`,
+and merge back into `task/s31-card-touch`. Roadmap row 31, from Diego's review of 2026-10-08: "one side sheet in the
+card (Overview › Floor › Room › Device)"; chrome sits beside the plan, not over it. Spec: `docs/specs/card-layout-touch.md`
+(today's card, decisions D1 to D4, the old keys in the new frame, accessible names, criteria 1 to 12, tap tasks K1 to
+K5). Exit test: K1 to K5 at their target tap counts on 768 x 1024 and 390 x 844, real taps, from a cold card.
+
+**Waits for Diego's yes on D1 to D4** (open questions at the end). Until then the defaults are the assumptions
+(DECISIONS 2026-10-13). Wave 0 and wave 1 do not depend on the answers; wave 2 does.
+
+Rules. As Sprint 30: each task one outcome, its failing test written first and watched failing, and the report says how it
+failed (finding 5); real `page.touchscreen`, `page.mouse` and `page.keyboard` at real coordinates on the real top element
+(finding 3); a new Playwright test runs `--repeat-each=10`, no `waitForTimeout`, no retry, waits on a state (finding 13);
+each command bare, `$?` on its own line (finding 14); every CSS rule that matters gets its `getComputedStyle` pair, a
+coarse rule beside its fine twin (finding 10); behaviour lives in a class rule, never a presentation attribute (finding
+18); a test that pinned an old default or an old chrome spot sets its own premise (finding 19); a stubbed `hass` shape is
+copied from what the card sends (finding 21); a change to a stylesheet runs `npm run shots` and is looked at (finding 16);
+every interpolated name goes through a Lit text binding (finding 2). Keys stay on the card host, never `window`
+(finding 6). Nothing new is drawn by `renderFloor`; `src/core/render.ts` is not touched (finding 8).
+
+Studio parity. Everything here is card chrome: the header bar, the sheet, ⋯, the cluster, fit to height, the 44 px
+rules, the plan's focus ring. None of it is a plan view feature, so the Studio gets no twin (memory: every **view**
+feature of the editor is also in the card; that still holds, `view-parity.spec.ts` keeps one row per Studio control and
+only the "In the card" column moves). Keys on the plan: the Studio selects by its Outline and its own keys (S24.5); no
+twin. Say so in each task's DECISIONS line.
+
+Out of scope: the Studio; new YAML keys; Sprint 32 extras; 3D centring; any change to `src/core/render.ts`.
+
+Models. Every coder is Sonnet (`docs/WORKFLOW.md`). Marked **judgement** below: the brief carries the spec's section
+and the coordinator reads the coder's note (a comment block at the top of the change) before it accepts the code. Opus
+reviews the integrated build once.
+
+Wave 0, on `task/s31-card-touch`, one coder, before any product code:
+- [ ] S31.1 Tap tasks red, and the baseline (Sonnet). A helper `tests/card/touch-helpers.ts`: `bootTouch(page, size,
+      config)` (stress layout, the `card-find.spec.ts` states, `__realDetailDefault`, storage cleared, `hasTouch` and
+      `isMobile` so `pointer: coarse` matches, asserted), `tapRole(page, role, name)` (finds the control by the spec's
+      accessible name inside the card's shadow root, scrolls it in, checks it is the top element at the tap point,
+      taps with `page.touchscreen.tap`, counts), `taps(page)`, `typed(page)`. `tests/card/card-tasks.spec.ts`: K1 to K5
+      on tablet and phone, each asserting its tap count, its exact `callService` calls and (K2 phone) the icon box
+      above the sheet. Run on 0.28.1 by hand with the old controls to measure today's counts (a scratch script, not
+      committed); the tests themselves use the new names, so they fail now: mark each failing one `test.fail()` with
+      "S31.11 removes this". Measure the card's gzip size against the size test's limit.
+      Done when: the counts of today and the headroom are in a DECISIONS entry; every `test.fail()` fails for the
+      reason expected (a missing named control, not a timeout); the helpers are used by no other file yet.
+      Files: new `tests/card/touch-helpers.ts`, new `tests/card/card-tasks.spec.ts`, `docs/DECISIONS.md`.
+
+Wave 1, three lanes in parallel after S31.1, new files only, each in its own worktree:
+
+Lane frame (a new `src/card/frame.ts`, pure, no DOM):
+- [ ] S31.2 Frame maths (Sonnet, **judgement**: the phone minimum and the snap rule). `frameMode(width)` (`side` at 640
+      and up, `bottom` under, `none` for kiosk or no sheet); `sideWidth(width)` (`clamp(260, 32 %, 320)`);
+      `sideOpenByDefault(width)` (900 and up); `cardHeight({ planAspect, width, viewportH, haHeader, chrome, mode })`
+      (D4 assumption and D2's phone minimum); `sheetStops(cardH, headerH)` (peek 64, half `max(50 %, 340)` capped, full);
+      `snapSheet(h, velocity, stops)` (nearest; a fling over 0.5 px/ms goes one stop its way); `nextOnHandleTap(stop)`.
+      Test, failing first: the breakpoints at 639, 640, 899, 900; a 1:3 tall and a 3:1 wide plan at 390, 768, 1024 wide
+      under 844, 1024, 768 high; the phone minimum on; every stop from every stop with velocities -2, -0.6, -0.4, 0,
+      0.4, 0.6, 2; a card shorter than peek plus header; junk (`NaN`, negative, `Infinity`) never throws and gives a
+      finite answer.
+      Files: new `src/card/frame.ts`, new `tests/card/frame.test.ts`.
+
+Lane menu (a new `src/card/more-menu.ts`):
+- [ ] S31.3 `<fp-menu>` (Sonnet). A menu button and its menu, like `<fp-search>`: takes `items` (sections of
+      `radio`, `check` and `action` items with label, value, checked, disabled), fires `fp-menu-pick` with the item;
+      ARIA menu (`aria-haspopup`, `aria-expanded`, `menuitemradio`, `menuitemcheckbox`, `menuitem`); Enter, Space and
+      ArrowDown open it on the first checked or first item; arrows, Home, End move; Escape and Tab close it and give
+      focus back to the button; a tap outside closes it; it opens below the button and stays inside its host's box
+      (a full-width panel when the host is under 640 px); colours only through `--fp-*`; items 44 px under
+      `pointer: coarse`, 32 under fine, each with its computed-style pair. Test: Playwright on a new
+      `tests/card/menu-harness.html`, real keyboard and real taps, every step; two menus on one page; a label
+      `"><script>` shows as text.
+      Files: new `src/card/more-menu.ts`, new `tests/card/menu-harness.html`, new `tests/card/menu-harness.ts`,
+      new `tests/card/more-menu.spec.ts`.
+
+Lane focus (a new `src/card/plan-focus.ts`, and `src/card/view-keys.ts`):
+- [ ] S31.4 Spatial focus and the plan's keys (Sonnet, **judgement**: the direction cone and the tie-break).
+      `nextInDirection(points, from, dir)` over screen points: the nearest point inside a 45 degree half-cone about
+      `dir`, by distance along `dir` plus twice the cross distance; none, `from`. `firstFocus(points, centre)`.
+      `planKeyFor(ev, deviceFocused)` beside `viewKeyFor`: plain arrows move focus when a device has focus and pan
+      otherwise; Shift + arrows pan always; Enter and Space open; Escape leaves; Space resets only without a focused
+      device. `viewKeyOf` keeps its answers for the Studio (its tests unchanged). Test, failing first: a 5 x 5 grid
+      turned 45 degrees about `[37, -12]`, every point to every direction by hand; collinear points; two at equal cost
+      (stable: lower index); one point; empty; junk points skipped; every key x (device focused, not) x (Shift, not) x
+      (in a text field, not).
+      Files: new `src/card/plan-focus.ts`, `src/card/view-keys.ts`, new `tests/card/plan-focus.test.ts`,
+      `tests/card/view-keys.test.ts`.
+
+Wave 2, one lane after wave 1 is merged and Diego has answered; tasks run in order (they share
+`src/card/floorplan-studio-card.ts`):
+
+Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `src/card/touch-css.ts`):
+- [ ] S31.5 Chrome around the plan (Sonnet, **judgement**: the grid and the test migration). The host becomes a grid:
+      header bar, side sheet, stage (the `svg` or `.fp-3d`), cluster on the stage. Floor tabs move into the header;
+      Search and View options buttons there (View options opens today's toolbar in a plain box until S31.6); the
+      Overview becomes the side sheet at 640 and up through `frameMode`, with the rail, Back and the crumb; drag and
+      `_activePos` go (the stored `x`, `y` are ignored, the fold kept); `_positionToolbar` and `_placeTopDock` go;
+      under 640 the sheet stays today's panel until S31.8. Old keys as the spec's table. Test, failing first: criterion
+      2 at 1280 x 900 and 768 x 1024; criterion 5; criterion 9 for each key; the plan's box is the stage's; a pan, a
+      pinch and a double tap land where they did (the zoom maths read the stage). Migrate the tests that read
+      `.fp-zoom`, `.fp-stack`, `.fp-floors` positions or `.fp-active` drag; list each one and why in the report.
+      Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-chrome.spec.ts` (new), the migrated specs.
+- [ ] S31.6 ⋯ holds the look (Sonnet). `<fp-menu>` with D3's items; Layers and Detail leave the Overview; the old
+      toolbar and stack go, the cluster keeps +, −, Fit (Reset camera in 3D). Each item writes what the old control
+      wrote, through the same view memory. `docs/card.md` "Studio and card" table: the "In the card" column for each
+      moved control. Test, failing first: criterion 7; each item changes the plan as the old control did (the S7.4,
+      S12, S25.8 and S24.8 specs that drove the old controls now drive the menu); `view-parity.spec.ts` passes.
+      Files: `src/card/floorplan-studio-card.ts`, `docs/card.md`, `tests/card/card-menu.spec.ts` (new),
+      `tests/card/view-parity.spec.ts`, the specs of the old controls.
+- [ ] S31.7 Fit to height (Sonnet). The host's height from `cardHeight`, read from `visualViewport` and HA's
+      `--header-height`; a resize recomputes. Sections rows and `:host([panel])` unchanged. Test, failing first:
+      criterion 4, on the demo and the stress house at 1024 x 768, 768 x 1024 and 390 x 844; a sections-like parent
+      with a fixed height gives the 0.28.1 box; a panel-view host gives it too.
+      Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-fit-height.spec.ts` (new).
+- [ ] S31.8 The phone bottom sheet (Sonnet, **judgement**: the drag and the pan-to-visible). Under 640: the sheet at
+      peek under the plan; the handle drags with pointer capture through `snapSheet`; levels Overview › Floor › Room ›
+      Device; a device tap and a locate open the Device level at half with today's popup content (the popup does not
+      float on a phone); the plan pans so the room or device is in the visible part; Back and Escape step up. Test,
+      failing first: criterion 6 with real `page.mouse` drags (down, ten moves, up) and real taps; K1, K2 and K5 on the
+      phone reach their screens (counts are S31.11's); the icon box above the sheet after a locate; reduced motion;
+      `hass` mid-drag; a floor switch at Device level.
+      Files: `src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, `tests/card/card-bottom-sheet.spec.ts` (new).
+- [ ] S31.9 44 px on a coarse pointer (Sonnet). `TOUCH_CSS` in a new `src/card/touch-css.ts`, joined to the card's
+      styles: header controls, tabs, rail, Back, handle, rows (40 to 44), layer and detail chips, popup buttons and
+      sliders, dialog buttons and checkbox rows, the cluster; fine pointer unchanged. Test, failing first: criterion 3
+      over every state it lists, at 768 x 1024 and 390 x 844, by walking every control in the shadow root and in
+      `<fp-search>`; a computed-style pair per rule (coarse 44, fine its old size), each red with its rule removed.
+      Files: new `src/card/touch-css.ts`, `src/card/floorplan-studio-card.ts`, `tests/card/touch-targets.spec.ts` (new).
+- [ ] S31.10 Keys on the plan (Sonnet). The stage is one Tab stop with D4's role and name; the focus ring is chrome
+      placed over the device's screen box (like `.fp-pulse`), with a hidden status line; `planKeyFor` and
+      `nextInDirection` over the drawn devices' screen centres (`g[data-x]` boxes; hidden ones skipped); a focused
+      device off view pans in; Enter opens the popup or the Device level; focus survives `hass`, is dropped on a floor
+      switch and on `setConfig`. Test, failing first: criterion 8 with real `page.keyboard`, on the demo turned 45
+      degrees; a focus ring computed-style pair (`pointer-events: none` by class); two cards.
+      Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-plan-keys.spec.ts` (new).
+
+Wave 3, in order on `task/s31-card-touch`:
+- [ ] S31.11 Exit test, docs, shots, verify (Sonnet; the docs part may go to Haiku). Remove every `test.fail()` from
+      `card-tasks.spec.ts`; K1 to K5 pass at their counts on both sizes, `--repeat-each=10`. Docs: `docs/card.md`
+      (Size, Studio and card, Kiosk mode, Overview, Picking a room, Tap hold and hover, View memory keys), `docs/SPEC.md`
+      card behaviours, the README state table, CHANGELOG under Unreleased, DECISIONS (each assumption that held, each
+      change). `scripts/shots.mjs`: criterion 12's shots; the coordinator opens them in three themes and lists what
+      each shows. `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; the size
+      test read on its own; K2 walked by hand once at 390 x 844.
+      Files: `tests/card/card-tasks.spec.ts`, `scripts/shots.mjs`, the docs.
+
+Review (one Opus pass on the integrated build, against `docs/WORKFLOW.md`'s checklist plus: does any chrome cover the plan
+where the spec says it must not; is every coarse target 44 px in a state the test does not walk; can a key reach a second
+card; does a `hass` update reset the sheet, the menu or the focus), then fixes with their tests and the re-check. Exit
+test: S31.11.
+
+### Open questions for Diego (each with the default this plan builds)
+
+1. **D1, where the chrome goes.** Default: a header bar (floor tabs, Search, ⋯), one sheet beside the plan from 640 px
+   (folded to a rail under 900 px), a bottom sheet on a phone, only +, −, Fit on the plan; a tap on the plan opens the
+   popup on a tablet, the Device level on a phone. Other option: keep the floating Overview from 640 px up.
+2. **D2, the phone sheet.** Default: peek 64 px, half `max(50 %, 340 px)`, full; drag, fling or tap the handle; the card
+   is at least `min(screen, 640 px)` tall on a phone. Other option: peek and full only, by tap.
+3. **D3, the ⋯ menu.** Default: everything about the look (View, Tilt, Walls, Floor below, Theme, Labels, Names,
+   Detail, Layers, Rotate, Reset view). Other option: View and Rotate stay in the header.
+4. **D4, keys on the plan.** Default: one Tab stop, arrows walk devices once one has focus, Shift + arrows pan, Enter
+   opens. Other option: each device a Tab stop, arrows always pan.
