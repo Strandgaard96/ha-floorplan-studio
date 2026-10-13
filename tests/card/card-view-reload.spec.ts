@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOptions } from "./options-helper";
 
 // Field report 0.12.21: "the template and view resets between reloads of the dashboard". These drive the card
 // the way Home Assistant does: a config that sets theme, view and tilt, a layout that arrives over the websocket
@@ -55,6 +56,7 @@ test.describe("a dashboard reload keeps the view (card, HA lifecycle)", () => {
   test("theme, view, tilt, rotation and zoom picked over a config that sets them survive a reload", async ({ page }) => {
     await fresh(page);
     expect(await select(page, "Theme").inputValue()).toBe("terminal");
+    await openOptions(page);
     await select(page, "Theme").selectOption("light");
     await select(page, "View").selectOption("2d");
     await button(page, "Zoom in").click();
@@ -71,6 +73,7 @@ test.describe("a dashboard reload keeps the view (card, HA lifecycle)", () => {
 
   test("setConfig called again with a new equal object (HA does this) keeps what was picked", async ({ page }) => {
     await fresh(page);
+    await openOptions(page);
     await select(page, "Theme").selectOption("light");
     await button(page, "Zoom in").click();
     const before = await viewBox(page);
@@ -82,6 +85,7 @@ test.describe("a dashboard reload keeps the view (card, HA lifecycle)", () => {
 
   test("a dashboard view switch (element removed and put back) keeps the view", async ({ page }) => {
     await fresh(page);
+    await openOptions(page);
     await select(page, "Theme").selectOption("light");
     await button(page, "Rotate left").click();
     await settled(page);

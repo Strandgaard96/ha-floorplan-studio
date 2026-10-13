@@ -1,3 +1,4 @@
+import { openOptions } from "./options-helper";
 import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -116,6 +117,7 @@ test("the built card names its version in the console, and an older copy that ow
 for (const width of [375, 500, 700, 900, 1280]) {
   test(`with three floor chips at ${width} px, every toolbar control is reachable and none sits under a chip`, async ({ page }) => {
     await boot(page, { ...BASE, view: "2.5d" }, width);
+    await openOptions(page); // S31.5: the controls are in the View options box; the chips are in the header, so they can no longer meet
     const r = await card(page).evaluate((el) => {
       const root = el.shadowRoot!;
       const chips = [...root.querySelectorAll<HTMLElement>(".fp-floors button")].map((b) => b.getBoundingClientRect());

@@ -142,7 +142,8 @@ test("zoom: false shows no zoom chrome; the stack holds only rotate and reset", 
 test("view_switch: false leaves the stack alone at the top right, with no toolbar", async ({ page }) => {
   await boot(page, { ...BASE, view_switch: false }, 1280);
   await expect(card(page).locator("css=.fp-zoom")).toHaveCount(0);
-  const top = await card(page).evaluate((el) => el.shadowRoot!.querySelector(".fp-stack")!.getBoundingClientRect().top - el.getBoundingClientRect().top);
+  // S31.5: the stack is at the top right of the stage (the plan's box), 8 px in; the header band is above the stage.
+  const top = await card(page).evaluate((el) => el.shadowRoot!.querySelector(".fp-stack")!.getBoundingClientRect().top - el.shadowRoot!.querySelector("svg")!.getBoundingClientRect().top);
   expect(top).toBeCloseTo(8, 0);
   // Rotate is on, so Reset view stays: it is the way back from a turn.
   for (const l of STACK) expect((await probe(page, l))!.hit, l).toBe(true);

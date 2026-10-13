@@ -3890,7 +3890,7 @@ Wave 2, one lane after wave 1 is merged and Diego has answered; tasks run in ord
 `src/card/floorplan-studio-card.ts`):
 
 Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `src/card/touch-css.ts`):
-- [ ] S31.5 Chrome around the plan (Sonnet, **judgement**: the grid and the test migration). The host becomes a grid:
+- [x] S31.5 Chrome around the plan (Sonnet, **judgement**: the grid and the test migration). The host becomes a grid:
       header bar, side sheet, stage (the `svg` or `.fp-3d`), cluster on the stage. Floor tabs move into the header;
       Search and View options buttons there (View options opens today's toolbar in a plain box until S31.6); the
       Overview becomes the side sheet at 640 and up through `frameMode`, with the rail, Back and the crumb; drag and

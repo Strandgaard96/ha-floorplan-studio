@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demo, serve, ORIGIN, card, canvas, cam, drawn } from "./helpers-3d";
+import { openOptions } from "./options-helper";
 
 // S12.5: live state in the 3D view. Pixels are read from real screenshots of the canvas, taps are real `page.mouse`
 // events, and the scene's own state (a door's swing, a body's colour, a pool, a ring) is read from the test hook
@@ -378,6 +379,7 @@ test.describe("3D view: the overlay", () => {
     await boot(page, {}, QUIET());
     await expect(roomLabel(page, 0).locator("css=.fp3-name")).toBeVisible();
     await expect(card(page).locator("css=.fp3-dn")).toHaveCount(0);
+    await openOptions(page);
     await card(page).locator('css=button[aria-label="Device names"]').click();
     await expect(card(page).locator("css=.fp3-dn").first()).toBeVisible();
     await card(page).locator('css=button[aria-label="Labels"]').click();
@@ -414,6 +416,7 @@ test.describe("3D view: the overlay", () => {
 
   test("a label behind a wall is hidden, and comes back when the camera does", async ({ page }) => {
     await boot(page);
+    await openOptions(page);
     await card(page).locator('css=select[aria-label="Walls"]').selectOption("full");
     await still(page);
     await look(page, 0, 0.12); // almost top-down: nothing stands in front of anything

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOptions } from "./options-helper";
 
 // The Walls select in the card toolbar, in a real Chromium with a real reload. The drawn wall height is read from
 // the DOM (the screen rectangle of the wall's side polygon), not from a string of the markup (CLAUDE.md findings
@@ -53,6 +54,7 @@ test.describe("the card's Walls select (real browser, real reload)", () => {
     const s = select(page, "Walls");
     expect(await s.locator("option").allTextContents()).toEqual(["Full height", "Cutaway", "Low"]);
     expect(await s.inputValue()).toBe("cut");
+    await openOptions(page);
     await select(page, "View").selectOption("2d");
     await expect(s).toHaveCount(0);
   });
@@ -63,6 +65,7 @@ test.describe("the card's Walls select (real browser, real reload)", () => {
     await settled(page);
     const seen: Record<string, { tall: number; mean: number }> = {};
     for (const m of ["full", "cut", "low"]) {
+      await openOptions(page);
       await select(page, "Walls").selectOption(m);
       seen[m] = { tall: await tallest(page), mean: await mean(page) };
     }
@@ -74,6 +77,7 @@ test.describe("the card's Walls select (real browser, real reload)", () => {
 
   test("a front wall is taller in Full than in Low, and Cutaway lowers it to Low's height", async ({ page }) => {
     await fresh(page);
+    await openOptions(page);
     await select(page, "Walls").selectOption("full");
     const full = await frontWall(page);
     await select(page, "Walls").selectOption("cut");
@@ -88,6 +92,7 @@ test.describe("the card's Walls select (real browser, real reload)", () => {
     await fresh(page, { ...CONFIG, walls: "low" });
     expect(await select(page, "Walls").inputValue()).toBe("low");
     const lowTall = await tallest(page);
+    await openOptions(page);
     await select(page, "Walls").selectOption("full");
     const fullTall = await tallest(page);
     expect(fullTall).toBeGreaterThan(lowTall + 1);
@@ -107,6 +112,7 @@ test.describe("the card's Walls select (real browser, real reload)", () => {
   test("junk in the config and in storage is Cutaway", async ({ page }) => {
     await fresh(page, { ...CONFIG, walls: "<script>" });
     expect(await select(page, "Walls").inputValue()).toBe("cut");
+    await openOptions(page);
     await select(page, "Walls").selectOption("full");
     await page.evaluate(() => {
       for (const k of Object.keys(localStorage)) if (k.startsWith("fp-view:")) localStorage.setItem(k, JSON.stringify({ v: 1, walls: "../../etc", labels: false }));

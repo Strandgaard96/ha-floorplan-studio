@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOptions } from "./options-helper";
 
 // The card's rotation, its animation and its view memory in real Chromium: real mouse coordinates (CLAUDE.md
 // finding 3), computed styles (finding 10), and a reload that goes through the real localStorage.
@@ -193,6 +194,7 @@ test.describe("the card remembers its view", () => {
   const cfg = () => ({ layout: structuredClone(demo), floor: "ground" });
 
   async function changeEverything(page: Page) {
+    await openOptions(page);
     await select(page, "View").selectOption("2.5d");
     await select(page, "Theme").selectOption("light");
     await button(page, "Zoom in").click();
@@ -246,6 +248,7 @@ test.describe("the card remembers its view", () => {
     await configure(page, cfg());
     await button(page, "Rotate right").click();
     await settled(page);
+    await openOptions(page);
     await select(page, "Theme").selectOption("terminal");
     await page.reload();
     await page.addScriptTag({ content: CARD_JS, type: "module" });
@@ -295,10 +298,11 @@ test.describe("toolbar", () => {
     }
   });
 
-  test("on a 375 px card the toolbar stays inside the card and clear of the card's edges", async ({ page }) => {
+  test("on a 375 px card the open View options box stays inside the card and clear of its edges", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
+    await openOptions(page); // S31.5: the toolbar is a box in the cluster, shown by the header's View options button
     const r = await card(page).evaluate((el) => {
       const host = el.getBoundingClientRect();
       const bar = el.shadowRoot!.querySelector(".fp-zoom")!.getBoundingClientRect();
@@ -313,16 +317,18 @@ test.describe("toolbar", () => {
     }
   });
 
-  test("a wrapped toolbar on a narrow card does not cover the Active list's fold button", async ({ page }) => {
+  test("an open View options box on a narrow card does not cover the Active list's fold button", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await open(page);
     await configure(page, { layout: structuredClone(demo), floor: "ground", view: "2.5d" });
+    await openOptions(page);
     const r = await card(page).evaluate((el) => {
       const bar = el.shadowRoot!.querySelector(".fp-zoom")!.getBoundingClientRect();
       const head = el.shadowRoot!.querySelector(".fp-active-collapse")!.getBoundingClientRect();
-      return { barBottom: bar.bottom, barHeight: bar.height, headTop: head.top };
+      const top = el.shadowRoot!.elementFromPoint(head.x + head.width / 2, head.y + head.height / 2);
+      return { barHeight: bar.height, foldIsTop: !!top?.closest(".fp-active-collapse") };
     });
-    expect(r.barHeight).toBeGreaterThan(36); // the premise: it really wrapped
-    expect(r.headTop).toBeGreaterThanOrEqual(r.barBottom);
+    expect(r.barHeight).toBeGreaterThan(36); // the premise: the box really wrapped to rows
+    expect(r.foldIsTop, "the fold button is the real top element at its centre").toBe(true);
   });
 });

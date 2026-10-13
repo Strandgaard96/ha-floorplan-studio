@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { closeOptions, openOptions } from "./options-helper";
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
 
@@ -464,7 +465,7 @@ test.describe("S7.4 zoom and pan", () => {
   test("Ctrl+wheel zooms in about the pointer; a plain wheel leaves the plan alone so the dashboard can scroll", async ({ page }) => {
     await open(page);
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
-    await page.locator("floorplan-studio-card").locator("css=.fp-active-collapse[aria-expanded=true]").click(); // the floating overview would take the wheel at this point with a wider font
+    // S31.5: no click to fold the overview here any more: it is the side sheet beside the plan (a rail near 900 px), never over the wheel's point.
     const fit = await viewBox(page);
     const b = await svgBox(page);
     const px = b.x + b.width * 0.3, py = b.y + b.height * 0.6; // off-centre, so a zoom about the centre would fail
@@ -533,20 +534,25 @@ test.describe("S7.4 zoom and pan", () => {
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const flat = await viewBox(page);
     const sel = card(page).locator('css=.fp-zoom select[aria-label="View"]');
+    await expect(sel).toBeHidden(); // S31.5: the look controls wait in View options
+    await openOptions(page);
     await expect(sel).toBeVisible();
     const s = (await sel.boundingBox())!;
     const z = (await card(page).locator('css=.fp-stack button[aria-label="Zoom in"]').boundingBox())!;
-    expect(s.x + s.width).toBeLessThanOrEqual(z.x + 0.5); // beside the buttons, not over them
+    // S31.5: the box and the zoom buttons are one column (cluster) now, not two toolbars side by side: the select is above the buttons, not over them.
+    expect(s.y + s.height).toBeLessThanOrEqual(z.y + 0.5);
     expect(Math.abs(s.height - z.height)).toBeLessThan(2); // same row height
 
     await sel.selectOption("2.5d");
     expect(await card(page).locator("css=svg .ws").count()).toBeGreaterThan(0);
     expect((await viewBox(page)).h).toBeGreaterThan(flat.h); // the lift widened the box
+    await closeOptions(page); // S31.5: the open box floats over the stage's corner, where a light may be
     const l = await lightAt(page);
     await page.mouse.click(l.x, l.y);
     await popupDo(page);
     expect((await calls(page)).length).toBe(1); // a tap where the (lifted) icon is drawn reaches it
 
+    await openOptions(page);
     await sel.selectOption("2d");
     expect(await card(page).locator("css=svg .ws").count()).toBe(0);
     expect(await viewBox(page)).toEqual(flat);
@@ -557,6 +563,7 @@ test.describe("S7.4 zoom and pan", () => {
     await configureWithCallServiceSpy(page, { layout: structuredClone(demo) }, states());
     const slider = card(page).locator('css=.fp-zoom input[aria-label="Tilt"]');
     await expect(slider).toHaveCount(0);
+    await openOptions(page);
     await card(page).locator('css=.fp-zoom select[aria-label="View"]').selectOption("2.5d");
     await expect(slider).toBeVisible();
     const s = (await slider.boundingBox())!, sel = (await card(page).locator('css=.fp-zoom select[aria-label="View"]').boundingBox())!;
@@ -652,7 +659,9 @@ test.describe("S7.4 zoom and pan", () => {
     // buttons, not the one-finger pan, so `touch-action` stays `pan-y` (the same value the zoomable card starts
     // at) instead of `auto`, and a plain drag still moves the plan.
     expect(await card(page).evaluate((el) => getComputedStyle(el.shadowRoot!.querySelector("svg")!).touchAction)).toBe("pan-y");
-    const midX = b.x + b.width / 2, midY = b.y + b.height / 2;
+    // S31.5: the double click above may have picked a room, which opens the rail into the sheet and narrows the stage: measure it again.
+    const b2 = await svgBox(page);
+    const midX = b2.x + b2.width / 2, midY = b2.y + b2.height / 2;
     await page.mouse.move(midX, midY);
     await page.mouse.down();
     await page.mouse.move(midX + 20, midY, { steps: 4 });
@@ -660,7 +669,7 @@ test.describe("S7.4 zoom and pan", () => {
     await page.mouse.up();
     const panned = await viewBox(page);
     expect(panned.w).toBeCloseTo(fit.w, 5); // panning never zooms
-    expect(panned.x).toBeCloseTo(fit.x - 40 * (fit.w / b.width), 0); // the plan followed the pointer 40 px right
+    expect(panned.x).toBeCloseTo(fit.x - 40 * (fit.w / b2.width), 0); // the plan followed the pointer 40 px right
     expect(panned.y).toBeCloseTo(fit.y, 5);
   });
 
@@ -865,6 +874,8 @@ test.describe("S9.6 a card pinned to one room", () => {
     expect(await calls(page)).toEqual([["light", "turn_on", { entity_id: "light.demo_kitchen" }]]);
 
     await expect(card(page).locator("css=.fp-active")).toHaveCount(1);
+    // S31.5: at this width (under 900 px) the overview is the 52 px rail until it is opened, so the panel "still works" means: open it, it lists nothing.
+    await card(page).getByRole("button", { name: "Open overview" }).click();
     // S24.3: nothing in states() is on now that the camera is no longer listed; the panel says so instead of a row.
     await expect(card(page).locator("css=.fp-active-empty")).toHaveText("Nothing on");
   });
@@ -1441,7 +1452,9 @@ test.describe("S8.2: the card fills a fixed-height container instead of cropping
     await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
     const wrapBox = (await page.locator("#fixed-wrap").boundingBox())!;
     const box = await svgBox(page);
-    expect(box.height).toBeCloseTo(wrapBox.height, 0);
+    // S31.5: the plan is the stage, the container minus the 52 px header band (and the card still fills the container).
+    expect(box.height).toBeCloseTo(wrapBox.height - 52, 0);
+    expect((await card(page).boundingBox())!.height).toBeCloseTo(wrapBox.height, 0);
     expect(box.width).toBeLessThanOrEqual(wrapBox.width + 0.5);
   });
 
@@ -1450,7 +1463,9 @@ test.describe("S8.2: the card fills a fixed-height container instead of cropping
     await configure(page, { layout: structuredClone(demo) }, { states: {}, themes: { darkMode: false } });
     const cardBox = (await card(page).boundingBox())!;
     const box = await svgBox(page);
-    expect(box.width).toBeCloseTo(cardBox.width, 0);
+    // S31.5: the card minus its side column (the sheet, or the 52 px rail), side by side with the plan.
+    const sheetBox = (await card(page).locator("css=.fp-active").boundingBox())!;
+    expect(box.width).toBeCloseTo(cardBox.width - sheetBox.width, 0);
     expect(box.height).toBeLessThan(cardBox.width); // the demo ground floor is wider than it is tall
   });
 });
@@ -1468,7 +1483,7 @@ test.describe("S8.3: in HA's panel view the plan fits the screen", () => {
     const before = await svgBox(page);
     expect(before.height).toBeGreaterThan(400 - 56); // the bug: taller than the screen
     await card(page).evaluate((el) => { (el as unknown as { layout: string }).layout = "panel"; });
-    await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(400 - 56, 0);
+    await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(400 - 56 - 52, 0); // S31.5: the card is what is capped, the plan is the card minus the 52 px header
     expect((await card(page).boundingBox())!.height).toBeCloseTo(400 - 56, 0);
     await card(page).evaluate((el) => { (el as unknown as { layout: string }).layout = "grid"; });
     await expect.poll(async () => (await svgBox(page)).height).toBeCloseTo(before.height, 0);
@@ -1924,25 +1939,21 @@ test.describe("S9.5: the active-devices panel", () => {
     await expect(page.locator("floorplan-studio-card").locator("css=.fp-active")).toHaveCount(0);
   });
 
-  // Opus review findings 3 & 4: the position was stored in raw px and only clamped mid-drag, so a saved position
-  // could put the panel outside the card the moment the geometry it was clamped against changes — reloading at a
-  // narrower width, or re-expanding a panel that was dragged low while collapsed (its own shorter height at drag
-  // time). The fix re-derives the on-screen position from a stored *fraction* of the free width/height on every
-  // render and on a host resize, so it is inside the card by construction, whatever the current geometry is.
-  test("Opus review finding 3: a position saved at 1000px stays fully inside the card after a reload at 380px", async ({ page }) => {
+  // Opus review findings 3 & 4 (S9.5) were about a dragged panel: a saved position that fell outside the card at a narrower
+  // width, and a panel dragged low while collapsed hanging below the card once expanded. S31.5 removed the drag: the
+  // overview is the side sheet (a grid cell) from 640 px and the docked floating panel under it, so nothing is positioned
+  // by the viewer. The two tests keep the guarantee the findings were about, on the premises that are left: a position an
+  // older build stored is ignored, and the head of the panel moves nothing.
+  test("Opus review finding 3 (S31.5): a position an older build saved at 1000px is ignored, and the panel stays inside the card after a reload at 380px", async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 700 });
     await open(page);
     const config = { layout: structuredClone(demo) };
     await configure(page, config, { states: states() });
     const card = page.locator("floorplan-studio-card");
-    const cardBox = (await card.boundingBox())!;
-    const head = card.locator("css=.fp-active-head");
-    const start = (await head.boundingBox())!;
-    await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(cardBox.x + cardBox.width + 400, cardBox.y + cardBox.height + 400, { steps: 6 });
-    await page.mouse.up();
-    await expect.poll(async () => (await card.locator("css=.fp-active").boundingBox())!.x).toBeGreaterThan(cardBox.x + cardBox.width / 2);
+    await card.locator("css=.fp-active-collapse").click(); // fold ...
+    await card.getByRole("button", { name: "Open overview" }).click(); // ... and open again: the card writes its own entry (chosen, open)
+    // What an older build wrote besides: a drag position far off to the bottom right.
+    await page.evaluate(() => { for (const [k, v] of Object.entries(localStorage)) if (k.startsWith("fp-active-panel:")) localStorage.setItem(k, JSON.stringify({ ...JSON.parse(v), x: 0.99, y: 0.99 })); });
 
     await page.setViewportSize({ width: 380, height: 700 });
     await page.reload();
@@ -1951,13 +1962,14 @@ test.describe("S9.5: the active-devices panel", () => {
     await configure(page, config, { states: states() });
     const narrowCardBox = (await card.boundingBox())!;
     const panelBox = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox.x, "not at the stored x of 0.99").toBeLessThan(narrowCardBox.x + 20);
     expect(panelBox.x).toBeGreaterThanOrEqual(narrowCardBox.x - 0.5);
     expect(panelBox.y).toBeGreaterThanOrEqual(narrowCardBox.y - 0.5);
     expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(narrowCardBox.x + narrowCardBox.width + 0.5);
     expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(narrowCardBox.y + narrowCardBox.height + 0.5);
   });
 
-  test("Opus review finding 4: collapse, drag to the bottom, expand — the panel does not hang below the card", async ({ page }) => {
+  test("Opus review finding 4 (S31.5): a drag on the panel's head moves nothing, and fold then open leaves the sheet inside the card", async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 700 });
     await open(page);
     const config = { layout: structuredClone(demo) };
@@ -1966,16 +1978,19 @@ test.describe("S9.5: the active-devices panel", () => {
     const cardBox = (await card.boundingBox())!;
 
     await card.locator("css=.fp-active-collapse").click();
+    await card.getByRole("button", { name: "Open overview" }).click(); // the sheet grows from the rail to its full height and width
     const head = card.locator("css=.fp-active-head");
     const start = (await head.boundingBox())!;
+    const before = (await card.locator("css=.fp-active").boundingBox())!;
     await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
     await page.mouse.down();
-    await page.mouse.move(start.x + start.width / 2, cardBox.y + cardBox.height + 400, { steps: 6 });
+    await page.mouse.move(start.x + start.width / 2 + 300, cardBox.y + cardBox.height + 400, { steps: 6 });
     await page.mouse.up();
 
-    await card.locator("css=.fp-active-collapse").click(); // expand: the panel grows much taller than while collapsed
     const panelBox = (await card.locator("css=.fp-active").boundingBox())!;
+    expect(panelBox, "no drag any more: the box is where it was").toEqual(before);
     expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 0.5);
+    expect(panelBox.x).toBeGreaterThanOrEqual(cardBox.x - 0.5);
   });
 
   // Opus review finding 5 (phone-width default, an assumption Diego may overrule — see docs/DECISIONS.md): with

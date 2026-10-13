@@ -168,7 +168,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     expect(await picked(page)).toEqual([]);
   });
 
-  test("clicking the selected pill again, Escape, the empty plan and the x each clear it", async ({ page }) => {
+  test("clicking the selected pill again, Escape, the empty plan and Back each clear it", async ({ page }) => {
     await boot(page);
     await pill(page, "Ground").click();
     await pill(page, "Ground").click();
@@ -180,7 +180,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await expect(panel(page)).toHaveCount(0);
 
     await pill(page, "Ground").click();
-    await card(page).locator("css=.fp-room-clear").click();
+    await card(page).locator("css=.fp-back").click(); // S31.5: from 640 px the sheet has Back (floor to Overview), not the x
     await expect(panel(page)).toHaveCount(0);
 
     await pill(page, "Ground").click();
