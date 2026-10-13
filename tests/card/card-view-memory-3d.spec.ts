@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demo, open, configure, canvas, cam, drawn, card } from "./helpers-3d";
-import { openOptions } from "./options-helper";
+import { pick } from "./menu-helper";
 
 // S14.4: the card remembers the 3D camera per floor (azimuth, polar, distance, target), restores it when you come back to
 // the floor, and on reload. Real page.mouse at real coordinates (CLAUDE.md finding 3); the camera is read from the view's own
@@ -146,8 +146,7 @@ test.describe("3D view memory per floor (S14.4)", () => {
     await boot(page);
     await move(page, 130, 45, -300);
     await hasCam(page, "ground");
-    await openOptions(page);
-    await card(page).locator('css=select[aria-label="View"]').selectOption("2d");
+    await pick(page, "view:2d");
     await expect(card(page).locator("css=canvas")).toHaveCount(0);
     await card(page).locator('css=button[aria-label="Zoom in"]').click();
     await expect.poll(async () => !!(await stored(page))[0]?.floors?.find(([k]) => k === "ground")?.[1].cam).toBe(true);

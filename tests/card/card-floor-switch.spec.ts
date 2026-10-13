@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { openOptions } from "./options-helper";
+import { pick } from "./menu-helper";
 
 // S27.15: the card's floor switch is animated, in 2D and in 2.5D (3D cuts). Real clicks on the floor tabs and a real Enter in the
 // search. The animation itself is recorded in the page (animationstart / animationend on the plan root, with the time and the
@@ -139,8 +139,7 @@ test.describe("S27.15 the card's floor switch, every way onto another floor", ()
     await boot(page, { view: "3d" });
     await tab(page, "First").click();
     await shown(page, "First");
-    await openOptions(page);
-    await card(page).locator('css=select[aria-label="View"]').selectOption("2d");
+    await pick(page, "view:2d");
     await expect(card(page).locator("css=svg.fp-zoomable")).toHaveCount(1);
     expect(await card(page).locator("css=svg.fp-zoomable").getAttribute("data-switch")).toBeNull();
     expect(await running(page)).toBe(0);

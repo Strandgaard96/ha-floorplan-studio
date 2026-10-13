@@ -60,3 +60,11 @@ export const setBelow = (page: Page, b: "off" | "ghost" | "solid") => pick(page,
 export const rotateLeft = (page: Page) => pick(page, "rotate:-1");
 export const rotateRight = (page: Page) => pick(page, "rotate:1");
 export const resetView = (page: Page) => pick(page, "reset");
+
+/** The checked item of a radio group: the first `<group>:<value>` whose `aria-checked` is "true", as the value, or null. Closes after reading. */
+export async function checkedIn(page: Page, group: string, values: readonly string[]): Promise<string | null> {
+  await openMenu(page);
+  const checks = await Promise.all(values.map(async (v) => [v, await menuItem(page, `${group}:${v}`).getAttribute("aria-checked")] as const));
+  await closeMenu(page);
+  return checks.find(([, c]) => c === "true")?.[0] ?? null;
+}

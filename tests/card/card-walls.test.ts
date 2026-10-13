@@ -10,7 +10,7 @@ vi.mock("../../src/core", async (importOriginal) => {
   return { ...actual, renderFloor: vi.fn(actual.renderFloor) };
 });
 import { renderFloor } from "../../src/core";
-import { hasMenuItem, itemOf, menuItemDisabled, menuOf, openMenu, pickItem, stateOfItem } from "./menu-dom";
+import { hasMenuItem, menuItemDisabled, menuOf, openMenu, pickItem, stateOfItem } from "./menu-dom";
 import "../../src/card/floorplan-studio-card";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
@@ -68,7 +68,7 @@ describe("card walls option", () => {
     const on = await mount();
     await openMenu(on);
     const order = [...menuOf(on)!.shadowRoot!.querySelectorAll("[data-value]")].map((o) => o.getAttribute("data-value")!);
-    expect(order.findLastIndex((v) => v.startsWith("tilt:")) + 1).toBe(order.findIndex((v) => v.startsWith("walls:")));
+    expect(order.map((v) => v.startsWith("tilt:")).lastIndexOf(true) + 1).toBe(order.findIndex((v) => v.startsWith("walls:")));
     const flat = await mount({ view: "2d" });
     expect(await hasMenuItem(flat, "walls:cut")).toBe(false);
   });

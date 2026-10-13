@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { serve, ORIGIN, card, drawn, cam } from "./helpers-3d";
 import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
-import { openOptions } from "./options-helper";
+import { checkedIn, pick } from "./menu-helper";
 
 // S27.7: the 3D view can draw the floors below, through the view's `setBelow` (the card calls it from S27.14). Real card, the stress layout,
 // the test hook of the test build. Stress: ground is 270 high with a 25 slab, so `first` stands 295 above it. Ground's back garden is
@@ -150,76 +150,75 @@ async function configureCard(page: Page, config: Record<string, unknown>, layout
   }, { layout, floor: "first", view: "3d", active_list: false, ...config });
   await drawn(page);
 }
-const belowSelect = (page: Page) => card(page).locator('css=select[aria-label="Floors below"]');
+// S31.6: Floors below is a radio group of the header menu (`below:off|ghost|solid`), no longer a select.
+const BELOW_MODES = ["off", "ghost", "solid"] as const;
+const belowNow = (page: Page) => checkedIn(page, "below", BELOW_MODES);
 const y0 = async (page: Page) => (await hook(page, (h) => h.floors())).extent.y0;
 /** Waits until the view draws no floor below (it renders on demand: there is no frame to wait for when nothing changes). */
 const noneBelow = (page: Page, why = "") => expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000, message: why }).toBe(0);
 
 test.describe("3D view: the card's floors below (S27.14)", () => {
-  test("the select beside Walls has off, ghost and solid, and each value changes what is drawn as S27.7 does", async ({ page }) => {
+  test("the menu group after Walls has off, ghost and solid, and each value changes what is drawn as S27.7 does", async ({ page }) => {
     await bootCard(page);
-    await expect(belowSelect(page)).toHaveValue("off");
-    expect(await belowSelect(page).locator("option").evaluateAll((o) => o.map((x) => (x as HTMLOptionElement).value))).toEqual(["off", "ghost", "solid"]);
-    // beside Walls: the same toolbar
-    expect(await belowSelect(page).evaluate((s) => !!s.parentElement!.querySelector('select[aria-label="Walls"]'))).toBe(true);
+    expect(await belowNow(page)).toBe("off");
+    await page.locator("floorplan-studio-card").locator("css=button[aria-label='View options']").click();
+    // after Walls: the same menu, in this order
+    const order = await page.locator("floorplan-studio-card").locator("css=[role=menu] [role=menuitemradio]").evaluateAll((els) => els.map((e) => e.getAttribute("data-value")));
+    expect(order.filter((v) => v?.startsWith("below:"))).toEqual(BELOW_MODES.map((m) => `below:${m}`));
+    expect(order.indexOf("walls:low")).toBeLessThan(order.indexOf("below:off"));
+    await page.keyboard.press("Escape");
     const one = await y0(page);
     expect(one).toBeGreaterThanOrEqual(-26);
     expect((await hook(page, (h) => h.below())).count).toBe(0);
 
-    await openOptions(page);
-    await belowSelect(page).selectOption("solid");
+    await pick(page, "below:solid");
     await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0); // ground's slab bottom: -295 - 25
     const solid = await hook(page, (h) => h.below());
     expect(solid.meshes.some((m) => !m.transparent && m.depthWrite && m.opacity === 1)).toBe(true);
 
-    await openOptions(page);
-    await belowSelect(page).selectOption("ghost");
+    await pick(page, "below:ghost");
     await expect.poll(async () => (await hook(page, (h) => h.below())).meshes.every((m) => m.transparent), { timeout: 8000 }).toBe(true);
     const ghost = await hook(page, (h) => h.below());
     expect(ghost.count).toBeGreaterThan(0);
     for (const m of ghost.meshes) { expect(m.opacity).toBeLessThanOrEqual(0.25); expect(m.depthWrite).toBe(false); }
     expect(await y0(page)).toBeCloseTo(-320, 0);
 
-    await openOptions(page);
-    await belowSelect(page).selectOption("off");
+    await pick(page, "below:off");
     await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBe(0);
     expect(await y0(page)).toBe(one);
   });
 
   test("YAML: off is the default; solid and ghost draw at once; junk is off", async ({ page }) => {
     await bootCard(page, { floors_below: "solid" });
-    await expect(belowSelect(page)).toHaveValue("solid");
+    expect(await belowNow(page)).toBe("solid");
     await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0);
     await configureCard(page, { floors_below: "ghost" });
-    await expect(belowSelect(page)).toHaveValue("ghost");
+    expect(await belowNow(page)).toBe("ghost");
     await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
     for (const junk of ["x", 5, {}, null, [], "SOLID", true]) {
       await configureCard(page, { floors_below: junk });
-      await expect(belowSelect(page), JSON.stringify(junk)).toHaveValue("off");
+      expect(await belowNow(page), JSON.stringify(junk)).toBe("off");
       await noneBelow(page, JSON.stringify(junk));
     }
   });
 
   test("a stored viewer choice wins over YAML, both ways", async ({ page }) => {
     await bootCard(page, { floors_below: "solid" });
-    await openOptions(page);
-    await belowSelect(page).selectOption("off");
+    await pick(page, "below:off");
     await configureCard(page, { floors_below: "solid" });
-    await expect(belowSelect(page)).toHaveValue("off");
+    expect(await belowNow(page)).toBe("off");
     await noneBelow(page);
     await configureCard(page, { floors_below: "off" });
-    await openOptions(page);
-    await belowSelect(page).selectOption("ghost");
+    await pick(page, "below:ghost");
     await configureCard(page, { floors_below: "off" });
-    await expect(belowSelect(page)).toHaveValue("ghost");
+    expect(await belowNow(page)).toBe("ghost");
     await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
     // and a stored value that is not a mode is dropped, so the YAML is in charge again
     await configureCard(page, { floors_below: "solid" });
-    await openOptions(page);
-    await belowSelect(page).selectOption("ghost");
+    await pick(page, "below:ghost");
     await page.evaluate(() => { for (const [k, v] of Object.entries(localStorage)) if (k.startsWith("fp-view:")) localStorage.setItem(k, v.replace('"below":"ghost"', '"below":"<b>"')); });
     await configureCard(page, { floors_below: "solid" });
-    await expect(belowSelect(page)).toHaveValue("solid");
+    expect(await belowNow(page)).toBe("solid");
     await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0);
   });
 

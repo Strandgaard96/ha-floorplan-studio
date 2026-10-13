@@ -79,7 +79,7 @@ test.describe("S31.6 the ⋯ menu: criterion 7", () => {
     expect(order.indexOf("theme:light")).toBeLessThan(order.indexOf("labels"));
     expect(order.indexOf("names")).toBeLessThan(order.indexOf("detail:auto"));
     expect(order.indexOf("detail:minimal")).toBeLessThan(order.findIndex((v) => v?.startsWith("layer:")));
-    expect(order.findLastIndex((v) => v?.startsWith("layer:"))).toBeLessThan(order.indexOf("rotate:-1"));
+    expect(order.map((v) => !!v?.startsWith("layer:")).lastIndexOf(true)).toBeLessThan(order.indexOf("rotate:-1"));
     expect(order.at(-1)).toBe("reset");
     await expect(menuItem(page, "view:2d")).toHaveAttribute("aria-checked", "true");
   });
