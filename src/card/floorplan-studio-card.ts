@@ -2712,8 +2712,9 @@ export class FloorplanStudioCard extends LitElement {
     const header = parseFloat(getComputedStyle(this).getPropertyValue("--header-height"));
     const h = cardHeight({
       planAspect: fit.w / fit.h,
-      // Side mode sizes from the rail, whatever the sheet does: an open sheet letterboxes the plan, it never moves the card's edge.
-      width: width - (this._frame === "side" ? HEADER_H : this._sheetPx),
+      // Side mode sizes from the sheet's RESTING state, never from a pick: open from 900 px (its width), the 52 px rail below that
+      // or once folded by hand. A room pick that opens the rail over the plan letterboxes it and never moves the card's edge.
+      width: width - (this._frame === "side" ? (this._activeCollapsed ? HEADER_H : sideWidth(width)) : this._sheetPx),
       viewportH: globalThis.visualViewport?.height ?? globalThis.innerHeight,
       haHeader: Number.isFinite(header) ? header : 56, // the same fallback `:host([panel])` uses
       chrome: this._kiosk() ? 0 : HEADER_H + (this._frame === "bottom" ? PEEK_H : 0),

@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { cardHeight, frameMode, HEADER_H } from "../../src/card/frame";
+import { cardHeight, frameMode, HEADER_H, sideOpenByDefault, sideWidth } from "../../src/card/frame";
 
 // S31.7 (docs/specs/card-layout-touch.md, criterion 4, the "fit to height" assumption): a card in an auto-height parent is never
 // taller than the screen. Real Chromium, the built card, the harness's auto-height wrapper (a masonry column). The expected height is
@@ -65,7 +65,8 @@ for (const [name, layout] of Object.entries(HOUSES)) {
       // The height is the rule's answer, to the pixel: with the plan's aspect, the stage's width, the header, the frame's mode.
       const aspect = await page.locator("floorplan-studio-card").evaluate((el) => { const f = (el as unknown as { _fit: { w: number; h: number } })._fit; return f.w / f.h; });
       const mode = frameMode(m.width);
-      const stage = m.width - (mode === "side" ? HEADER_H : await sheetPx(page)); // side: the rail's width, whatever the sheet does
+      // side: the sheet's RESTING width, open from 900 px and the 52 px rail below it, whatever a pick does to it
+      const stage = m.width - (mode === "side" ? (sideOpenByDefault(m.width) ? sideWidth(m.width) : HEADER_H) : await sheetPx(page));
       const want = cardHeight({ planAspect: aspect, width: stage, viewportH: size.height, haHeader: 56, chrome: HEADER_H, mode });
       expect(Math.abs(m.height - want)).toBeLessThan(1.5);
     });
@@ -136,6 +137,9 @@ test("a height set on the host by hand is the user's: a resize leaves it", async
 // Opus review of Sprint 31, finding 1: on a tablet the card's height followed the sheet. Opening the side sheet narrowed the stage,
 // the plan got shorter, the card got shorter, and the room under the finger moved. In side mode the height now comes from the rail's
 // width whatever the sheet does, and the plan letterboxes when the sheet is open.
+// Opus re-check: that rule sized from the rail ALWAYS, but from 900 px the sheet is open by default, so the plan (drawn in the card less
+// the sheet) letterboxed in a band of 143 to 190 px. The height now follows the sheet's RESTING state: open from 900 px, the rail below
+// it, or the rail once folded by hand. A pick never changes it.
 const heightOf = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => Math.round(el.getBoundingClientRect().height * 10) / 10);
 const sheetOpenNow = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => !!el.shadowRoot!.querySelector(".fp-active-body"));
 /** The real top point of the first room that is a polygon on screen: found by looking, so the click is a real tap. */
@@ -167,3 +171,38 @@ for (const [name, layout] of Object.entries(HOUSES)) {
     expect(await heightOf(page), "after unpick").toBe(before);
   });
 }
+
+/** The empty band under the plan: the svg's box less the plan drawn at its width (the plan meets the box, so a taller box letterboxes). */
+const band = (page: Page) => page.evaluate(() => {
+  const el = document.getElementById("card")!, svg = el.shadowRoot!.querySelector("svg.fp-zoomable") as SVGSVGElement;
+  const f = (el as unknown as { _fit: { w: number; h: number } })._fit, s = svg.getBoundingClientRect();
+  return { band: s.height - s.width * (f.h / f.w), box: s.height, w: s.width };
+});
+
+for (const size of [{ width: 1280, height: 1000 }, { width: 1600, height: 1200 }, { width: 1024, height: 768 }]) {
+  test(`demo at ${size.width} x ${size.height}: the sheet is open by default and the plan has no empty band under it`, async ({ page }) => {
+    await boot(page, demo, size);
+    expect(await sheetOpenNow(page), "from 900 px the sheet is open").toBe(true);
+    const b = await band(page);
+    // A band only where the screen cuts the card (the cap), never from the sheet's width.
+    const m = await measure(page);
+    if (m.bottom < size.height - GUTTER - 2) expect(b.band, `band ${b.band.toFixed(1)} px of ${b.box.toFixed(0)}`).toBeLessThan(2);
+    else expect(b.band).toBeGreaterThanOrEqual(-2);
+  });
+}
+
+test("a fold by hand at 1280 x 1000 changes the height: the plan now has the card less the rail", async ({ page }) => {
+  await boot(page, demo, { width: 1280, height: 1000 });
+  const open = await heightOf(page);
+  await page.locator("floorplan-studio-card .fp-active-collapse").click(); // a real click on the fold button
+  await expect.poll(() => sheetOpenNow(page)).toBe(false);
+  await expect.poll(() => heightOf(page)).not.toBe(open);
+});
+
+test("a room pick at 1280 x 1000 leaves the height alone", async ({ page }) => {
+  await boot(page, demo, { width: 1280, height: 1000 });
+  const before = await heightOf(page), pt = await roomPoint(page);
+  await page.mouse.click(pt!.x, pt!.y);
+  await settle(page);
+  expect(await heightOf(page)).toBe(before);
+});
