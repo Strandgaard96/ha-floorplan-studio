@@ -4,6 +4,7 @@ Newest first. A change supersedes; nothing is edited.
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 ## 2026-10-13: S31.1 tap tasks red, and the baseline (Sonnet)
 
 Measured on 0.28.1 with real `page.touchscreen.tap` on 768 x 1024 and 390 x 844 (hasTouch, isMobile, `pointer: coarse` asserted), the
@@ -44,6 +45,17 @@ no other file uses them yet. Test only, no product code, no CHANGELOG line. Stud
 
 New `src/card/more-menu.ts`, used by nothing yet (S31.6 puts the look in it). Assumptions, not asked: a pick closes the menu for all three kinds (a check item too) and the host owns the checked state: the menu changes nothing, the host sets `items` again; `fp-menu-pick` carries a copy of the item as `detail`. The menu aligns with the button's edge on the side with more room and is clamped into the box of its shadow root's host (the body outside a shadow root); under 640 px that box wide it is a panel as wide as the box. Focus moves to the first checked enabled item, else the first, on every open, mouse included. Disabled items are skipped by arrows and stay open on a click. Tab is taken (closes, focus to the button). Studio parity: card chrome, no Studio twin. Tests: `tests/card/more-menu.spec.ts` on `tests/card/menu-harness.html` (two menus in a stand-in card's shadow root); with the Tab handler, the outside-press close and the 44 px rule removed, four tests fail.
 >>>>>>> task/s31-menu
+=======
+## 2026-10-13: S31.4 plan focus: cone, cost and ties (Sonnet)
+
+`src/card/plan-focus.ts` (reasoning in its header comment). Decisions: the cone is 45 degrees about the arrow with the edge in,
+because a plan turned 45 degrees puts every grid neighbour exactly on an edge; "on the edge" and "equal cost" use a 1e-9 relative
+tolerance, since rotation leaves float noise. Cost is along + 2 x across. Equal cost goes to the lower index, so the host's point
+order (reading order) is the tie-break. Not reversible by design. `firstFocus` returns -1 for no point; `nextInDirection` returns
+`from` for none. `planKeyFor(ev, deviceFocused)` sits beside `viewKeyFor`, which the Studio keeps unchanged: plain arrows move focus
+only with a device focused, Shift + arrows pan always, Enter and Space open (stay with a focused button or link), Escape leaves,
+Space resets only without a device. Not wired into the card until S31.9.
+>>>>>>> task/s31-focus
 
 ## 2026-10-13: Sprint 31 planned: card layout and touch (Sonnet)
 
