@@ -4,9 +4,8 @@ import { SIZES, bootTouch, boxOf, calls, deviceIndex, roomIndex, tapPlan, tapRol
 // S31.1 (docs/specs/card-layout-touch.md, K1 to K5): the tap tasks of Sprint 31, on the stress house, from a cold card, with real
 // touch taps (`page.touchscreen.tap`) at points where the target is the real top element. Each asserts its tap count and the
 // exact `callService` calls. The calls are what 0.28.1 sends today (measured 2026-10-13), not invented (finding 21).
-// The tests use the new accessible names of the spec. Those that need a control 0.28.1 does not have are `test.fail()`:
-// they fail for a missing named control, and S31.11 removes the marker. K1, K3 and K5 pass today (a phone's floor tab already
-// unfolds the overview) and stay as the guard.
+// The tests use the new accessible names of the spec. All five pass on both sizes at their counts (S31.11); none is marked
+// `test.fail()`. They stay as the guard for the tap counts.
 
 for (const [name, size] of Object.entries(SIZES) as [keyof typeof SIZES, TouchSize][]) {
   test.describe(`S31 tap tasks, ${name} ${size.width} x ${size.height}`, () => {
