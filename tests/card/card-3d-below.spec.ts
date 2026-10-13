@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { serve, ORIGIN, card, drawn, cam } from "./helpers-3d";
 import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
+import { openOptions } from "./options-helper";
 
 // S27.7: the 3D view can draw the floors below, through the view's `setBelow` (the card calls it from S27.14). Real card, the stress layout,
 // the test hook of the test build. Stress: ground is 270 high with a 25 slab, so `first` stands 295 above it. Ground's back garden is
@@ -165,11 +166,13 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
     expect(one).toBeGreaterThanOrEqual(-26);
     expect((await hook(page, (h) => h.below())).count).toBe(0);
 
+    await openOptions(page);
     await belowSelect(page).selectOption("solid");
     await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0); // ground's slab bottom: -295 - 25
     const solid = await hook(page, (h) => h.below());
     expect(solid.meshes.some((m) => !m.transparent && m.depthWrite && m.opacity === 1)).toBe(true);
 
+    await openOptions(page);
     await belowSelect(page).selectOption("ghost");
     await expect.poll(async () => (await hook(page, (h) => h.below())).meshes.every((m) => m.transparent), { timeout: 8000 }).toBe(true);
     const ghost = await hook(page, (h) => h.below());
@@ -177,6 +180,7 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
     for (const m of ghost.meshes) { expect(m.opacity).toBeLessThanOrEqual(0.25); expect(m.depthWrite).toBe(false); }
     expect(await y0(page)).toBeCloseTo(-320, 0);
 
+    await openOptions(page);
     await belowSelect(page).selectOption("off");
     await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBe(0);
     expect(await y0(page)).toBe(one);
@@ -198,17 +202,20 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
 
   test("a stored viewer choice wins over YAML, both ways", async ({ page }) => {
     await bootCard(page, { floors_below: "solid" });
+    await openOptions(page);
     await belowSelect(page).selectOption("off");
     await configureCard(page, { floors_below: "solid" });
     await expect(belowSelect(page)).toHaveValue("off");
     await noneBelow(page);
     await configureCard(page, { floors_below: "off" });
+    await openOptions(page);
     await belowSelect(page).selectOption("ghost");
     await configureCard(page, { floors_below: "off" });
     await expect(belowSelect(page)).toHaveValue("ghost");
     await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
     // and a stored value that is not a mode is dropped, so the YAML is in charge again
     await configureCard(page, { floors_below: "solid" });
+    await openOptions(page);
     await belowSelect(page).selectOption("ghost");
     await page.evaluate(() => { for (const [k, v] of Object.entries(localStorage)) if (k.startsWith("fp-view:")) localStorage.setItem(k, v.replace('"below":"ghost"', '"below":"<b>"')); });
     await configureCard(page, { floors_below: "solid" });

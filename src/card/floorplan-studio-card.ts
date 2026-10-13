@@ -16,6 +16,7 @@ import { defineElement } from "./define";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, viewKeyFor, type ViewKey } from "./view-keys";
+import { HEADER_H, frameMode, sideOpenByDefault, sideWidth, type FrameMode } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
 import "./search-box";
 import type { View3D } from "./three/view3d";
@@ -234,6 +235,30 @@ const loadLib3d = (): Promise<Lib3d> => {
 /** The card that has focus (or has something inside it focused), whatever shadow roots it sits in. */
 let focusedCard: FloorplanStudioCard | null = null;
 
+/*
+ * S31.5: the chrome around the plan (docs/specs/card-layout-touch.md, decisions D1 to D4).
+ *
+ * The grid. The host is a CSS grid: `"head head" "sheet stage"`, one auto row for the header, one 1fr row below it, and
+ * two columns, `--fp-sheet-w` (set on the host by `_measureFrame()`: `sideWidth()` open, 52 px as the rail, 0 where there
+ * is no side sheet) and the rest. The header holds the floor tabs, Search and View options. The stage is the plan's
+ * `<svg>` (or `.fp-3d`); the zoom cluster (View options box and the + - Fit stack) sits on the stage's corner and is the
+ * one thing that floats over the plan on purpose. The sheet (the Overview, `.fp-active.fp-side`) is the "sheet" cell,
+ * beside the plan and never over it. `frame.ts` decides the mode from the card's own width: side from 640 px, the old
+ * floating panel under it (until S31.8), none in kiosk or with `active_list: false`.
+ *
+ * Why the zoom maths did not move. The pan, the pinch and the double tap read `svg.getBoundingClientRect()`. The svg is
+ * the stage, so it is the box they read; they land where they did. The header holds no `<svg>` (its buttons are text),
+ * because `updated()` binds the plan to the first svg in the shadow root.
+ *
+ * Gone: the dragged panel (`_activePos`, `_onActiveDragStart`: a stored x or y is ignored, the fold is kept),
+ * `_positionToolbar` and `_placeTopDock` (nothing floats over the top any more, bar the cluster).
+ *
+ * The test migration. Tests that read an old chrome position or reached a control now behind View options moved their
+ * premise, not their assertion. The look controls are in the closed View options box, so those tests open it first
+ * (tests/card/options-helper.ts). The plan is smaller than the card (header 52 px, sheet 320 px), so a test that
+ * expected the plan to be the card measures the stage. The drag tests became "a stored position is ignored" and "the
+ * head moves nothing". Each one is listed in the S31.5 commit message and the report.
+ */
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
@@ -243,23 +268,35 @@ export class FloorplanStudioCard extends LitElement {
        fixed-height row (HA's sections layout, .card.fit-rows) it fills the row instead of overflowing it, and
        the svg's own default preserveAspectRatio (xMidYMid meet) keeps the whole plan visible, letterboxed rather
        than cropped or stretched. */
-    :host { display: block; position: relative; height: 100%; }
+    :host { display: grid; grid-template-columns: var(--fp-sheet-w, 0px) minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "head head" "sheet stage"; position: relative; height: 100%; }
     /* S8.3: hui-panel-view gives the card no definite height either, so the plan grew by width past the bottom of
        the screen and "fit" looked zoomed in. In panel layout the card takes the screen below HA's header. */
     :host([panel]) { height: calc(100vh - var(--header-height, 56px)); }
     svg { width: 100%; height: 100%; display: block; }
+    /* S31.5: the plan is the stage, the cell of the grid that is left when the header and the side sheet have theirs.
+       Its box is the box the zoom maths read, so a pan, a pinch and a double tap land where they did. */
+    svg.fp-zoomable, .fp-3d { grid-area: stage; min-width: 0; min-height: 0; }
     /* S12.3: the 3D view takes the place of the plan's svg, in the same box (aspect-ratio is the plan's own: with an
        indefinite height it sizes like the svg, in a fixed row it fills it). */
     .fp-3d { position: relative; width: 100%; height: 100%; display: block; }
+    .fp-head { grid-area: head; box-sizing: border-box; height: 52px; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--fp-idle); }
+    .fp-head-gap { flex: 1 1 0; min-width: 0; }
+    .fp-head-btn { flex: 0 0 auto; font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; min-width: 32px; cursor: pointer; }
+    .fp-head-btn[aria-expanded="true"] { background: var(--fp-ink); color: var(--fp-bg); border-color: var(--fp-ink); }
+    /* The cluster: the View options box (when open) and the zoom stack, top right of the stage. Over the plan on purpose; the one thing that is. */
+    .fp-cluster { grid-area: stage; justify-self: end; align-self: start; z-index: 1; margin: 8px; min-width: 0; max-width: calc(100% - 16px); display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    /* Under 640 px the Overview is the floating panel at the stage's top left; an open options box starts under its 36 px header, not over its fold button. */
+    .fp-cluster.fp-below { margin-top: 52px; }
     /* One line, over the plan, when 3D cannot run: why, and that 2D is what is shown. */
     .fp-3d-note { position: absolute; left: 8px; bottom: 8px; z-index: 1; margin: 0; max-width: calc(100% - 16px); padding: 4px 8px; font: 12px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; }
-    p.msg { padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
+    p.msg { grid-area: 1 / 1 / -1 / -1; padding: 16px; margin: 0; font: 14px sans-serif; color: var(--fp-text); }
     /* S2.6: the floor switcher is card chrome (like p.msg above), not plan content, so it sits outside the <svg>
        renderFloor draws and is positioned over it instead. */
     /* Opus review finding 13: the active-devices panel below (also z-index: 1, and later in DOM order, so it
        would otherwise win ties) can be dragged to sit right under this row; the floor chips must still take the
        click, not the panel behind — or in front of, without this — them. */
-    .fp-floors { position: absolute; top: 8px; left: 8px; z-index: 2; display: flex; gap: 6px; }
+    .fp-floors { flex: 0 1 auto; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 3px 4px; }
+    .fp-floors button { flex: 0 0 auto; white-space: nowrap; }
     .fp-floors button { font: 12px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 999px; padding: 4px 10px; cursor: pointer; }
     /* Same combination the editor's floor chips already proved at 4.5:1 (S1.40); the current floor is carried by
        aria-pressed, not by this colour alone (CLAUDE.md finding: a toggle must not state its direction twice —
@@ -285,9 +322,9 @@ export class FloorplanStudioCard extends LitElement {
     /* The toolbar wraps: on a narrow card (375 px) its controls take two rows, right-aligned, rather than running
        off the left edge. The right-hand 8 px plus the floor chips' room on the left are what max-width leaves.
        The stack's top is set in _positionToolbar, from where the toolbar ends. */
-    .fp-zoom, .fp-viewonly { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: calc(100% - 16px); }
-    .fp-stack { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; flex-direction: column; gap: 4px; }
-    .fp-stack.fp-stack-row { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; left: 8px; }
+    .fp-zoom, .fp-viewonly { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 100%; box-sizing: border-box; padding: 4px; background: var(--fp-bg); border: 1px solid var(--fp-idle); border-radius: 8px; }
+    .fp-zoom[hidden], .fp-viewonly[hidden] { display: none; }
+    .fp-stack { display: flex; flex-direction: column; gap: 4px; }
     .fp-zoom button, .fp-viewonly button, .fp-stack button { width: 28px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font: 16px/1 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: 6px; cursor: pointer; }
     .fp-zoom button:disabled, .fp-viewonly button:disabled, .fp-stack button:disabled { opacity: 0.45; cursor: default; }
     .fp-zoom button[aria-pressed="false"], .fp-viewonly button[aria-pressed="false"] { opacity: 0.6; }
@@ -323,8 +360,8 @@ export class FloorplanStudioCard extends LitElement {
        off-screen (S9.5 spec). */
     /* Opus review finding 5: min(200px, 45%) instead of a flat 200px, so a narrow (phone-width) card gets a panel
        that fits it rather than one that is most of the card's own width at 200px on a ~380px card. */
-    .fp-active { position: absolute; top: 44px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 52px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
-    .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 8px; cursor: grab; touch-action: none; user-select: none; font: 600 12px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
+    .fp-active { grid-area: stage; position: absolute; top: 8px; left: 8px; z-index: 1; width: min(200px, 45%); max-width: calc(100% - 16px); max-height: calc(100% - 16px); display: flex; flex-direction: column; overflow: hidden; background: var(--fp-room); color: var(--fp-ink); border: 1px solid var(--fp-idle); border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
+    .fp-active-head { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; padding: 6px 8px; user-select: none; font: 600 12px/1.2 var(--fp-font, system-ui, sans-serif); border-bottom: 1px solid var(--fp-idle); }
     .fp-active-title { flex: 1; }
     .fp-active-count { font-weight: 400; color: var(--fp-text); }
     .fp-active-collapse { border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 4px; }
@@ -345,8 +382,15 @@ export class FloorplanStudioCard extends LitElement {
     /* S14 review: on a card narrower than ACTIVE_FOLD_BELOW_PX an open room panel is a short sheet, not a column down the card: at most 45% of the card high, its body scrolling, and docked on the half opposite the picked room (class set in _positionActivePanelNow) so that room stays in view. */
     .fp-active.fp-sheet { max-height: 45%; }
     .fp-active.fp-sheet.fp-dock-bottom { top: auto; bottom: 8px; }
-    /* Docked at the top over the toolbar (z-index 2, as the floor chips; the dialogs come later in the DOM and win). */
-    .fp-active.fp-sheet.fp-dock-over { top: 8px; z-index: 2; }
+    /* S31.5: from 640 px the Overview is the side sheet: the whole sheet cell of the grid, beside the plan, not over it.
+       It is absolute inside its cell (inset 0), so a long list scrolls in the body and never makes the card taller. */
+    .fp-active.fp-side { inset: 0; width: auto; max-width: none; max-height: none; border-radius: 0; border-width: 0 1px 0 0; box-shadow: none; z-index: 0; grid-area: sheet; }
+    .fp-active.fp-side .fp-active-body { flex: 1 1 auto; min-height: 0; }
+    .fp-active.fp-rail { align-items: center; padding-top: 8px; }
+    .fp-rail-open { position: relative; width: 36px; height: 36px; border: 1px solid var(--fp-idle); border-radius: 8px; background: var(--fp-bg); color: var(--fp-ink); font: 14px/1 var(--fp-font, system-ui, sans-serif); cursor: pointer; }
+    .fp-rail-count { position: absolute; top: -6px; right: -6px; min-width: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px; background: var(--fp-warn); color: var(--fp-on-light); font: 600 11px/16px var(--fp-font, system-ui, sans-serif); text-align: center; }
+    .fp-back { flex: 0 0 auto; border: none; background: transparent; color: inherit; font: inherit; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+    .fp-back:hover, .fp-back:focus-visible { background: var(--fp-idle); }
     .fp-item { display: flex; flex-wrap: wrap; align-items: center; }
     .fp-item .fp-active-row { flex: 1 1 0; width: auto; min-width: 0; }
     .fp-row-state { margin-left: auto; padding-left: 6px; flex: 0 0 auto; white-space: nowrap; font-size: 11px; color: var(--fp-text); overflow-wrap: anywhere; text-align: right; }
@@ -550,19 +594,17 @@ export class FloorplanStudioCard extends LitElement {
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
   private _fit: View | null = null;
   private _unbindZoom: (() => void) | null = null;
-  /** S9.5: the active-devices panel. `_activePos` is `null` for the CSS default position (top-left, below the
-   * floor chips); once dragged it holds the panel's position as a *fraction* (0..1) of the card's own free width
-   * and height (`hostSize - panelSize`), not raw px (Opus review findings 3/4: a px position stored at one size
-   * and reclamped only mid-drag could end up outside the card the moment the geometry it was clamped against
-   * changes — a reload at a narrower width, or expanding a panel that was dragged low while collapsed and much
-   * shorter). `_positionActivePanel` re-derives the actual px position from this fraction on every render and on
-   * a host resize, so the panel is inside the card by construction. Both fields are read from, and written to,
-   * `localStorage` (wrapped in try/catch: private browsing or blocked storage just means the panel forgets
-   * between reloads, never a thrown error — CLAUDE.md finding 1's spirit applied to browser state). */
+  /** S9.5: the Overview's fold, per card, in browser storage (try/catch: private browsing or blocked storage just means
+   * the sheet forgets between reloads). S31.5: the panel is no longer dragged, so the stored `x` and `y` of older builds
+   * are ignored and not written back; the fold is kept. */
   private _activeCollapsed = false;
   /** S14.6: the category groups the viewer folded, as `list:category` ids (`a:` Active list, `r:` Room panel). Per card, in browser storage. */
   private _foldedCats = new Set<string>();
-  private _activePos: { x: number; y: number } | null = null;
+  /** S31.5: what the card's width gives it (frame.ts). Measured in `render()` and by the ResizeObserver; 0 wide (not laid
+   * out) keeps the last answer. */
+  private _frame: FrameMode = "bottom";
+  /** S31.5: View options is open: today's toolbar, in a plain box on the stage, until S31.6 turns it into the menu. */
+  private _optionsOpen = false;
   /** Whether the user has folded or unfolded the list by hand (kept in storage with the rest). Until then the card's
    * own width decides: folded under `ACTIVE_FOLD_BELOW_PX`, open from there up, followed on every resize (0.12.17;
    * it was a one-off check at 500px that a stored drag position switched off). After, the choice is theirs. */
@@ -867,25 +909,18 @@ export class FloorplanStudioCard extends LitElement {
 
   private _loadActiveState(): void {
     this._activeCollapsed = false;
-    this._activePos = null;
     this._activeUserChose = false;
     this._overviewAll = false;
     try {
       const raw = globalThis.localStorage?.getItem(this._activeStorageKey());
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { collapsed?: unknown; chosen?: unknown; x?: unknown; y?: unknown; all?: unknown };
+      const parsed = JSON.parse(raw) as { collapsed?: unknown; chosen?: unknown; all?: unknown };
       this._overviewAll = parsed.all === true;
       // An entry from before `chosen` existed that says collapsed was a hand fold (nothing else wrote it as true);
-      // one that says open may only be a dragged position, so the width still decides.
+      // one that says open only recorded a drag (gone in S31.5), so the width still decides.
       if (parsed.chosen === true || parsed.collapsed === true) { this._activeUserChose = true; this._activeCollapsed = parsed.collapsed === true; }
-      // Opus review finding 3: untrusted storage, including an older build's raw-px entry — clamped into the 0..1
-      // fraction range rather than trusted or thrown on. A stale px value just lands at whichever edge it clamps
-      // to (never off-screen); it does not need to reproduce its exact old spot.
-      if (typeof parsed.x === "number" && typeof parsed.y === "number" && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
-        this._activePos = { x: Math.min(Math.max(parsed.x, 0), 1), y: Math.min(Math.max(parsed.y, 0), 1) };
-      }
     } catch {
-      /* malformed or unavailable storage: the panel just opens at its default place, uncollapsed */
+      /* malformed or unavailable storage: the sheet just opens at its default, unfolded */
     }
   }
 
@@ -922,9 +957,9 @@ export class FloorplanStudioCard extends LitElement {
 
   private _saveActiveState(): void {
     try {
-      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, x: this._activePos?.x, y: this._activePos?.y, all: this._overviewAll }));
+      globalThis.localStorage?.setItem(this._activeStorageKey(), JSON.stringify({ collapsed: this._activeUserChose && this._activeCollapsed, chosen: this._activeUserChose, all: this._overviewAll }));
     } catch {
-      /* private browsing or storage blocked: position/collapse just don't persist */
+      /* private browsing or storage blocked: the fold just does not persist */
     }
   }
 
@@ -948,7 +983,7 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionToolbar(); this._positionActivePanel(); this._measurePx(); });
+      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionActivePanel(); this._measurePx(); });
       this._activeResizeObserver.observe(this);
     }
     // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
@@ -1448,7 +1483,6 @@ export class FloorplanStudioCard extends LitElement {
     super.updated(changed);
     this._glidePeople();
     this._applyWidthDefault();
-    this._positionToolbar();
     this._positionActivePanel();
     // S24.8: the search box draws itself after this render; the panel grows by its height then, so place it again.
     const box = this.shadowRoot?.querySelector<HTMLElement & { hasUpdated: boolean; updateComplete: Promise<unknown> }>("fp-search");
@@ -2292,6 +2326,18 @@ export class FloorplanStudioCard extends LitElement {
     else if (!e.shiftKey && active === last) { e.preventDefault(); first.focus(); }
   };
 
+  /** S31.5: the header bar, the top band of the card's grid: floor tabs on the left, Search and View options on the right.
+   *  Text, not icons: the plan's own `<svg>` stays the first one in the shadow root (`updated()` binds it by that). Left out
+   *  whole when it would be empty, and in kiosk. Search needs the sheet it opens in, so `active_list: false` drops it. */
+  private _header(withOptions: boolean) {
+    if (this._kiosk()) return null;
+    const tabs = this._floorChips();
+    const search = this._activeListVisible() && this._layout ? html`<button type="button" class="fp-head-btn" aria-label="Search" title="Search" @click=${() => { this._openSearch(); }}>Search</button>` : null;
+    const options = withOptions ? html`<button type="button" class="fp-head-btn" aria-label="View options" title="View options" aria-expanded=${this._optionsOpen ? "true" : "false"} aria-controls="fp-options" @click=${() => { this._optionsOpen = !this._optionsOpen; this.requestUpdate(); }}>⋯</button>` : null;
+    if (!tabs && !search && !options) return null;
+    return html`<div class="fp-head">${tabs}<span class="fp-head-gap"></span>${search}${options}</div>`;
+  }
+
   /** S2.6/S6.5: `_floorList()`'s chips, one per switchable floor in its order, or `null` for anything else. Card
    * chrome (like the no-layout message): drawn outside the `<svg>` renderFloor returns, never inside the plan it
    * draws (CLAUDE.md finding 8, one draw path — the plan is drawn only by `renderFloor`, this is the card's own
@@ -2321,6 +2367,13 @@ export class FloorplanStudioCard extends LitElement {
     this._pickFloor(letGo || !this._activeListVisible() ? null : key);
   }
 
+  /** S31.5, Back in the side sheet: a room goes up to its floor, a floor to the Overview. Focus follows to what is now on top. */
+  private _back(): void {
+    const room = this._pickedRoom;
+    this._pickFloor(room && room.floor === this._floorKey() ? room.floor : null);
+    void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-active-collapse")?.focus());
+  }
+
   /** The key of the selected floor while it is the one shown, else null (a floor the config no longer lists means nothing). */
   private _pickedFloorKey(): string | null {
     return this._pickedFloor !== null && this._pickedFloor === this._floorKey() ? this._pickedFloor : null;
@@ -2347,69 +2400,24 @@ export class FloorplanStudioCard extends LitElement {
     this.requestUpdate();
   }
 
-  /** The toolbar is anchored top right and the floor chips top left, both over the plan. When the toolbar is wide
-   * enough to reach the chips (a wrapped one always is: it fills the card's width), the chips, which sit above it,
-   * would cover its first controls and the View select could not be clicked. It then moves down to just below the
-   * chips. Measured, not guessed: the toolbar's width depends on the config, the view and the theme's fonts. */
-  private _positionToolbar(): void {
-    const root = this.shadowRoot;
-    const bar = root?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
-    const stack = root?.querySelector<HTMLElement>(".fp-stack");
-    const chips = root?.querySelector<HTMLElement>(".fp-floors");
-    const belowChips = chips ? chips.offsetTop + chips.offsetHeight + 6 : 8;
-    if (bar) bar.style.top = "";
-    if (stack) { stack.style.top = ""; stack.classList.remove("fp-stack-row"); }
-    if (bar && chips && bar.getBoundingClientRect().left < chips.getBoundingClientRect().right + 6) bar.style.top = `${belowChips}px`;
-    if (!stack) return;
-    // The stack hangs under the toolbar, wherever the toolbar ended up; with no toolbar it keeps the CSS default.
-    if (bar) stack.style.top = `${bar.offsetTop + bar.offsetHeight + 4}px`;
-    // A card too short for the column (a ~200 px wide one, where the toolbar already takes most of the height):
-    // the stack lays out as a wrapping row under the chips and the toolbar moves below it. Zoom and rotate stay
-    // reachable; the toolbar's last row is what the card clips.
-    if (stack.offsetTop + stack.offsetHeight > this.clientHeight - 4) {
-      stack.classList.add("fp-stack-row");
-      stack.style.top = `${belowChips}px`;
-      if (bar) bar.style.top = `${stack.offsetTop + stack.offsetHeight + 4}px`;
-    }
-  }
-
-  /** Opus review findings 3/4: sets the panel's on-screen position directly (bypassing Lit's template, which does
-   * not bind `style` any more — see `_activePanel` — so this survives an unrelated re-render), from `_activePos`'s
-   * fraction and the *current* card/panel geometry. Called from `updated()` on every render and from the
-   * ResizeObserver on a host resize, so a stored fraction always lands inside the card, whatever changed since it
-   * was saved: a narrower viewport, a taller panel after expanding from collapsed, or nothing at all. With
-   * `_activePos` still `null` (never dragged) this clears any inline position, leaving the CSS default in place. */
+  /** Docks the floating panel of a narrow card (bottom mode, under 640 px: today's panel until S31.8) after each render and
+   * resize. Class changes only: nothing is dragged any more, so no position is stored or computed. The side sheet has no
+   * dock, it is a grid cell. */
   private _positionActivePanel(): void {
     this._positionActivePanelNow();
     this._apply3dInset();
   }
 
-  /** Puts the undragged panel at the top: the CSS default under a one-row toolbar, lower when the toolbar wraps. */
-  private _placeTopDock(panel: HTMLElement): void {
-    panel.style.left = "";
-    // The CSS default sits under a one-row toolbar. On a narrow card the toolbar wraps to more rows and would
-    // cover the panel's fold button, so the default moves down to just below it.
-    const bar = this.shadowRoot?.querySelector<HTMLElement>(".fp-zoom, .fp-viewonly");
-    const below = bar ? bar.offsetTop + bar.offsetHeight + 8 : 0; // 44 px for a one-row bar at the top, the CSS default
-    let top = below > 44 ? below : 0;
-    // The stack is on the right, the list on the left: they meet only on a very narrow card. Then the list goes
-    // under the stack, as it goes under the toolbar.
-    const stack = this.shadowRoot?.querySelector<HTMLElement>(".fp-stack");
-    if (stack && panel.offsetLeft + panel.offsetWidth + 6 > stack.offsetLeft) top = Math.max(top, stack.offsetTop + stack.offsetHeight + 8);
-    panel.style.top = top ? `${top}px` : "";
-  }
-
   private _positionActivePanelNow(): void {
     const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active");
     if (!panel) return;
+    if (this._frame === "side") { panel.classList.remove("fp-sheet", "fp-dock-bottom"); return; }
     const sheet = panel.classList.contains("fp-room-open") && this.getBoundingClientRect().width < ACTIVE_FOLD_BELOW_PX;
     panel.classList.toggle("fp-sheet", sheet);
-    // A sheet docks where it hides less of the picked room. Three places are laid out and the one whose box overlaps
-    // the room's bounding box least wins: under the toolbar (which wraps on a narrow card, so it can be low), at the
-    // bottom, or at the top over the toolbar (8 px; the controls are back when the panel closes). On a tie the dock
-    // away from the room's centre goes first.
+    // A sheet docks where it hides less of the picked room: at the top of the stage or at the bottom, whichever box
+    // overlaps the room's bounding box least. On a tie the dock away from the room's centre goes first.
     let bottom = false;
-    if (sheet && !this._activePos) {
+    if (sheet) {
       const poly = this.shadowRoot?.querySelector("svg polygon.room-picked");
       if (poly) {
         const h = this.getBoundingClientRect(), r = poly.getBoundingClientRect();
@@ -2417,97 +2425,48 @@ export class FloorplanStudioCard extends LitElement {
           const p = panel.getBoundingClientRect();
           return Math.max(0, Math.min(p.right, r.right) - Math.max(p.left, r.left)) * Math.max(0, Math.min(p.bottom, r.bottom) - Math.max(p.top, r.top));
         };
-        const place = {
-          below: () => { panel.classList.remove("fp-dock-bottom", "fp-dock-over"); this._placeTopDock(panel); },
-          bottom: () => { panel.classList.remove("fp-dock-over"); panel.classList.add("fp-dock-bottom"); panel.style.top = ""; panel.style.left = ""; },
-          over: () => { panel.classList.remove("fp-dock-bottom"); panel.classList.add("fp-dock-over"); panel.style.left = ""; panel.style.top = ""; },
-        };
         const roomInUpperHalf = r.top + r.height / 2 - h.top < h.height / 2;
-        const order = (roomInUpperHalf ? ["bottom", "below", "over"] : ["below", "bottom", "over"]) as (keyof typeof place)[];
-        let best = order[0]!, least = Infinity;
-        for (const k of order) { place[k](); const o = hidden(); if (o < least) { least = o; best = k; } }
-        place[best]();
-        bottom = best === "bottom";
-        if (best === "over") return;
+        const order: boolean[] = roomInUpperHalf ? [true, false] : [false, true];
+        let least = Infinity;
+        for (const atBottom of order) { panel.classList.toggle("fp-dock-bottom", atBottom); const o = hidden(); if (o < least) { least = o; bottom = atBottom; } }
       }
     }
-    panel.classList.remove("fp-dock-over");
     panel.classList.toggle("fp-dock-bottom", bottom);
-    if (bottom) { panel.style.top = ""; panel.style.left = ""; return; }
-    if (!this._activePos) { this._placeTopDock(panel); return; }
-    const hostRect = this.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    const maxX = Math.max(0, hostRect.width - panelRect.width);
-    const maxY = Math.max(0, hostRect.height - panelRect.height);
-    panel.style.left = `${this._activePos.x * maxX}px`;
-    panel.style.top = `${this._activePos.y * maxY}px`;
   }
 
-  /** The list floats over the plan, so on a phone-width card it hides the plan: until the user has chosen, it is
-   * folded under 480px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
+  /** S31.5: what the card's width gives it, from `frame.ts`: the side sheet from 640 px, the old floating panel under it, no
+   *  sheet in kiosk or with `active_list: false`. Reads the host's own width, which the sheet's column does not change.
+   *  True when the answer changed (the template differs by mode, so the caller renders again). */
+  private _measureFrame(): boolean {
+    const width = this.getBoundingClientRect().width;
+    if (!(width > 0)) return false;
+    const mode = frameMode(width, { kiosk: this._kiosk(), sheet: this._config?.active_list !== false });
+    const sheetW = mode === "side" ? (this._sheetOpen() ? sideWidth(width) : HEADER_H) : 0;
+    this.style.setProperty("--fp-sheet-w", `${sheetW}px`);
+    if (mode === this._frame) return false;
+    this._frame = mode;
+    return true;
+  }
+
+  /** Whether the sheet is open and not the 52 px rail: not folded, or a room or floor is picked (which opens it). */
+  private _sheetOpen(): boolean {
+    return !this._activeCollapsed || this._picked() !== null || this._pickedFloorKey() !== null;
+  }
+
+  /** Until the viewer has chosen by hand, the sheet's width decides: a side sheet is open from 900 px and a rail below,
+   * the floating panel under 640 px is folded under 480 px and open from there up. Runs from `updated()` and the ResizeObserver; width 0 (detached,
    * `display:none`, not laid out yet) decides nothing. */
   private _applyWidthDefault(): void {
-    if (this._activeUserChose) return;
+    const changed = this._measureFrame();
+    if (this._activeUserChose) { if (changed) this.requestUpdate(); return; }
     const width = this.getBoundingClientRect().width;
     if (width === 0) return;
-    const narrow = width < ACTIVE_FOLD_BELOW_PX;
-    if (narrow === this._activeCollapsed) return;
+    // The side sheet starts open from 900 px (frame.ts), the floating panel from 480; until the viewer folds by hand.
+    const narrow = this._frame === "side" ? !sideOpenByDefault(width) : width < ACTIVE_FOLD_BELOW_PX;
+    if (narrow === this._activeCollapsed && !changed) return;
     this._activeCollapsed = narrow;
+    this._measureFrame();
     this.requestUpdate();
-  }
-
-  /**
-   * S9.5: drags the panel by its header, pointer-capture based like `_bindZoom`'s pan above, but clamped inside
-   * the card's own box on every move so the panel can never end up partly or wholly off-screen (the spec's own
-   * words). A press on the collapse button itself is left alone — `closest` finds it and this returns before
-   * `setPointerCapture`, so the button's own click still fires instead of being swallowed by a "drag" that never
-   * actually moved the panel. Below `TAP_SLOP_PX` of movement nothing is written, so a plain click on the header
-   * bar (not a button) cannot be mistaken for a drag and does not touch the saved position.
-   */
-  private _onActiveDragStart(e: PointerEvent): void {
-    if ((e.target as Element | null)?.closest?.("button")) return;
-    const head = e.currentTarget as HTMLElement;
-    const panel = head.closest(".fp-active") as HTMLElement | null;
-    if (!panel) return;
-    e.preventDefault();
-    const hostRect = this.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    const originLeft = panelRect.left - hostRect.left;
-    const originTop = panelRect.top - hostRect.top;
-    const startX = e.clientX, startY = e.clientY;
-    const pointerId = e.pointerId;
-    let moved = false;
-    try { head.setPointerCapture(pointerId); } catch { /* the pointer is already gone */ }
-
-    // Opus review findings 3/4: the drag itself still clamps in px against the geometry captured at drag-start
-    // (nothing else can resize mid-drag), but the *stored* position is the resulting fraction of that geometry's
-    // free width/height, not the px itself — `_positionActivePanel` is what turns it back into px, against
-    // whatever the geometry is by the time it runs.
-    const maxX = Math.max(0, hostRect.width - panelRect.width);
-    const maxY = Math.max(0, hostRect.height - panelRect.height);
-    const clampFraction = (x: number, y: number) => ({
-      x: maxX > 0 ? Math.min(Math.max(0, x), maxX) / maxX : 0,
-      y: maxY > 0 ? Math.min(Math.max(0, y), maxY) / maxY : 0,
-    });
-
-    const onMove = (me: PointerEvent) => {
-      if (me.pointerId !== pointerId) return;
-      const dx = me.clientX - startX, dy = me.clientY - startY;
-      if (!moved && Math.hypot(dx, dy) <= TAP_SLOP_PX) return;
-      moved = true;
-      this._activePos = clampFraction(originLeft + dx, originTop + dy);
-      this._positionActivePanel();
-    };
-    const onEnd = (ue: PointerEvent) => {
-      if (ue.pointerId !== pointerId) return;
-      head.removeEventListener("pointermove", onMove);
-      head.removeEventListener("pointerup", onEnd);
-      head.removeEventListener("pointercancel", onEnd);
-      if (moved) this._saveActiveState();
-    };
-    head.addEventListener("pointermove", onMove);
-    head.addEventListener("pointerup", onEnd);
-    head.addEventListener("pointercancel", onEnd);
   }
 
   /** S11.3: the index of the picked room on the shown floor, or null: none picked, a room of another floor, or one the
@@ -2662,7 +2621,7 @@ export class FloorplanStudioCard extends LitElement {
     return html`<div class="fp-room">
       <div class="fp-room-head">
         <span class="fp-room-name">${s.name || scope.unnamed}</span>
-        <button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>
+        ${this._frame === "side" ? nothing : html`<button type="button" class="fp-room-clear" aria-label=${scope.clear} @click=${() => this._pickRoom(null)}>×</button>`}
       </div>
       <dl class="fp-room-facts">${facts.filter(([, v]) => v).map(([k, v]) => html`<div><dt>${k}</dt><dd>${v}</dd></div>`)}</dl>
       ${s.offEntities.length || scope === FLOOR_SCOPE ? html`<div class="fp-alloff-row">${s.offEntities.length ? html`<button type="button" class="fp-alloff" aria-label=${`Turn off all lights in ${s.name || scope.unnamed}`} title=${this._layout ? allOffTitle(this._layout.floors, this._floorKey() ?? "", s) : ALL_OFF_TITLE} @click=${() => this._allOff(s.offEntities)}>Lights off</button>` : nothing}${scope === FLOOR_SCOPE ? this._floorOffButton() : nothing}</div>` : nothing}
@@ -2781,18 +2740,26 @@ export class FloorplanStudioCard extends LitElement {
     const list = this._overviewList(attn, items, badge, summary && this._roomFilter ? scope.nothingOn : "Nothing on");
     const folded = this._activeCollapsed && !summary;
     const crumb = summary ? (shown ? this._floorTitle(shown) : "") : all && many ? "All floors" : shown ? this._floorTitle(shown) : "";
-    // No `style=` binding here on purpose (Opus review findings 3/4): Lit would rewrite the whole `style`
-    // attribute on every render, wiping out the position `_positionActivePanel` sets imperatively after render —
-    // that function is the only thing that ever touches this element's inline position.
-    return html`<div class=${summary ? "fp-active fp-room-open" : folded ? "fp-active fp-active-folded" : "fp-active"} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
-      <div class="fp-active-head" @pointerdown=${(e: PointerEvent) => this._onActiveDragStart(e)}>
+    // S31.5: from 640 px it is the side sheet (a cell of the grid, a 52 px rail when folded); under it the floating panel as before.
+    const side = this._frame === "side";
+    const cls = ["fp-active", side ? "fp-side" : "", summary ? "fp-room-open" : folded ? (side ? "fp-rail" : "fp-active-folded") : ""].filter(Boolean).join(" ");
+    if (side && folded) {
+      const n = attn.items.length;
+      return html`<div class=${cls} role="region" aria-label="Overview">
+        <button type="button" class="fp-rail-open" aria-label="Open overview" aria-expanded="false" title=${n ? `Open overview, ${n} ${n === 1 ? "alert" : "alerts"}` : "Open overview"} @click=${() => this._toggleActiveCollapsed()}>▸${n ? html`<span class="fp-rail-count">${n}</span>` : nothing}</button>
+      </div>`;
+    }
+    const foldLabel = side ? (this._activeCollapsed ? "Open overview" : "Fold overview") : this._activeCollapsed ? "Expand the overview" : "Collapse the overview";
+    return html`<div class=${cls} role="region" aria-label=${summary ? summary.name || scope.unnamed : "Overview"}>
+      <div class="fp-active-head">
+        ${side && summary ? html`<button type="button" class="fp-back" aria-label="Back" title="Back" @click=${() => this._back()}>←</button>` : nothing}
         <span class="fp-active-title">Home${crumb ? html`<span class="fp-crumb"> › ${crumb}</span>` : nothing}</span>
         ${summary
           ? nothing
           : html`<button
           type="button"
           class="fp-active-collapse"
-          aria-label=${this._activeCollapsed ? "Expand the overview" : "Collapse the overview"}
+          aria-label=${foldLabel}
           aria-expanded=${this._activeCollapsed ? "false" : "true"}
           @click=${() => this._toggleActiveCollapsed()}
         >${this._activeCollapsed ? "▸" : "▾"}</button>`}
@@ -2870,7 +2837,7 @@ export class FloorplanStudioCard extends LitElement {
       this._selectFloor(e.floor);
       if (this._floorKey() !== e.floor) return;
       this._pickRoom(e.room);
-      void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-room-clear")?.focus());
+      void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-room-clear")?.focus());
     }
   }
 
@@ -3065,8 +3032,12 @@ export class FloorplanStudioCard extends LitElement {
     // their own icon is an <svg> too, and `querySelector("svg")` must keep finding the plan first.
     const stage = live3d ? html`<div class="fp-3d" style="aspect-ratio:${fit.w} / ${fit.h}${deviceColourVars(this._layout!.colors).map((v) => `;${v}`).join("")}"></div>` : html`<svg class=${svgClass} viewBox="${box.x} ${box.y} ${box.w} ${box.h}" ${planPatch(body)}></svg>`;
     const note = this._fallback3d && this._viewPick() === "3d" ? html`<p class="fp-3d-note">${this._fallback3d}</p>` : null;
+    this._measureFrame();
     const stack3d = live3d ? (this._kiosk() ? null : html`<div class="fp-stack"><button type="button" aria-label="Reset camera" title="Reset camera" @click=${() => { this._forgetCamera(); this._saveViewNow(); this.requestUpdate(); }}>${this._icon(UI_ICONS.reset)}</button></div>`) : undefined;
-    return html`${this._floorChips()}${stage}${note}${this._activePanel()}${showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"}>${this._viewControls(this._viewPick())}</div>` : null}${stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
+    const stackEl = stack3d !== undefined ? stack3d : showZoomButtons ? this._viewStack(box, home, fit, showViewSwitch, showRotate) : showViewSwitch || showRotate ? html`<div class="fp-stack">${showRotate ? this._rotateButtons() : null}${this._resetButton()}</div>` : null;
+    const options = showViewSwitch ? html`<div class=${showZoomButtons ? "fp-zoom" : "fp-viewonly"} id="fp-options" ?hidden=${!this._optionsOpen}>${this._viewControls(this._viewPick())}</div>` : null;
+    const cluster = options || stackEl ? html`<div class=${this._frame !== "side" && this._optionsOpen ? "fp-cluster fp-below" : "fp-cluster"}>${options}${stackEl}</div>` : null;
+    return html`${this._header(showViewSwitch)}${stage}${note}${this._activePanel()}${cluster}${this._pulse ? html`<div class="fp-pulse" aria-hidden="true" hidden></div>` : null}${this._popupTemplate()}${this._coverDialogTemplate()}${this._vacuumDialogTemplate()}${this._chooserDialogTemplate()}${this._offDialogTemplate()}<div class="fp-tip" id="fp-tip" role="tooltip" hidden><b></b><span></span></div>`;
   }
 
   /** The view picked: the dropdown's, else `config.view`, else 2D. Config is untrusted, so junk is 2D, not an error. */

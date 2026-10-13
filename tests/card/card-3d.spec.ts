@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { demo, open, serve, configure, card, viewSelect, canvas, holder, cam, drawn, ORIGIN } from "./helpers-3d";
+import { openOptions } from "./options-helper";
 
 // S12.3: the card's 3D view in real Chromium, loaded the way Home Assistant loads the card (a module under
 // /floorplan_studio_static/ with a ?v= query, from the built www/ folder), so the chunk delivery is tested as shipped
@@ -31,6 +32,7 @@ test.describe("3D view: delivery (spec gate K, criterion 3)", () => {
     await page.waitForTimeout(300);
     expect(chunkRequests(seen), "the chunk is not fetched with the card").toEqual([]);
     expect(seen.some((u) => u.includes("floorplan-studio-card.js?v=9.9.9"))).toBe(true); // the card itself, as HA loads it
+    await openOptions(page);
     await viewSelect(page).selectOption("3d");
     await expect(canvas(page)).toHaveCount(1);
     await drawn(page);
@@ -38,7 +40,9 @@ test.describe("3D view: delivery (spec gate K, criterion 3)", () => {
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toMatch(/^http:\/\/fp\.test\/floorplan_studio_static\/floorplan-studio-3d-[\w-]{6,}\.js$/); // beside the card, content-hashed
     // back to 2D and to 3D again: the module is cached, no second request
+    await openOptions(page);
     await viewSelect(page).selectOption("2d");
+    await openOptions(page);
     await viewSelect(page).selectOption("3d");
     await drawn(page);
     expect(chunkRequests(seen)).toHaveLength(1);
@@ -55,6 +59,7 @@ test.describe("3D view: the canvas", () => {
     expect(box.height).toBeGreaterThan(200);
     const light = await canvas(page).screenshot();
     expect(await colours(page, light)).toBeGreaterThan(12);
+    await openOptions(page);
     await card(page).locator('css=select[aria-label="Theme"]').selectOption("midnight");
     await expect.poll(() => card(page).evaluate((el) => el.getAttribute("data-theme"))).toBe("midnight");
     await expect.poll(async () => (await cam(page)).drawn).toBeGreaterThan(1);
@@ -108,23 +113,28 @@ test.describe("3D view: the canvas", () => {
   test("3D, then back to 2D: the plan's svg is back, the canvas and its renderer are gone", async ({ page }) => {
     await open(page);
     expect(await renderers(page)).toBe(0);
+    await openOptions(page);
     await viewSelect(page).selectOption("3d");
     await drawn(page);
     expect(await renderers(page)).toBe(1);
     await expect(card(page).locator("css=svg g[data-x]").first()).toHaveCount(0); // the plan is not drawn under the canvas
+    await openOptions(page);
     await viewSelect(page).selectOption("2d");
     await expect(canvas(page)).toHaveCount(0);
     await expect(card(page).locator("css=svg g[data-x]").first()).toBeVisible();
     expect(await renderers(page)).toBe(0);
     // the tilt and walls controls belong to 2.5D alone
+    await openOptions(page);
     await viewSelect(page).selectOption("3d");
     await expect(card(page).locator('css=input[aria-label="Tilt"]')).toHaveCount(0);
+    await openOptions(page);
     await viewSelect(page).selectOption("2.5d");
     await expect(card(page).locator('css=input[aria-label="Tilt"]')).toHaveCount(1);
   });
 
   test("the view is remembered across a reload, and `view: 3d` in the config opens it", async ({ page }) => {
     await open(page);
+    await openOptions(page);
     await viewSelect(page).selectOption("3d");
     await drawn(page);
     await page.reload();
@@ -152,6 +162,7 @@ test.describe("3D view: fallback (criterion 7)", () => {
     await expect(card(page).locator("css=svg g[data-x]").first()).toBeVisible();
     expect(await renderers(page)).toBe(0);
     // picking 2D clears the line
+    await openOptions(page);
     await viewSelect(page).selectOption("2d");
     await expect(note).toHaveCount(0);
   });
@@ -159,6 +170,7 @@ test.describe("3D view: fallback (criterion 7)", () => {
   test("the chunk fails to load: 2D and one line", async ({ page }) => {
     await open(page);
     await page.route(/floorplan-studio-3d-.*\.js/, (r) => r.fulfill({ status: 500, body: "boom" }));
+    await openOptions(page);
     await viewSelect(page).selectOption("3d");
     const note = card(page).locator("css=.fp-3d-note");
     await expect(note).toHaveCount(1);
@@ -236,12 +248,15 @@ test.describe("3D view: walls mode (S12.4)", () => {
     expect(await wallsSelect(page).inputValue()).toBe("cut");
     await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(0);
     const cut = await lowered(page);
+    await openOptions(page);
     await wallsSelect(page).selectOption("low");
     await expect.poll(async () => (await lowered(page)).length).toBeGreaterThan(cut.length);
     const all = await lowered(page);
     expect(all).toEqual(expect.arrayContaining(cut));
+    await openOptions(page);
     await wallsSelect(page).selectOption("full");
     await expect.poll(async () => (await lowered(page)).length).toBe(0);
+    await openOptions(page);
     await wallsSelect(page).selectOption("cut");
     await expect.poll(async () => (await lowered(page)).length).toBe(cut.length);
   });
@@ -263,14 +278,30 @@ test.describe("3D view: walls mode (S12.4)", () => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d", walls: "low" });
     await drawn(page);
     expect(await wallsSelect(page).inputValue()).toBe("low");
+    await openOptions(page);
     await viewSelect(page).selectOption("2.5d");
     expect(await wallsSelect(page).inputValue()).toBe("low");
   });
 });
 
 test.describe("3D view: the Active list does not hide the model (S12.4)", () => {
-  test("with the list open the camera frames the house in the free width", async ({ page }) => {
+  test("S31.5: from 640 px the sheet is beside the model, not over it: the canvas does not meet it and the camera has no inset", async ({ page }) => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
+    await drawn(page);
+    const h = (await holder(page).boundingBox())!, p = (await card(page).locator("css=.fp-active").boundingBox())!;
+    expect(p.x + p.width, "the sheet ends where the stage begins").toBeLessThanOrEqual(h.x + 0.5);
+    await expect.poll(async () => (await holder(page).getAttribute("data-inset")) ?? "0,0").toMatch(/^0(\.0+)?,0(\.0+)?$/);
+  });
+
+  // S31.5: from 640 px the list is the side sheet, beside the stage, so nothing of it is over the model and the inset is 0 (next test).
+  // The floating list, and the camera framing around it, are what a card under 640 px has until S31.8: this one runs at 600 px.
+  test("with the list open the camera frames the house in the free width (a card under 640 px, the floating list)", async ({ page }) => {
+    // The harness card is 900 wide whatever the window is: narrow it before the first frame, as a narrow dashboard column would be.
+    await serve(page);
+    await page.goto(`${ORIGIN}/harness.html`);
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await card(page).evaluate((el) => { el.style.width = "639px"; el.style.height = "300px"; }); // short, so the house is limited by height as it was in the 900 px card
+    await configure(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
     await drawn(page);
     const h = (await holder(page).boundingBox())!, p = (await card(page).locator("css=.fp-active").boundingBox())!;
     await expect.poll(async () => +((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",")[0]).toBeGreaterThan(0.05);

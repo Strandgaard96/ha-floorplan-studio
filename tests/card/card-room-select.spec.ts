@@ -99,11 +99,13 @@ test("S24.3 (G3): a door left unlocked reads Unlocked, not Open; the room with n
   const patio = (locked.floors.ground.doors as { name: string; locks?: string[] }[]).find((d) => d.name === "Patio door")!;
   patio.locks = ["lock.demo_patio"];
   await boot(page, 1280, { layout: locked, states: { "binary_sensor.demo_patio_door": st("off"), "lock.demo_patio": st("unlocked") } });
-  await click(page, await floorPoint(page, 0));
+  const first = await floorPoint(page, 0);
+  await click(page, first);
   await expect(room(page).locator("css=.fp-room-name")).toHaveText("Living");
   expect(await factsOf(page)).toMatchObject({ Open: "none", Unlocked: "Patio door" });
   expect(Object.keys(await factsOf(page))).not.toContain("Open doors and windows");
-  await click(page, await floorPoint(page, 0)); // clear, then a room whose doors carry no lock
+  // Clear it from another spot of the room: two taps on one spot within 350 ms are a double tap, a zoom.
+  await click(page, await floorPoint(page, 0, first, 60)); // clear, then a room whose doors carry no lock
   await click(page, await floorPoint(page, 1));
   expect(Object.keys(await factsOf(page))).not.toContain("Unlocked");
 });
@@ -317,7 +319,7 @@ test.describe("CSS pairs (finding 10): the rule reaches the pixel", () => {
     expect(r.fill).toBe("none");
   });
   test("the panel is wider with a room section, and the popup's Details is a real, clickable size", async ({ page }) => {
-    await boot(page, 1280);
+    await boot(page, 600); // S31.5: from 640 px the sheet has one width; the floating panel under it still grows with its room section
     const w0 = (await card(page).locator("css=.fp-active").boundingBox())!.width;
     await click(page, await floorPoint(page, 0));
     const w1 = (await card(page).locator("css=.fp-active").boundingBox())!.width;

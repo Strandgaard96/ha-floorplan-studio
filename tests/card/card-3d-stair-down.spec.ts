@@ -20,7 +20,7 @@ const withStair = (inside = false) => {
 };
 async function boot(page: Page, layout: unknown, theme: string) {
   await serve(page);
-  await page.setViewportSize({ width: 1100, height: 800 });
+  await page.setViewportSize({ width: 1100, height: 900 }); // S31.5: 800 before; the 52 px header band pushed the stair's low steps below the fold, where a screenshot clip cannot reach
   await page.goto(`${ORIGIN}/harness.html`);
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
   await page.evaluate((config) => {

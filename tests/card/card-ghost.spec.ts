@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { readGhostIn } from "../fixtures/ghost-contrast";
 import { floorPlace, renderFloor } from "../../src/core";
+import { openOptions } from "./options-helper";
 
 // S27.13: the card's ghost floor. `ghost_floor` in YAML and the Floor below button. Real page.mouse clicks on the real top element
 // (finding 3). The first floor sits 200 cm east of the ground floor (offset), so the ground floor's ghost is drawn 200 cm to the
@@ -55,9 +56,11 @@ test.describe("S27.13 the card's ghost floor", () => {
   test("a real click on the Floor below button toggles g.ghost; the button says which", async ({ page }) => {
     await boot(page);
     await expect(button(page)).toHaveAttribute("aria-pressed", "false");
+    await openOptions(page);
     await button(page).click();
     await expect(ghosts(page)).toHaveCount(1);
     await expect(button(page)).toHaveAttribute("aria-pressed", "true");
+    await openOptions(page);
     await button(page).click();
     await expect(ghosts(page)).toHaveCount(0);
     await expect(button(page)).toHaveAttribute("aria-pressed", "false");
@@ -65,11 +68,13 @@ test.describe("S27.13 the card's ghost floor", () => {
 
   test("a stored viewer choice wins over YAML, both ways, and survives a reload of the card", async ({ page }) => {
     await boot(page, { ghost_floor: true });
+    await openOptions(page);
     await button(page).click(); // off, against the YAML
     await expect(ghosts(page)).toHaveCount(0);
     await configure(page, { ghost_floor: true });
     await expect(ghosts(page)).toHaveCount(0);
     await configure(page, { ghost_floor: false });
+    await openOptions(page);
     await button(page).click(); // on, against the YAML (another card key set: a memory of its own)
     await expect(ghosts(page)).toHaveCount(1);
     await configure(page, { ghost_floor: false });

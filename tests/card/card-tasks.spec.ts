@@ -22,7 +22,8 @@ for (const [name, size] of Object.entries(SIZES) as [keyof typeof SIZES, TouchSi
     });
 
     test("K2 find Guest bedroom bedside left and turn it on: Search, letters, first result, Turn on (3 taps)", async ({ page }) => {
-      test.fail(true, "S31.11 removes this: no button named Search yet");
+      // S31.5 put a Search button in the header: the tablet passes now. The phone (under 640 px, today's floating panel) still fails until S31.8/S31.11.
+      test.fail(phone, "S31.11 removes this: no button named Search on a phone yet");
       await bootTouch(page, size);
       await tapRole(page, "button", "Search");
       await typeText(page, "guest bedside left");

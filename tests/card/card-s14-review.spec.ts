@@ -208,7 +208,7 @@ test.describe("S14 review 5: the room panel on a narrow card", () => {
     await page.mouse.click(p!.x, p!.y);
     await expect(card(page).locator("css=.fp-room")).toHaveCount(1);
     const c = await boxOf(card(page)), panel = await boxOf(card(page).locator("css=.fp-active"));
-    expect(panel.y - c.y).toBeLessThan(50);
+    expect(panel.y - c.y, "S31.5: the sheet starts right under the 52 px header").toBeLessThan(52 + 8);
     expect(panel.x - c.x).toBeLessThan(20);
     expect(panel.h).toBeGreaterThan(c.h * 0.6);
   });

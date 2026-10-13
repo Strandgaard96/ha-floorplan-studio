@@ -66,12 +66,14 @@ for (const view of [0, 90]) {
       const svg = el.shadowRoot!.querySelector("svg") as SVGSVGElement, gh = svg.querySelector("g.ghost") as SVGGElement;
       const m = (gh.parentNode as SVGGraphicsElement).getScreenCTM()!; // the plan's own transform (the view turn included): not read from the ghost
       const scr = (p: number[]) => ({ x: p[0] * m.a + p[1] * m.c + m.e, y: p[0] * m.b + p[1] * m.d + m.f });
+      const host = el.getBoundingClientRect(); // the card is shorter than the window: a corner below it is not on the plan
+      const chrome = [".fp-head", ".fp-active", ".fp-cluster"].map((q) => el.shadowRoot!.querySelector(q)?.getBoundingClientRect()).filter((r): r is DOMRect => !!r);
       return a.rings.flatMap((ring, ri) => ring.map((_, idx) => {
         const c = scr(ring[idx]!), prev = scr(ring[(idx + ring.length - 1) % ring.length]!), next = scr(ring[(idx + 1) % ring.length]!);
         const unit = (v: { x: number; y: number }) => { const l = Math.hypot(v.x - c.x, v.y - c.y); return { x: (v.x - c.x) / l, y: (v.y - c.y) / l }; };
         const u = unit(prev), w = unit(next), bx = u.x + w.x, by = u.y + w.y, bl = Math.hypot(bx, by) || 1;
-        // in the plan's clear middle: not under the info panel (top left), the toolbar (top right) or the edge
-        const clear = (q: { x: number; y: number }) => q.x > 20 && q.y > 20 && q.x < innerWidth - 20 && q.y < innerHeight - 20 && !(q.x < 240 && q.y < 295) && !(q.x > 965 && q.y < 250);
+        // in the plan's clear middle: not under the header, the sheet or the zoom cluster (S31.5: they were the floating panel and toolbar), or the edge
+        const clear = (q: { x: number; y: number }) => q.x > 20 && q.y > 20 && q.x < Math.min(innerWidth, host.right) - 20 && q.y < Math.min(innerHeight, host.bottom) - 20 && !chrome.some((r) => q.x > r.left - 4 && q.x < r.right + 4 && q.y > r.top - 4 && q.y < r.bottom + 4);
         // the point 6 px off, on the outer side of the corner (the bisector of the two edges points inwards)
         const off = { x: c.x - (6 * bx) / bl, y: c.y - (6 * by) / bl };
         return { idx: `${ri}.${idx}`, c, off, clear: clear(c) && clear(off) };
