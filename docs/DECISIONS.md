@@ -2,6 +2,7 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+<<<<<<< HEAD
 ## 2026-10-13: S31.1 tap tasks red, and the baseline (Sonnet)
 
 Measured on 0.28.1 with real `page.touchscreen.tap` on 768 x 1024 and 390 x 844 (hasTouch, isMobile, `pointer: coarse` asserted), the
@@ -23,6 +24,20 @@ the card`, "missing", after a 3 s poll, not a test timeout. Their later assertio
 Headroom: the card file is 104 639 bytes gzip -9 against the 115 000 limit, 10 361 bytes (10.1 KB). Above the 6 KB line, so wave 2 needs no
 question to Diego. Helpers: `tests/card/touch-helpers.ts` (`bootTouch`, `tapRole`, `tapPlan`, `taps`, `typed`, `typeText`, `boxOf`, `calls`);
 no other file uses them yet. Test only, no product code, no CHANGELOG line. Studio parity: none, this is test tooling.
+=======
+## 2026-10-13: S31.2 frame maths: the phone minimum and the snap rule (Sonnet)
+
+`src/card/frame.ts`, pure. Reasoning is in the comment block at its top; the calls, short:
+- The phone minimum is `min(cap, 640)` where `cap = viewport - HA header - 16`, bottom mode only. D2's "min(screen - header, 640)"
+  and the fit-to-height cap clash on a screen under 656 px; the cap wins, so the card never passes the screen. Hard floor 120 px
+  for a broken measurement. A side sheet scrolls in its own column and a kiosk has no sheet, so neither gets the minimum.
+- Snap: a drag lands on the nearest stop, a tie on the smaller sheet. A fling (over 0.5 px/ms, height growing positive) goes to
+  the next stop beyond the finger in its direction, never two, none past the ends. Exactly 0.5 is not a fling.
+- `snapSheet` and `nextOnHandleTap` speak stop names (`peek`, `half`, `full`); `sheetStops` gives the heights. A card too short
+  collapses stops onto each other (half caps at full, peek at the card), never reorders them.
+- `frameMode(width, { kiosk, sheet })`: the spec's one-argument form cannot say `none`, so the options are a second argument.
+  Junk widths give `bottom`; no function throws or answers a non-finite number.
+>>>>>>> task/s31-frame
 
 ## 2026-10-13: Sprint 31 planned: card layout and touch (Sonnet)
 
