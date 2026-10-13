@@ -11,11 +11,11 @@ Assistant every day.
 
 | The card, live | On a phone (375 px) | The editor |
 |---|---|---|
-| ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The same card at phone width: the Active list starts folded.](docs/img/card-phone.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
+| ![The card: the demo ground floor, two lights and the hall motion sensor on.](docs/img/card-overview.png) | ![The same card at phone width (image from before 0.29, which gave the phone a bottom sheet).](docs/img/card-phone.png) | ![The editor with the demo house loaded.](docs/img/editor-overview.png) |
 
 | The card in 3D | The editor, a room selected |
 |---|---|
-| ![The demo house in the 3D view: cutaway walls, lamps casting light, the Active list on the left.](docs/img/card-3d.png) | ![The editor with a room selected: Delete under the name, the temperature, humidity and motion sensor pickers each in a framed box.](docs/img/editor-room-panel.png) |
+| ![The demo house in the 3D view: cutaway walls, lamps casting light, image from before 0.29.](docs/img/card-3d.png) | ![The editor with a room selected: Delete under the name, the temperature, humidity and motion sensor pickers each in a framed box.](docs/img/editor-room-panel.png) |
 
 A real house, on the card in 2.5D, three themes (room and device names blurred):
 
@@ -38,12 +38,12 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   slider turns it from top-down to side-on.
 - A switch to hide every name and value (`labels: false` on the card, View, Labels,
   Names and values in the editor), so only items and sensors are left.
-- Turn the plan in 45 degree steps with two buttons on the card (smooth, text
+- Turn the plan in 45 degree steps with the ⋯ menu's Rotate items (smooth, text
   stays upright; `rotation` sets the start). The card remembers each viewer's
-  zoom, position, rotation, 2D or 2.5D and theme in their browser, and a Reset
-  view button returns to the card's config.
+  zoom, position, rotation, 2D or 2.5D and theme in their browser, and Reset
+  view in the ⋯ menu returns to the card's config.
 
-  ![The card turned 45 degrees, toolbar showing the rotate and reset buttons.](docs/img/card-rotated-45.png)
+  ![The card turned 45 degrees, image from before 0.29, when the look controls were a toolbar over the plan.](docs/img/card-rotated-45.png)
 
   ![The card in 2.5D.](docs/img/card-2-5d.png)
 - A Lovelace card: lights, switches, sensors, cameras, thermostats, doors,
@@ -55,10 +55,14 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   furniture and linked to an entity acts like the device of that type: blue at
   rest, the on colour when on, tap for more-info. The plan darkens after sunset. Icons grow with a large house, and
   `icon_size` scales them further.
-- A floating **Active** list on the card: every light, sensor, camera, TV and
-  speaker that is on, on any floor. Tap a row for the same popup as a tap on the plan; drag
-  the list aside or fold it away. On a card narrower than 480 px it starts
-  folded, so it does not cover the plan.
+- The card keeps its chrome beside the plan, not over it: a header with the floor
+  tabs, **Search** and a **⋯** menu for everything about the look (view, theme,
+  labels, layers, rotate, reset), and one **Overview** sheet (Overview, Floor, Room,
+  Device) with what is wrong first and what is on after: a side sheet from 640 px
+  (a rail when folded), a bottom sheet you drag on a phone. Tap a row for the same popup
+  as a tap on the plan. The card never grows taller than the screen, every
+  control is 44 px on a touch screen, and Tab reaches the devices on the plan
+  with the arrow keys.
 - A tap on a device, door or Active row, in 2D and 3D, opens a small popup that
   operates nothing: the name, the state, one big button (Turn on, Turn off,
   Open, Close, Lock, Unlock), sliders for a light's brightness, colour

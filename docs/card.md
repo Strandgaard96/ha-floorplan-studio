@@ -38,24 +38,24 @@ floors — ready to paste. See "A premade dashboard" below.
 | `plug_heat_from`, `plug_heat_to` | `0`, `2000` | the draw range a plug's colour runs over, in watts: blue at the low end, amber half way, red at the high end. Two numbers with from below to; anything else is `0` and `2000`. See Plugs |
 | `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
-| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the vertical stack at the top right, under the toolbar. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
+| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the zoom cluster at the bottom right of the plan. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth (see 2.5D view, below), `3d` draws it as a real 3D model you can turn (see 3D view, below). Anything else is `2d` |
-| `view_switch` | `true` | `false` hides the View dropdown, Theme, Labels and Device names in the toolbar. `kiosk` hides them too |
-| `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
-| `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
-| `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See the Tilt slider, below |
-| `ghost_floor` | `false` | `true` draws the floor under the shown one as faint lines, at its place in the house (the floors' `offset`s and `rotation`s, so a floor drawn turned a few degrees on the one below lines up). Only `true` counts; junk is off. The Floor below button in the view controls (2D and 2.5D) changes it for one viewer and the card remembers the pick; the lowest floor has none |
-| `floors_below` | `off` | 3D only: `ghost` draws every floor under the shown one translucent, `solid` in its own colours, `off` none. Junk is `off`. The Floors below select beside Walls changes it for one viewer; the pick is remembered |
-| `detail` | `auto` | how much of the plan is drawn at each zoom (Detail, below): `auto` follows the zoom, `full` always draws everything, `minimal` always draws only rooms and what needs attention. Unset or anything else is `auto`, but `full` where the viewer can neither zoom nor reach the Detail button (kiosk, or `active_list: false` with `zoom: false`). The Detail button in the Overview changes it for one viewer, and a viewer's own pick wins over this key |
+| `view_switch` | `true` | `false` drops View, Tilt, Walls, Floor below, Theme, Labels and Device names from the ⋯ menu (Detail, Layers, Rotate and Reset view stay). `kiosk` hides the menu too |
+| `rotate_switch` | follows the other controls | the Rotate left and Rotate right items of the ⋯ menu and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
+| `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names item of the ⋯ menu changes it for as long as the card is on screen |
+| `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See Tilt, below |
+| `ghost_floor` | `false` | `true` draws the floor under the shown one as faint lines, at its place in the house (the floors' `offset`s and `rotation`s, so a floor drawn turned a few degrees on the one below lines up). Only `true` counts; junk is off. The Floor below item of the ⋯ menu (2D and 2.5D) changes it for one viewer and the card remembers the pick; the lowest floor has none |
+| `floors_below` | `off` | 3D only: `ghost` draws every floor under the shown one translucent, `solid` in its own colours, `off` none. Junk is `off`. The Floors below radios of the ⋯ menu change it for one viewer; the pick is remembered |
+| `detail` | `auto` | how much of the plan is drawn at each zoom (Detail, below): `auto` follows the zoom, `full` always draws everything, `minimal` always draws only rooms and what needs attention. Unset or anything else is `auto`, but `full` where the viewer can neither zoom nor reach the Detail button (kiosk, or `active_list: false` with `zoom: false`). The Detail items of the ⋯ menu change it for one viewer, and a viewer's own pick wins over this key |
 | `walls` | `cut` | how 2.5D and 3D draw wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Read in 2.5D and 3D. See Walls, below |
 | `labels` | `true` | `false` hides every name and value on the plan (rooms, zones, structures, device names, sensor values), so only icons and state are left. Anything but `false` shows them |
 | `rotation` | `0` | degrees the plan starts turned, in steps of 45: `0`, `45`, `90` ... `315`. Any other number rounds to the nearest step; anything that is not a number is `0`. Text and icons stay upright. A viewer's own turn is remembered over this — see View memory and reset, below |
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 | `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
-| `active_list` | `true` | `false` hides the Overview panel — see Overview, below |
+| `active_list` | `true` | `false` hides the Overview sheet and Search; the popup floats at every width — see Overview, below |
 | `center` | unset | `[x, y]`, plan cm: the point a pinned card zooms in on — see A card for one room, below. A non-array, wrong length, or non-finite value is ignored, silently, and the card shows the whole floor |
 | `zoom_level` | `1` | how far in a pinned card starts: `1` is the whole floor, `2` is half its width and height, and so on up to `8`. Anything other than a finite number is the default, `1`; an in-range-but-odd number (`0`, negative, past `8`) clamps instead of being refused |
 
@@ -104,14 +104,14 @@ speaker's waves, on a thicker line and a faster beat; with reduced motion they
 hold still at twice the size. Each type keeps its own base size, so 100 is what
 the card drew before the field existed.
 
-In the toolbar a small `View` dropdown switches between `2D` and
+In the ⋯ menu (**View options**, in the header) the **View** radios switch between `2D` and
 `2.5D` for as long as the card is on screen. It keeps your zoom and pan, and a
-reload goes back to `view:`. `view_switch: false` removes the dropdown and
+reload goes back to `view:`. `view_switch: false` removes the radios and
 `kiosk: true` does too; the configured `view` still applies.
 
-A **Tilt** slider sits beside the dropdown while the view is 2.5D, and
+A **Tilt** section (five presets, flat to steep) sits in the menu while the view is 2.5D, and
 disappears in 2D (and with `view_switch: false` or `kiosk`). Left is top-down,
-right is side-on; the middle is the default look. Dragging redraws the plan
+right is side-on; the middle is the default look. Picking a preset redraws the plan
 only: zoom and pan stay, and like the View pick it is forgotten when the
 config changes. The `tilt` key sets where it starts. The near walls are cut
 lower as the tilt grows, so a room is as visible at a steep tilt as at the
@@ -144,7 +144,7 @@ motion sensor is on draws a thin border just inside its walls in the sensor's
 colour, and it fades with the icon over `fade` seconds. A radar counts as a
 motion sensor here and in the Active list.
 
-A **Walls** select (Full height, Cutaway, Low) sits next to the Tilt slider
+A **Walls** section (Full height, Cutaway, Low) sits next to Tilt in the menu
 while the view is 2.5D, and goes with it in 2D, with `view_switch: false` and
 in `kiosk`. A pick redraws the plan only and the card remembers it (below). The
 Edit-card form has the same list; the `walls` key sets where it starts.
@@ -197,9 +197,9 @@ The pinned view becomes the card's own "home": a double-tap and the
 zoomed-in indicator both return here, not to the whole floor. The Fit button
 reads **Home view** on a pinned card, since it no longer fits the whole
 floor, and is disabled only when the view is already home — pan or pinch it
-away and Home view lights back up. (**Reset view** is a different button, the
-last one in the stack: it also drops the remembered turn, view and theme —
-see View memory and reset, below.) The − button is never gated by the pin:
+away and Home view lights back up. (**Reset view** is a different control, an item of the header's ⋯
+menu: it also drops the remembered turn, view and theme — see View memory and
+reset, below.) The − button is never gated by the pin:
 it is disabled only once the whole floor is on screen, so a pinned card can
 still zoom all the way out to see the rest of the house.
 
@@ -234,8 +234,13 @@ letterboxes the plan (empty space above and below, or left and right) rather
 than cutting it off. It won't go narrower than 6 columns or shorter than 3
 rows, so the plan stays legible.
 
-In the masonry layout, the card sizes to the plan's aspect ratio at the
-column's width, as before.
+In the masonry layout, and anywhere the card's parent gives it no height of its own (a stack, `rows: auto`), the card is
+the plan's height at its width plus the 52 px header, **cut to the screen**: never taller than the visual viewport less
+Home Assistant's header (`--header-height`, 56 px when there is none) and 16 px. A tall plan letterboxes in what is left
+instead of running past the bottom edge. The card follows a window resize and a phone's address bar. On a phone (under
+640 px wide) it is at least 640 px tall, or the room that fit allows, so the bottom sheet's half stop has room. A sections
+row, a panel view and a height set by hand on the card keep their own height, as they did before 0.29. There is no key
+for this.
 
 On a plan over 1000 cm on its longest side, icons, names, values and radar
 dots stop shrinking with it and grow instead, so they stay legible in a big
@@ -245,8 +250,9 @@ across the room.
 
 ## Studio and card
 
-The card keeps a small zoom cluster on the plan (+, −, Fit; Reset camera in 3D) and puts
-everything about how the plan looks in the header's ⋯ menu ("View options"): View, Tilt,
+The card's chrome sits around the plan, not over it: a 52 px header (floor tabs, Search, ⋯), one sheet (the Overview, see
+below) beside the plan from 640 px or under it on a phone, and a small zoom cluster on the plan (+, −, Fit; Reset camera in
+3D), the only thing that floats over it. Everything about how the plan looks is in the header's ⋯ menu ("View options"): View, Tilt,
 Walls, Floor below, Theme, Labels, Device names, Detail, Layers, Rotate left, Rotate right
 and Reset view. Each item writes what the old control wrote, into the same view memory.
 `view_switch: false` drops the look items and keeps Detail, Layers, Rotate and Reset; a
@@ -277,7 +283,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail radios of the ⋯ menu, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |
 | `#tabLayers` Layers (hide a family) | yes | the Layers section of the ⋯ menu has a check per family: a pick hides it, Alt-click shows it alone; kept per viewer. Not in 3D |
 | Plan view, Tilt, Walls | card only | the View radios, the Tilt presets (flat to steep) and the Walls radios of the ⋯ menu. The studio has no 2.5D since 0.14 (S12.1); the card keeps 2D and 2.5D, and gets 3D |
-| Room facts and device details panel | card only | the card's left panel (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
+| Room facts and device details panel | card only | the card's sheet (Picking a room); the studio already has its own selection panel with the room's fields and each device's entity |
 
 Also the same in both: the floor switcher (chips and tabs), pan and zoom by
 pointer, the view remembered per browser, and Reset view clearing it. The
@@ -288,11 +294,14 @@ which a card does not.
 
 `kiosk: true` is for a tablet fixed to a wall: nobody there should be able to
 switch floors, zoom out past what fits, or reach Home Assistant's more-info
-dialog by holding a finger on a device. It hides the floor chips and the
-zoom +/−/fit buttons and the rotate buttons (`rotate_switch: true` brings
-those back), and a long press does nothing — a plain tap still
+dialog by holding a finger on a device. It hides the header (floor tabs,
+Search and ⋯), the Overview sheet and the zoom +/−/fit buttons and the rotate buttons (`rotate_switch: true` brings
+those back, with a ⋯ menu that holds only Rotate and Reset view), and a long press does nothing — a plain tap still
 opens the device's popup, whose button operates it, as without kiosk mode, but the popup has no
 **More info** link: nothing in kiosk mode reaches Home Assistant's dialog.
+
+Kiosk is the plan alone: the card is as tall as the screen allows (see Size), the plan is one Tab stop and its keys work
+(see Keys on the plan), and a tap on a device opens the popup on every width.
 
 `kiosk: true` shows the first floor and draws no switcher whatever would
 otherwise have produced one — `floors`, `floor: "all"`, or simply a
@@ -319,23 +328,41 @@ views:
 
 ## Overview
 
-A floating panel over the plan, open by default in the top-left. It says what
-is wrong before what is on. The header reads "Home › Ground" and counts:
-alerts first, then one chip per category ("2 alerts · 6 lights · 1 plug"), or
-"Nothing on". Folded, the header is one line and the alerts stay first.
+One sheet that says what is wrong before what is on. It is also the card's one place for
+detail: its levels are **Overview › Floor › Room › Device**, with **Back** (and Escape) one level up and a crumb that
+reads "Home › Ground". The header counts: alerts first, then one chip per category ("2 alerts · 6 lights · 1 plug"), or
+"Nothing on".
+
+Where it sits depends on the card's own width, not the screen's:
+
+- **640 px and up: a side sheet** in its own column beside the plan, `clamp(260, 32 %, 320)` px wide. Nothing is drawn over the
+  plan. **Fold overview** (▾) shrinks it to a 52 px **rail**: one button, **Open overview**, with the alert count. The sheet
+  starts open from 900 px and as a rail below, until the viewer folds or opens it; a room or floor pick opens it either way.
+  A tap on a device on the plan still opens the small popup beside the icon; a row tap opens the same popup.
+- **Under 640 px: a bottom sheet.** At rest it is a 64 px **peek** under the plan, one line ("Home › Ground · 2 alerts · 6
+  lights"). Drag its handle (or tap it) to the **half** stop, `max(50 %, 340 px)` of the card, or to **full**; a fast flick
+  goes one stop. A room, a device tap, a locate or Search opens it higher and pans the plan so what it opened for stands in the
+  part the sheet leaves; a tap on a device opens the **Device level** in the sheet (the popup's content: nothing floats on a
+  phone). Back and Escape step up one level, and from the Overview to the peek. With reduced motion the sheet jumps.
+  Neither the level nor the height is remembered across reloads.
+- **No sheet** with `kiosk: true` or `active_list: false`: the header keeps the floor tabs and ⋯, the popup floats at every width,
+  and Search (which opens in the sheet) is not offered.
+
 
 From the top:
 
-- **Search.** ⌘K, Ctrl+K or `/` while the card is focused or under the
-  pointer. Type a few letters of a device, room or floor; Enter goes to it.
+- **Search.** The **Search** button in the header, or ⌘K, Ctrl+K or `/` while the card is focused or under the
+  pointer (on a phone it opens the sheet at full). Type a few letters of a device, room or floor; Enter goes to it.
   Accents do not matter ("soren" finds "Søren"). Escape closes it.
 - **Turn off on this floor…** A checklist of what is on, grouped as Lights
   (with the switch that powers them), Switches, Plugs and Media. Everything
   starts ticked; untick what should stay on. "Turn off 4" sends exactly the
   ticked ones. Cancel or Escape sends nothing.
-- **Layers.** Unfolds one chip per family on this floor. A click hides the
+- **Layers** are in the ⋯ menu, not here: a check per family on this floor. A pick hides the
   family on the plan; Alt-click shows it alone. Kept per viewer, in this
   browser. Not in 3D. Search still finds a hidden device and draws it.
+  (A note with **Show** stays in the sheet while a located device of a hidden family is drawn anyway.)
+
 - **All floors.** Lists every floor, each row badged with its floor. By
   default the list shows the floor on show.
 - **Attention.** Alarm triggered or armed, open doors and contacts, jammed
@@ -349,7 +376,7 @@ From the top:
   repeated here, except a lamp that is on with a low battery.
 
 A row tap goes to the thing: the plan switches floor, centres on it, rings it
-and opens its popup. Device details (model, firmware, area) are under
+and opens its popup (the Device level on a phone). Device details (model, firmware, area) are under
 "Details" in that popup.
 
 Floor tabs count the things that need attention on that floor ("Ground · 3").
@@ -363,16 +390,21 @@ ESPHome does not unless you set `entity_category: diagnostic` in the YAML; or
 place the battery sensor as its own icon. Home batteries, inverters, UPSes
 and cars never raise it: their charge is a reading, not an alert.
 
-**Position and folding.** Drag the header to move the panel; it stays on
-screen when the card resizes. On a card narrower than 480px it starts folded.
-Position, fold, scope and the folded groups are kept per card in this browser
-(`localStorage`), keyed to the layout's source and the card's own
-`floor`/`floors`, so two cards on one dashboard do not share them.
+**Folding.** The sheet can no longer be dragged; a position stored by an older card is ignored. The fold, the
+scope ("All floors") and the folded groups are kept per card in this browser
+(`localStorage`, `fp-active-panel:`), keyed to the layout's source and the card's own
+`floor`/`floors`, so two cards on one dashboard do not share them. A Home Assistant update keeps the level, the scroll and
+the fold.
+
+**Touch.** On a touch screen (`pointer: coarse`) every control in the card is at least 44 x 44 px: header buttons, floor
+tabs, Search and its results, the rail, Back, the handle, rows, ⋯ items, popup buttons and sliders, dialog buttons and check
+rows, and the zoom cluster. A mouse keeps the smaller sizes.
 
 ## Picking a room
 
 Tap a room, on its floor, its name, its readout or its furniture (not a device, a
-door or a stair), and the room is outlined with a dashed line. The Overview opens at the left with a room section on top:
+door or a stair), and the room is outlined with a dashed line. The sheet goes to the **Room level**, with a room section on top (in the side sheet,
+Back clears the pick; on a phone the sheet rises to half):
 
 - the name and a cross that clears the pick;
 - area in m², worked out from the room's corners;
@@ -394,16 +426,15 @@ switch off asks first: its button turns into **Confirm: name** with a Cancel nex
 Scenes label. Scenes are in the Room section, so they need the Overview (not `kiosk`, not `active_list: false`).
 
 A tap on a row opens the same popup as the icon on the plan, for every type (a radiator's has only **More info**); a hold opens
-Home Assistant's more-info. On a card under 480 px wide the open panel is a short sheet, at most 45 % of the card high with its list scrolling inside, docked on the half of the card away from the picked room. Below, the lists are cut to the room's
+Home Assistant's more-info. On a phone the room level is the bottom sheet at half, and the plan pans so the room stays in view above it. Below, the lists are cut to the room's
 entities; **Show all** brings the rest back and keeps the room picked.
 
 Tap the room again, tap off any room, press Escape (with the pointer over the
-card or the card focused, as for the view keys) or press the cross to clear it.
+card or the card focused, as for the view keys), press Back or (on a phone) the cross to clear it.
 Changing floor clears it too. A tap on a device, a door or an appliance keeps its
 meaning and never picks a room. A double tap zooms and leaves the pick as it
 was. Under `kiosk: true` or `active_list: false`
-there is no panel, so a tap picks nothing. On a card under 480 px the panel is
-folded by default; it opens while a room is picked.
+there is no sheet, so a tap picks nothing. A side sheet folded to its rail opens while a room is picked.
 
 A device's popup has a folded **Details**: manufacturer, model, firmware, area,
 entity id, state and when it last changed, from Home Assistant's device
@@ -421,21 +452,22 @@ Zoom 1 is the whole floor at fit.
 | mid | 1.6 to below 3.2 | device icons, room names and badges; no device names or readings |
 | near | 3.2 and up | everything, with device names and readings |
 
-The thresholds are fixed. **Detail** (a button beside Layers in the Overview) picks the mode: **Auto** follows the zoom,
+The thresholds are fixed. **Detail** (a section of the ⋯ menu) picks the mode: **Auto** follows the zoom,
 **Full** is always near, **Minimal** is always far. The config key `detail: auto | full | minimal` sets the card's
-default (anything else counts as no key; the Edit-card form has a Detail select). With no key the default is `auto`, unless the viewer could not change the level: with `kiosk`, or with `active_list: false` and `zoom: false` (no Detail button, no zoom buttons), it is `full`, so no idle device is out of reach. A key you write always wins, `detail: auto` in a kiosk included. A viewer's own pick is remembered in that
+default (anything else counts as no key; the Edit-card form has a Detail select). With no key the default is `auto`, unless the viewer could not change the level: with `kiosk`, or with `active_list: false` and `zoom: false` (no Detail item, no zoom buttons), it is `full`, so no idle device is out of reach. A key you write always wins, `detail: auto` in a kiosk included. A viewer's own pick is remembered in that
 browser and wins over the YAML; Reset view clears it. With storage blocked the pick lasts until the page closes. Live 3D
 draws every level.
 
 ## View memory and reset
 
-Two buttons in the stack, under the zoom buttons, turn the plan: **Rotate left** and
+Two items of the ⋯ menu turn the plan: **Rotate left** and
 **Rotate right**, 45 degrees a press. They are their own control (`rotate_switch`):
-`view_switch: false` hides the View dropdown, not them. They turn the 2D plan
+`view_switch: false` hides the View, Theme and text items, not them. They turn the 2D plan
 too; rotation does not need 2.5D. The plan turns smoothly (about 0.35 s a
 step, longer for several quick presses, none with `prefers-reduced-motion`);
 names and icons stay upright. Pan, zoom and taps wait until it has settled.
-The card also has a Theme dropdown and a names-and-text toggle next to View.
+The ⋯ menu also has Theme and the Labels and Device names checks beside View.
+
 
 The card remembers, per browser, the viewer's zoom, the spot they zoomed to,
 the rotation, 2D, 2.5D or 3D, the tilt, the wall heights, the theme, whether
@@ -457,13 +489,13 @@ zoom and turn for the whole card) move to the floor they were saved on.
   same. Edit `view`, `rotation`, `theme`, `tilt`, `walls`, `labels`, `names`, `detail`, `kiosk`, `center`,
   `zoom_level`, the layout source or the floors in the card's YAML and that
   card starts with a clean memory: the new YAML is what you meant.
-- **Reset view** (the last button of the stack, greyed while nothing differs) puts
+- **Reset view** (the last item of the ⋯ menu, greyed while nothing differs) puts
   every one of these back to the card's config and forgets the memory (zoom,
   turn and camera: of the floor on show only). The
   turn goes back the short way round. The floor stays. It is not the Fit
   button: Fit, or Home view on a pinned card, only changes zoom and position.
 - **Keys.** The card you hover or have focused listens; another card on the
-  page does not. The arrows pan, `+` and `-` zoom (neither with `zoom: false`),
+  page does not. The arrows pan (see Keys on the plan for the one case they do not), `+` and `-` zoom (neither with `zoom: false`),
   `[` and `]` turn the plan (when the rotate buttons are there), Space is
   Reset view. The
   keys work with the pointer over the card, no click needed, and after one
@@ -474,6 +506,14 @@ zoom and turn for the whole card) move to the floor they were saved on.
   vacuum and chooser dialogs take the keys while they are open. Under `kiosk`
   there are no buttons and no rotation keys; the zoom and pan keys still work, as the
   zoom gestures do.
+- **Keys on the plan.** The plan is one Tab stop (`role="group"`, "Floor plan, Ground"). Tab in and a ring marks the device
+  nearest the middle of the visible plan; a hidden status line reads "name, type, state" for screen readers. Then the
+  arrows move the ring to the nearest drawn device in that direction **on screen** (a turned plan works; devices hidden by
+  Layers or Detail are skipped), **Enter** or **Space** opens its popup (the Device level on a phone), **Escape** leaves
+  the device, and **Shift + arrows** always pan. While no device has the ring, the arrows pan and Space resets the view as
+  above. A device off the visible part pans in. The ring survives a Home Assistant update and is dropped by a floor switch,
+  a click on the plan, Tab leaving it and a new config. A key reaches only the card that has the focus, and a text field
+  keeps its keys.
 - **When it is saved.** 150 ms after you touch zoom, focus, turn, view, tilt,
   walls, theme, names or floor, and again when the tab is hidden or closed. The
   floor is remembered with the rest, so a reload does not return you to the
@@ -484,7 +524,7 @@ zoom and turn for the whole card) move to the floor they were saved on.
   dropped field by field, and a browser that blocks storage just forgets.
 - It is per browser, not per Home Assistant user, and not synced.
 
-![The demo turned 45 degrees: the toolbar has the View and Theme dropdowns and the labels and names toggles; the stack under it has zoom, Fit, the two rotate buttons and Reset view.](img/card-rotated-45.png)
+![The demo turned 45 degrees (image from before 0.29: the look controls were a toolbar and a stack over the plan, they are now in the header's ⋯ menu).](img/card-rotated-45.png)
 
 ## The Edit-card form
 
@@ -714,16 +754,18 @@ not: it is a lamp, and on when its switch is.
 
 ## Tap, hold and hover
 
-A tap never operates anything. On a device icon, a door, an unlinked appliance or a row of the Active list,
-in 2D and in 3D, it opens a small popup next to the icon:
+A tap never operates anything. On a device icon, a door, an unlinked appliance or a row of the Overview,
+in 2D and in 3D, it opens a small popup next to the icon (on a card under 640 px it is the Device level of the bottom sheet
+instead, with the same content, and the plan pans so the device stays above the sheet):
 
 - the name and one line of state (the same text the hover tooltip and the plan's readouts use: `48 %`, `21.5 °C`,
   a light's brightness as a percent, a cover's position, a plug's watts);
-- one primary button, 44 px tall: **Turn on**, **Turn off**, **Open**, **Close**, **Lock** or **Unlock**, a plain
+- one primary button, 44 px tall (and every other control 44 px on a touch screen): **Turn on**, **Turn off**, **Open**, **Close**, **Lock** or **Unlock**, a plain
   `turn_on`, `turn_off`, `open_cover`, `close_cover`, `lock` or `unlock` call on the device's own entity;
 - a **More info** link, which opens Home Assistant's dialog (or the chooser when the object names several entities).
 
-The popup stays inside the card (on a short card its sliders scroll; the name, the state and the buttons stay in view). Only one is open at a time, across cards too. It also closes when the floor changes or the layout is replaced. It closes on Escape, on a tap anywhere else, or on a
+The popup stays inside the card (on a short card its sliders scroll; the name, the state and the buttons stay in view). With
+`kiosk: true` or `active_list: false` it floats at every width. Only one is open at a time, across cards too. It also closes when the floor changes or the layout is replaced. It closes on Escape, on a tap anywhere else, or on a
 second tap of the same icon. Tapping another icon moves it. It is a non-modal `role="dialog"` named after the device;
 focus goes to its primary button and comes back to what opened it. A **hold** (long press) still opens more-info
 directly, as before.
@@ -826,7 +868,7 @@ lights, so every room is dark there.
 
 ## 3D view
 
-`view: 3d`, or **3D** in the View dropdown, draws the floor as a model: walls with
+`view: 3d`, or **3D** in the View radios of the ⋯ menu, draws the floor as a model: walls with
 their real thickness and height, floors, doors and windows (glass is see-through),
 stairs, furniture, and the radiator, speaker and TV bodies. Colours come from the
 theme (the same `--fp-*` variables as 2D), and a room, wall or furniture piece
@@ -836,9 +878,8 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   middle mouse button, or hold Space and drag with the left button (the pointer
   must be over the view), or right-drag or Shift-drag, or use two fingers. A
   pan is never a tap. You cannot go under the floor. The camera starts south of the house at
-  about 50 degrees; the card's `rotation` is the starting turn. The Reset view
-  button puts the camera back.
-- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 110 cm (the same figure as `low`) the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same select and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The Active list covers part of the view, so the camera frames the house in the rest. 2D and 2.5D are unchanged.
+  about 50 degrees; the card's `rotation` is the starting turn. **Reset camera** in the zoom cluster puts the camera back.
+- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 110 cm (the same figure as `low`) the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same choice and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The side sheet takes its own column, so the camera frames the house in the rest; the bottom sheet on a phone lies below the house. 2D and 2.5D are unchanged.
 - The 3D code is loaded the first time you pick 3D, and only then (about 186 KB
   gzipped; the card file grew by about 3.5 KB). It draws only while something
   moves: a still model, a settled pulse and a Home Assistant update that changes
@@ -876,14 +917,13 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   toggles it, except the types that have no on/off (camera, media, speaker and
   the like), which open more-info; a hold opens more-info. A door, a window and
   an unlinked appliance do what they do in 2D. A tap on a room's floor picks the
-  room: a dashed outline on its floor, the room section in the left panel, the
-  Active list cut to the room. Tap the room again, tap anything else (the
+  room: a dashed outline on its floor, the room section in the sheet, the Overview cut to the room. Tap the room again, tap anything else (the
   background, a tall wall, a stair, furniture standing on no room) or press
   Escape to clear. Furniture picks the room it stands in. A lowered wall is
   looked over, a tall one is not. A drag (moving more than 6 px) is never a tap,
   and a double tap or the wheel neither picks nor clears. The ball is 24 cm wide
-  to the eye and 48 cm to the finger. The room section widens the Active list,
-  which moves the model a little to keep it in the free part of the view.
+  to the eye and 48 cm to the finger. On a phone the sheet rises to half and the model
+  stays above it.
 
 ## Troubleshooting
 
