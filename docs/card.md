@@ -237,7 +237,7 @@ rows, so the plan stays legible.
 In the masonry layout, and anywhere the card's parent gives it no height of its own (a stack, `rows: auto`), the card is
 the plan's height at its width plus the 52 px header, **cut to the screen**: never taller than the visual viewport less
 Home Assistant's header (`--header-height`, 56 px when there is none) and 16 px. A tall plan letterboxes in what is left
-instead of running past the bottom edge. The card follows a window resize and a phone's address bar. On a phone (under
+instead of running past the bottom edge. With the Overview as a side sheet (640 px and up) the plan is drawn in the card less the sheet, so the card is sized from the sheet's resting state: its open width from 900 px, where it opens by default, and the 52 px rail below that or after you fold it by hand. Picking a room never changes the height. The plan letterboxes only while a pick has opened the sheet over a rail (a tablet under 900 px, or a card folded by hand), never from the sheet at rest. The card follows a window resize and a phone's address bar. On a phone (under
 640 px wide) it is at least 640 px tall, or the room that fit allows, so the bottom sheet's half stop has room. A sections
 row, a panel view and a height set by hand on the card keep their own height, as they did before 0.29. There is no key
 for this.
@@ -880,7 +880,7 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   must be over the view), or right-drag or Shift-drag, or use two fingers. A
   pan is never a tap. You cannot go under the floor. The camera starts south of the house at
   about 50 degrees; the card's `rotation` is the starting turn. **Reset camera** in the zoom cluster puts the camera back.
-- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 110 cm (the same figure as `low`) the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same choice and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The side sheet takes its own column, so the camera frames the house in the rest; the bottom sheet on a phone lies below the house. 2D and 2.5D are unchanged.
+- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 110 cm (the same figure as `low`) the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same choice and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The side sheet takes its own column, so the camera frames the house in the rest; the bottom sheet on a phone lies below the house at the peek only; at half or full it covers the lower part (see Known limits). 2D and 2.5D are unchanged.
 - The 3D code is loaded the first time you pick 3D, and only then (about 186 KB
   gzipped; the card file grew by about 3.5 KB). It draws only while something
   moves: a still model, a settled pulse and a Home Assistant update that changes
