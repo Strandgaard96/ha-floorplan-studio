@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.5 the chrome around the plan (Sonnet)
+
+The card host is a grid (`"head head" "sheet stage"`); the reasoning is in the comment block above the class in `src/card/floorplan-studio-card.ts`. Decisions made on the way:
+- The header carries the floor tabs, a Search button (it opens the existing `<fp-search>`) and a View options button. Both buttons are text ("Search", "⋯"), not icons, so the plan's `<svg>` stays the first svg in the shadow root, which `updated()` binds.
+- View options opens today's toolbar unchanged in a plain bordered box, hidden until opened. Tests open it with `tests/card/options-helper.ts`. S31.6 replaces it with the menu.
+- From 640 px the Overview is the side sheet; folded it is a 52 px rail with an alert badge. Open by default from 900 px (`sideOpenByDefault`), folded below until the viewer chooses. A room or floor pick opens it regardless. Back goes room to floor, floor to Overview; the room section's x is dropped in side mode, since Back does its job. Under 640 px nothing changes but the dock: the floating panel stays until S31.8, and an open options box starts 52 px down so it does not cover the panel's fold button.
+- The drag is gone, with `_activePos`, `_positionToolbar`, `_placeTopDock`. A stored `x` and `y` are ignored; `{collapsed, chosen, all}` is what is written.
+- Test migration: look controls are reached through View options; a plan is the card minus header and sheet, so size tests measure the stage; two drag tests became "a stored position is ignored" and "a drag on the head moves nothing"; the K2 `test.fail()` is now phone-only because the tablet passes (a Search button exists). Two tests learned something real: two quick clicks on one spot are a double tap and zoom (card-room-select), and the 3D camera does not re-fit when the card narrows after the first frame (the test narrows the card before it).
+Studio parity: no twin. The Studio's own editor chrome is not the card's header or sheet; nothing in the editor changes.
 ## 2026-10-13: S31.1 tap tasks red, and the baseline (Sonnet)
 
 Measured on 0.28.1 with real `page.touchscreen.tap` on 768 x 1024 and 390 x 844 (hasTouch, isMobile, `pointer: coarse` asserted), the

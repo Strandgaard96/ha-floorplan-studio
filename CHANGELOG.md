@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card (S31.5): the chrome around the plan is a grid: a 52 px header (floor tabs, Search, View options), the plan as the stage, and from 640 px the Overview as a side sheet beside the plan (a 52 px rail when folded, open from 900 px, with Back and a crumb). The look controls wait in a View options box until S31.6. The overview can no longer be dragged (a stored position is ignored, the fold is kept). Under 640 px the floating panel stays until S31.8.
 - Card: `src/card/frame.ts`, the frame's maths (not wired yet): side or bottom sheet by width (640), side width `clamp(260, 32 %, 320)`, card height fitted to the screen with a phone minimum, bottom-sheet stops (peek 64, half, full) and the snap rule (nearest; a fling over 0.5 px/ms goes one stop).
 - Card (S31.3, not wired in yet): `<fp-menu>` in `src/card/more-menu.ts`, a menu button with an ARIA menu of radio, check and action items in labelled sections. Keyboard (Enter, Space, ArrowDown, arrows, Home, End, Escape, Tab), a press outside closes it, it opens under the button inside the card (a full-width panel under 640 px), items are 32 px, 44 px on a coarse pointer. A pick fires `fp-menu-pick`.
 - Card (unreleased, S31.4): `src/card/plan-focus.ts` gives `nextInDirection` and `firstFocus` (nearest device in a 45 degree half-cone, cost along + 2 x across, ties to the lower index, junk skipped) and `planKeyFor` in `view-keys.ts` decides the plan's keys with and without a focused device. Not wired into the card yet; `viewKeyOf` and `viewKeyFor` answer as before.
