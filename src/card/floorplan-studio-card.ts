@@ -7,6 +7,7 @@ import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
 import { lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
+import { TOUCH_CSS } from "./touch-css";
 import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
 // one. vite.config.ts's card entry is this file, so the editor ships inside dist/floorplan-studio-card.js, not a
@@ -463,7 +464,6 @@ export class FloorplanStudioCard extends LitElement {
     .fp-ov-age { white-space: nowrap; }
     .fp-ov-hint { margin: 8px 2px 0; font: 10px/1.3 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); }
     /* One target per row, finger-sized on a touch screen (S24.7). */
-    @media (pointer: coarse) { .fp-active-row { min-height: 40px; } }
     /* S24.7: the ring a row tap puts on its thing. Card chrome over the plan, never a hit target. Reduced motion: a steady ring. */
     .fp-pulse { position: absolute; z-index: 1; pointer-events: none; box-sizing: border-box; border: 3px solid var(--fp-primary); border-radius: 50%; transform: translate(-50%, -50%); animation: fp-pulse-ring 0.8s ease-out 3; }
     /* Not fp-locate: that is the plan's own ring (render.ts), and one name in one shadow root means one wins (S24.R7). */
@@ -490,7 +490,7 @@ export class FloorplanStudioCard extends LitElement {
     .fp-filter { display: flex; align-items: center; gap: 6px; font: 600 10px/1.6 var(--fp-font, system-ui, sans-serif); color: var(--fp-text); text-transform: uppercase; letter-spacing: 0.04em; }
     .fp-show-all { margin-left: auto; border: 1px solid var(--fp-idle); background: transparent; color: var(--fp-ink); font: 11px/1.4 var(--fp-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0; border-radius: 4px; padding: 1px 6px; cursor: pointer; }
     .fp-show-all:hover, .fp-show-all:focus-visible { background: var(--fp-idle); }
-  `, POPUP_CSS, SCENES_CSS];
+  `, POPUP_CSS, SCENES_CSS, TOUCH_CSS];
 
   private _config: FloorplanStudioCardConfig = {};
   private _hass?: Hass;

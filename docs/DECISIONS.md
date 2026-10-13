@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.9 44 px on a coarse pointer (Sonnet)
+
+Every control is at least 44 x 44 CSS px under `(pointer: coarse)`; a fine pointer keeps what it had. Judgement calls:
+- One file, `src/card/touch-css.ts`: `TOUCH_CSS` joins the card's styles last, so it wins ties; `SEARCH_TOUCH_CSS` joins `<fp-search>`, which has its own shadow root the card's CSS cannot reach (outside the files the plan named). `<fp-menu>` already had its own coarse rule.
+- Rules only raise a minimum or set a size of 44 or more. Where the card's rule is more specific (`.fp-sheet-top .fp-back`, `.fp-pop button.fp-pop-more`, `.fp-pop input.fp-pop-hue`) the coarse rule uses the same selector.
+- A check row is the target, not its 18 px box: the row is 44 high. A field (text, select, range, combobox) needs the height only.
+- The colour bar was a 20 px input carrying its own gradient. On touch the input is 44 high and the gradient moves to the track, still 20 px, so the bar looks the same and the finger target is larger. Looked at in light, dark and blueprint.
+- The rail badge moved from -6 to -4 px so a 44 px rail button does not clip it.
+- The test walks the card's shadow root and `<fp-search>` and measures what is visible, hit-tested at its centre. It leaves out overlays that are not controls (listbox, menu, dialog shells, backdrop, popup, sheet body). Skipped: HA's own config editor element, and 3D beyond its Reset camera button.
+- The fine pass pins the old sizes per rule, so a coarse rule that leaks fails there.
+
 ## 2026-10-13: S31.8 the phone bottom sheet (Sonnet)
 
 Under 640 px the Overview is a bottom sheet; the floating panel and its dock logic are removed. Judgement calls:
