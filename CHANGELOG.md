@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card (fix, review of S31): on a tablet, Back or Escape from the Floor level to the rail keeps keyboard focus, on the rail's open button, instead of dropping it.
 - Card (fix, review of S31): the ⋯ menu is never taller than 70 % of the screen, 520 px or the room below its button on screen, whichever is least, and scrolls inside that. A card taller than the screen (a tablet with a tall plan) used to let it run off the bottom.
 - Card (fix, review of S31): Escape does what Back does at every width. With a room picked, Escape goes up to its floor, and a second Escape to the Overview; on a tablet it used to jump straight to the Overview. Escape also moves focus to the sheet's own control, as Back does.
 - Card (fix, review of S31): on a tablet the card no longer changes height when the side sheet opens or closes. Its height comes from the plan at the sheet's resting width (open from 900 px, the rail below it); a pick never changes it, and the plan has no empty band under it while the sheet rests open.

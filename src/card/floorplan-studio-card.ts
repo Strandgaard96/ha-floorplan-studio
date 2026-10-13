@@ -2623,7 +2623,7 @@ export class FloorplanStudioCard extends LitElement {
     const room = this._pickedRoom;
     if (this._frame === "bottom" && !room && !this._pickedFloor) { this._sheetStop = "peek"; this.requestUpdate(); return; }
     this._pickFloor(room && room.floor === this._floorKey() ? room.floor : null);
-    void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-active-collapse, .fp-handle")?.focus());
+    void this.updateComplete.then(() => this.shadowRoot?.querySelector<HTMLElement>(".fp-back, .fp-active-collapse, .fp-rail-open, .fp-handle")?.focus());
   }
 
   /** S31.8: whether the popup is drawn in the bottom sheet (the Device level) and not floating: a card with a sheet, under 640 px. */
