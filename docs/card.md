@@ -38,7 +38,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `plug_heat_from`, `plug_heat_to` | `0`, `2000` | the draw range a plug's colour runs over, in watts: blue at the low end, amber half way, red at the high end. Two numbers with from below to; anything else is `0` and `2000`. See Plugs |
 | `plug_watts` | `2` | a plug is active from this many watts of measured power, not merely while switched on — see Plugs, below. A number `0` or more; anything else is `2` |
 | `room_glow` | `false` | tint a room's fill when any light inside it is on |
-| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the zoom cluster at the bottom right of the plan. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
+| `zoom` | `true` | pinch, drag and double-tap on a phone; Ctrl/Cmd+wheel and drag on a desktop; +, − and fit buttons in the zoom cluster at the top right of the plan. Fit to 8×. `"wheel"` also zooms on a plain wheel (the dashboard then does not scroll over the plan). At fit a vertical swipe over the plan scrolls the dashboard; zoomed in, it pans the plan. `false` fixes the plan and gives every touch back to the page |
 | `night` | `auto` | `auto` darkens the plan after sunset (see Night, below); `on` always, `off` never |
 | `sun` | `sun.sun` | the entity `night: auto` reads: `below_horizon`, or `on` for a binary sensor, is night |
 | `view` | `2d` | `2d` draws the flat plan, `2.5d` draws it with depth (see 2.5D view, below), `3d` draws it as a real 3D model you can turn (see 3D view, below). Anything else is `2d` |
@@ -431,6 +431,7 @@ entities; **Show all** brings the rest back and keeps the room picked.
 
 Tap the room again, tap off any room, press Escape (with the pointer over the
 card or the card focused, as for the view keys), press Back or (on a phone) the cross to clear it.
+Escape and Back go up one level, to the floor, and again to the Overview, at every width.
 Changing floor clears it too. A tap on a device, a door or an appliance keeps its
 meaning and never picks a room. A double tap zooms and leaves the pick as it
 was. Under `kiosk: true` or `active_list: false`
@@ -922,8 +923,20 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   Escape to clear. Furniture picks the room it stands in. A lowered wall is
   looked over, a tall one is not. A drag (moving more than 6 px) is never a tap,
   and a double tap or the wheel neither picks nor clears. The ball is 24 cm wide
-  to the eye and 48 cm to the finger. On a phone the sheet rises to half and the model
-  stays above it.
+  to the eye and 48 cm to the finger. On a phone the sheet rises to half and covers
+  the lower part of the house; see Known limits, below.
+
+## Known limits
+
+- **3D does not re-fit when the card narrows.** The camera is placed once for the
+  card's width at the moment the model is built. Make the card narrower (a window
+  resize, a sheet opening) and the house keeps its framing and may be cut at an
+  edge until you press Reset camera.
+- **A half-height phone sheet covers the lower house in 3D.** In 2D and 2.5D the plan
+  pans so a picked room sits above the sheet. In 3D it does not: the sheet lies over
+  the bottom of the model. Drag the sheet down to the peek or turn the model to see it.
+- **A room pick does not move the 3D camera.** The room is outlined on its floor
+  and the sheet opens, but the camera stays where you left it.
 
 ## Troubleshooting
 
