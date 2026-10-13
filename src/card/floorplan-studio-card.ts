@@ -1991,7 +1991,12 @@ export class FloorplanStudioCard extends LitElement {
     this._pulse = p;
     if (this._pulseTimer !== null) globalThis.clearTimeout(this._pulseTimer);
     this._pulseTimer = globalThis.setTimeout(() => { this._pulseTimer = null; this._pulse = null; this.requestUpdate(); }, PULSE_MS);
+    // The ring is placed after a render, but the plan can move without one (a pan, a sheet rising, a layout settling): follow it every frame.
+    globalThis.cancelAnimationFrame(this._pulseRaf);
+    const follow = () => { if (!this._pulse) return; this._placePulse(); this._pulseRaf = globalThis.requestAnimationFrame(follow); };
+    this._pulseRaf = globalThis.requestAnimationFrame(follow);
   }
+  private _pulseRaf = 0;
 
   /** After every render: the ring sits over its thing's icon, door or piece on the plan, or hides when the plan does not show it. */
   private _placePulse(): void {

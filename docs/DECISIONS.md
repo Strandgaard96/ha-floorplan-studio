@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: the pulse ring follows its device every frame
+
+`_placePulse` ran only after a render. A pan or a layout settle moves the icon with no render, so the ring stayed behind (7 to 16 px). The test "All floors: a row tap..." failed about 90 % of runs under repeat load on plain main and passed alone by luck. A frame loop while the ring shows keeps it on the icon; it costs one `getBoundingClientRect` pair per frame for under three seconds. The test now waits for the lamp to stop before it measures. Failed 10 of 10 without the fix, 0 of 40 with it. Studio has no ring, no twin.
+
 ## 2026-10-13: S31.9 44 px on a coarse pointer (Sonnet)
 
 Every control is at least 44 x 44 CSS px under `(pointer: coarse)`; a fine pointer keeps what it had. Judgement calls:

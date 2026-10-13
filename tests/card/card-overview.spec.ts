@@ -116,6 +116,10 @@ test.describe("S24.7 the Overview sheet", () => {
     await expect(pop(page)).toHaveAttribute("aria-label", "Study desk lamp");
     // Panned: zoomed in, the lamp near the middle of the plan.
     await expect(card(page).locator("css=svg.fp-zoomed")).toHaveCount(1);
+    // The pan is an animation: read the lamp and the ring once the lamp has stopped moving, not on whichever frame the zoom class appeared.
+    const lamp = card(page).locator('css=svg g[data-x="95"]');
+    let last = -1, same = 0;
+    await expect.poll(async () => { const b = await lamp.boundingBox(); const x = b ? b.x : -2; same = Math.abs(x - last) < 0.01 ? same + 1 : 0; last = x; return same; }, { timeout: 4000 }).toBeGreaterThanOrEqual(3);
     const at = await card(page).evaluate((el) => {
       const svg = el.shadowRoot!.querySelector("svg.fp-zoomable")!.getBoundingClientRect();
       const g = el.shadowRoot!.querySelector('svg g[data-x="95"]')!.getBoundingClientRect();
