@@ -3833,7 +3833,7 @@ and the coordinator reads the coder's note (a comment block at the top of the ch
 reviews the integrated build once.
 
 Wave 0, on `task/s31-card-touch`, one coder, before any product code:
-- [ ] S31.1 Tap tasks red, and the baseline (Sonnet). A helper `tests/card/touch-helpers.ts`: `bootTouch(page, size,
+- [x] S31.1 Tap tasks red, and the baseline (Sonnet). A helper `tests/card/touch-helpers.ts`: `bootTouch(page, size,
       config)` (stress layout, the `card-find.spec.ts` states, `__realDetailDefault`, storage cleared, `hasTouch` and
       `isMobile` so `pointer: coarse` matches, asserted), `tapRole(page, role, name)` (finds the control by the spec's
       accessible name inside the card's shadow root, scrolls it in, checks it is the top element at the tap point,

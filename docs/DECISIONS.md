@@ -2,6 +2,28 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.1 tap tasks red, and the baseline (Sonnet)
+
+Measured on 0.28.1 with real `page.touchscreen.tap` on 768 x 1024 and 390 x 844 (hasTouch, isMobile, `pointer: coarse` asserted), the
+stress house and the `card-find.spec.ts` states, a scratch script not committed. Taps, with the calls the card sent:
+- K1 Kitchen lights off (tap the room on the plan, Lights off): tablet 2, phone 2. `light.turn_off {entity_id: ["light.kitchen_spot_1"]}`.
+  The spec guessed 3 on a phone; a room tap on the plan already opens the sheet unfolded.
+- K2 find Guest bedroom bedside left and turn it on: tablet 3 (search box, result, Turn on) plus 18 letters, phone 4 (the overview is
+  folded: one more tap). `light.turn_on {entity_id: "light.guest_bedroom_bedside_left"}`. On the phone the icon box (y 121 to 179, x 166 to
+  224) lies under the floating overview (x 16 to 186, y 82 to 335): the S24.7 note, measured.
+- K3 First floor off (tab, Turn off on this floor, Turn off 1): tablet 3, phone 3 (the tab unfolds the overview). The measured 4 on a
+  phone came from tapping Expand first, which is not needed. `light.turn_off {entity_id: ["light.study_desk_lamp"]}`.
+- K4 2.5D: 2 by definition (a select: open, choose). Not driven; a touch tap cannot pick an option of a native select.
+- K5 the lit kitchen spot, its icon then Turn off: tablet 2, phone 2. `light.turn_off {entity_id: "light.kitchen_spot_1"}`.
+So the spec's "today" column was off in three cells (K1 phone 2, K3 phone 3, K5 never 3); the targets stand, and K1, K3, K5 are guards that
+pass today. Red today: K2 on both sizes (no button named Search) and K4 on both (no button named View options), each marked
+`test.fail()` "S31.11 removes this". Run once with the markers off: each fails with `button "Search" in the card` or `button "View options" in
+the card`, "missing", after a 3 s poll, not a test timeout. Their later assertions (K2's icon above the sheet, K4's changed plan and
+`fp-view:` entry, K2's 18 letters) never ran red, so S31.11 is where they are first proven.
+Headroom: the card file is 104 639 bytes gzip -9 against the 115 000 limit, 10 361 bytes (10.1 KB). Above the 6 KB line, so wave 2 needs no
+question to Diego. Helpers: `tests/card/touch-helpers.ts` (`bootTouch`, `tapRole`, `tapPlan`, `taps`, `typed`, `typeText`, `boxOf`, `calls`);
+no other file uses them yet. Test only, no product code, no CHANGELOG line. Studio parity: none, this is test tooling.
+
 ## 2026-10-13: Sprint 31 planned: card layout and touch (Sonnet)
 
 Spec `docs/specs/card-layout-touch.md`, plan `docs/PLAN.md` Sprint 31. Docs only; nothing built. Four decisions wait for
