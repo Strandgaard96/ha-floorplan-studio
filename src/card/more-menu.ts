@@ -218,11 +218,11 @@ export class FpMenu extends LitElement {
   }
 
   static styles = css`
-    :host{display:inline-block;position:relative;box-sizing:border-box}
+    :host{display:inline-block;position:relative;box-sizing:border-box;font:13px/1.3 var(--fp-font, system-ui, sans-serif)}
     .btn{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;
       min-width:32px;min-height:32px;padding:0 8px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
     [role=menu]{position:absolute;z-index:50;top:calc(100% + 4px);left:0;box-sizing:border-box;min-width:200px;width:max-content;
-      overflow:auto;padding:2px;color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;
+      overflow:auto;max-height:min(70vh,520px);padding:2px;color:var(--fp-ink);background:var(--fp-bg);border:1px solid var(--fp-idle);border-radius:6px;
       box-shadow:0 4px 16px color-mix(in srgb, var(--fp-ink) 25%, transparent)}
     [role=menu]:focus{outline:none}
     .group + .group{border-top:1px solid color-mix(in srgb, var(--fp-ink) 20%, transparent);margin-top:2px;padding-top:2px}

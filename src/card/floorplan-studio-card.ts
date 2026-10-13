@@ -256,8 +256,8 @@ let focusedCard: FloorplanStudioCard | null = null;
  * `_positionToolbar` and `_placeTopDock` (nothing floats over the top any more, bar the cluster).
  *
  * The test migration. Tests that read an old chrome position or reached a control now behind View options moved their
- * premise, not their assertion. The look controls are in the closed View options box, so those tests open it first
- * (tests/card/options-helper.ts). The plan is smaller than the card (header 52 px, sheet 320 px), so a test that
+ * premise, not their assertion. The look controls are in the closed ⋯ menu, so those tests open it first
+ * (tests/card/menu-helper.ts, since S31.6). The plan is smaller than the card (header 52 px, sheet 320 px), so a test that
  * expected the plan to be the card measures the stage. The drag tests became "a stored position is ignored" and "the
  * head moves nothing". Each one is listed in the S31.5 commit message and the report.
  */
