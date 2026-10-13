@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.7 fit to height (Sonnet)
+
+The host's inline `height` is set from `cardHeight` (frame.ts) when its parent has no height of its own. Judgement calls:
+- Fixed or not is measured, not guessed: the card shrinks to 1 px for a moment and sees whether the parent's height moves. A sections row (or a panel) does not move, so the card is left to `height: 100%` and the `:host([panel])` rule, as in 0.28.1. A parent held up by other boxes looks fixed too; then the card is only as tall as before, never worse. The parent is observed as well, so a row resized by hand is noticed.
+- An inline height on the host that the card did not set is the user's; the card leaves it. (An existing 3D test sets one.)
+- Chrome is the 52 px header only (none in kiosk). The peek (64 px) joins when S31.8 draws the bottom sheet; until then a phone card is at least min(cap, 640) with empty room under the plan.
+- `--header-height` falls back to 56 px, the same fallback the panel rule uses; a page outside HA keeps 56 px above the card free.
+- Listeners: window `resize` and `visualViewport` `resize` (the address bar, the keyboard), beside the ResizeObserver.
+- Test migration, premise moved, assertions kept: S8.11 "floor offset by +5000" and S9.2 "2000 cm plan, 2x" now run in a 1280 x 1100 window, so the card is not cut and the plan is the size they were written for (a smaller plan moved a pixel probe onto a wall's edge and an icon from 30.9 to 29.4 px); S8.3 "layout = panel" lost "the bug: the card is taller than the screen" (no longer true) and asserts the card ends 16 px above the bottom before the panel bounds it.
+Studio parity: no twin. The Studio is a full-page editor with no host height to fit.
 ## 2026-10-13: S31.6 the ⋯ menu holds the look (Sonnet)
 
 `<fp-menu>` replaces the View options box, the toolbar, the Layers and Detail buttons and the stack's rotate and reset. Items are named by a `data-value` (`view:2.5d`, `tilt:0.25`, `layer:lights`, `rotate:1`, `reset`), which tests use; the accessible names follow the spec. Judgement calls:

@@ -16,7 +16,7 @@ import { defineElement } from "./define";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, viewKeyFor, type ViewKey } from "./view-keys";
-import { HEADER_H, frameMode, sideOpenByDefault, sideWidth, type FrameMode } from "./frame";
+import { HEADER_H, cardHeight, frameMode, sideOpenByDefault, sideWidth, type FrameMode } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
 import "./search-box";
 // S31.6: <fp-menu>, the header's ⋯: everything about how the plan looks.
@@ -962,9 +962,17 @@ export class FloorplanStudioCard extends LitElement {
     // dragged to a new grid size) must re-clamp the panel too, not only a fresh render. jsdom has no
     // ResizeObserver; the unit suite never needs this path, so it is skipped there rather than polyfilled.
     if (typeof ResizeObserver !== "undefined") {
-      this._activeResizeObserver = new ResizeObserver(() => { this._applyWidthDefault(); this._positionActivePanel(); this._measurePx(); });
+      this._activeResizeObserver = new ResizeObserver(() => { this._fitHeight(); this._applyWidthDefault(); this._positionActivePanel(); this._measurePx(); });
       this._activeResizeObserver.observe(this);
+      // S31.7: and the parent, whose height is what says whether the card is fitted: a sections row resized by hand moves it
+      // while the card, held at its own pixel height, would not move at all.
+      const parent = this.parentElement ?? (this.getRootNode() as ShadowRoot | undefined)?.host;
+      if (parent) this._activeResizeObserver.observe(parent);
     }
+    // S31.7: the screen's height is not the host's, so the observer above never hears of it. The visual viewport also
+    // shrinks when a phone's address bar comes back or the keyboard opens.
+    globalThis.addEventListener?.("resize", this._fitHeight);
+    globalThis.visualViewport?.addEventListener("resize", this._fitHeight);
     // A reload or a closed tab never runs disconnectedCallback; the debounced save must still go out.
     globalThis.addEventListener?.("pagehide", this._flushSave);
     // pagehide does not fire for a tab that is hidden and then discarded, or a phone app switched away from.
@@ -1092,6 +1100,7 @@ export class FloorplanStudioCard extends LitElement {
   /** S8.3: HA's hui-card sets `layout` on the card element ("panel" in a panel view, "grid" in sections). */
   set layout(v: string | undefined) {
     this.toggleAttribute("panel", v === "panel");
+    this._fitHeight(); // a panel view bounds the card itself (the :host([panel]) rule): take the pixel height off
   }
   get layout(): string | undefined {
     return this.hasAttribute("panel") ? "panel" : undefined;
@@ -1138,6 +1147,8 @@ export class FloorplanStudioCard extends LitElement {
     this._actions3d = null;
     this._activeResizeObserver?.disconnect();
     this._activeResizeObserver = null;
+    globalThis.removeEventListener?.("resize", this._fitHeight);
+    globalThis.visualViewport?.removeEventListener("resize", this._fitHeight);
     this._dispose3d();
   }
 
@@ -2495,9 +2506,54 @@ export class FloorplanStudioCard extends LitElement {
     const mode = frameMode(width, { kiosk: this._kiosk(), sheet: this._config?.active_list !== false });
     const sheetW = mode === "side" ? (this._sheetOpen() ? sideWidth(width) : HEADER_H) : 0;
     this.style.setProperty("--fp-sheet-w", `${sheetW}px`);
+    this._sheetPx = sheetW;
+    this._fitHeight();
     if (mode === this._frame) return false;
     this._frame = mode;
     return true;
+  }
+
+  /** The sheet column's width in px, as `_measureFrame` last set it: what the stage is short of the card's width. */
+  private _sheetPx = 0;
+  /** The pixel height `_fitHeight` last gave the host. An inline height that is not this one is somebody else's. */
+  private _fitted = "";
+
+  /**
+   * S31.7, fit to height (docs/specs/card-layout-touch.md, the assumption). In a parent with no height of its own (masonry, a
+   * stack, `rows: auto`) the card was as tall as the plan at its width, so a wide plan on a short screen ran under the browser's
+   * bottom edge. Its height is now `cardHeight` (frame.ts): the plan's height plus the header, cut to the visual viewport less
+   * HA's header and 16 px, and on a phone at least the sheet's minimum. The plan letterboxes in what is left.
+   * A parent that does give a height (HA's sections row, a panel view) already bounds the card, so it is left alone: the row
+   * wins, as in 0.28.1. Arrow, so it can be a listener. Nothing laid out (jsdom, a hidden card) changes nothing.
+   */
+  private _fitHeight = (): void => {
+    const width = this.getBoundingClientRect().width, fit = this._fit;
+    if (this.style.height !== this._fitted) return; // a height set on the host by hand (an inline style) is the user's: leave it
+    const off = (): void => { this.style.removeProperty("height"); this._fitted = ""; };
+    if (!(width > 0) || !fit || !(fit.w > 0) || !(fit.h > 0) || this.hasAttribute("panel") || this._rowIsFixed()) return off();
+    const header = parseFloat(getComputedStyle(this).getPropertyValue("--header-height"));
+    const h = cardHeight({
+      planAspect: fit.w / fit.h,
+      width: width - this._sheetPx,
+      viewportH: globalThis.visualViewport?.height ?? globalThis.innerHeight,
+      haHeader: Number.isFinite(header) ? header : 56, // the same fallback `:host([panel])` uses
+      chrome: this._kiosk() ? 0 : HEADER_H,
+      mode: this._frame,
+    });
+    this.style.height = this._fitted = `${Math.round(h)}px`;
+  };
+
+  /** Whether the card's parent has a height that does not follow the card: shrink the card to 1 px and see if the parent
+   *  notices. A parent whose height comes from its content shrinks with it; a sections row or a panel does not. A parent
+   *  that another box holds up looks fixed too, and then the card is simply left at its plan's height, as before. */
+  private _rowIsFixed(): boolean {
+    const parent = this.parentElement ?? (this.getRootNode() as ShadowRoot | undefined)?.host;
+    if (!parent) return false;
+    const was = this.style.height, before = parent.getBoundingClientRect().height;
+    this.style.height = "1px";
+    const after = parent.getBoundingClientRect().height;
+    this.style.height = was;
+    return before > 2 && Math.abs(before - after) < 0.5;
   }
 
   /** Whether the sheet is open and not the 52 px rail: not folded, or a room or floor is picked (which opens it). */
