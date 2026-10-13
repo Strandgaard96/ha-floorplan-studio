@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 import { buildSearchIndex, entryDetail, searchIndex, type SearchEntry, type SearchIndex } from "../core/search";
+import { SEARCH_TOUCH_CSS } from "./touch-css";
 
 export { isSearchChord } from "./view-keys";
 export type { SearchEntry } from "../core/search";
@@ -158,7 +159,7 @@ export class FpSearch extends LitElement {
     `;
   }
 
-  static styles = css`
+  static styles = [css`
     :host{display:block;position:relative;box-sizing:border-box;width:100%}
     input{font:inherit;color:var(--fp-ink);background:var(--fp-room);border:1px solid var(--fp-idle);border-radius:6px;padding:6px 10px;width:100%;box-sizing:border-box}
     input::placeholder{color:var(--fp-idle)}
@@ -171,7 +172,7 @@ export class FpSearch extends LitElement {
     .name,.detail{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .detail{font-size:.8em;opacity:.75}
     .empty{padding:6px 10px;font-size:.9em} /* no opacity: the box must hide what is under it */
-  `;
+  `, SEARCH_TOUCH_CSS];
 }
 
 if (!customElements.get("fp-search")) customElements.define("fp-search", FpSearch);

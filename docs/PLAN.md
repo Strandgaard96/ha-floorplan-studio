@@ -3920,7 +3920,7 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       phone reach their screens (counts are S31.11's); the icon box above the sheet after a locate; reduced motion;
       `hass` mid-drag; a floor switch at Device level.
       Files: `src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, `tests/card/card-bottom-sheet.spec.ts` (new).
-- [ ] S31.9 44 px on a coarse pointer (Sonnet). `TOUCH_CSS` in a new `src/card/touch-css.ts`, joined to the card's
+- [x] S31.9 44 px on a coarse pointer (Sonnet). `TOUCH_CSS` in a new `src/card/touch-css.ts`, joined to the card's
       styles: header controls, tabs, rail, Back, handle, rows (40 to 44), layer and detail chips, popup buttons and
       sliders, dialog buttons and checkbox rows, the cluster; fine pointer unchanged. Test, failing first: criterion 3
       over every state it lists, at 768 x 1024 and 390 x 844, by walking every control in the shadow root and in
