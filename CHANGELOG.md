@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card (fix, review of S31): the ⋯ menu is never taller than 70 % of the screen, 520 px or the room below its button on screen, whichever is least, and scrolls inside that. A card taller than the screen (a tablet with a tall plan) used to let it run off the bottom.
 - Card (fix, review of S31): Escape does what Back does at every width. With a room picked, Escape goes up to its floor, and a second Escape to the Overview; on a tablet it used to jump straight to the Overview. Escape also moves focus to the sheet's own control, as Back does.
 - Card (fix, review of S31): on a tablet the card no longer changes height when the side sheet opens or closes. Its height comes from the plan at the rail's width; an open sheet letterboxes the plan inside the same card.
 - Card (S31.11): docs and shots for the new frame. `docs/card.md`, `docs/SPEC.md` and the README describe the header, the side and bottom sheets, the ⋯ menu and the keys on the plan; `npm run shots` adds the phone at peek, half, full, room, Device and menu, and the tablet with the rail, the sheet, a room, the menu, the popup and the focus ring, in blueprint, light and HA dark.

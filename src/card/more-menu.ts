@@ -113,8 +113,12 @@ export class FpMenu extends LitElement {
     const box = (inShadow ? root.host : document.body).getBoundingClientRect();
     const host = this.getBoundingClientRect();
     const b = btn.getBoundingClientRect();
-    const bottomLimit = inShadow ? box.bottom : window.innerHeight;
-    panel.style.maxHeight = `${Math.max(120, bottomLimit - b.bottom - 8)}px`;
+    // The smallest of: the card's room below the button, the visible screen's room below it, 70 % of the screen and 520 px.
+    // An inline max-height beats the stylesheet's cap, so the cap is repeated here; a card taller than the screen cannot
+    // push the menu off it. The panel scrolls inside whatever is left (120 px at least, so it never shrinks to a sliver).
+    const screenH = window.visualViewport?.height ?? window.innerHeight;
+    const cardRoom = (inShadow ? box.bottom : screenH) - b.bottom - 8, screenRoom = screenH - b.bottom - 8;
+    panel.style.maxHeight = `${Math.max(120, Math.min(cardRoom, screenRoom, 0.7 * screenH, 520))}px`;
     if (box.width < PANEL_UNDER) {
       panel.style.width = `${box.width}px`;
       panel.style.maxWidth = "none";

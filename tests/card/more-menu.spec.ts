@@ -313,3 +313,31 @@ test.describe("S31.3 <fp-menu>, touch", () => {
     expect(b.width).toBeGreaterThanOrEqual(44);
   });
 });
+
+test.describe("Opus review of S31: a tall menu is capped to the viewport and scrolls", () => {
+  const rect = (page: Page, sel: string) => page.locator(sel).evaluate((el) => { const r = el.getBoundingClientRect(); return { t: r.top, b: r.bottom }; });
+  for (const size of [{ width: 1024, height: 600 }, { width: 768, height: 1024 }]) {
+    // 300: the card is short, so the card is the limit. 1400: the card runs past the screen, so the viewport is.
+    for (const h of [300, 1400]) {
+      test(`${size.width} x ${size.height}, card ${h} px tall: the panel stays inside the viewport and the card, and its last item is reachable`, async ({ page }) => {
+        await page.setViewportSize(size);
+        await open(page, `?w=700&h=${h}&many=1`);
+        await button(page, "left").click();
+        const card = await rect(page, "#card"), m = await rect(page, "#left [role=menu]"), b = await rect(page, "#left button.btn");
+        expect(m.t, "below the button").toBeGreaterThanOrEqual(b.b);
+        expect(m.b, "inside the viewport, 8 px to spare").toBeLessThanOrEqual(size.height - 8 + 0.5);
+        expect(m.b, "inside the card").toBeLessThanOrEqual(card.b + 0.5);
+        expect(m.b - m.t, "at most min(70vh, 520)").toBeLessThanOrEqual(Math.min(0.7 * size.height, 520) + 0.5);
+        const scrolls = await menu(page, "left").evaluate((el) => el.scrollHeight > el.clientHeight + 1);
+        expect(scrolls, "forty items need a scroll").toBe(true);
+        await items(page, "left").last().scrollIntoViewIfNeeded();
+        await menu(page, "left").evaluate((el) => { el.scrollTop = el.scrollHeight; });
+        const last = await items(page, "left").last().evaluate((el) => { const r = el.getBoundingClientRect(); return { t: r.top, b: r.bottom }; });
+        const panel = await rect(page, "#left [role=menu]");
+        expect(last.b, "the last item is inside the panel").toBeLessThanOrEqual(panel.b + 0.5);
+        expect(last.t, "and shows").toBeGreaterThanOrEqual(panel.t - 0.5);
+        expect(last.b, "and on screen").toBeLessThanOrEqual(size.height);
+      });
+    }
+  }
+});

@@ -8,7 +8,7 @@ document.head.appendChild(style);
 
 const card = document.getElementById("card")!;
 card.dataset.theme = q.get("theme") ?? "light";
-card.style.cssText = `width:${q.get("w") ?? "800"}px;height:520px;margin:20px;position:relative;box-sizing:border-box;background:var(--fp-bg);color:var(--fp-ink);overflow:hidden`;
+card.style.cssText = `width:${q.get("w") ?? "800"}px;height:${q.get("h") ?? "520"}px;margin:20px;position:relative;box-sizing:border-box;background:var(--fp-bg);color:var(--fp-ink);overflow:hidden`;
 const root = card.attachShadow({ mode: "open" });
 root.innerHTML = `
   <style>
@@ -38,6 +38,9 @@ const plain: MenuSection[] = [
     { kind: "check", label: "Last", value: "last", checked: false },
   ] },
 ];
+
+// ?many=1: the left menu has forty items, more than any viewport the review tested, so it has to scroll.
+if (q.get("many")) look.push({ label: "Many", items: Array.from({ length: 40 }, (_, i) => ({ kind: "action" as const, label: `Item ${i + 1}`, value: `i${i + 1}` })) });
 
 const w = window as unknown as { picks: { detail: unknown; target: string; bubbles: boolean; composed: boolean }[]; ready: boolean };
 w.picks = [];
