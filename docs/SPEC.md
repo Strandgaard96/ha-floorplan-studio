@@ -315,6 +315,11 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
 
 ## Card behaviours
 
+Planned for 0.29.0 (Sprint 31): the card's chrome moves around the plan (a header bar, one side sheet, a phone bottom
+sheet, a ⋯ menu), the card fits the screen's height, touch targets are 44 px on a coarse pointer, and devices on the
+plan take keyboard focus. Decisions, acceptance criteria and tap counts: `docs/specs/card-layout-touch.md`. Until it
+ships, the text below describes 0.28.1.
+
 Every wall and edge line has a white twin under it (`--fp-outline`), so a dark line stays visible on a dark floor. A zone's
 dashed edge has none.
 Every text on the plan has an outline in `--fp-outline` and is never faded with opacity (S23.1). A room or zone name is

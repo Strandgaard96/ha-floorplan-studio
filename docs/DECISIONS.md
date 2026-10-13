@@ -2,6 +2,21 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: Sprint 31 planned: card layout and touch (Sonnet)
+
+Spec `docs/specs/card-layout-touch.md`, plan `docs/PLAN.md` Sprint 31. Docs only; nothing built. Four decisions wait for
+Diego; until he answers, the plan builds these defaults as assumptions:
+- D1: a header bar (floor tabs, Search, ⋯), one sheet beside the plan from 640 px wide (open from 900, a rail below),
+  a bottom sheet under 640, only +, −, Fit over the plan. A plan tap opens the popup on a side-sheet card and the
+  Device level on a phone.
+- D2: phone sheet at peek 64 px, half `max(50 %, 340 px)`, full; drag, fling or handle tap; the card at least
+  `min(screen, 640 px)` tall on a phone.
+- D3: ⋯ holds the look (View, Tilt, Walls, Floor below, Theme, Labels, Names, Detail, Layers, Rotate, Reset view).
+- D4: the plan is one Tab stop; arrows walk devices once one has focus; Shift + arrows pan; Enter opens.
+Not asked, assumed: fit to height with no new key (the card never taller than the screen).
+The 2026-10-08 review's list of 81 findings is in neither the repo nor Cairn; ids are cited only where PLAN.md names them.
+Studio parity: all of it is card chrome; `view-parity.spec.ts` keeps its rows, only the "In the card" column moves.
+
 ## 2026-10-12: The Studio draws a faint guide for a door that is a hole (Sonnet)
 
 Supersedes the S25.D1 line "Editor: no live state, so a door is a hole there". Diego: "in studio doors are not visible". Cause: S25.D1
