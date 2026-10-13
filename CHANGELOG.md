@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Card: `src/card/frame.ts`, the frame's maths (not wired yet): side or bottom sheet by width (640), side width `clamp(260, 32 %, 320)`, card height fitted to the screen with a phone minimum, bottom-sheet stops (peek 64, half, full) and the snap rule (nearest; a fling over 0.5 px/ms goes one stop).
+
 ## 0.28.1 - 2026-10-13
 
 - Studio: doors are visible again. A door or glass door with no closed sensor is a hole in the card (0.12.x S25.D1), and the Studio has no live state, so every door there was an invisible gap. In the Studio alone such a door now draws a faint dashed guide line (`.door.guide`, thin, 55 % of --fp-door or --fp-glass). The card and 2.5D/3D keep the hole; a selected door, a window and the doorway kind look as before.

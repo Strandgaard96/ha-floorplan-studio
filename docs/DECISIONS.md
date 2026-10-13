@@ -2,6 +2,19 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.2 frame maths: the phone minimum and the snap rule (Sonnet)
+
+`src/card/frame.ts`, pure. Reasoning is in the comment block at its top; the calls, short:
+- The phone minimum is `min(cap, 640)` where `cap = viewport - HA header - 16`, bottom mode only. D2's "min(screen - header, 640)"
+  and the fit-to-height cap clash on a screen under 656 px; the cap wins, so the card never passes the screen. Hard floor 120 px
+  for a broken measurement. A side sheet scrolls in its own column and a kiosk has no sheet, so neither gets the minimum.
+- Snap: a drag lands on the nearest stop, a tie on the smaller sheet. A fling (over 0.5 px/ms, height growing positive) goes to
+  the next stop beyond the finger in its direction, never two, none past the ends. Exactly 0.5 is not a fling.
+- `snapSheet` and `nextOnHandleTap` speak stop names (`peek`, `half`, `full`); `sheetStops` gives the heights. A card too short
+  collapses stops onto each other (half caps at full, peek at the card), never reorders them.
+- `frameMode(width, { kiosk, sheet })`: the spec's one-argument form cannot say `none`, so the options are a second argument.
+  Junk widths give `bottom`; no function throws or answers a non-finite number.
+
 ## 2026-10-13: Sprint 31 planned: card layout and touch (Sonnet)
 
 Spec `docs/specs/card-layout-touch.md`, plan `docs/PLAN.md` Sprint 31. Docs only; nothing built. Four decisions wait for

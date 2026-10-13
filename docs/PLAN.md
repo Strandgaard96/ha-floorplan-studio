@@ -3849,7 +3849,7 @@ Wave 0, on `task/s31-card-touch`, one coder, before any product code:
 Wave 1, three lanes in parallel after S31.1, new files only, each in its own worktree:
 
 Lane frame (a new `src/card/frame.ts`, pure, no DOM):
-- [ ] S31.2 Frame maths (Sonnet, **judgement**: the phone minimum and the snap rule). `frameMode(width)` (`side` at 640
+- [x] S31.2 Frame maths (Sonnet, **judgement**: the phone minimum and the snap rule). `frameMode(width)` (`side` at 640
       and up, `bottom` under, `none` for kiosk or no sheet); `sideWidth(width)` (`clamp(260, 32 %, 320)`);
       `sideOpenByDefault(width)` (900 and up); `cardHeight({ planAspect, width, viewportH, haHeader, chrome, mode })`
       (D4 assumption and D2's phone minimum); `sheetStops(cardH, headerH)` (peek 64, half `max(50 %, 340)` capped, full);
