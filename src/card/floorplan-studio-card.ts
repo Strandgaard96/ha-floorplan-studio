@@ -874,7 +874,8 @@ export class FloorplanStudioCard extends LitElement {
       return;
     }
     if (ev.key === "Escape" && (this._pickedRoom || this._pickedFloor)) { // S11.3: the same ownership gate as the view keys, so another card never loses its room
-      this._pickRoom(null);
+      // Escape is Back: one level up in a side sheet too (room to floor to Overview). With no sheet there is no level, so it lets go.
+      if (this._activeListVisible()) this._back(); else this._pickRoom(null);
       ev.preventDefault();
       return;
     }

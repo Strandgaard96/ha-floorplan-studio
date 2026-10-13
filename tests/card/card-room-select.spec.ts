@@ -149,11 +149,9 @@ for (const width of [1280, 375]) {
       expect(await picked(page)).toEqual([0]);
       await page.keyboard.press("Escape"); // the pointer is still over the card, so it owns the key
       expect(await picked(page)).toEqual([]);
-      // S31.8: on a phone Escape steps up one level, Room to Floor; the Floor level is a panel too. A second Escape reaches the Overview.
-      if (width < 640) {
-        await expect(room(page)).toHaveCount(1);
-        await page.keyboard.press("Escape");
-      }
+      // S31.8 and the S31 review: Escape is Back at every width, Room to Floor; the Floor level is a panel too. A second Escape reaches the Overview.
+      await expect(room(page)).toHaveCount(1);
+      await page.keyboard.press("Escape");
       await expect(room(page)).toHaveCount(0);
     });
 

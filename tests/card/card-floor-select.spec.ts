@@ -284,6 +284,7 @@ test.describe("S20.2 selecting a floor from its pill", () => {
     await expect(panel(page).locator("css=.fp-room-name")).toHaveText("First");
     await page.keyboard.press("Escape"); // focus is in the card, so it owns the key
     await expect(panel(page)).toHaveCount(0);
+    await pill(page, "First").focus(); // Escape is Back: it moves focus to the sheet's own control, as the Back button does
     await page.keyboard.press("Space");
     await expect(panel(page).locator("css=.fp-room-name")).toHaveText("First");
   });

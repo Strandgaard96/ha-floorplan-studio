@@ -150,7 +150,8 @@ for (const [name, layout] of Object.entries(HOUSES)) {
     await page.mouse.click(pt!.x, pt!.y);
     await expect.poll(() => sheetOpenNow(page)).toBe(true);
     expect(await heightOf(page), "sheet open").toBe(before);
-    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape"); // Back: room to floor, the sheet stays
+    await page.keyboard.press("Escape"); // floor to Overview: the sheet folds to the rail
     await expect.poll(() => sheetOpenNow(page)).toBe(false);
     expect(await heightOf(page), "after unpick").toBe(before);
   });

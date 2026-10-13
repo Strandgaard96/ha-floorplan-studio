@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card (fix, review of S31): Escape does what Back does at every width. With a room picked, Escape goes up to its floor, and a second Escape to the Overview; on a tablet it used to jump straight to the Overview. Escape also moves focus to the sheet's own control, as Back does.
 - Card (fix, review of S31): on a tablet the card no longer changes height when the side sheet opens or closes. Its height comes from the plan at the rail's width; an open sheet letterboxes the plan inside the same card.
 - Card (S31.11): docs and shots for the new frame. `docs/card.md`, `docs/SPEC.md` and the README describe the header, the side and bottom sheets, the ⋯ menu and the keys on the plan; `npm run shots` adds the phone at peek, half, full, room, Device and menu, and the tablet with the rail, the sheet, a room, the menu, the popup and the focus ring, in blueprint, light and HA dark.
 - Card (fix): the pulse ring that marks a device found from the Overview or Search follows the device every frame while it shows. It was placed only after a render, so when the plan moved without one (a pan, a layout settling) the ring stayed up to 16 px off the icon.

@@ -166,7 +166,9 @@ test.describe("S24.8 search in the card", () => {
     await expect(pills(page).nth(2)).toHaveAttribute("aria-pressed", "true");
     await expect(card(page).locator("css=.fp-room-name")).toHaveText("Library");
     expect(await focused(page)).toBe("button"); // the room's clear button: the keyboard is still in the card
-    await page.keyboard.press("Escape"); // clears the room
+    await page.keyboard.press("Escape"); // Back: the room goes up to its floor (S31 review: Escape is Back at every width)
+    await expect(card(page).locator("css=.fp-room-name")).not.toHaveText("Library");
+    await page.keyboard.press("Escape"); // the floor goes up to the Overview
     await expect(card(page).locator("css=.fp-room-name")).toHaveCount(0);
     await page.keyboard.press("/");
     await page.keyboard.type("first");

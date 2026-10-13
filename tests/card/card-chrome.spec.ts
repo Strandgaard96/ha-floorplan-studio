@@ -232,6 +232,21 @@ test.describe("S31.5 criterion 5: a tablet starts folded", () => {
   });
 });
 
+test.describe("Opus review of S31: Escape in the side sheet does what Back does", () => {
+  for (const size of [{ width: 768, height: 1024 }, { width: 1280, height: 900 }]) {
+    test(`${size.width} wide: Escape goes room, floor, Overview, one level at a time`, async ({ page }) => {
+      await boot(page, {}, size);
+      await clickOn(page, `svg polygon[data-r="${roomAt("Kitchen")}"]`);
+      expect(await regionName(page)).toBe("Kitchen");
+      await page.keyboard.press("Escape");
+      await expect.poll(() => regionName(page), { message: "the Floor level, not the Overview" }).not.toBe("Kitchen");
+      expect(await regionName(page)).not.toBe("Overview");
+      await page.keyboard.press("Escape");
+      await expect.poll(() => regionName(page)).toBe("Overview");
+    });
+  }
+});
+
 test.describe("S31.5 criterion 9: the old keys in the new frame", () => {
   const size = { width: 1280, height: 900 };
   const present = (page: Page, sel: string) => card(page).evaluate((el, sel) => el.shadowRoot!.querySelector(sel) !== null, sel);
