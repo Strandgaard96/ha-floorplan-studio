@@ -54,7 +54,7 @@ for (const [name, layout] of Object.entries(HOUSES)) {
       // The height is the rule's answer, to the pixel: with the plan's aspect, the stage's width, the header, the frame's mode.
       const aspect = await page.locator("floorplan-studio-card").evaluate((el) => { const f = (el as unknown as { _fit: { w: number; h: number } })._fit; return f.w / f.h; });
       const mode = frameMode(m.width);
-      const stage = m.width - (await sheetPx(page));
+      const stage = m.width - (mode === "side" ? HEADER_H : await sheetPx(page)); // side: the rail's width, whatever the sheet does
       const want = cardHeight({ planAspect: aspect, width: stage, viewportH: size.height, haHeader: 56, chrome: HEADER_H, mode });
       expect(Math.abs(m.height - want)).toBeLessThan(1.5);
     });
@@ -121,3 +121,37 @@ test("a height set on the host by hand is the user's: a resize leaves it", async
   await page.waitForTimeout(100);
   expect(Math.round((await measure(page)).height)).toBe(300);
 });
+
+// Opus review of Sprint 31, finding 1: on a tablet the card's height followed the sheet. Opening the side sheet narrowed the stage,
+// the plan got shorter, the card got shorter, and the room under the finger moved. In side mode the height now comes from the rail's
+// width whatever the sheet does, and the plan letterboxes when the sheet is open.
+const heightOf = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => Math.round(el.getBoundingClientRect().height * 10) / 10);
+const sheetOpenNow = (page: Page) => page.locator("floorplan-studio-card").evaluate((el) => !!el.shadowRoot!.querySelector(".fp-active-body"));
+/** The real top point of the first room that is a polygon on screen: found by looking, so the click is a real tap. */
+const roomPoint = (page: Page) => page.evaluate(() => {
+  const el = document.getElementById("card")!, root = el.shadowRoot!;
+  for (const p of root.querySelectorAll<SVGPolygonElement>("polygon[data-r]")) {
+    const b = p.getBoundingClientRect();
+    for (let a = 1; a < 10; a++) for (let c = 1; c < 10; c++) {
+      const x = b.left + (b.width * a) / 10, y = b.top + (b.height * c) / 10, t = root.elementFromPoint(x, y);
+      if (t === p) return { x, y };
+    }
+  }
+  return null;
+});
+
+for (const [name, layout] of Object.entries(HOUSES)) {
+  test(`${name} at 768 x 1024: the card is as tall before a room pick, with the sheet open, and after it is let go`, async ({ page }) => {
+    await boot(page, layout, { width: 768, height: 1024 });
+    expect(await sheetOpenNow(page), "a tablet starts on the rail").toBe(false);
+    const before = await heightOf(page);
+    const pt = await roomPoint(page);
+    expect(pt, "a room to tap").not.toBeNull();
+    await page.mouse.click(pt!.x, pt!.y);
+    await expect.poll(() => sheetOpenNow(page)).toBe(true);
+    expect(await heightOf(page), "sheet open").toBe(before);
+    await page.keyboard.press("Escape");
+    await expect.poll(() => sheetOpenNow(page)).toBe(false);
+    expect(await heightOf(page), "after unpick").toBe(before);
+  });
+}

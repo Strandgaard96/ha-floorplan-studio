@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: fixes from the Opus review of Sprint 31 (Sonnet)
+
+Six findings, one commit each; this entry grows with them.
+- Card height in side mode. `_fitHeight` took the stage width (card less sheet), so a room tap on a tablet opened the sheet, the plan got narrower, the card got shorter by up to 150 px and the room moved under the finger. Side mode now sizes from the card's width less the 52 px rail, whatever the sheet does; the plan letterboxes when the sheet is open. Test: 768 x 1024, demo and stress, height equal before the pick, with the sheet open and after Escape (failed 557 vs 407 and 842 vs 607 before). `card-fit-height.spec.ts` first test changed premise: its expected stage is now card less the rail in side mode (it used `--fp-sheet-w`, which at 1024 is the open sheet); the bound is the same, the card is taller at 1024.
+
 ## 2026-10-13: the plan is drawn at a snapped scale, so a settled render does not depend on its history
 
 `_measurePx` re-rendered only when the measured scale moved more than 1 % (strip: 0.5 % of the plan), so a card drawn at one width and nudged by 0.4 % kept the old render, and differed in the second decimal of a label from a card drawn at the final width. That was the 2 to 7 % flake of "the turn lands byte for byte on a direct render". The scale and strip now go to `renderFloor` snapped DOWN to 1 % and 0.5 % steps (down, so a name never falls under its 11 px floor) (`qpx`, `qstrip`), and the card re-renders when the step changes. Same churn as before, no history. New spec `card-px-pure.spec.ts` (nudged versus fresh, three sizes) failed 3 of 3 before; the old test passes 100 of 100 after. Studio has no measured scale, no twin.
