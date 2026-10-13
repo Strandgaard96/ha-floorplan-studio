@@ -12,6 +12,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 });
 import { renderFloor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
+import { hasMenuItem, pickItem, stateOfItem } from "./menu-dom";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 const L = demo as unknown as Layout;
@@ -24,8 +25,9 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   await el.updateComplete;
   return el;
 }
-const btn = (el: FloorplanStudioCard, label: string) => el.shadowRoot!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
-const click = async (el: FloorplanStudioCard, label: string) => { btn(el, label)!.click(); await el.updateComplete; };
+// S31.6: Device names is a checkbox item of the header menu (`names`), Reset view its action (`reset`).
+const names = (el: FloorplanStudioCard) => stateOfItem(el, "names");
+const toggle = (el: FloorplanStudioCard) => pickItem(el, "names");
 
 beforeEach(() => {
   localStorage.clear();
@@ -38,10 +40,10 @@ afterEach(() => {
 });
 
 describe("Device names toggle", () => {
-  it("is off by default, pressed=false, and the core is told", async () => {
+  it("is off by default, unchecked, and the core is told", async () => {
     const el = await mount();
     expect(showNames()).toBeFalsy();
-    expect(btn(el, "Device names")!.getAttribute("aria-pressed")).toBe("false");
+    expect(await names(el)).toBe("false");
   });
 
   it("config names: true starts on; anything but true is off", async () => {
@@ -52,29 +54,29 @@ describe("Device names toggle", () => {
     }
   });
 
-  it("a click turns the names on and off, and the pressed state follows", async () => {
+  it("a click turns the names on and off, and the checked state follows", async () => {
     const el = await mount();
-    await click(el, "Device names");
+    await toggle(el);
     expect(showNames()).toBe(true);
-    expect(btn(el, "Device names")!.getAttribute("aria-pressed")).toBe("true");
-    await click(el, "Device names");
+    expect(await names(el)).toBe("true");
+    await toggle(el);
     expect(showNames()).toBe(false);
   });
 
   it("is remembered over a reload, and Reset view puts the config's value back", async () => {
     const el = await mount();
-    await click(el, "Device names");
+    await toggle(el);
     el.remove();
     const again = await mount();
     expect(showNames()).toBe(true);
-    await click(again, "Reset view");
+    await pickItem(again, "reset");
     expect(showNames()).toBeFalsy();
     expect(Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:"))).toEqual([]);
   });
 
   it("a stored value that is not a boolean is dropped", async () => {
     const el = await mount();
-    await click(el, "Device names");
+    await toggle(el);
     const [key] = Object.keys(localStorage).filter((k) => k.startsWith("fp-view:"));
     localStorage.setItem(key!, JSON.stringify({ v: 1, names: "yes" }));
     el.remove();
@@ -82,10 +84,10 @@ describe("Device names toggle", () => {
     expect(showNames()).toBeFalsy();
   });
 
-  it("goes with the View controls: view_switch false and kiosk hide it", async () => {
+  it("goes with the View controls: view_switch false and kiosk drop the item", async () => {
     for (const cfg of [{ view_switch: false }, { kiosk: true }]) {
       const el = await mount(cfg);
-      expect(btn(el, "Device names"), JSON.stringify(cfg)).toBeNull();
+      expect(await hasMenuItem(el, "names"), JSON.stringify(cfg)).toBe(false);
       el.remove();
     }
   });

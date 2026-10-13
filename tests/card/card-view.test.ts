@@ -10,7 +10,8 @@ vi.mock("../../src/core", async (importOriginal) => {
   return { ...actual, renderFloor: vi.fn(actual.renderFloor) };
 });
 import { renderFloor } from "../../src/core";
-import "../../src/card/floorplan-studio-card"; // defines the element
+import "../../src/card/floorplan-studio-card";
+import { hasMenuItem, menuOf, openMenu, pickItem, stateOfItem } from "./menu-dom"; // defines the element
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 const L = demo as unknown as Layout;
@@ -23,13 +24,12 @@ async function mount(config: Partial<FloorplanStudioCardConfig> = {}): Promise<F
   await el.updateComplete;
   return el;
 }
-const select = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector<HTMLSelectElement>('select[aria-label="View"]');
-const pick = async (el: FloorplanStudioCard, value: string) => {
-  const s = select(el)!;
-  s.value = value;
-  s.dispatchEvent(new Event("change", { bubbles: true }));
-  await el.updateComplete;
+// S31.6: the View choice is three radio items of the header menu, `view:2d`, `view:2.5d`, `view:3d`.
+const checked = async (el: FloorplanStudioCard) => {
+  for (const v of ["2d", "2.5d", "3d"]) if ((await stateOfItem(el, `view:${v}`)) === "true") return v;
+  return null;
 };
+const pick = (el: FloorplanStudioCard, value: string) => pickItem(el, `view:${value}`);
 const box = (el: FloorplanStudioCard) => el.shadowRoot!.querySelector("svg")!.getAttribute("viewBox")!.split(/\s+/).map(Number);
 const click = async (el: FloorplanStudioCard, label: string) => {
   el.shadowRoot!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click();
@@ -41,21 +41,22 @@ describe("card view option and dropdown", () => {
     document.body.innerHTML = "";
   });
 
-  it("is 2D with a View select in the toolbar, the zoom buttons in the stack, by default", async () => {
+  it("is 2D with a View group in the header menu, the zoom buttons in the stack, by default", async () => {
     const el = await mount();
     expect(lastView()).toBe("2d");
-    const s = select(el)!;
-    expect(s.value).toBe("2d");
-    expect([...s.options].map((o) => [o.value, o.textContent!.trim()])).toEqual([["2d", "2D"], ["2.5d", "2.5D"], ["3d", "3D"]]);
-    // Layout changed (card-stack): the select is in the toolbar, zoom is in the vertical stack, as in the studio.
-    expect(s.closest(".fp-zoom")).not.toBeNull();
+    expect(await checked(el)).toBe("2d");
+    await openMenu(el);
+    const radios = [...menuOf(el)!.shadowRoot!.querySelectorAll('[role="menuitemradio"]')].map((o) => [o.getAttribute("data-value"), o.querySelector(".text")!.textContent!.trim()]);
+    expect(radios.slice(0, 3)).toEqual([["view:2d", "2D"], ["view:2.5d", "2.5D"], ["view:3d", "3D"]]);
+    // S31.6: no select in the toolbar any more; zoom is in the vertical stack, as in the studio.
+    expect(el.shadowRoot!.querySelector("select")).toBeNull();
     expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')!.closest(".fp-stack")).not.toBeNull();
   });
 
-  it("view: 2.5d starts in 2.5D and the select says so", async () => {
+  it("view: 2.5d starts in 2.5D and the menu says so", async () => {
     const el = await mount({ view: "2.5d" });
     expect(lastView()).toBe("2.5d");
-    expect(select(el)!.value).toBe("2.5d");
+    expect(await checked(el)).toBe("2.5d");
     expect(el.shadowRoot!.querySelector("svg .bs")).not.toBeNull(); // wall faces really are drawn
   });
 
@@ -63,7 +64,7 @@ describe("card view option and dropdown", () => {
     for (const v of ["", 2.5, null, {}, "2.5D", "3D", "4d"]) {
       const el = await mount({ view: v as never });
       expect(lastView(), String(v)).toBe("2d");
-      expect(select(el)!.value).toBe("2d");
+      expect(await checked(el)).toBe("2d");
       el.remove();
     }
   });
@@ -78,12 +79,13 @@ describe("card view option and dropdown", () => {
     expect(el.shadowRoot!.querySelector("svg .ws")).toBeNull();
   });
 
-  it("ignores a value that is not an option", async () => {
+  it("ignores a pick that is not an item of the menu", async () => {
     const el = await mount();
-    const s = select(el)!;
-    s.insertAdjacentHTML("beforeend", '<option value="3d">3D</option>');
-    await pick(el, "3d");
-    expect(lastView()).toBe("2d");
+    for (const value of ["view:4d", "view:", "view", "view:2D"]) {
+      menuOf(el)!.dispatchEvent(new CustomEvent("fp-menu-pick", { detail: { value }, bubbles: true, composed: true }));
+      await el.updateComplete;
+      expect(lastView(), value).toBe("2d");
+    }
   });
 
   it("switching view keeps the zoom: the card stays zoomed in, and the zoomed box is narrower than the new fit", async () => {
@@ -101,30 +103,30 @@ describe("card view option and dropdown", () => {
     expect(zoomed[2]).toBeLessThan(fit25[2]!);
   });
 
-  it("view_switch: false hides the select but keeps the configured view", async () => {
+  it("view_switch: false drops the View items but keeps the configured view", async () => {
     const el = await mount({ view: "2.5d", view_switch: false });
-    expect(select(el)).toBeNull();
+    expect(await hasMenuItem(el, "view:2d")).toBe(false);
     expect(lastView()).toBe("2.5d");
     expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')).not.toBeNull();
   });
 
-  it("kiosk hides the select too, whatever view_switch says", async () => {
+  it("kiosk has no View items either, whatever view_switch says", async () => {
     const el = await mount({ kiosk: true, view_switch: true, view: "2.5d" });
-    expect(select(el)).toBeNull();
+    expect(await hasMenuItem(el, "view:2d")).toBe(false);
     expect(lastView()).toBe("2.5d");
   });
 
   it("only view_switch: false hides it: junk keeps the default, shown", async () => {
     for (const v of ["no", 0, null, "false"]) {
       const el = await mount({ view_switch: v as never });
-      expect(select(el), String(v)).not.toBeNull();
+      expect(await hasMenuItem(el, "view:2d"), String(v)).toBe(true);
       el.remove();
     }
   });
 
-  it("zoom: false still gets the select, and no zoom buttons", async () => {
+  it("zoom: false still gets the View items, and no zoom buttons", async () => {
     const el = await mount({ zoom: false });
-    expect(select(el)).not.toBeNull();
+    expect(await hasMenuItem(el, "view:2d")).toBe(true);
     expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')).toBeNull();
   });
 
@@ -137,7 +139,7 @@ describe("card view option and dropdown", () => {
     el.setConfig({ layout: structuredClone(L), floor: "ground", view: "2.5d", rotation: 90 } as FloorplanStudioCardConfig);
     await el.updateComplete;
     expect(lastView()).toBe("2.5d");
-    expect(select(el)!.value).toBe("2.5d");
+    expect(await checked(el)).toBe("2.5d");
   });
 
   it("a hass update does not undo the pick", async () => {

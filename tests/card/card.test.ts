@@ -763,19 +763,21 @@ describe("FloorplanStudioCard", () => {
       vi.useRealTimers();
     });
 
-    it("kiosk: true hides .fp-floors and the zoom buttons; kiosk: false (or unset) shows both", async () => {
+    it("kiosk: true hides .fp-floors, the view menu and the zoom buttons; kiosk: false (or unset) shows both", async () => {
       const el = await mount();
       el.setConfig({ layout: structuredClone(L), floors: ["ground", "first"], kiosk: true });
       el.hass = stubHass() as never;
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-floors")).toBeNull();
-      expect(el.shadowRoot!.querySelector(".fp-zoom")).toBeNull();
+      expect(el.shadowRoot!.querySelector("fp-menu")).toBeNull(); // S31.6: the old .fp-zoom toolbar is the header menu now
+      expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')).toBeNull();
 
       el.setConfig({ layout: structuredClone(L), floors: ["ground", "first"], kiosk: false });
       el.hass = stubHass() as never;
       await el.updateComplete;
       expect(el.shadowRoot!.querySelector(".fp-floors")).not.toBeNull();
-      expect(el.shadowRoot!.querySelector(".fp-zoom")).not.toBeNull();
+      expect(el.shadowRoot!.querySelector("fp-menu")).not.toBeNull();
+      expect(el.shadowRoot!.querySelector('button[aria-label="Zoom in"]')).not.toBeNull();
     });
 
     it("with floors: [a, b] and kiosk: true the first floor shows and there is no switcher", async () => {
