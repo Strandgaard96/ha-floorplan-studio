@@ -38,6 +38,17 @@ const measure = (page: Page) => page.evaluate(() => {
   return { top: r.top, bottom: r.bottom, width: r.width, height: r.height, plan: { l: s.left, t: s.top, r: s.right, b: s.bottom }, corners, vh: innerHeight };
 });
 
+/** Two animation frames, one ResizeObserver tick, one more frame: whatever the card was going to do about a resize it has done. No fixed sleep. */
+const settle = (page: Page) => page.evaluate(() => new Promise<void>((done) => {
+  const raf = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+  void (async () => {
+    await raf(); await raf();
+    await new Promise<void>((r) => { const ro = new ResizeObserver(() => { ro.disconnect(); r(); }); ro.observe(document.getElementById("card")!); });
+    await raf();
+    done();
+  })();
+}));
+
 const SIZES = [{ width: 1024, height: 768 }, { width: 768, height: 1024 }, { width: 390, height: 844 }];
 const HOUSES = { demo, stress } as const;
 
@@ -104,7 +115,7 @@ test("a sections-like parent with a fixed height gives the 0.28.1 box: the card 
   await page.evaluate(() => { document.getElementById("wrap")!.style.height = "480px"; });
   await expect.poll(async () => Math.round((await measure(page)).height)).toBe(480);
   await page.setViewportSize({ width: 1024, height: 400 }); // a resize must not start fitting it
-  await page.waitForTimeout(100);
+  await settle(page);
   expect(Math.round((await measure(page)).height)).toBe(480);
 });
 
@@ -118,7 +129,7 @@ test("a height set on the host by hand is the user's: a resize leaves it", async
   await boot(page, stress, { width: 1024, height: 700 });
   await page.locator("floorplan-studio-card").evaluate((el) => { el.style.height = "300px"; });
   await page.setViewportSize({ width: 1024, height: 500 });
-  await page.waitForTimeout(100);
+  await settle(page);
   expect(Math.round((await measure(page)).height)).toBe(300);
 });
 
