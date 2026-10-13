@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: S31.11 Sprint 31 exit: what held, what changed (Sonnet)
+
+Docs, shots and the exit test. The assumptions of "Sprint 31 planned" against what was built:
+- Held: D1 the header bar (floor tabs, Search, ⋯), one sheet beside the plan from 640 px (open from 900, a 52 px rail below), only +, -, Fit over the plan. D2 the phone bottom sheet at peek 64, half `max(50 %, 340)`, full; drag, fling over 0.5 px/ms or a handle tap; the phone card at least `min(screen, 640)`. D3 the ⋯ menu holds the look. D4 the plan is one Tab stop, arrows walk devices once one has focus, Shift + arrows pan, Enter opens. Fit to height with no new key. No Studio twin: it is all card chrome.
+- Changed: Tilt is five presets, not a slider (S31.6). The Layers label lost its "N hidden" count (S31.6). A stored overview x and y are ignored and the sheet cannot be dragged at all; only `collapsed`, `chosen` and `all` are written (S31.5). On a phone the device popup is the Device level inside the sheet and nothing floats (S31.8). A plan tap on a side-sheet card opens the popup and a row tap opens the Device level, as assumed; the popup floats (S31.5). The focus ring is ink inside a bg with a primary halo, not primary alone (S31.10). The pulse ring got a frame loop (fix, same day).
+- K1 to K5 pass at 2/2, 3/3, 3/3, 2/2, 2/2 on 768 x 1024 and 390 x 844, real taps, cold card; no `test.fail()` is left.
+- Seen in the shots, not fixed (outside this task): in the shot harness the card has no height of its own, so on a tablet it is as tall as the plan at its width: 568 px with the rail, 418 px with the side sheet open (the plan is narrower), which cuts the sheet's list short. The ⋯ menu is capped at `min(70vh, 520px)` and scrolls; on a tablet the Theme list ends mid-row at "Home Assistant". Neither shows in a card with a height of its own.
+- README: it has no state table; the Active list bullet, Rotate and Reset were reworded, and three screenshots are labelled as from before 0.29 until they are retaken.
+Studio parity: no twin.
+
 ## 2026-10-13: the pulse ring follows its device every frame
 
 `_placePulse` ran only after a render. A pan or a layout settle moves the icon with no render, so the ring stayed behind (7 to 16 px). The test "All floors: a row tap..." failed about 90 % of runs under repeat load on plain main and passed alone by luck. A frame loop while the ring shows keeps it on the icon; it costs one `getBoundingClientRect` pair per frame for under three seconds. The test now waits for the lamp to stop before it measures. Failed 10 of 10 without the fix, 0 of 40 with it. Studio has no ring, no twin.

@@ -3935,7 +3935,7 @@ Lane card (`src/card/floorplan-studio-card.ts`, `src/card/popup-ui.ts`, a new `s
       Files: `src/card/floorplan-studio-card.ts`, `tests/card/card-plan-keys.spec.ts` (new).
 
 Wave 3, in order on `task/s31-card-touch`:
-- [ ] S31.11 Exit test, docs, shots, verify (Sonnet; the docs part may go to Haiku). Remove every `test.fail()` from
+- [x] S31.11 Exit test, docs, shots, verify (Sonnet; the docs part may go to Haiku). Remove every `test.fail()` from
       `card-tasks.spec.ts`; K1 to K5 pass at their counts on both sizes, `--repeat-each=10`. Docs: `docs/card.md`
       (Size, Studio and card, Kiosk mode, Overview, Picking a room, Tap hold and hover, View memory keys), `docs/SPEC.md`
       card behaviours, the README state table, CHANGELOG under Unreleased, DECISIONS (each assumption that held, each
