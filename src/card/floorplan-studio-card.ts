@@ -291,6 +291,14 @@ let focusedCard: FloorplanStudioCard | null = null;
  * a floating panel): the sheet is lower than the house.
  */
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
+/** The scale and the control strip the plan is DRAWN with are snapped to steps (1 % of scale, 0.5 % of the plan's width), and
+ *  `_measurePx` re-renders when the step changes. A settled render is then a pure function of the final measured size, not of
+ *  the sizes the card passed through on the way (a render drawn at a scale 0.4 % off used to stay, and differed in the second
+ *  decimal of a label from a card drawn at the final size). */
+const PX_STEP = Math.log(1.01);
+const qpx = (p: number): number => (p > 0 ? Math.exp(Math.round(Math.log(p) / PX_STEP) * PX_STEP) : 0);
+const qstrip = (s: number, w: number): number => { const u = w * 0.005; return u > 0 ? Math.round(s / u) * u : s; };
+
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
     /* S8.2: height 100% on both, matching Home Assistant's own cards (thermostat, map). In an "auto" grid row
@@ -3378,9 +3386,9 @@ export class FloorplanStudioCard extends LitElement {
     const live3d = this._shows3d();
     const body = live3d ? "" : renderFloor(f, {
       scale: this._scale(fit),
-      px: this._px || undefined, // S23.2: the 11 px floor for names and discs
+      px: qpx(this._px) || undefined, // S23.2: the 11 px floor for names and discs (quantised: see `qpx`)
       zoom: box.w > 0 ? fit.w / box.w : undefined, // S25.4: labels keep their on-screen size at any zoom
-      bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - this._strip) } : undefined, // S23 review S3: names stay off the control stack
+      bounds: this._px ? { ...fit, w: Math.max(fit.w / 2, fit.w - qstrip(this._strip, fit.w)) } : undefined, // S23 review S3: names stay off the control stack
       state: this._stateForRender(),
       now: Date.now(),
       fade: this._config.fade,
@@ -3535,7 +3543,7 @@ export class FloorplanStudioCard extends LitElement {
     if (!svg || !fit || !r || !(fit.w > 0) || !(fit.h > 0) || r.width <= 0 || r.height <= 0) return;
     const px = Math.min(r.width / fit.w, r.height / fit.h), base = 1 / this._scale(fit);
     const k = (p: number) => Math.max(base, p ? NAME_MIN_PX / (12 * p) : 0);
-    const was = k(this._px), old = this._px;
+    const was = k(qpx(this._px)), old = this._px;
     this._px = px;
     // S23 review S3: the stack of buttons at the right covers a strip of the plan; names keep out of it. The svg keeps
     // its aspect (meet, centred), so the fit box starts (r.width - fit.w * px) / 2 in. A stack laid out as a row is
@@ -3544,12 +3552,12 @@ export class FloorplanStudioCard extends LitElement {
     const sr = stack && !stack.classList.contains("fp-stack-row") ? stack.getBoundingClientRect() : null;
     const right = r.left + (r.width + fit.w * px) / 2, strip = sr && sr.width > 0 ? Math.max(0, (right - sr.left + 4) / px) : 0, stripWas = this._strip;
     this._strip = strip;
-    if (Math.abs(strip - stripWas) > fit.w * 0.005) return void this.requestUpdate();
-    if (Math.abs(k(px) - was) > was * 0.01) return void this.requestUpdate();
+    if (qstrip(strip, fit.w) !== qstrip(stripWas, fit.w)) return void this.requestUpdate();
+    if (k(qpx(px)) !== was) return void this.requestUpdate();
     // k holds, but a name shrunk to fit its room has its own floor of 11 px: re-render when that floor binds now or did.
     const sizes = [...svg.querySelectorAll("text.lbl[data-rl]")].map((t) => Number(t.getAttribute("font-size"))).filter((s) => s > 0);
-    if (!sizes.length || Math.abs(px - old) <= old * 0.01) return;
-    const least = Math.min(...sizes), floorNow = NAME_MIN_PX / px, floorWas = old ? NAME_MIN_PX / old : 0;
+    if (!sizes.length || qpx(px) === qpx(old)) return;
+    const least = Math.min(...sizes), floorNow = NAME_MIN_PX / qpx(px), floorWas = old ? NAME_MIN_PX / qpx(old) : 0;
     if (floorNow > least * 1.01 || floorWas >= least * 0.99) this.requestUpdate();
   }
 

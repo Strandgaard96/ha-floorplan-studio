@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-13: the plan is drawn at a snapped scale, so a settled render does not depend on its history
+
+`_measurePx` re-rendered only when the measured scale moved more than 1 % (strip: 0.5 % of the plan), so a card drawn at one width and nudged by 0.4 % kept the old render, and differed in the second decimal of a label from a card drawn at the final width. That was the 2 to 7 % flake of "the turn lands byte for byte on a direct render". The scale and strip now go to `renderFloor` snapped to 1 % and 0.5 % steps (`qpx`, `qstrip`), and the card re-renders when the step changes. Same churn as before, no history. New spec `card-px-pure.spec.ts` (nudged versus fresh, three sizes) failed 3 of 3 before; the old test passes 100 of 100 after. Studio has no measured scale, no twin.
+
 ## 2026-10-13: S31.11 Sprint 31 exit: what held, what changed (Sonnet)
 
 Docs, shots and the exit test. The assumptions of "Sprint 31 planned" against what was built:
