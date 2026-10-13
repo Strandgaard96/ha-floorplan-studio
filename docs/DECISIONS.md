@@ -6,6 +6,7 @@ Newest first. A change supersedes; nothing is edited.
 
 Six findings, one commit each; this entry grows with them.
 - Card height in side mode. `_fitHeight` took the stage width (card less sheet), so a room tap on a tablet opened the sheet, the plan got narrower, the card got shorter by up to 150 px and the room moved under the finger. Side mode now sizes from the card's width less the 52 px rail, whatever the sheet does; the plan letterboxes when the sheet is open. Test: 768 x 1024, demo and stress, height equal before the pick, with the sheet open and after Escape (failed 557 vs 407 and 842 vs 607 before). `card-fit-height.spec.ts` first test changed premise: its expected stage is now card less the rail in side mode (it used `--fp-sheet-w`, which at 1024 is the open sheet); the bound is the same, the card is taller at 1024.
+- Name floor. Nothing measured the pixel behind `qpx` (round down, so a name never falls under 11 px). New `card-name-floor.spec.ts`: the real on-screen size (font-size times the text's screen scale) of every room name, widths 300 to 1400 step 37, demo and stress, plan turned 45 degrees, at least 10.99 px. With `Math.round` in `qpx` it fails ("Living" 10.96 px at 300 and 374 px); with `Math.floor` it passes 10 of 10.
 
 ## 2026-10-13: the plan is drawn at a snapped scale, so a settled render does not depend on its history
 
