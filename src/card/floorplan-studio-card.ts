@@ -291,12 +291,12 @@ let focusedCard: FloorplanStudioCard | null = null;
  * a floating panel): the sheet is lower than the house.
  */
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
-/** The scale and the control strip the plan is DRAWN with are snapped to steps (1 % of scale, 0.5 % of the plan's width), and
+/** The scale and the control strip the plan is DRAWN with are snapped DOWN to steps (1 % of scale, 0.5 % of the plan's width; down, so a name's 11 px floor is never missed), and
  *  `_measurePx` re-renders when the step changes. A settled render is then a pure function of the final measured size, not of
  *  the sizes the card passed through on the way (a render drawn at a scale 0.4 % off used to stay, and differed in the second
  *  decimal of a label from a card drawn at the final size). */
 const PX_STEP = Math.log(1.01);
-const qpx = (p: number): number => (p > 0 ? Math.exp(Math.round(Math.log(p) / PX_STEP) * PX_STEP) : 0);
+const qpx = (p: number): number => (p > 0 ? Math.exp(Math.floor(Math.log(p) / PX_STEP + 1e-9) * PX_STEP) : 0);
 const qstrip = (s: number, w: number): number => { const u = w * 0.005; return u > 0 ? Math.round(s / u) * u : s; };
 
 export class FloorplanStudioCard extends LitElement {
