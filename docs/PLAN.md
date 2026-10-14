@@ -3960,3 +3960,130 @@ test: S31.11.
    Detail, Layers, Rotate, Reset view). Other option: View and Rotate stay in the header.
 4. **D4, keys on the plan.** Default: one Tab stop, arrows walk devices once one has focus, Shift + arrows pan, Enter
    opens. Other option: each device a Tab stop, arrows always pan.
+
+## Sprint 32: Release 0.30.0, 3D framing
+
+Branch `task/s32-3d-framing`. Lanes branch off it as `task/s32-<lane>`, each in its own worktree with its own `PW_PORT`,
+and merge back. From Diego, 2026-10-14: "fix all 3", the three Known limits of `docs/card.md` (no re-fit when the card
+narrows, the half sheet covers the house, a room pick does not move the camera). Spec: `docs/specs/card-3d-framing.md`
+(terms, decisions F1 to F4, criteria 1 to 13, open questions Q1 to Q5). The roadmap's row 32 (extras) moves to Sprint 33,
+0.31.0; S32.8 updates the table.
+
+**Waits for Diego's yes on Q1 to Q5.** Until then the defaults are the assumptions. Waves 0 and 1 do not depend on the
+answers; S32.6 and S32.7 do.
+
+Exit test: `tests/card/card-3d-framing.spec.ts`, every case green with no `test.fail()` left, at 768 x 1024,
+1024 x 768, 390 x 844 and 844 x 390, `--repeat-each=10`; then the full suite.
+
+Rules. As Sprint 31: each task one outcome, its failing test written first and watched failing, the report says how it
+failed (finding 5); real `page.mouse`, `page.touchscreen` and `page.keyboard` at real coordinates on the real top element
+(finding 3); a new Playwright test runs `--repeat-each=10`, no `waitForTimeout`, waits on `data-easing` and `data-drawn`
+(finding 13); each command bare, `$?` on its own line (finding 14); a camera is measured on screen through the test
+hook's projection against the visible box read from the DOM, never by reading back the number the code set; untrusted
+input never throws (finding 1); a test that pinned the old sphere distance moves to the new premise in the same commit
+(finding 19); no new CSS is planned, and any rule that appears gets its `getComputedStyle` pair (finding 10); a change
+to 3D drawing runs `npm run shots` and is looked at (finding 16). `src/core/render.ts` is not touched (finding 8).
+
+Studio parity. The Studio has no 3D view (`real-3d.md`, decision B). No twin; each DECISIONS line says so.
+
+Out of scope: 2D and 2.5D framing; framing a device (Q4); new YAML keys; Sprint 33's extras.
+
+Models. Coders are Sonnet. **Judgement** tasks carry the spec section in the brief, and the coordinator reads the
+coder's note (a comment block at the top of the change) before accepting. Opus reviews the integrated build once.
+
+Wave 0 and wave 1 run together, three lanes, no shared file:
+
+Lane red (test hook and the exit spec):
+- [ ] S32.1 The framing tests, red (Sonnet). Test hook in `view3d.ts`, inside `if (__FP3D_TEST__)` only: `box("floor")`
+      and `box(roomIndex)`, the eight corners of the box (spec, Terms) projected by `project`, as `{left, top, right,
+      bottom}` on the page. `tests/card/helpers-3d.ts`: `visibleBox(page)` (the `.fp-3d` rect, less the bottom sheet's
+      cover at its `data-stop` from the card's `--fp-sheet-*`), `inside(box, vis, 8)`, `fitted(box, vis)`,
+      `settled(page)` (waits for `data-easing` absent and `data-drawn` stable over two frames). New
+      `tests/card/card-3d-framing.spec.ts`: criteria 1 to 9, each case on its sizes. Mark every case that fails today
+      `test.fail()` with "S32.n removes this"; criterion 1 at the start camera may already pass at some sizes: say which.
+      Done when: each `test.fail()` fails on its assertion (outside, not fitted, camera unchanged), not a timeout; the
+      shipped `www/` build has no hook (the size test passes unchanged).
+      Files: `src/card/three/view3d.ts` (hook block only), `tests/card/helpers-3d.ts`, new
+      `tests/card/card-3d-framing.spec.ts`.
+
+Lane maths (the 3D chunk, pure):
+- [ ] S32.2 `fitBox`, `project` and `glide` (Sonnet, **judgement**: the bisection bounds and the lens shift sign). New
+      `src/card/three/frame3d.ts`, no three.js import, as spec F4. Test, failing first, `tests/card/three-frame3d.test.ts`:
+      criterion 10. `project` against three's `PerspectiveCamera` plus `setViewOffset` (vitest imports three) over 500
+      seeded boxes, angles, canvases and visible boxes, 0.01 px; `fitBox` tight on one side within 0.5 px, the other
+      inside; a visible box off-centre (the lower half covered) puts the box's centre on its centre; `glide` ends, short
+      way across ±π, log distance; junk (`NaN`, `Infinity`, negative, zero canvas, inverted box, visible box outside
+      the canvas) returns null or finite, never throws.
+      Files: new `src/card/three/frame3d.ts`, new `tests/card/three-frame3d.test.ts`.
+
+Lane cover (the card's frame maths, pure):
+- [ ] S32.3 `coverOf` (Sonnet). In `src/card/frame.ts` beside `sheetStops`: `coverOf(stage, card, frame, stops, stop)`
+      returns `{top, right, bottom, left}` px: only `bottom` in the `bottom` frame, `stage.bottom − (card.bottom −
+      stops[stop])` clamped to `[0, stage height]`; 0 for `side` and `none`. Test, failing first, in
+      `tests/card/frame.test.ts`: each stop at 390 x 844 and 360 x 640, a card shorter than peek plus header, side and
+      none frames, junk rects.
+      Files: `src/card/frame.ts`, `tests/card/frame.test.ts`.
+
+Wave 2, after S32.2:
+- [ ] S32.4 The orbit frames a box (Sonnet, **judgement**: F1's rule). `src/card/three/orbit.ts`: the unit (spec, Terms),
+      a px cover with a two-axis `shift`, `frameTo(box)` through `fitBox`, `setVisible(canvas, cover)` with F1 (framed:
+      frame again; moved: distance follows the unit; under 120 px: ignored; under 1 px: ignored), `focus(box)` and
+      `unfocus()` that keep the pre-focus camera, `state()` as the floor camera while focused, `restore` not framed,
+      any `rotate`, `zoom` or `pan` makes it moved. `setInset`, `setAspect` go. Test, failing first, in
+      `tests/card/three-orbit.test.ts`: every F1 branch; framed then resized gives a fresh fit; moved then resized keeps
+      angles, target and `state().zoom`; focus, orbit, `state()` is the floor camera with the new angles; unfocus
+      returns the pre-focus distance and target; the S14.4 state and restore tests still hold (premise kept: zoom is a
+      multiple of the unit). Migrate the inset tests (named in the report).
+      Files: `src/card/three/orbit.ts`, `tests/card/three-orbit.test.ts`.
+
+Wave 3, one lane, in order (each task shares `view3d.ts` and the card file):
+- [ ] S32.5 Re-fit on a new box (Sonnet). Limit 1. `view3d.ts`: `setFrame({ cover, room })` replaces `setInset`
+      (idempotent by key, `data-frame` instead of `data-inset`), `prepare` applies the two-axis shift, the
+      ResizeObserver calls `orbit.setVisible`, pointer and wheel mark the camera moved. Card: `_apply3dInset` becomes
+      `_apply3dFrame` with `coverOf` (room passed as null in this task). Remove the `test.fail()` of criteria 1, 2 and
+      3. Migrate the tests that pinned `dist` or read `data-inset` (`card-3d-narrow`, `card-3d`, `card-3d-floors`,
+      `card-3d-pan`, `card-3d-live`, `card-view-memory-3d`), each named with its new premise.
+      Files: `src/card/three/view3d.ts`, `src/card/floorplan-studio-card.ts`, the migrated specs.
+- [ ] S32.6 Frame above the bottom sheet (Sonnet). Limit 2. The card calls `_apply3dFrame` on every stop change
+      (handle tap, snap, Back, a pick), not on drag moves; the view glides on a cover change and jumps on a canvas
+      resize (F1); reduced motion jumps. Remove the `test.fail()` of criterion 4.
+      Files: `src/card/floorplan-studio-card.ts`, `src/card/three/view3d.ts`.
+- [ ] S32.7 Room focus (Sonnet, **judgement**: the glide's cancel and the double-tap delay). Limit 3. View: `room` in
+      `setFrame` focuses the room box (from the room's solid, padded 50 cm), unfocus on null, the glide in the frame
+      loop with `data-easing`, cancelled by pointerdown and wheel on the canvas, `camera()` the floor camera. Card: the
+      room from `_picked()`; a canvas tap's pick reaches `setFrame` after `DOUBLE_TAP_MS` (a timer cleared by the
+      second tap, by `setConfig` and by disconnect); a row or search pick at once; `_forgetCamera` drops the focus.
+      Remove the `test.fail()` of criteria 5 to 9. Migrate `card-3d-pick` cases that tap one point twice (re-project
+      after the glide).
+      Files: `src/card/three/view3d.ts`, `src/card/floorplan-studio-card.ts`, `tests/card/card-3d-pick.spec.ts`.
+
+Wave 4, on `task/s32-3d-framing`:
+- [ ] S32.8 Exit, docs, shots (Sonnet; the docs part may go to Haiku). No `test.fail()` left in
+      `card-3d-framing.spec.ts`; the whole file `--repeat-each=10`. Docs: `docs/card.md` 3D view (resize, sheet, room
+      focus, Back) and Known limits (the three lines go; anything still true stays), `docs/SPEC.md` card behaviours, the
+      roadmap table (32 is 3D framing, extras move to 33, 0.31.0), CHANGELOG under Unreleased, DECISIONS (each default
+      that held or changed, Q1 to Q5 as answered). `npm run shots`, the 3D shots looked at in three themes before
+      `--accept`. `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line; the size test
+      read on its own; 3D on a phone walked once by hand at 390 x 844.
+      Files: `tests/card/card-3d-framing.spec.ts`, `docs/card.md`, `docs/SPEC.md`, `docs/PLAN.md`, `CHANGELOG.md`,
+      `docs/DECISIONS.md`, `shots/` baseline.
+
+Review: one Opus pass on the integrated build, against `docs/WORKFLOW.md`'s checklist plus: is the house measured on
+screen or only read back; can a resize snap a turned camera; does a `hass` update or a second card restart a glide; is
+a focused camera ever stored. Fixes with their tests, then the re-check.
+
+- [ ] S32.9 Release 0.30.0. After the review and Diego's yes on push and tag: `docs/WORKFLOW.md`, Release, every step,
+      ending with the version read back from Home Assistant and 3D tried on the phone.
+
+Dependencies: S32.1, S32.2, S32.3 at once; S32.4 after S32.2; S32.5 after S32.1, S32.3, S32.4; S32.6 after S32.5;
+S32.7 after S32.6; S32.8 after S32.7; S32.9 after the review.
+
+### Open questions for Diego (each with the default this plan builds)
+
+1. **A turned camera on resize.** Default: keeps its angles and target, the distance follows the box, never snapped.
+   Other: after a change of over 25 % (a tablet turned) fit the house again at the current angles.
+2. **A room already in view.** Default: a pick always glides to the room. Other: move only when it is not wholly in view.
+3. **Back.** Default: the camera from before the first focus, at the current angles. Other: a fresh fit of the floor.
+4. **A device from Search in 3D.** Default: the camera does not move. Other: focus the device's room.
+5. **The first 3D picture.** Default: the exact box fit for every framing. Other: keep the 0.85 sphere for the first
+   draw and Reset.
