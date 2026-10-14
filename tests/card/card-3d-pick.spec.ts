@@ -106,7 +106,7 @@ test.describe("3D view: taps on rooms", () => {
     await expect.poll(() => ring(page)).toBe("0");
     await expect(panel(page)).toHaveAttribute("aria-label", "Living");
     // S31.5: the room section is in the side sheet, beside the stage: the framing does not move, there is nothing over the model to frame around
-    await expect.poll(async () => (await holder(page).getAttribute("data-inset"))).toMatch(/^0(\.0+)?,0(\.0+)?$/);
+    await expect.poll(async () => (await holder(page).getAttribute("data-frame"))).toBe("0,0,0,0");
     await click(page, () => at(page, 60, 60, 1), { type: "room", index: 0 });
     await expect.poll(() => ring(page)).toBe("");
     await expect(panel(page)).toHaveAttribute("aria-label", "Overview"); // S24.7: the Active panel is the Overview
@@ -133,7 +133,7 @@ test.describe("3D view: taps on rooms", () => {
     await boot(page);
     await click(page, () => at(page, 150, 450, 1), { type: "room", index: 2 }); // the Hall, 150 cm inside its south wall (S14.5: the low wall is 110 cm, so a nearer point is hidden), from a camera in the south
     await expect.poll(() => ring(page)).toBe("2");
-    await expect.poll(async () => (await holder(page).getAttribute("data-inset"))).toMatch(/^0(\.0+)?,0(\.0+)?$/); // S31.5: the room section is in the sheet beside the stage, no inset
+    await expect.poll(async () => (await holder(page).getAttribute("data-frame"))).toBe("0,0,0,0"); // S31.5: the room section is in the sheet beside the stage, no inset
     await pick(page, "walls:full");
     await expect.poll(async () => (await holder(page).getAttribute("data-lowered"))).toBe("");
     await click(page, () => at(page, 150, 450, 1), { type: "other" }); // the wall in front of it now

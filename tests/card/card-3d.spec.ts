@@ -271,16 +271,16 @@ test.describe("3D view: walls mode (S12.4)", () => {
 });
 
 test.describe("3D view: the Active list does not hide the model (S12.4)", () => {
-  test("S31.5: from 640 px the sheet is beside the model, not over it: the canvas does not meet it and the camera has no inset", async ({ page }) => {
+  test("S31.5: from 640 px the sheet is beside the model, not over it: the canvas does not meet it and the camera has no cover", async ({ page }) => {
     await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d" });
     await drawn(page);
     const h = (await holder(page).boundingBox())!, p = (await card(page).locator("css=.fp-active").boundingBox())!;
     expect(p.x + p.width, "the sheet ends where the stage begins").toBeLessThanOrEqual(h.x + 0.5);
-    await expect.poll(async () => (await holder(page).getAttribute("data-inset")) ?? "0,0").toMatch(/^0(\.0+)?,0(\.0+)?$/);
+    await expect.poll(async () => (await holder(page).getAttribute("data-frame"))).toBe("0,0,0,0");
   });
 
   // S31.8: a card under 640 px has the bottom sheet, across the width, not a box beside the house: no inset (see card-3d-narrow.spec.ts).
-  test("a card under 640 px: the sheet is at the bottom, takes no side inset, and the house is framed in the whole width", async ({ page }) => {
+  test("a card under 640 px: the sheet is at the bottom, takes no side cover, and the sheet at peek none from below, and the house is framed in the whole width", async ({ page }) => {
     await serve(page);
     await page.goto(`${ORIGIN}/harness.html`);
     await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
@@ -291,6 +291,6 @@ test.describe("3D view: the Active list does not hide the model (S12.4)", () => 
     expect(p.x, "the sheet starts at the card's left edge").toBeLessThanOrEqual(h.x + 0.5);
     expect(p.x + p.width, "and spans the width").toBeGreaterThanOrEqual(h.x + h.width - 0.5);
     expect(p.y, "at the bottom").toBeGreaterThan(h.y + h.height / 2);
-    await expect.poll(async () => (await holder(page).getAttribute("data-inset")) ?? "0,0").toMatch(/^0(\.0+)?,0(\.0+)?$/);
+    await expect.poll(async () => (await holder(page).getAttribute("data-frame"))).toBe("0,0,0,0");
   });
 });

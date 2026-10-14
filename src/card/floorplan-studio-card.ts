@@ -18,7 +18,7 @@ import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
 import { firstFocus, nextInDirection, type FocusDir } from "./plan-focus";
-import { HEADER_H, PEEK_H, cardHeight, frameMode, nextOnHandleTap, sheetStops, sideOpenByDefault, sideWidth, snapSheet, type FrameMode, type SheetStop, type Stops } from "./frame";
+import { HEADER_H, PEEK_H, cardHeight, coverOf, frameMode, nextOnHandleTap, sheetStops, sideOpenByDefault, sideWidth, snapSheet, type FrameMode, type SheetStop, type Stops } from "./frame";
 // S24.8: registers <fp-search>, the search box the Studio uses too.
 import "./search-box";
 // S31.6: <fp-menu>, the header's ⋯: everything about how the plan looks.
@@ -287,8 +287,8 @@ let focusedCard: FloorplanStudioCard | null = null;
  * and, if it is not wholly inside the part the sheet at its new stop leaves, the plan is moved by the pixel difference that
  * puts its centre in the middle of that part. Measured, not computed from plan coordinates, so a turned plan, a letterboxed
  * plan and any zoom give the same answer; the box that is wanted is the stop's height, not the animating one, so it is right
- * at once. A thing already in view stays where it is. In 3D there is nothing to pan, and the camera is not inset (it was, for
- * a floating panel): the sheet is lower than the house.
+ * at once. A thing already in view stays where it is. In 3D there is nothing to pan: the camera frames the house in what the
+ * sheet leaves (`_apply3dFrame`).
  */
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 /** The scale and the control strip the plan is DRAWN with are snapped DOWN to steps (1 % of scale, 0.5 % of the plan's width; down, so a name's 11 px floor is never missed), and
@@ -1821,7 +1821,7 @@ export class FloorplanStudioCard extends LitElement {
     const now = Date.now();
     this._view3d.setLive(f, { scale: 1, state: this._stateForRender(), now, fade: this._config.fade, plugWatts: plugThreshold(this._config.plug_watts), plugHeat: this._plugHeat(), powerLinks: this._powerLinks(), roomGlow: this._config.room_glow, night: this._night(), labels: this._labels(), showNames: this._names(), around: floorsAroundKey(this._layout!, this._floorKey()!) }, now);
     this._view3d.setRing(this._picked());
-    this._apply3dInset();
+    this._apply3dFrame();
   }
 
   /** S27.14: gives the view the floors below the shown one: each lower floor at its elevation relative to this one (negative) and its
@@ -1937,22 +1937,14 @@ export class FloorplanStudioCard extends LitElement {
     };
   }
 
-  /** The Active list floats over the model. Where it covers the left or the right part of the 3D view, the camera frames the
-   * house in the rest (S12.4). Costs a layout read, so it runs after a render and when the panel moves, not per frame. */
-  private _apply3dInset(): void {
-    const view = this._view3d, host = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d");
+  /** The bottom sheet lies over the lower part of the 3D stage; the camera frames the house in the rest (`coverOf`, F1 of the framing
+   * spec). Side and kiosk cover nothing. Costs a layout read, so it runs after a render and a resize, not per frame. The room is null
+   * until S32.7. */
+  private _apply3dFrame(): void {
+    const view = this._view3d, host = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d"), stops = this._stopsNow();
     if (!view || !host) return;
-    const panel = this.shadowRoot?.querySelector<HTMLElement>(".fp-active"), h = host.getBoundingClientRect();
-    let left = 0, right = 0;
-    // A folded list is a 36 px header: at phone width its box spans half the view, but it hides almost none of the house. Only an open one insets.
-    if (panel && this._frame !== "bottom" && h.width > 0 && panel.querySelector(".fp-active-body")) {
-      const p = panel.getBoundingClientRect();
-      if (p.width > 0 && p.height > 0) {
-        if (p.left + p.width / 2 < h.left + h.width / 2) left = Math.max(0, Math.min(1, (p.right - h.left) / h.width));
-        else right = Math.max(0, Math.min(1, (h.right - p.left) / h.width));
-      }
-    }
-    view.setInset(left, right);
+    const cover = stops ? coverOf(host.getBoundingClientRect(), this.getBoundingClientRect(), this._frame, stops, this._sheetStop) : { top: 0, right: 0, bottom: 0, left: 0 };
+    view.setFrame({ cover, room: null });
   }
 
   /**
@@ -2668,7 +2660,7 @@ export class FloorplanStudioCard extends LitElement {
   /** After each render and resize: the 3D camera frames the house in what the side panel leaves. (The floating panel and its
    * dock are gone: the side sheet is a grid cell and the bottom sheet sits below the house.) */
   private _positionActivePanel(): void {
-    this._apply3dInset();
+    this._apply3dFrame();
   }
 
   /** S31.5: what the card's width gives it, from `frame.ts`: the side sheet from 640 px, the old floating panel under it, no

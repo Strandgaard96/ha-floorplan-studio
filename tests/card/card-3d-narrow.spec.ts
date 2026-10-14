@@ -21,7 +21,8 @@ const spread = async (page: Page) => {
     return { min: min / c.width, max: max / c.width, width: max / c.width - min / c.width };
   }, png.toString("base64"));
 };
-const inset = async (page: Page) => ((await holder(page).getAttribute("data-inset")) ?? "0,0").split(",").map(Number);
+// S32.5: `data-frame` is the px the card covers, "top,right,bottom,left" (it was `data-inset`, two horizontal shares).
+const frame = async (page: Page) => ((await holder(page).getAttribute("data-frame")) ?? "").split(",").map(Number);
 
 for (const [w, h] of [[375, 700], [260, 800]] as const) {
   test(`${w}x${h}: a folded Active list takes no width from the house`, async ({ page }) => {
@@ -30,16 +31,16 @@ for (const [w, h] of [[375, 700], [260, 800]] as const) {
     await page.evaluate((w) => { (document.getElementById("wrap") as HTMLElement).style.width = `${w}px`; }, w);
     await drawn(page);
     await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "peek"); // S31.8: folded is the sheet at its peek
-    await expect.poll(async () => (await inset(page)).join()).toBe("0,0");
+    await expect.poll(async () => (await frame(page)).join()).toBe("0,0,0,0"); // peek covers nothing
     const s = await spread(page);
     expect(s.width, JSON.stringify(s)).toBeGreaterThan(0.7); // the house fills the width; half of it was lost before
   });
 }
 
 // S31.8: under 640 px the list is a bottom sheet across the whole width, not a box beside the house, so it asks the camera for no
-// left or right inset (`_apply3dInset` skips the bottom frame; the inset is two horizontal shares and cannot say "the lower half").
+// left or right inset (S32.5: the camera now takes the sheet's cover from below, `coverOf`, and still none from a side).
 // The house is framed in the full width at every stop. The old test asserted an inset above 0.05 for the floating box, which is gone.
-test("375x700: an opened sheet takes no side inset from the house", async ({ page }) => {
+test("375x700: an opened sheet covers the stage from below, takes no side from the house", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 700 });
   await open(page, { layout: structuredClone(demo), floor: "ground", view: "3d", active_list: true });
   await page.evaluate(() => { (document.getElementById("wrap") as HTMLElement).style.width = "375px"; });
@@ -47,7 +48,10 @@ test("375x700: an opened sheet takes no side inset from the house", async ({ pag
   await card(page).getByRole("button", { name: "Overview" }).click();
   await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
   await expect(card(page).locator("css=.fp-active-body")).not.toHaveAttribute("inert", "");
-  await expect.poll(async () => (await inset(page)).join()).toBe("0,0");
+  // Premise (S32.5): the half sheet covers the lower part of the stage (bottom above 100 px), never a side.
+  await expect.poll(async () => (await frame(page))[2]).toBeGreaterThan(100);
+  const [top, right, , left] = await frame(page);
+  expect([top, right, left]).toEqual([0, 0, 0]);
   const s = await spread(page);
   expect(s.width, JSON.stringify(s)).toBeGreaterThan(0.7);
 });

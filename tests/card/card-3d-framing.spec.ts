@@ -187,17 +187,24 @@ test.describe("S32.1 criterion 3: a resize does not snap a moved camera", () => 
 // ---- criterion 4: the bottom sheet ---------------------------------------------------------------------------------------------
 
 test.describe("S32.1 criterion 4: the house above the bottom sheet", () => {
-  /** Handle to a stop: down, ten moves to `toY`, a rest, up (as card-bottom-sheet.spec.ts: a rest is not a fling). */
-  async function dragHandle(page: Page, toY: number) {
-    const b = (await handle(page).boundingBox())!, x = b.x + b.width / 2, y = b.y + b.height / 2;
+  /** Handle to a stop: down, ten moves `dy` px, a rest, up (as card-bottom-sheet.spec.ts: a rest is not a fling). */
+  async function dragHandle(page: Page, dy: number) {
+    // The sheet's height is a 0.2 s CSS transition: read the handle only once it has stopped (3 equal frames), or the drag starts short.
+    let b = (await handle(page).boundingBox())!;
+    for (let same = 0; same < 3; ) {
+      await frames(page, 1);
+      const n = (await handle(page).boundingBox())!;
+      same = n.y === b.y ? same + 1 : 0;
+      b = n;
+    }
+    const x = b.x + b.width / 2, y = b.y + b.height / 2;
     await page.mouse.move(x, y);
     await page.mouse.down();
-    for (let i = 1; i <= 10; i++) await page.mouse.move(x, y + ((toY - y) * i) / 10);
+    for (let i = 1; i <= 10; i++) await page.mouse.move(x, y + (dy * i) / 10);
     await frames(page, 10);
     await page.mouse.up();
   }
   test("390x844: a tap on the handle (half) frames the house above the sheet", async ({ page }) => {
-    red(6);
     await boot(page, PHONE);
     await handle(page).click();
     await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
@@ -207,7 +214,6 @@ test.describe("S32.1 criterion 4: the house above the bottom sheet", () => {
     await expectFloorFitted(page, "the house above the half sheet");
   });
   test("390x844: half, then full leaves the camera alone, then back to peek frames the whole stage, as the first draw did", async ({ page }) => {
-    red(6);
     await boot(page, PHONE);
     const first = (await box(page, "floor"))!;
     await handle(page).click();
@@ -215,8 +221,7 @@ test.describe("S32.1 criterion 4: the house above the bottom sheet", () => {
     await settled(page);
     await expectFloorFitted(page, "the house above the half sheet");
     const half = await cam(page);
-    const hb = (await handle(page).boundingBox())!;
-    await dragHandle(page, hb.y + hb.height / 2 - 240);
+    await dragHandle(page, -240);
     await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "full");
     await settled(page);
     sameCam(await cam(page), half);
@@ -228,7 +233,6 @@ test.describe("S32.1 criterion 4: the house above the bottom sheet", () => {
     for (const k of ["left", "top", "right", "bottom"] as const) expect(Math.abs(back[k] - first[k]), `${k} against the first draw`).toBeLessThan(2);
   });
   test("390x844, reduced motion: the camera goes from one framing to the other with no frame between", async ({ page }) => {
-    red(6);
     await page.emulateMedia({ reducedMotion: "reduce" });
     await boot(page, PHONE);
     await holder(page).evaluate((el) => {
@@ -353,7 +357,8 @@ test.describe("S32.1 criterion 7: the glide", () => {
   }
   for (const size of [WIDE, PHONE]) {
     test(`${name(size)}: a double tap on a room moves the camera not at all`, async ({ page }) => {
-      // Passes against 0.29.0 (nothing moves the camera at all): a guard for S32.7's delay, not a red case.
+      // A guard for S32.7's delay, not a red case. Premise (S32.5): on a phone the pick opens the sheet to half and the house is framed above
+      // it (criterion 4), so the camera moves for that reason alone; what must not happen is a glide into the room, so the floor stays fitted.
       await boot(page, size);
       const pre = await cam(page);
       const p = await floorOf(page, KITCHEN);
@@ -362,7 +367,8 @@ test.describe("S32.1 criterion 7: the glide", () => {
       await page.mouse.dblclick(p.x, p.y);
       await after(page, t0, 700);
       await settled(page);
-      sameCam(await cam(page), pre);
+      if (size === PHONE) await expectFloorFitted(page, "the house above the half sheet, not zoomed into the room");
+      else sameCam(await cam(page), pre);
     });
     test(`${name(size)}: a real drag during the glide ends it`, async ({ page }) => {
       red(7);

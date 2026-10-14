@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-14: S32.5 the view takes a frame, not an inset (Sonnet)
+
+`view3d.ts`: `setFrame({ cover, room })` replaces `setInset`. The card's `_apply3dFrame` (was `_apply3dInset`) reads the stage and card rects and gives `coverOf` the sheet's stop; the view rounds each side to whole px, junk to 0, and does nothing when the key `top,right,bottom,left` equals the last (`data-frame`, was `data-inset`). `room` is accepted and ignored until S32.7. The ResizeObserver already reached `orbit.setVisible` (S32.4's bridge), pointer and wheel already go through `rotate`, `zoom` and `pan`, which mark the camera moved, so nothing else was left of the plan text.
+- Marks. S32.4 had already removed criteria 1 to 3's `red(5)`. Wiring the cover made criterion 4's three cases pass (half frames above the sheet; half, full, peek; reduced motion jumps), so their `red(6)` marks are gone; the glide on a cover change stays S32.6's and is not tested by them. They were also flaky 3 in 10 once unmasked: the test read the handle's box while the sheet's 0.2 s height transition ran, so the drag fell short of full. `dragHandle` now waits for three equal frames and takes a distance, not a target.
+- Premise changes, none weakened. `card-3d-pick` (two cases) and `card-3d` (two cases) read `data-inset` against `0,0` with a fallback that passed when the attribute was absent; they read `data-frame` equal to `0,0,0,0` with no fallback. `card-3d-narrow`: the peek case expects `0,0,0,0`; the half case expects a bottom cover above 100 px and no side. `card-3d-framing` "a double tap on a room moves the camera not at all": on a phone the pick opens the sheet and the house is framed above it, so the camera moves for that alone; the phone case now expects the floor still fitted (not zoomed into the room), the wide case keeps `sameCam`. `card-3d-floors`, `card-3d-live`, `card-3d-pan` and `card-view-memory-3d` needed no change after S32.4.
+- Mutation: with the card passing an all-zero cover, the four tests above (criterion 4 and the half-sheet case) fail.
+No Studio twin: the Studio has no 3D view.
 ## 2026-10-14: S32.4 the orbit frames a box (Sonnet, judgement: F1's rule)
 
 `src/card/three/orbit.ts` now fits through `fitBox` (S32.2). `setInset` and `setAspect` are gone; the constructor keeps `(bounds, aspect, fov, turn)`, the aspect only a first guess of the canvas. Judgement calls:

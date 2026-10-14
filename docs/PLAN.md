@@ -4037,7 +4037,7 @@ Wave 2, after S32.2:
       Files: `src/card/three/orbit.ts`, `tests/card/three-orbit.test.ts`.
 
 Wave 3, one lane, in order (each task shares `view3d.ts` and the card file):
-- [ ] S32.5 Re-fit on a new box (Sonnet). Limit 1. `view3d.ts`: `setFrame({ cover, room })` replaces `setInset`
+- [x] S32.5 Re-fit on a new box (Sonnet). Limit 1. `view3d.ts`: `setFrame({ cover, room })` replaces `setInset`
       (idempotent by key, `data-frame` instead of `data-inset`), `prepare` applies the two-axis shift, the
       ResizeObserver calls `orbit.setVisible`, pointer and wheel mark the camera moved. Card: `_apply3dInset` becomes
       `_apply3dFrame` with `coverOf` (room passed as null in this task). Remove the `test.fail()` of criteria 1, 2 and

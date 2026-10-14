@@ -55,8 +55,11 @@ export interface View3D {
   resize(): void;
   /** The walls mode: "full", "cut" (the walls facing the camera drop to `lowWall`) or "low" (all of them do). */
   setWalls(mode: string): void;
-  /** A panel covers the left and the right part of the view (fractions of its width): frame the house in the free part. */
-  setInset(left: number, right: number): void;
+  /**
+   * What the card lays over the view, in px from each edge (the bottom sheet), and the room in focus (null: none yet, S32.7). The camera
+   * frames in the rest. Idempotent: the card says it after every render, the same frame is no frame. Junk reads as 0.
+   */
+  setFrame(frame: { cover: { top: number; right: number; bottom: number; left: number }; room: number | null }): void;
   /** What is under this point of the page (client coordinates), or null: the same answer a tap there gets. */
   pick(clientX: number, clientY: number): Pick | null;
   /** The picked room (its index on the floor) gets a dashed ring along its outline, just above its floor; null removes it. A room with no floor of its own (a zone) gets none. */
@@ -160,7 +163,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   let ground: Mesh | null = null, shades: Mesh[] = [], belowShades: Mesh[] = [], belowLow = Infinity, belowBox = null as { min: number[]; max: number[] } | null, shadeOn = true;
   // The walls are meshes of their own, built again only when the set of lowered walls changes, never per frame.
   let picker: Picker | null = null, markers: InstancedMesh | null = null, ring: LineLoop | null = null;
-  let ringRoom: number | null = null, inset: [number, number] = [0, 0];
+  let ringRoom: number | null = null, cover = { top: 0, right: 0, bottom: 0, left: 0 };
   const raycaster = new Raycaster();
   let wallMeshes: Mesh[] = [], bodies: WallBody[] = [], lowered = new Set<string>(), walls: Walls = "cut";
   // ---- the live state (S12.5). `liveNow` is what core/live.ts last said; every part below is changed in place from it.
@@ -247,11 +250,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   /** Renders once, on the next frame. A burst of changes (a drag) is one frame; with no change there is no frame at all. */
   const want = () => { if (!raf && !disposed) raf = requestAnimationFrame(draw); };
 
-  // S32.4 bridge: the orbit takes a px cover; until S32.5's `setFrame`, the card's inset fractions are turned into one here.
-  const syncVisible = () => {
-    const { w, h } = size();
-    orbit.setVisible({ w, h }, { top: 0, bottom: 0, left: inset[0] * w, right: inset[1] * w });
-  };
+  // The orbit takes the canvas and the px the card covers; both change on a resize, the cover on a sheet stop.
+  const syncVisible = () => orbit.setVisible(size(), cover);
   const resize = () => {
     if (disposed) return;
     const { w, h } = size();
@@ -883,12 +883,15 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       walls = m;
       want(); // the next frame decides, and rebuilds if the set changed
     },
-    setInset(left, right) {
-      const key = `${Math.max(0, +left || 0).toFixed(3)},${Math.max(0, +right || 0).toFixed(3)}`;
-      if (key === container.dataset.inset) return; // the card says it after every render: the same inset is no frame
-      inset = [left, right];
+    setFrame(frame) {
+      const px = (n: unknown) => (typeof n === "number" && Number.isFinite(n) && n > 0 ? Math.round(n) : 0);
+      const c = frame && typeof frame === "object" && frame.cover && typeof frame.cover === "object" ? frame.cover : { top: 0, right: 0, bottom: 0, left: 0 };
+      const next = { top: px(c.top), right: px(c.right), bottom: px(c.bottom), left: px(c.left) };
+      const key = `${next.top},${next.right},${next.bottom},${next.left}`;
+      if (key === container.dataset.frame) return; // the card says it after every render: the same frame is no frame
+      cover = next;
       syncVisible();
-      container.dataset.inset = key;
+      container.dataset.frame = key;
       want();
     },
     pick(clientX, clientY) {
@@ -957,7 +960,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       renderer.forceContextLoss();
       canvas.remove();
       probe.remove();
-      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "inset", "ring", "pools"]) delete container.dataset[k];
+      for (const k of ["az", "polar", "dist", "target", "drawn", "dragged", "lowered", "frame", "ring", "pools"]) delete container.dataset[k];
       if (__FP3D_TEST__ && testHook) { const at = hooks.indexOf(testHook); if (at >= 0) hooks.splice(at, 1); publishHook(); }
       live--;
     },
