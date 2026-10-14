@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card (internal, S32.2): the 3D framing maths (`fitBox`, `project`, `glide`) as a pure module, checked against three.js. Nothing uses it yet.
+
 ## 0.29.0 - 2026-10-13
 
 - Card (fix, review of S31): Back and Escape no longer take keyboard focus from another control on the page when the card only has the pointer over it; focus moves to the sheet's control only if it was already in the card.

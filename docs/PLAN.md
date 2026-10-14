@@ -4007,7 +4007,7 @@ Lane red (test hook and the exit spec):
       `tests/card/card-3d-framing.spec.ts`.
 
 Lane maths (the 3D chunk, pure):
-- [ ] S32.2 `fitBox`, `project` and `glide` (Sonnet, **judgement**: the bisection bounds and the lens shift sign). New
+- [x] S32.2 `fitBox`, `project` and `glide` (Sonnet, **judgement**: the bisection bounds and the lens shift sign). New
       `src/card/three/frame3d.ts`, no three.js import, as spec F4. Test, failing first, `tests/card/three-frame3d.test.ts`:
       criterion 10. `project` against three's `PerspectiveCamera` plus `setViewOffset` (vitest imports three) over 500
       seeded boxes, angles, canvases and visible boxes, 0.01 px; `fitBox` tight on one side within 0.5 px, the other
