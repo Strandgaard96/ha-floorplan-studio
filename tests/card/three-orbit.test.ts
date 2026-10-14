@@ -152,6 +152,17 @@ describe("Orbit frames a box (S32.4)", () => {
     expect(o.distance).toBeLessThan(framedAt().distance); // a room is closer than the house
   });
 
+  it("a tiny box is held at the near limit and its extent is still centred on the visible box (the shift follows the clamped distance)", () => {
+    // Opus review: refit clamped the distance but kept the shift computed for the unclamped one, so the picture sat off-centre.
+    const o = framedAt(C1, cover(300)), unit = o.distance;
+    const tiny = { min: [300, 300, 0] as [number, number, number], max: [310, 310, 10] as [number, number, number] };
+    expect(o.frameTo(tiny)).toBe(true);
+    expect(o.distance, "held at the near limit, 0.15 of the unit").toBeCloseTo(unit * 0.15, 6);
+    const r = screen(o, tiny, C1); // the visible box is 1000 x 400 here: its centre is (500, 200)
+    expect((r.left + r.right) / 2).toBeCloseTo(500, 0);
+    expect((r.top + r.bottom) / 2).toBeCloseTo(200, 0);
+  });
+
   it("frameTo junk changes nothing and says so", () => {
     const o = framedAt(), d = o.distance, t = [...o.target];
     for (const junk of [null, undefined, 3, { min: [NaN, 0, 0], max: [1, 1, 1] }, { min: [5, 5, 5], max: [1, 1, 1] }, { min: [0, 0], max: [1, 1] }] as never[]) expect(o.frameTo(junk)).toBe(false);

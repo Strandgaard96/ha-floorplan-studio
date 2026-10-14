@@ -88,9 +88,9 @@ export class Orbit {
 
   /** The framing step: fit `this.box` at the current angles. False (nothing changed) when it cannot be fitted. */
   private refit(): boolean {
-    const f = fitBox(this.box, this.azimuth, this.polar, this.fovDeg, this.canvas, this.visible());
+    const f = fitBox(this.box, this.azimuth, this.polar, this.fovDeg, this.canvas, this.visible(), [this.unit * NEAR_FACTOR, this.unit * FAR_FACTOR]);
     if (!f || !fin(f.distance)) return false;
-    this.distance = clamp(f.distance, this.unit * NEAR_FACTOR, this.unit * FAR_FACTOR);
+    this.distance = f.distance; // already inside the limits; the shift is for this distance
     this.target = [...f.target];
     this.px = f.shift;
     this.framed = true;

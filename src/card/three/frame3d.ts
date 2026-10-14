@@ -52,9 +52,9 @@ export function project(p: V3, canvas: Canvas, cam: Cam, fovDeg: number, shift: 
  * visible box (equal slack on opposite sides). The camera looks at the box's centre; `shift` slides the picture so the extent's centre
  * lands on the visible centre (S32.4: not the box's own centre, which perspective leaves off-centre). Found by bisection: the further the
  * camera, the smaller every corner's offset from the centre, so "fits" is monotone in the distance once every corner is in
- * front of the camera.
+ * front of the camera. `limits` (min, max distance) clamp the result, the shift worked out at the clamped distance.
  */
-export function fitBox(box: Box, az: number, polar: number, fovDeg: number, canvas: Canvas, visible: Rect): Fit | null {
+export function fitBox(box: Box, az: number, polar: number, fovDeg: number, canvas: Canvas, visible: Rect, limits?: readonly [number, number]): Fit | null {
   if (!box || !vec(box.min) || !vec(box.max) || box.min.some((v, i) => v > box.max[i])) return null;
   if (!fin(az) || !fin(polar) || !fovOk(fovDeg) || !canvasOk(canvas) || !visible) return null;
   const { left, top, right, bottom } = visible;
@@ -87,7 +87,8 @@ export function fitBox(box: Box, az: number, polar: number, fovDeg: number, canv
   for (let i = 0; i < 80 && !fits(hi); i++) { lo = hi; hi *= 2; }
   if (!fits(hi)) return null;
   for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
-  const distance = Math.max(1, hi), e = span(distance);
+  // `limits` clamp the distance before the shift is worked out, so a held-back camera is still centred at the distance it really has.
+  const fitted = Math.max(1, hi), distance = limits && fin(limits[0]) && fin(limits[1]) ? Math.min(limits[1], Math.max(limits[0], fitted)) : fitted, e = span(distance);
   if (!e) return null;
   // The extent's own centre goes to the visible centre (equal margins on opposite sides), not the box's centre: under perspective
   // the near side is drawn larger, so the two differ.
