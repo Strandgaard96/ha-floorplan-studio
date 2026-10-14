@@ -12,6 +12,7 @@ import type { RenderOpts } from "../../core/render";
 import { prismTriangles, type Triangles } from "./mesh";
 import { lowerWalls, wallBodies, wallZ, type WallBody, type Walls } from "./cut";
 import { Orbit } from "./orbit";
+import { glide } from "./frame3d";
 import { MARKER_R, Picker, type Pick } from "./pick";
 import { dimRgb, parsePaintDim, roleStyle, type PaintDim } from "./palette";
 import { MAX_POOLS, outwardSign, pickLights, roomLifts, roomOfPoint, WALL_REACH, type Poly, type Rgb, type RoomShape } from "./light";
@@ -231,7 +232,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     raf = 0;
     if (disposed || lost) return; // a lost context draws nothing; `webglcontextrestored` asks for the next frame
     try {
+      const gliding = stepGlide(performance.now());
       prepare();
+      if (gliding) want();
       if (!orbit.finite) throw new Error("the camera has no finite position (the plan's numbers are out of range)");
       // The motion edge breathes while a pulse plays: one frame asks for the next, and the one that ends it sets the held value.
       if (pulsing) pulsing = applyRings();
@@ -252,8 +255,32 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
 
   // The orbit takes the canvas and the px the card covers; both change on a resize, the cover on a sheet stop.
   const syncVisible = () => orbit.setVisible(size(), cover);
+  // F1: a cover change (a sheet stop) eases to its new framing; a canvas resize jumps (the canvas itself changes every frame of it).
+  // The glide is the orbit's distance, target and lens shift, 400 ms, ease-out cubic (`glide`'s own curve); `data-easing` is set while it runs.
+  type Pose = { distance: number; target: [number, number, number]; shift: [number, number] };
+  const pose = (): Pose => ({ distance: orbit.distance, target: [...orbit.target], shift: orbit.shift });
+  const setPose = (p: Pose) => { orbit.distance = p.distance; orbit.target = [...p.target]; orbit.setShift(p.shift[0], p.shift[1]); };
+  let easing: { from: Pose; to: Pose; t0: number } | null = null, tapEnd: Pose | null = null;
+  let glideMs = 400; // a test build may slow it (`__fp3d.glideMs`), so a touch lands while it runs
+  const stopGlide = (finish: boolean) => {
+    if (!easing) return;
+    if (finish) setPose(easing.to);
+    easing = null;
+    delete container.dataset.easing;
+  };
+  /** Moves the camera along the glide to `now`; true while it has further to go. */
+  const stepGlide = (now: number) => {
+    if (!easing) return false;
+    const t = Math.min(1, Math.max(0, (now - easing.t0) / glideMs)), { from, to } = easing;
+    if (t >= 1) { stopGlide(true); return false; }
+    const g = glide({ az: 0, polar: 0, distance: from.distance, target: from.target }, { az: 0, polar: 0, distance: to.distance, target: to.target }, t), e = 1 - (1 - t) ** 3;
+    if (!g) { stopGlide(true); return false; }
+    setPose({ distance: g.distance, target: g.target, shift: [from.shift[0] + (to.shift[0] - from.shift[0]) * e, from.shift[1] + (to.shift[1] - from.shift[1]) * e] });
+    return true;
+  };
   const resize = () => {
     if (disposed) return;
+    stopGlide(true); // a canvas resize jumps: the glide ends at its framing, and the new size is framed from there
     const { w, h } = size();
     renderer.setPixelRatio(Math.min(2, globalThis.devicePixelRatio || 1));
     renderer.setSize(w, h, false);
@@ -287,6 +314,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   // A cancelled pointerdown (below) stops the compatibility mousedown, which is what starts the browser's autoscroll (a test holds this); the middle click is let through only here.
   const noMiddle = (e: MouseEvent) => { if (e.button === 1) e.preventDefault(); };
   const onDown = (e: PointerEvent) => {
+    tapEnd = easing ? easing.to : null; // a tap (no drag) lets the glide finish at once; a drag, a pinch or a wheel keeps the camera where it is
+    stopGlide(false);
     if (e.button === 1) e.preventDefault();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { canvas.setPointerCapture(e.pointerId); } catch { /* a synthetic pointer: nothing to capture */ }
@@ -316,11 +345,15 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   };
   const onUp = (e: PointerEvent) => {
     pointers.delete(e.pointerId);
+    if (tapEnd && !dragged && pointers.size === 0) { setPose(tapEnd); want(); }
+    if (pointers.size === 0) tapEnd = null;
     try { canvas.releasePointerCapture(e.pointerId); } catch { /* not captured */ }
     if (pointers.size === 1) { const [r] = pointers.values(); start = { x: r.x, y: r.y }; }
   };
   const onWheel = (e: WheelEvent) => {
     e.preventDefault();
+    tapEnd = null;
+    stopGlide(false);
     orbit.zoom(Math.exp(Math.max(-200, Math.min(200, e.deltaY)) * (e.ctrlKey ? 0.01 : 0.0015)));
     opts.onCamera?.();
     want();
@@ -849,7 +882,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       try { plan = buildScene(floor as never, { around: around as never }); } catch (e) { debugOnce("3D view: the floor could not be built", e); plan = null; }
       clear(); // the old floor's meshes go now, before the new ones are made
       const bounds = plan?.bounds ?? { min: [0, 0, 0] as [number, number, number], max: [0, 0, 0] as [number, number, number] };
-      if (framed) orbit.reframe(bounds); // the same way of looking, at the new floor
+      if (framed) { stopGlide(false); orbit.reframe(bounds); } // the same way of looking, at the new floor
       else {
         const { w, h } = size();
         orbit = new Orbit(bounds, w / h, FOV, opts.turnDeg);
@@ -889,9 +922,18 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const next = { top: px(c.top), right: px(c.right), bottom: px(c.bottom), left: px(c.left) };
       const key = `${next.top},${next.right},${next.bottom},${next.left}`;
       if (key === container.dataset.frame) return; // the card says it after every render: the same frame is no frame
+      const seen = container.dataset.frame !== undefined, from = pose();
       cover = next;
       syncVisible();
       container.dataset.frame = key;
+      const to = pose();
+      stopGlide(false);
+      const moved = from.distance !== to.distance || from.target.some((v, i) => v !== to.target[i]) || from.shift.some((v, i) => v !== to.shift[i]);
+      if (seen && moved && !reduced() && [...from.target, ...to.target, from.distance, to.distance].every(Number.isFinite)) {
+        setPose(from);
+        easing = { from, to, t0: performance.now() };
+        container.dataset.easing = "";
+      }
       want();
     },
     pick(clientX, clientY) {
@@ -925,9 +967,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       pulseStart = performance.now();
       try { applyLive(); } catch (e) { debugOnce("3D view: the live state could not be drawn; the last one stays on screen", e); }
     },
-    reset() { orbit.reset(); want(); },
+    reset() { stopGlide(false); orbit.reset(); want(); },
     camera: () => orbit.state(),
-    setCamera(c) { orbit.restore(c); want(); },
+    setCamera(c) { stopGlide(false); orbit.restore(c); want(); },
     get dragged() { return dragged; },
     dispose() {
       if (disposed) return;
@@ -976,6 +1018,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     };
     testHook = {
       project,
+      /** S32.6: the glide's length in ms, so a test can touch the canvas while it runs. */
+      glideMs(ms: number) { glideMs = ms; },
       /** S32.1: what the framing frames, as a screen rectangle (page px): the eight corners of the box through the real camera. "floor" is the floor's scene bounds; a room index is that room's floor polygon extent padded 50 cm, from its slab top to the wall top. Null when there is no such box. */
       box(which: "floor" | number) {
         let lo: [number, number, number], hi: [number, number, number];

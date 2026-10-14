@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Card (S32.6): on a phone the 3D camera glides, 400 ms, when the bottom sheet changes stop, and jumps when the card itself is resized (and under reduced motion). Dragging the handle moves nothing; the snap does. A drag or a wheel turn on the plan during the glide keeps the camera where it is; a tap lets it finish.
 - Card (S32.5): the 3D house is framed in what the bottom sheet leaves. On a phone, opening the sheet to half or full frames the whole house above it, and peek or Back frames the whole stage again (a camera you have moved keeps its angles). `setInset` is replaced by `setFrame`; the card tells the view the px the sheet covers.
 - Card (S32.4): the 3D camera frames the house exactly. The first view, Reset camera and a floor switch fit the eight corners of the floor's box inside the visible part of the view (the old 0.85 sphere is gone), and a resized card fits an untouched camera again; a camera you have turned, zoomed or panned keeps its angles and target and its distance follows the box. The orbit also learns to focus a room and to go back (wired in S32.7).
 - Card (internal, S32.2): the 3D framing maths (`fitBox`, `project`, `glide`) as a pure module, checked against three.js. Nothing uses it yet.

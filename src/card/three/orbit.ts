@@ -172,6 +172,9 @@ export class Orbit {
   /** How far the picture is slid on the canvas, px: right and down are positive. The view applies it as a lens shift. */
   get shift(): [number, number] { return [this.px[0], this.px[1]]; }
 
+  /** Puts the picture's lens shift where a glide says (px). Junk changes nothing. */
+  setShift(x: number, y: number): void { if (fin(x) && fin(y)) this.px = [x, y]; }
+
   /** Where the camera stands (three's frame). */
   position(): V3 {
     const s = Math.sin(this.polar) * this.distance;

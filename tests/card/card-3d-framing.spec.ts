@@ -186,24 +186,25 @@ test.describe("S32.1 criterion 3: a resize does not snap a moved camera", () => 
 
 // ---- criterion 4: the bottom sheet ---------------------------------------------------------------------------------------------
 
-test.describe("S32.1 criterion 4: the house above the bottom sheet", () => {
-  /** Handle to a stop: down, ten moves `dy` px, a rest, up (as card-bottom-sheet.spec.ts: a rest is not a fling). */
-  async function dragHandle(page: Page, dy: number) {
-    // The sheet's height is a 0.2 s CSS transition: read the handle only once it has stopped (3 equal frames), or the drag starts short.
-    let b = (await handle(page).boundingBox())!;
-    for (let same = 0; same < 3; ) {
-      await frames(page, 1);
-      const n = (await handle(page).boundingBox())!;
-      same = n.y === b.y ? same + 1 : 0;
-      b = n;
-    }
-    const x = b.x + b.width / 2, y = b.y + b.height / 2;
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    for (let i = 1; i <= 10; i++) await page.mouse.move(x, y + (dy * i) / 10);
-    await frames(page, 10);
-    await page.mouse.up();
+/** Handle to a stop: down, ten moves `dy` px, a rest, up (as card-bottom-sheet.spec.ts: a rest is not a fling). */
+async function dragHandle(page: Page, dy: number) {
+  // The sheet's height is a 0.2 s CSS transition: read the handle only once it has stopped (3 equal frames), or the drag starts short.
+  let b = (await handle(page).boundingBox())!;
+  for (let same = 0; same < 3; ) {
+    await frames(page, 1);
+    const n = (await handle(page).boundingBox())!;
+    same = n.y === b.y ? same + 1 : 0;
+    b = n;
   }
+  const x = b.x + b.width / 2, y = b.y + b.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (let i = 1; i <= 10; i++) await page.mouse.move(x, y + (dy * i) / 10);
+  await frames(page, 10);
+  await page.mouse.up();
+}
+
+test.describe("S32.1 criterion 4: the house above the bottom sheet", () => {
   test("390x844: a tap on the handle (half) frames the house above the sheet", async ({ page }) => {
     await boot(page, PHONE);
     await handle(page).click();
@@ -247,6 +248,120 @@ test.describe("S32.1 criterion 4: the house above the bottom sheet", () => {
     await expectFloorFitted(page, "the house above the half sheet");
     const seen = await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen);
     expect(seen.length, `the camera values seen: ${seen.join(" ; ")}`).toBe(2);
+  });
+});
+
+// ---- S32.6: the glide on a cover change ------------------------------------------------------------------------------------------
+// F1: a cover change from a stop eases (data-easing, 400 ms); a canvas resize jumps; a drag of the handle moves nothing; a drag or
+// wheel on the canvas ends a glide where it is; reduced motion jumps (the case above). The recorder samples on every animation frame.
+
+test.describe("S32.6: the camera glides to the new framing when the sheet changes stop", () => {
+  const sheet = (page: Page) => card(page).locator("css=.fp-bottom");
+  /** Records, from now on and on every animation frame, the camera values and whether `data-easing` is set. */
+  const record = (page: Page) => holder(page).evaluate((el) => {
+    const w = window as unknown as { __rec: { dist: number; target: string; ease: boolean; drawn: number }[]; __go: boolean };
+    w.__rec = []; w.__go = true;
+    const f = () => { if (!w.__go) return; w.__rec.push({ dist: +el.dataset.dist!, target: el.dataset.target!, ease: el.hasAttribute("data-easing"), drawn: +(el.dataset.drawn ?? 0) }); requestAnimationFrame(f); };
+    requestAnimationFrame(f);
+  });
+  const stopRec = (page: Page) => page.evaluate(() => { const w = window as unknown as { __rec: { dist: number; target: string; ease: boolean; drawn: number }[]; __go: boolean }; w.__go = false; return w.__rec; });
+
+  test("390x844: peek to half eases through at least three distinct framings, one way, and ends fitted", async ({ page }) => {
+    await boot(page, PHONE);
+    const start = await cam(page);
+    await record(page);
+    await handle(page).click();
+    await expect(sheet(page)).toHaveAttribute("data-stop", "half");
+    await settled(page);
+    const rec = await stopRec(page);
+    const end = await cam(page);
+    const eased = rec.filter((r) => r.ease);
+    expect(eased.length, "frames with data-easing set").toBeGreaterThanOrEqual(3);
+    const mid = new Set(eased.map((r) => `${r.dist}|${r.target}`));
+    expect(mid.size, "distinct camera values while easing").toBeGreaterThanOrEqual(3);
+    const lo = Math.min(start.dist, end.dist), hi = Math.max(start.dist, end.dist);
+    for (const r of rec) expect(r.dist, "distance stays between the two framings").toBeGreaterThanOrEqual(lo - 0.2);
+    for (const r of rec) expect(r.dist).toBeLessThanOrEqual(hi + 0.2);
+    expect(end.dist, "half is not the full-stage framing").not.toBeCloseTo(start.dist, 0);
+    await expectFloorFitted(page, "the house above the half sheet");
+  });
+
+  test("390x844: a half-way drag of the handle moves the camera not at all; the snap does", async ({ page }) => {
+    await boot(page, PHONE);
+    const before = await cam(page);
+    const b = (await handle(page).boundingBox())!, x = b.x + b.width / 2, y = b.y + b.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    for (let i = 1; i <= 8; i++) await page.mouse.move(x, y - 20 * i);
+    await frames(page, 12);
+    const during = await cam(page);
+    expect(during.dist, "no camera change while the handle is held").toBe(before.dist);
+    expect(during.target).toBe(before.target);
+    expect(await holder(page).getAttribute("data-easing"), "no glide while the handle is held").toBeNull();
+    await page.mouse.up();
+    await expect(sheet(page)).not.toHaveAttribute("data-stop", "peek");
+    await settled(page);
+    expect((await cam(page)).dist, "the snap framed the house above the sheet").not.toBe(before.dist);
+    await expectFloorFitted(page, "the house above the sheet it snapped to");
+  });
+
+  for (const how of ["wheel", "drag"] as const) test(`390x844: a ${how} on the canvas during the glide ends it where it is`, async ({ page }) => {
+    await boot(page, PHONE);
+    await page.evaluate(() => (window as unknown as { __fp3d: { glideMs(ms: number): void } }).__fp3d.glideMs(20000)); // slow, so the touch lands while it runs
+    await handle(page).click();
+    await expect(holder(page)).toHaveAttribute("data-easing", "");
+    const c = (await canvas(page).boundingBox())!, x = c.x + c.width / 2, y = c.y + 100;
+    await page.mouse.move(x, y);
+    if (how === "wheel") await page.mouse.wheel(0, 1);
+    else { await page.mouse.down(); await page.mouse.move(x + 20, y + 8); await page.mouse.up(); }
+    await frames(page, 3);
+    expect(await holder(page).getAttribute("data-easing"), "the touch ended the glide").toBeNull();
+    const a = await cam(page);
+    await frames(page, 30);
+    const b = await cam(page);
+    expect(b.dist, "no frame after the touch changes the distance").toBe(a.dist);
+    expect(b.target).toBe(a.target);
+    expect(b.az).toBe(a.az);
+  });
+
+  test("1024x768 to 768x1024: a canvas resize jumps, with no glide", async ({ page }) => {
+    await boot(page, WIDE);
+    await holder(page).evaluate((el) => {
+      const w = window as unknown as { __ease: number };
+      w.__ease = 0;
+      new MutationObserver(() => { if (el.hasAttribute("data-easing")) w.__ease++; }).observe(el, { attributes: true, attributeFilter: ["data-easing"] });
+    });
+    await resize(page, [768, 1024]);
+    await expectFloorFitted(page, "the house after the resize");
+    expect(await page.evaluate(() => (window as unknown as { __ease: number }).__ease), "data-easing set during a resize").toBe(0);
+  });
+
+  test("390x844: peek, half, full, peek, half: each end fitted, full leaves the camera, no value outside the two framings", async ({ page }) => {
+    await boot(page, PHONE);
+    const first = await cam(page);
+    await handle(page).click();
+    await expect(sheet(page)).toHaveAttribute("data-stop", "half");
+    await settled(page);
+    const half = await cam(page);
+    await dragHandle(page, -240); // half to full
+    await expect(sheet(page)).toHaveAttribute("data-stop", "full");
+    await settled(page);
+    expect((await cam(page)).dist, "full keeps the half framing").toBe(half.dist);
+    await record(page);
+    await handle(page).click(); // full to half: the same framing, nothing to glide
+    await settled(page);
+    await handle(page).click(); // half to peek
+    await expect(sheet(page)).toHaveAttribute("data-stop", "peek");
+    await settled(page);
+    const back = await cam(page);
+    expect(back.dist, "peek frames the whole stage as the first draw did").toBeCloseTo(first.dist, 0);
+    for (const r of await stopRec(page)) { expect(r.dist).toBeGreaterThanOrEqual(Math.min(half.dist, first.dist) - 0.2); expect(r.dist).toBeLessThanOrEqual(Math.max(half.dist, first.dist) + 0.2); }
+    await expectFloorFitted(page, "the whole stage at peek");
+    await handle(page).click();
+    await expect(sheet(page)).toHaveAttribute("data-stop", "half");
+    await settled(page);
+    expect((await cam(page)).dist, "half again").toBeCloseTo(half.dist, 0);
+    await expectFloorFitted(page, "the house above the half sheet again");
   });
 });
 
@@ -321,7 +436,7 @@ test.describe("S32.1 criterion 6: leaving the room goes back to the camera it ha
 test.describe("S32.1 criterion 7: the glide", () => {
   for (const size of SIZES) {
     test(`${name(size)}: a glide draws at least three frames`, async ({ page }) => {
-      red(7);
+      red(7, name(size) !== name(PHONE)); // 390x844: the pick opens the sheet to half, whose glide (S32.6) already draws these frames
       await boot(page, size);
       await holder(page).evaluate((el) => {
         const w = window as unknown as { __ease: { began: number | null; ended: number | null } };
@@ -371,15 +486,18 @@ test.describe("S32.1 criterion 7: the glide", () => {
       else sameCam(await cam(page), pre);
     });
     test(`${name(size)}: a real drag during the glide ends it`, async ({ page }) => {
-      red(7);
+      red(7, name(size) !== name(PHONE)); // 390x844: the sheet's glide (S32.6) is the one the drag ends; S32.7 keeps it passing for the room's
       await boot(page, size);
+      await page.evaluate(() => (window as unknown as { __fp3d: { glideMs(ms: number): void } }).__fp3d.glideMs(20000)); // slow, so the touch lands while it runs, however loaded the machine
       await card(page).getByRole("button", { name: "Search" }).click();
       await page.keyboard.type("Kitchen");
       const opt = card(page).locator("css=fp-search").locator("css=[role=\"option\"]").filter({ has: page.locator("css=.name", { hasText: /^Kitchen$/ }) });
       await opt.first().click();
       await expect.poll(() => holder(page).getAttribute("data-easing"), { timeout: 3000, message: "the glide shows data-easing" }).not.toBeNull();
       const v = await visibleBox(page), x = (v.left + v.right) / 2, y = v.top + 40;
-      await page.mouse.move(x, y);
+      // The Search overlay can still lie over this point under load: hover waits until the canvas itself is the top element there (a real touch must reach it).
+      const cb = (await canvas(page).boundingBox())!;
+      await canvas(page).hover({ position: { x: x - cb.x, y: y - cb.y } });
       await page.mouse.down();
       const mid = await cam(page);
       expect(await holder(page).getAttribute("data-easing"), "a pointer down on the canvas stops the glide").toBeNull();

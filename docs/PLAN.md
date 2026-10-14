@@ -4044,7 +4044,7 @@ Wave 3, one lane, in order (each task shares `view3d.ts` and the card file):
       3. Migrate the tests that pinned `dist` or read `data-inset` (`card-3d-narrow`, `card-3d`, `card-3d-floors`,
       `card-3d-pan`, `card-3d-live`, `card-view-memory-3d`), each named with its new premise.
       Files: `src/card/three/view3d.ts`, `src/card/floorplan-studio-card.ts`, the migrated specs.
-- [ ] S32.6 Frame above the bottom sheet (Sonnet). Limit 2. The card calls `_apply3dFrame` on every stop change
+- [x] S32.6 Frame above the bottom sheet (Sonnet). Limit 2. The card calls `_apply3dFrame` on every stop change
       (handle tap, snap, Back, a pick), not on drag moves; the view glides on a cover change and jumps on a canvas
       resize (F1); reduced motion jumps. Remove the `test.fail()` of criterion 4.
       Files: `src/card/floorplan-studio-card.ts`, `src/card/three/view3d.ts`.
