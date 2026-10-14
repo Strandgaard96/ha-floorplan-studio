@@ -4048,7 +4048,7 @@ Wave 3, one lane, in order (each task shares `view3d.ts` and the card file):
       (handle tap, snap, Back, a pick), not on drag moves; the view glides on a cover change and jumps on a canvas
       resize (F1); reduced motion jumps. Remove the `test.fail()` of criterion 4.
       Files: `src/card/floorplan-studio-card.ts`, `src/card/three/view3d.ts`.
-- [ ] S32.7 Room focus (Sonnet, **judgement**: the glide's cancel and the double-tap delay). Limit 3. View: `room` in
+- [x] S32.7 Room focus (Sonnet, **judgement**: the glide's cancel and the double-tap delay). Limit 3. View: `room` in
       `setFrame` focuses the room box (from the room's solid, padded 50 cm), unfocus on null, the glide in the frame
       loop with `data-easing`, cancelled by pointerdown and wheel on the canvas, `camera()` the floor camera. Card: the
       room from `_picked()`; a canvas tap's pick reaches `setFrame` after `DOUBLE_TAP_MS` (a timer cleared by the

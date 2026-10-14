@@ -8,11 +8,8 @@ import { demo, serve, ORIGIN, configure, card, canvas, holder, cam, drawn, box, 
 // `data-drawn` and the stage's own rect. Where the next step has no state to wait on (the double-tap window, 350 ms, that a canvas
 // tap waits out before it moves the camera) the wait is on the page's own clock, as `card-bottom-sheet.spec.ts` waits on frames.
 //
-// Red by design: every case that fails against 0.29.0 carries `red(n)`, `test.fail()` with "S32.n removes this", n the task that
-// makes it pass. Each fails on an assertion (not fitted, outside, camera unchanged, no glide seen), never on a timeout.
-// Cases that already pass are not marked; the report names them.
-
-const red = (n: number, on = true) => test.fail(on, `S32.${n} removes this`);
+// S32.7 removed the last `test.fail()` marks: criteria 5 to 9 pass for the room focus. At 390x844 two cases (a glide draws three frames; a drag
+// ends the glide) had already passed for the bottom sheet's glide (S32.6); they now run for the room's as well and must keep passing.
 
 type Size = readonly [number, number];
 const SIZES: readonly Size[] = [[768, 1024], [1024, 768], [390, 844], [844, 390]];
@@ -85,10 +82,12 @@ async function tapKitchen(page: Page) {
   await after(page, t0, 450);
 }
 /** The header's Search, the letters, and a real click on the Kitchen room's result. */
-async function searchKitchen(page: Page) {
+/** `armed` runs after the Search panel is open and the stage at rest, just before the click that picks: opening Search narrows the stage at 768 px (a resize, not the pick). */
+async function searchKitchen(page: Page, armed?: () => Promise<void>) {
   await settled(page);
   await card(page).getByRole("button", { name: "Search" }).click();
   await page.keyboard.type("Kitchen");
+  if (armed) { await settled(page); await armed(); }
   const opt = card(page).locator("css=fp-search").locator("css=[role=\"option\"]").filter({ has: page.locator("css=.name", { hasText: /^Kitchen$/ }) });
   const t0 = await now(page);
   await opt.first().click();
@@ -372,7 +371,6 @@ test.describe("S32.6: the camera glides to the new framing when the sheet change
 test.describe("S32.1 criterion 5: a room pick frames the room", () => {
   for (const size of SIZES) for (const how of HOWS) {
     test(`${name(size)}, by ${how}`, async ({ page }) => {
-      red(7);
       await boot(page, size);
       const pre = await cam(page);
       await focusKitchen(page, how);
@@ -396,8 +394,14 @@ test.describe("S32.1 criterion 6: leaving the room goes back to the camera it ha
   const WAYS = ["Escape", "Back", "a tap on the background"] as const;
   for (const size of SIZES) for (const way of WAYS) {
     test(`${name(size)}, ${way}`, async ({ page }) => {
-      red(7);
       await boot(page, size);
+      // Premise (S32.7): on a phone a pick opens the sheet to half and Back leaves it there, so the camera Back returns to is the floor framed
+      // above the half sheet. The pre-focus camera is taken at that stop (the handle tapped first), not at peek: framed in a different box, 1.2 % apart.
+      if (name(size) === name(PHONE)) {
+        await handle(page).click();
+        await expect(card(page).locator("css=.fp-bottom")).toHaveAttribute("data-stop", "half");
+        await settled(page);
+      }
       const pre = await cam(page);
       await focusKitchen(page, "search");
       await settled(page);
@@ -418,7 +422,6 @@ test.describe("S32.1 criterion 6: leaving the room goes back to the camera it ha
     });
   }
   test("1024x768: a floor tab drops the focus and frames the new floor", async ({ page }) => {
-    red(7);
     await boot(page, WIDE, { floor: "all" });
     await focusKitchen(page, "search");
     await settled(page);
@@ -436,7 +439,6 @@ test.describe("S32.1 criterion 6: leaving the room goes back to the camera it ha
 test.describe("S32.1 criterion 7: the glide", () => {
   for (const size of SIZES) {
     test(`${name(size)}: a glide draws at least three frames`, async ({ page }) => {
-      red(7, name(size) !== name(PHONE)); // 390x844: the pick opens the sheet to half, whose glide (S32.6) already draws these frames
       await boot(page, size);
       await holder(page).evaluate((el) => {
         const w = window as unknown as { __ease: { began: number | null; ended: number | null } };
@@ -454,16 +456,16 @@ test.describe("S32.1 criterion 7: the glide", () => {
       expect(e.ended! - e.began!, `frames drawn while easing ${JSON.stringify(e)}`).toBeGreaterThanOrEqual(3);
     });
     test(`${name(size)}, reduced motion: the room is framed with no frame between`, async ({ page }) => {
-      red(7);
+      // Premise: the count starts when the Search panel is open (at 768 px opening it narrows the stage, a resize with its own step), so it
+      // counts the pick's own steps: one.
       await page.emulateMedia({ reducedMotion: "reduce" });
       await boot(page, size);
-      await holder(page).evaluate((el) => {
+      await searchKitchen(page, () => holder(page).evaluate((el) => {
         const w = window as unknown as { __seen: string[] };
         const read = () => `${el.dataset.dist}|${el.dataset.target}`;
         w.__seen = [read()];
         new MutationObserver(() => { const v = read(); if (w.__seen[w.__seen.length - 1] !== v) w.__seen.push(v); }).observe(el, { attributes: true, attributeFilter: ["data-dist", "data-target"] });
-      });
-      await searchKitchen(page);
+      }));
       await settled(page);
       await expectRoomFitted(page, KITCHEN, "the Kitchen");
       const seen = await page.evaluate(() => (window as unknown as { __seen: string[] }).__seen);
@@ -485,8 +487,26 @@ test.describe("S32.1 criterion 7: the glide", () => {
       if (size === PHONE) await expectFloorFitted(page, "the house above the half sheet, not zoomed into the room");
       else sameCam(await cam(page), pre);
     });
+    if (size === WIDE) test(`${name(size)}: a double tap shows no frame with the camera anywhere else (the delay, not only the end state)`, async ({ page }) => {
+      // The end state above would also hold if the camera glided into the room and the second tap's restore glided it back. This one records
+      // every camera value drawn from before the pair to well after the window: one value, and `data-easing` never set.
+      await boot(page, size);
+      await holder(page).evaluate((el) => {
+        const w = window as unknown as { __seen: string[]; __ease: boolean };
+        const read = () => `${el.dataset.dist}|${el.dataset.target}|${el.dataset.az}|${el.dataset.polar}`;
+        w.__seen = [read()]; w.__ease = false;
+        new MutationObserver(() => { const v = read(); if (w.__seen[w.__seen.length - 1] !== v) w.__seen.push(v); if (el.hasAttribute("data-easing")) w.__ease = true; }).observe(el, { attributes: true, attributeFilter: ["data-dist", "data-target", "data-az", "data-polar", "data-easing"] });
+      });
+      const p = await floorOf(page, KITCHEN);
+      expect(await picks(page, p)).toEqual({ type: "room", index: KITCHEN });
+      const t0 = await now(page);
+      await page.mouse.dblclick(p.x, p.y);
+      await after(page, t0, 900);
+      const seen = await page.evaluate(() => { const w = window as unknown as { __seen: string[]; __ease: boolean }; return { values: w.__seen, ease: w.__ease }; });
+      expect(seen.values, "camera values drawn").toHaveLength(1);
+      expect(seen.ease, "data-easing was set").toBe(false);
+    });
     test(`${name(size)}: a real drag during the glide ends it`, async ({ page }) => {
-      red(7, name(size) !== name(PHONE)); // 390x844: the sheet's glide (S32.6) is the one the drag ends; S32.7 keeps it passing for the room's
       await boot(page, size);
       await page.evaluate(() => (window as unknown as { __fp3d: { glideMs(ms: number): void } }).__fp3d.glideMs(20000)); // slow, so the touch lands while it runs, however loaded the machine
       await card(page).getByRole("button", { name: "Search" }).click();
@@ -517,7 +537,6 @@ test.describe("S32.1 criterion 7: the glide", () => {
 test.describe("S32.1 criterion 8: the focus is never stored", () => {
   const stored = (page: Page) => page.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:")).map(([, v]) => JSON.parse(v) as { floors?: [string, { cam?: unknown }][] }));
   test("1024x768: focus, orbit 60 px, reload: the orbit's angles, the zoom from before the focus", async ({ page }) => {
-    red(7);
     await boot(page, WIDE);
     const zoom = (await camState(page)).zoom;
     await focusKitchen(page, "search");
@@ -539,7 +558,6 @@ test.describe("S32.1 criterion 8: the focus is never stored", () => {
     expect((await camState(page)).zoom, "the pre-focus zoom, not the Kitchen's").toBeCloseTo(zoom, 3);
   });
   test("1024x768: Reset camera while focused goes to the first view, drops the focus, keeps the ring", async ({ page }) => {
-    red(7);
     await boot(page, WIDE);
     const first = await cam(page);
     await focusKitchen(page, "search");
@@ -557,7 +575,6 @@ test.describe("S32.1 criterion 8: the focus is never stored", () => {
 
 test.describe("S32.1 criterion 9: hostile cases", () => {
   test("two cards on one page: a pick in one moves only its camera", async ({ page }) => {
-    red(7);
     await page.setViewportSize({ width: 1100, height: 800 });
     await serve(page);
     await page.goto(`${ORIGIN}/harness.html`);
@@ -598,7 +615,6 @@ test.describe("S32.1 criterion 9: hostile cases", () => {
   });
 
   test("1024x768: a hass update mid-glide changes nothing; the glide ends where it would have", async ({ page }) => {
-    red(7);
     await boot(page, WIDE);
     await searchKitchen(page);
     await settled(page);
@@ -617,7 +633,6 @@ test.describe("S32.1 criterion 9: hostile cases", () => {
   });
 
   test("1024x768: a floor switch mid-glide frames the new floor", async ({ page }) => {
-    red(7);
     await boot(page, WIDE, { floor: "all" });
     await searchKitchen(page);
     await expect.poll(() => holder(page).getAttribute("data-easing"), { timeout: 3000, message: "the glide shows data-easing" }).not.toBeNull();
@@ -628,7 +643,6 @@ test.describe("S32.1 criterion 9: hostile cases", () => {
   });
 
   test("1024x768: a room named __proto__ is framed like any other", async ({ page }) => {
-    red(7);
     const layout = structuredClone(demo);
     layout.floors.ground.rooms[KITCHEN].name = "__proto__";
     await page.setViewportSize({ width: WIDE[0], height: WIDE[1] });
@@ -644,7 +658,6 @@ test.describe("S32.1 criterion 9: hostile cases", () => {
   });
 
   test("1024x768: a one-room layout frames its room", async ({ page }) => {
-    red(7);
     const layout = structuredClone(demo);
     layout.floors.ground.rooms = [layout.floors.ground.rooms[KITCHEN]];
     await page.setViewportSize({ width: WIDE[0], height: WIDE[1] });

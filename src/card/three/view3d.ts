@@ -57,8 +57,8 @@ export interface View3D {
   /** The walls mode: "full", "cut" (the walls facing the camera drop to `lowWall`) or "low" (all of them do). */
   setWalls(mode: string): void;
   /**
-   * What the card lays over the view, in px from each edge (the bottom sheet), and the room in focus (null: none yet, S32.7). The camera
-   * frames in the rest. Idempotent: the card says it after every render, the same frame is no frame. Junk reads as 0.
+   * What the card lays over the view, in px from each edge (the bottom sheet), and the room in focus (its index on the floor, or null). The camera
+   * frames in the rest; a room glides in (F3) and null glides back to the camera it had. Idempotent: the card says it after every render, the same frame is no frame. Junk reads as 0 and null.
    */
   setFrame(frame: { cover: { top: number; right: number; bottom: number; left: number }; room: number | null }): void;
   /** What is under this point of the page (client coordinates), or null: the same answer a tap there gets. */
@@ -261,6 +261,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   const pose = (): Pose => ({ distance: orbit.distance, target: [...orbit.target], shift: orbit.shift });
   const setPose = (p: Pose) => { orbit.distance = p.distance; orbit.target = [...p.target]; orbit.setShift(p.shift[0], p.shift[1]); };
   let easing: { from: Pose; to: Pose; t0: number } | null = null, tapEnd: Pose | null = null;
+  let focused: number | null = null; // the room `setFrame` last framed (F3); a new floor drops it with the orbit's own
   let glideMs = 400; // a test build may slow it (`__fp3d.glideMs`), so a touch lands while it runs
   const stopGlide = (finish: boolean) => {
     if (!easing) return;
@@ -781,6 +782,14 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   }
   /** The top of the highest wall of the floor drawn (plan z, the floor's lift included); 0 when it has none. */
   const wallTop = () => (plan?.solids ?? []).reduce((m, s) => (s.kind === "wall" && s.shape.type === "prism" ? Math.max(m, s.shape.z1) : m), 0);
+  /** A room's box for the framing (F3): its floor polygon's extent padded 50 cm, from its slab to the wall top. Null for a room the scene has no floor for, or with non-finite corners. */
+  const roomBox = (room: number): { min: [number, number, number]; max: [number, number, number] } | null => {
+    const rs = roomSolid.get(room);
+    if (!rs || !rs.base.length) return null;
+    const xs = rs.base.map((q) => q[0]), ys = rs.base.map((q) => q[1]), top = wallTop();
+    const lo: [number, number, number] = [Math.min(...xs) - 50, Math.min(...ys) - 50, rs.z], hi: [number, number, number] = [Math.max(...xs) + 50, Math.max(...ys) + 50, Math.max(rs.z, top)];
+    return [...lo, ...hi].every(Number.isFinite) ? { min: lo, max: hi } : null;
+  };
   const anchorsOf = (): Anchors => {
     const devices = new Map<number, [number, number, number]>(), roomsA = new Map<number, [number, number, number]>();
     // A point is held under the walls by the scene itself; a body's icon (its top plus 6) is held here, by the same margin.
@@ -882,6 +891,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       try { plan = buildScene(floor as never, { around: around as never }); } catch (e) { debugOnce("3D view: the floor could not be built", e); plan = null; }
       clear(); // the old floor's meshes go now, before the new ones are made
       const bounds = plan?.bounds ?? { min: [0, 0, 0] as [number, number, number], max: [0, 0, 0] as [number, number, number] };
+      focused = null; // the focus is the old floor's
       if (framed) { stopGlide(false); orbit.reframe(bounds); } // the same way of looking, at the new floor
       else {
         const { w, h } = size();
@@ -921,11 +931,17 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const c = frame && typeof frame === "object" && frame.cover && typeof frame.cover === "object" ? frame.cover : { top: 0, right: 0, bottom: 0, left: 0 };
       const next = { top: px(c.top), right: px(c.right), bottom: px(c.bottom), left: px(c.left) };
       const key = `${next.top},${next.right},${next.bottom},${next.left}`;
-      if (key === container.dataset.frame) return; // the card says it after every render: the same frame is no frame
+      const room = frame && typeof frame === "object" && typeof frame.room === "number" && Number.isInteger(frame.room) && frame.room >= 0 ? frame.room : null;
+      if (key === container.dataset.frame && room === focused) return; // the card says it after every render: the same frame is no frame
       const seen = container.dataset.frame !== undefined, from = pose();
       cover = next;
       syncVisible();
       container.dataset.frame = key;
+      if (room !== focused) { // F3: a room is framed from the camera it had; none goes back to it. A room the scene has no box for moves nothing.
+        const rb = room === null ? null : roomBox(room);
+        if (room === null) orbit.unfocus(); else if (rb) orbit.focus({ min: rb.min, max: rb.max });
+        focused = room;
+      }
       const to = pose();
       stopGlide(false);
       const moved = from.distance !== to.distance || from.target.some((v, i) => v !== to.target[i]) || from.shift.some((v, i) => v !== to.shift[i]);
@@ -1028,11 +1044,9 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
           if (!b) return null;
           lo = [b.min[0], b.min[1], b.min[2]]; hi = [b.max[0], b.max[1], b.max[2]];
         } else {
-          const rs = typeof which === "number" ? roomSolid.get(which) : undefined;
-          if (!rs || !rs.base.length) return null;
-          const top = wallTop();
-          lo = [Math.min(...rs.base.map((q) => q[0])) - 50, Math.min(...rs.base.map((q) => q[1])) - 50, rs.z];
-          hi = [Math.max(...rs.base.map((q) => q[0])) + 50, Math.max(...rs.base.map((q) => q[1])) + 50, Math.max(rs.z, top)];
+          const rb = typeof which === "number" ? roomBox(which) : null;
+          if (!rb) return null;
+          lo = rb.min; hi = rb.max;
         }
         if (![...lo, ...hi].every(Number.isFinite)) return null;
         let left = Infinity, top2 = Infinity, right = -Infinity, bottom = -Infinity;

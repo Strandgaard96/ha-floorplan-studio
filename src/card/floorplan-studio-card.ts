@@ -622,6 +622,10 @@ export class FloorplanStudioCard extends LitElement {
   /** The floor key the 3D view's scene was built for, and whether the person moved its camera on that floor. */
   private _view3dKey: string | null = null;
   private _camMoved = false;
+  /** S32.7: the room the 3D view was last told to frame. A canvas tap's pick waits out the double-tap window before it reaches the view (`_focusHold`), so a double tap never moves the camera. */
+  private _focus3d: number | null = null;
+  private _focusHold = false;
+  private _focusTimer: ReturnType<typeof setTimeout> | null = null;
   /** The debounce timer for pan and zoom saves; non-null means there is something unsaved. */
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
   /** The fit box of the floor on show, from the last render; the zoom handlers clamp against it. */
@@ -1172,6 +1176,7 @@ export class FloorplanStudioCard extends LitElement {
 
   setConfig(config: FloorplanStudioCardConfig): void {
     this._validateConfig(config ?? {});
+    this._releaseFocus();
     this._flushSave(); // under the old config's key
     this._settleTurn(false);
     this._config = config ?? {};
@@ -1279,6 +1284,7 @@ export class FloorplanStudioCard extends LitElement {
 
   disconnectedCallback(): void {
     super.disconnectedCallback();
+    this._releaseFocus();
     this._stopTimer();
     if (this._pulseTimer !== null) { globalThis.clearTimeout(this._pulseTimer); this._pulseTimer = null; this._pulse = null; }
     globalThis.removeEventListener?.("pagehide", this._flushSave);
@@ -1891,6 +1897,7 @@ export class FloorplanStudioCard extends LitElement {
       this._closePopup(); // a tap on anything else is an outside tap
       const now = performance.now();
       if (last && now - last.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) < DOUBLE_TAP_PX) {
+        this._releaseFocus();
         this._restorePick(last.before);
         last = null;
         return;
@@ -1899,6 +1906,7 @@ export class FloorplanStudioCard extends LitElement {
       if (!this._activeListVisible()) return;
       const room = p?.type === "room" ? p.index : null;
       this._pickRoom(room !== null && this._picked() !== room ? room : null);
+      this._holdFocus();
     };
     const onCancel = () => { pointers = 0; start = null; };
     // S14.2: hover (mouse only). The pointer's position is two numbers and the pick runs once a frame, whatever the pointer does in between.
@@ -1938,13 +1946,28 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** The bottom sheet lies over the lower part of the 3D stage; the camera frames the house in the rest (`coverOf`, F1 of the framing
-   * spec). Side and kiosk cover nothing. Costs a layout read, so it runs after a render and a resize, not per frame. The room is null
-   * until S32.7. */
+   * spec). Side and kiosk cover nothing. Costs a layout read, so it runs after a render and a resize, not per frame. The room is the
+   * picked one (F3), held back while a canvas tap waits out the double-tap window. */
   private _apply3dFrame(): void {
     const view = this._view3d, host = this.shadowRoot?.querySelector<HTMLElement>(".fp-3d"), stops = this._stopsNow();
     if (!view || !host) return;
     const cover = stops ? coverOf(host.getBoundingClientRect(), this.getBoundingClientRect(), this._frame, stops, this._sheetStop) : { top: 0, right: 0, bottom: 0, left: 0 };
-    view.setFrame({ cover, room: null });
+    if (!this._focusHold) this._focus3d = this._picked();
+    view.setFrame({ cover, room: this._focus3d });
+  }
+
+  /** A canvas tap's room pick reaches the 3D view only when the double-tap window has closed and the pick stands; the ring and the sheet change at once. */
+  private _holdFocus(): void {
+    this._releaseFocus();
+    this._focusHold = true;
+    this._focusTimer = globalThis.setTimeout(() => { this._focusTimer = null; this._focusHold = false; this._apply3dFrame(); }, DOUBLE_TAP_MS);
+  }
+
+  /** Ends the wait: a second tap, another way of picking, a new config or a disconnect. Says nothing to the view. */
+  private _releaseFocus(): void {
+    if (this._focusTimer !== null) globalThis.clearTimeout(this._focusTimer);
+    this._focusTimer = null;
+    this._focusHold = false;
   }
 
   /**
@@ -2762,6 +2785,7 @@ export class FloorplanStudioCard extends LitElement {
 
   /** Picks the room at floor index `i` of the shown floor, or clears with `null`. A new pick turns the filter back on. */
   private _pickRoom(i: number | null): void {
+    this._releaseFocus(); // a row, a search result, Back: the camera follows at once (a canvas tap holds it again after this call)
     const room = i === null ? undefined : this._floor()?.rooms[i];
     const key = this._floorKey();
     this._pickedRoom = room && key ? { floor: key, id: room.id } : null;

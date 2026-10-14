@@ -33,7 +33,7 @@ async function boot(page: Page, config: Record<string, unknown> = {}) {
 async function settled(page: Page) {
   let prev = "";
   await expect.poll(async () => {
-    const v = ["inset", "az", "polar", "dist", "target", "lowered"].map((k) => holder(page).getAttribute(`data-${k}`));
+    const v = ["inset", "easing", "az", "polar", "dist", "target", "lowered"].map((k) => holder(page).getAttribute(`data-${k}`));
     const now = (await Promise.all(v)).join("|"), same = now === prev;
     prev = now;
     return same;
@@ -51,6 +51,8 @@ const panel = (page: Page) => card(page).locator("css=.fp-active");
 /** A click at `p`, after checking the view itself reports `want` there: a wrong spot fails here, not as a mystery later. */
 async function click(page: Page, locate: () => Promise<Where | null>, want: unknown) {
   await page.waitForTimeout(400); // two taps within 350 ms and 24 px are a double tap, by design (as in 2D): keep clear of the last one
+  // S32.7 premise: a room pick glides the camera to the room once the double-tap window has closed (350 ms), so the spot a test tapped a
+  // moment ago is not where it was. `settled` waits out the glide (`data-easing` is in its list) and `locate()` projects the spot again.
   await settled(page);
   const p = (await locate())!;
   expect(await picks(page, p), `what the view finds at ${Math.round(p.x)},${Math.round(p.y)}`).toEqual(want);
@@ -107,6 +109,8 @@ test.describe("3D view: taps on rooms", () => {
     await expect(panel(page)).toHaveAttribute("aria-label", "Living");
     // S31.5: the room section is in the side sheet, beside the stage: the framing does not move, there is nothing over the model to frame around
     await expect.poll(async () => (await holder(page).getAttribute("data-frame"))).toBe("0,0,0,0");
+    // Premise (S32.7): the first tap's pick moved the camera to the Living; "the same room again" taps the Living's centre where the camera
+    // now shows it (projected again by `click`), not the spot of the first tap.
     await click(page, () => at(page, 60, 60, 1), { type: "room", index: 0 });
     await expect.poll(() => ring(page)).toBe("");
     await expect(panel(page)).toHaveAttribute("aria-label", "Overview"); // S24.7: the Active panel is the Overview
@@ -157,11 +161,17 @@ test.describe("3D view: taps on rooms", () => {
     await click(page, async () => p, { type: "room", index: 0 });
     await expect.poll(() => ring(page)).toBe("0");
     await page.waitForTimeout(450); // past the double-tap window
-    await page.mouse.move(p.x, p.y);
+    await settled(page); // the room glide is over: the wheel zooms a camera at rest
+    const w = await at(page, 60, 60, 1);
+    await page.mouse.move(w.x, w.y);
     await page.mouse.wheel(0, -200);
     await expect.poll(async () => (await cam(page)).dist).toBeLessThan(10000);
     expect(await ring(page)).toBe("0");
-    await page.mouse.dblclick(p.x + 2, p.y + 2); // the second tap's pair: back to the pick as it was before them
+    // Premise (S32.7): the pick above moved the camera to the Living and the wheel zoomed it, so `p` (projected on the first view) is no longer
+    // on the Living; the pair is aimed at the Living's centre as the camera now shows it, 2 px off for the second tap.
+    const q = await at(page, 60, 60, 1);
+    expect(await picks(page, q), "the Living, where the camera now shows it").toEqual({ type: "room", index: 0 });
+    await page.mouse.dblclick(q.x + 2, q.y + 2); // the second tap's pair: back to the pick as it was before them
     await page.waitForTimeout(100);
     expect(await ring(page)).toBe("0");
   });
