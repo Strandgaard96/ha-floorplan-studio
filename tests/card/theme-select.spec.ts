@@ -140,6 +140,14 @@ test.describe("the Theme item is a select", () => {
     }
   });
 
+  test("the select shows its longest label in full (it was cut to 'Home Assist' at 1024 x 768)", async ({ page }) => {
+    await boot(page, { width: 1024, height: 768 }, { theme: "ha" });
+    await openMenu(page);
+    const w = await themeSelect(page).evaluate((s) => s.getBoundingClientRect().width);
+    const text = await page.evaluate(() => { const c = document.createElement("canvas").getContext("2d")!; c.font = "13px system-ui, sans-serif"; return c.measureText("Carpenter Brut").width; });
+    expect(w, "room for the widest label plus the arrow and padding").toBeGreaterThan(text + 24);
+  });
+
   test("view_switch: false has no Theme select; Detail and the rest stay", async ({ page }) => {
     await boot(page, { width: 1280, height: 900 }, { view_switch: false });
     await openMenu(page);

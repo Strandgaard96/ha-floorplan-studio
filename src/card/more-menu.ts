@@ -272,7 +272,7 @@ export class FpMenu extends LitElement {
     .item[aria-disabled=true]{opacity:.5;cursor:default}
     .item.select{cursor:default;justify-content:space-between}
     .item.select:focus-within{background:transparent;color:var(--fp-ink)}
-    .sel{font:inherit;box-sizing:border-box;min-height:32px;max-width:60%;color:var(--fp-ink);background:var(--fp-room);
+    .sel{font:inherit;box-sizing:border-box;min-height:32px;flex:none;color:var(--fp-ink);background:var(--fp-room);
       border:1px solid var(--fp-idle);border-radius:4px;padding:0 4px;cursor:pointer}
     .sel:focus{outline:2px solid var(--fp-ink);outline-offset:1px}
     .mark{flex:none;width:1.2em;text-align:center}
