@@ -880,7 +880,16 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   must be over the view), or right-drag or Shift-drag, or use two fingers. A
   pan is never a tap. You cannot go under the floor. The camera starts south of the house at
   about 50 degrees; the card's `rotation` is the starting turn. **Reset camera** in the zoom cluster puts the camera back.
-- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 110 cm (the same figure as `low`) the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same choice and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. The side sheet takes its own column, so the camera frames the house in the rest; the bottom sheet on a phone lies below the house at the peek only; at half or full it covers the lower part (see Known limits). 2D and 2.5D are unchanged.
+- Tilt does nothing in 3D and is hidden. **Walls** works: `cut` (default) lowers to 110 cm (the same figure as `low`) the walls that face the camera and keeps the far ones at full height, `low` lowers every wall, `full` none. It is the same choice and the same `walls` value as in 2.5D. Turn the house and the walls that face you change. 2D and 2.5D are unchanged.
+- **Framing (S32).** The camera fits the house exactly: the eight corners of the floor's box (floor to wall top) land inside the part of the view the chrome leaves, with a margin of 12 px or 5 % of that part's short side, whichever is more. This replaces the rounder fit of 0.29, so the first 3D picture is a little larger or smaller than before, and a plan turned 45 degrees is no longer cut at a corner. The first view, Reset camera and a floor switch frame this way.
+  - *Resize.* When the card's size changes (a window, a tablet turned, a phone's width, the side sheet opening or folding) an untouched camera is fitted again at once. A camera you have turned, zoomed or panned keeps its azimuth, polar angle and target; only its distance follows the size, so the house grows or shrinks with the view and nothing jumps. Under 120 px wide or high the view is ignored and the camera stays.
+  - *Bottom sheet (phone).* The house is framed in what the sheet leaves. At the peek the sheet covers nothing; at half the whole house sits above it; at full there is too little room, so the camera keeps its half framing. Opening, closing or snapping the sheet glides the camera for 400 ms (ease-out). Dragging the handle moves nothing; the snap does. A resize jumps instead of gliding.
+  - *Room focus.* Picking a room (a tap on its floor, or a Search result that is a room) glides the camera to the room: its floor polygon plus 50 cm all round, fitted in the part of the view the sheet leaves, at the sheet's new stop (half on a phone, the side sheet open on a tablet). The azimuth and polar angle stay as you left them; a pick always glides, even when the room is already in view. Pick another room and the camera glides from where it is.
+  - *Back.* Back, Escape (from the room), the Overview, a tap on the background that clears the pick, or a floor tab ends the focus. The camera glides back to what it was before the first focus, at the angles it has now (a zoom you made before the pick is kept). Reset camera goes to the first view and drops the focus; the room stays picked.
+  - *Your hands win.* A drag, wheel or pinch during a glide stops it where it is, and the camera is yours; the room stays picked, and Back still leaves it. A tap on the plan lets the glide finish first.
+  - *Double tap.* A tap on a room's floor picks it and shows the ring and the sheet at once, but the camera waits 350 ms (the double-tap window). A double tap therefore never moves the camera. A Search result glides at once.
+  - *Never saved.* The focus is not part of the remembered camera: while focused, what is stored is the floor camera (the pre-focus zoom and pan, the current angles). A reload never opens zoomed on a room.
+  - *Reduced motion.* Under `prefers-reduced-motion: reduce` every one of these jumps in one frame.
 - The 3D code is loaded the first time you pick 3D, and only then (about 186 KB
   gzipped; the card file grew by about 3.5 KB). It draws only while something
   moves: a still model, a settled pulse and a Home Assistant update that changes
@@ -923,20 +932,13 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
   Escape to clear. Furniture picks the room it stands in. A lowered wall is
   looked over, a tall one is not. A drag (moving more than 6 px) is never a tap,
   and a double tap or the wheel neither picks nor clears. The ball is 24 cm wide
-  to the eye and 48 cm to the finger. On a phone the sheet rises to half and covers
-  the lower part of the house; see Known limits, below.
+  to the eye and 48 cm to the finger. On a phone the sheet rises to half and the
+  camera frames the room above it (see Framing, above).
 
 ## Known limits
 
-- **3D does not re-fit when the card narrows.** The camera is placed once for the
-  card's width at the moment the model is built. Make the card narrower (a window
-  resize, a sheet opening) and the house keeps its framing and may be cut at an
-  edge until you press Reset camera.
-- **A half-height phone sheet covers the lower house in 3D.** In 2D and 2.5D the plan
-  pans so a picked room sits above the sheet. In 3D it does not: the sheet lies over
-  the bottom of the model. Drag the sheet down to the peek or turn the model to see it.
-- **A room pick does not move the 3D camera.** The room is outlined on its floor
-  and the sheet opens, but the camera stays where you left it.
+- **A device found by Search, or a row that is a device, does not move the 3D camera.** The device's popup opens; only a room pick (a tap on its floor, or a Search result that is a room) glides the camera.
+- **Reset camera during a pending tap hold.** If you tap a room's floor and press Reset camera within 350 ms, the camera goes to the first view and then, when the hold ends, glides to the room, which stays picked. Press Reset camera again, or pick nothing, to leave it.
 
 ## Troubleshooting
 

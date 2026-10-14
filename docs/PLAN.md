@@ -2604,7 +2604,7 @@ Branch `task/s21-open-items`. Each task: one outcome, its failing test first.
 - [x] S21.2 Humidity, motion, contact and vibration join `NO_TOGGLE`, as `temp` did in S19.E4. A test iterates `DEVICE_TYPES`: each type is in `NO_TOGGLE` or in a written list of types that toggle, with the reason.
 - [x] S21.3 Verify: `npm run lint`, `npm test`, `npx playwright test`, each read bare.
 
-## Roadmap after the 2026-10-08 review (sprints 22 to 32)
+## Roadmap after the 2026-10-08 review (sprints 22 to 33)
 
 Diego, 2026-10-08: "do a review of the menus, submenus, right click menus, general user interface and usability of the studio and the card [...] propose a plan to make it better, cleaner, easier to use and navigate when one like me has hundreds of devices." Added: auto-align floors, floors below in 3D, an animated floor switch, "no cramming stuff in stacks". He said yes to this plan on 2026-10-08.
 
@@ -2622,7 +2622,8 @@ Review basis: a seeded stress house (3 floors, 46 rooms, 437 devices, 718 entiti
 | 29 | 0.27.0 | Hand align: floor rotation in the schema, every stack view turned through `floorPlace`, panel buttons and keys in chosen steps, stair report, Align stairs (Diego, 2026-10-11) | Align stairs on the hand-align fixture lines the 3D stairs up within 2 cm and 0.2° |
 | 30 | 0.28.0 | Align searches angles | The turned fixture aligns automatically within 2 cm and 0.2° |
 | 31 | 0.29.0 | Card layout and touch: chrome around the plan, fit to height, phone bottom sheet, ⋯ menu, 44 px targets, keyboard on the plan | Tablet and phone tasks at target tap counts |
-| 32 | 0.30.0 | Extras: saved views, favourites, heat map, dashboard strategy, tap_action, fan type | One acceptance test each |
+| 32 | 0.30.0 | 3D framing in the card: the house fits after a resize, above the phone's bottom sheet, and a room pick focuses the room (Diego, 2026-10-14: "fix all 3") | `tests/card/card-3d-framing.spec.ts`, every case green, four sizes |
+| 33 | 0.31.0 | Extras: saved views, favourites, heat map, dashboard strategy, tap_action, fan type | One acceptance test each |
 
 Separate product, not in this repo: the FloorPlan Digital Twin iOS app. A RoomPlan spike (T0) after sprint 24, in its own repo, after its own design and spec.
 
@@ -4058,7 +4059,7 @@ Wave 3, one lane, in order (each task shares `view3d.ts` and the card file):
       Files: `src/card/three/view3d.ts`, `src/card/floorplan-studio-card.ts`, `tests/card/card-3d-pick.spec.ts`.
 
 Wave 4, on `task/s32-3d-framing`:
-- [ ] S32.8 Exit, docs, shots (Sonnet; the docs part may go to Haiku). No `test.fail()` left in
+- [ ] S32.8 Exit, docs, shots (Sonnet; the docs part may go to Haiku). Docs part done 2026-10-14 (card.md, SPEC.md, roadmap table, CHANGELOG, DECISIONS). Still open: shots, `--repeat-each=10` of the whole file, the full suite, the phone walk. No `test.fail()` left in
       `card-3d-framing.spec.ts`; the whole file `--repeat-each=10`. Docs: `docs/card.md` 3D view (resize, sheet, room
       focus, Back) and Known limits (the three lines go; anything still true stays), `docs/SPEC.md` card behaviours, the
       roadmap table (32 is 3D framing, extras move to 33, 0.31.0), CHANGELOG under Unreleased, DECISIONS (each default

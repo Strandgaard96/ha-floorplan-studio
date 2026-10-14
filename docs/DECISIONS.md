@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-14: Sprint 32 3D framing, summary (Sonnet, docs)
+
+Diego answered Q1 to Q5 with the defaults, and the build follows them: (1) a camera the person has moved keeps its angles and target on a resize, only its distance follows the box; (2) a room pick always glides to the room's fit, even when the room is in view; (3) Back returns to the camera from before the first focus, at the current angles; (4) a device from Search does not move the camera; (5) the exact box fit is the default picture for every framing, the first draw too.
+What changed in the build against the spec:
+- `fitBox` centres the projected extent of the eight corners on the visible box's centre (equal margins on opposite sides), not the box's centre. Under perspective the two differ, and centring the box's centre left the house off-centre. The lit-room margin stays at +8.
+- The first 3D view shifts slightly: the exact fit replaces the 0.85 sphere, so the house is a little larger or smaller, and about ten tests that pinned `dist` moved to the new premise (each named in its task's entry).
+- The sheet glide (S32.6) is an addition to F1: a cover change eases 400 ms, a canvas resize jumps. A tap lets a running glide finish; a drag, pinch or wheel stops it where it is.
+- Known limit kept: Reset camera pressed within the 350 ms tap hold is followed by the pending focus (the hold is not cancelled by `_forgetCamera`). A device from Search or a device row does not move the camera (Q4).
+Docs: `docs/card.md` (3D view, Known limits), `docs/SPEC.md` (3D framing), `docs/PLAN.md` (row 32 is 3D framing, the extras are Sprint 33, 0.31.0), CHANGELOG. No Studio twin: the Studio has no 3D view.
 ## 2026-10-14: S32.7 room focus in 3D (Sonnet, judgement: the cancel and the double-tap delay)
 
 Open questions Q1 to Q5 built at their defaults (always glide to the room's fit; Back to the camera before the first focus; a device from Search does not move the camera; the exact box fit).
