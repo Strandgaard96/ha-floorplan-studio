@@ -25,7 +25,7 @@ const PARITY: Record<string, Decision> = {
   night: { card: "deliberate", why: "a preview of what the card already does: it goes dark after sunset by itself (`night`, `sun`)" },
   // S27.11: the card's Floor below button (2D and 2.5D); in 3D the same choice is the Floors below select, checked below.
   ghostFloor: { card: "yes", item: "ghost" },
-  thSub: { card: "yes", item: "theme:light" },
+  thSub: { card: "yes", item: "theme" },
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },

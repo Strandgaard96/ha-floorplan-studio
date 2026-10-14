@@ -340,4 +340,21 @@ test.describe("Opus review of S31: a tall menu is capped to the viewport and scr
       });
     }
   }
+
+  test("a select item: labels are text, junk options and an unknown selected never throw, a change picks the option's value and closes", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    await open(page, "?select=1");
+    await button(page, "right").click();
+    const sel = page.locator("#right select.sel").first();
+    await expect(page.locator("#right select.sel")).toHaveCount(2);
+    expect(await page.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined();
+    expect(await sel.locator("option").evaluateAll((os) => os.map((o) => [(o as HTMLOptionElement).value, o.textContent]))).toEqual([["a", '"><img src=x onerror=window.__xss=1>'], ["b", "B"]]);
+    await expect(sel).toHaveAccessibleName('"><script>window.__xss=1</script>');
+    await sel.selectOption("b");
+    expect((await picks(page)).at(-1)).toMatchObject({ target: "right", bubbles: true, composed: true, detail: { kind: "select", value: "b" } });
+    await expect(menu(page, "right")).toHaveCount(0);
+    expect(await focused(page)).toContain("button");
+    expect(errors).toEqual([]);
+  });
 });

@@ -39,6 +39,11 @@ const plain: MenuSection[] = [
   ] },
 ];
 
+// ?select=1: a select item with a hostile label and option labels (finding 2), an unknown `selected`, and junk in `options`.
+if (q.get("select")) plain.push({ items: [{ kind: "select", label: '"><script>window.__xss=1</script>', value: "sel", selected: "nope",
+  options: [{ label: '"><img src=x onerror=window.__xss=1>', value: "a" }, null, { label: "B", value: "b" }, { label: 5, value: 7 }] as never }] },
+  { items: [{ kind: "select", label: "Broken", value: "broken", options: 5 as never, selected: {} as never }] });
+
 // ?many=1: the left menu has forty items, more than any viewport the review tested, so it has to scroll.
 if (q.get("many")) look.push({ label: "Many", items: Array.from({ length: 40 }, (_, i) => ({ kind: "action" as const, label: `Item ${i + 1}`, value: `i${i + 1}` })) });
 

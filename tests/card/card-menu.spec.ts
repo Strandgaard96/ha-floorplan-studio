@@ -4,11 +4,11 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { THEMES } from "../../src/core";
 import { serve, ORIGIN, drawn } from "./helpers-3d";
-import { closeMenu, hasItem, isDisabled, menuButton, menuItem, menuPanel, openMenu, pick, stateOf } from "./menu-helper";
+import { closeMenu, hasItem, isDisabled, menuButton, menuItem, menuPanel, openMenu, pick, stateOf, themeNow } from "./menu-helper";
 
 // S31.6 (docs/specs/card-layout-touch.md, D3, criterion 7): the header's ⋯ holds the look. Real page.mouse and page.keyboard (finding 3);
 // each item is judged by what it does to the plan and to the view memory (`fp-view:`), the two things the control it replaced did.
-// The accessible names are the spec's: menu "View options", menuitemradio (View, Theme, Detail), menuitemcheckbox (Labels, Device
+// The accessible names are the spec's: menu "View options", menuitemradio (View, Detail), a select (Theme), menuitemcheckbox (Labels, Device
 // names, Floor below, each layer), menuitem (Rotate left, Rotate right, Reset view).
 
 const layout = JSON.parse(readFileSync("demo/layout.json", "utf8"));
@@ -67,16 +67,16 @@ test.describe("S31.6 the ⋯ menu: criterion 7", () => {
   test("the roles and the order of D3: View, Floor below, Theme, Labels, Device names, Detail, Layers, Rotate left, Rotate right, Reset view", async ({ page }) => {
     await boot(page);
     await openMenu(page);
-    expect(await names(page, "menuitemradio")).toEqual(["2D", "2.5D", "3D", ...THEMES.map((t) => ({ ha: "Home Assistant", "a-team": "A-Team", "carpenter-brut": "Carpenter Brut", "beach-house": "Beach house" } as Record<string, string>)[t] ?? t[0].toUpperCase() + t.slice(1)), "Auto", "Full", "Minimal"]);
+    expect(await names(page, "menuitemradio")).toEqual(["2D", "2.5D", "3D", "Auto", "Full", "Minimal"]);
     const checks = await names(page, "menuitemcheckbox");
     expect(checks.slice(0, 3)).toEqual(["Floor below", "Labels", "Device names"]);
     expect(checks.length, "and a layer per family on the floor").toBeGreaterThan(3);
     expect(await names(page, "menuitem")).toEqual(["Rotate left", "Rotate right", "Reset view"]);
     // The order in the menu is the order of the spec.
-    const order = await menuPanel(page).locator("css=[role^=menuitem]").evaluateAll((els) => els.map((e) => e.getAttribute("data-value")));
+    const order = await menuPanel(page).locator("css=[role^=menuitem], select.sel").evaluateAll((els) => els.map((e) => e.getAttribute("data-value")));
     expect(order.indexOf("view:2d")).toBeLessThan(order.indexOf("ghost"));
-    expect(order.indexOf("ghost")).toBeLessThan(order.indexOf("theme:light"));
-    expect(order.indexOf("theme:light")).toBeLessThan(order.indexOf("labels"));
+    expect(order.indexOf("ghost")).toBeLessThan(order.indexOf("theme"));
+    expect(order.indexOf("theme")).toBeLessThan(order.indexOf("labels"));
     expect(order.indexOf("names")).toBeLessThan(order.indexOf("detail:auto"));
     expect(order.indexOf("detail:minimal")).toBeLessThan(order.findIndex((v) => v?.startsWith("layer:")));
     expect(order.map((v) => !!v?.startsWith("layer:")).lastIndexOf(true)).toBeLessThan(order.indexOf("rotate:-1"));
@@ -161,8 +161,7 @@ test.describe("S31.6 each item does what the old control did, and is remembered 
     await pick(page, "theme:midnight");
     await expect(card(page)).toHaveAttribute("data-theme", "midnight");
     expect((await stored(page))?.theme).toBe("midnight");
-    expect(await stateOf(page, "theme:midnight")).toBe("true");
-    expect(await stateOf(page, "theme:light")).toBe("false");
+    expect(await themeNow(page, THEMES)).toBe("midnight");
   });
 
   test("Labels and Device names: each is a checkbox that flips the plan and is stored", async ({ page }) => {
@@ -302,7 +301,7 @@ test.describe("S31.6 what left the old places", () => {
 test.describe("S31.6 old configs", () => {
   test("view_switch: false: no View, Tilt, Walls, Theme, Labels, Names, Floor below; Detail, Layers, Rotate and Reset stay", async ({ page }) => {
     await boot(page, { view_switch: false });
-    for (const v of ["view:2d", "theme:light", "labels", "names", "ghost"]) expect(await hasItem(page, v), v).toBe(false);
+    for (const v of ["view:2d", "theme", "labels", "names", "ghost"]) expect(await hasItem(page, v), v).toBe(false);
     for (const v of ["detail:auto", "rotate:1", "reset"]) expect(await hasItem(page, v), v).toBe(true);
   });
 

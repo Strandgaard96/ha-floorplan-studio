@@ -4,7 +4,7 @@ import type { Layout } from "../../src/core/schema";
 import { THEMES } from "../../src/core";
 import { parseStoredView } from "../../src/card/view-state";
 import "../../src/card/floorplan-studio-card";
-import { pickItem, stateOfItem } from "./menu-dom";
+import { pickItem, themeSelectValue } from "./menu-dom";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 // What the card writes, and when: the field report was a view that resets on every dashboard reload.
@@ -113,7 +113,7 @@ describe("the stored view wins over the config, and Reset view gives the config 
     await pickItem(el, "rotate:1");
     el.setConfig({ layout: structuredClone(L), ...cfg } as FloorplanStudioCardConfig); // HA calls it again on a re-render
     await el.updateComplete;
-    expect(await stateOfItem(el, "theme:light")).toBe("true");
+    expect(await themeSelectValue(el)).toBe("theme:light");
     expect(el.getAttribute("data-theme")).toBe("light");
     await pickItem(el, "reset");
     expect(el.getAttribute("data-theme")).toBe("terminal");

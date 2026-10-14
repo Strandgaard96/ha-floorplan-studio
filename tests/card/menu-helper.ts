@@ -24,6 +24,7 @@ export async function closeMenu(page: Page): Promise<void> {
 
 /** Opens the menu and clicks the item. The menu closes on a pick. Fails with the missing value if there is no such item. */
 export async function pick(page: Page, value: string): Promise<void> {
+  if (value.startsWith("theme:")) return chooseTheme(page, value.slice(6));
   await openMenu(page);
   await menuItem(page, value).click();
 }
@@ -70,8 +71,32 @@ export const resetView = (page: Page) => pick(page, "reset");
 
 /** The checked item of a radio group: the first `<group>:<value>` whose `aria-checked` is "true", as the value, or null. Closes after reading. */
 export async function checkedIn(page: Page, group: string, values: readonly string[]): Promise<string | null> {
+  if (group === "theme") return themeNow(page, values);
   await openMenu(page);
   const checks = await Promise.all(values.map(async (v) => [v, await menuItem(page, `${group}:${v}`).getAttribute("aria-checked")] as const));
   await closeMenu(page);
   return checks.find(([, c]) => c === "true")?.[0] ?? null;
+}
+
+// The Theme item is a select (docs/DECISIONS.md, 2026-10-14): `pick(page, "theme:x")` and `checkedIn(page, "theme", ...)` go through it.
+export const themeSelect = (page: Page) => menuPanel(page).locator("css=select[data-value=theme]");
+
+/** Opens the menu, clicks the Theme select with the real mouse (it must be the element hit, and take focus), then picks the option.
+ *  The native list is drawn by the browser outside the page, so no `page.mouse` click can land on one of its rows; `selectOption`
+ *  sets the value and fires `input` and `change` on the real element, which is what choosing a row does. The keys have their own test. */
+export async function chooseTheme(page: Page, t: string): Promise<void> {
+  await openMenu(page);
+  const sel = themeSelect(page);
+  await sel.click();
+  const onSelect = await sel.evaluate((s) => (s.getRootNode() as ShadowRoot).activeElement === s);
+  if (!onSelect) throw new Error("the click did not land on the Theme select");
+  await sel.selectOption(`theme:${t}`);
+}
+
+/** The Theme select's current value without the prefix, or null. Closes after reading. */
+export async function themeNow(page: Page, themes: readonly string[]): Promise<string | null> {
+  await openMenu(page);
+  const v = await themeSelect(page).evaluate((s) => (s as HTMLSelectElement).value);
+  await closeMenu(page);
+  return themes.find((t) => `theme:${t}` === v) ?? null;
 }

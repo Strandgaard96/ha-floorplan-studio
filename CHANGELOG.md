@@ -7,6 +7,7 @@
 - Card (S32): in 3D a room pick focuses the room. A tap on its floor or a Search result glides the camera to the room's fit in what the sheet leaves, keeping your angles. A canvas tap waits out the 350 ms double-tap window, so a double tap never moves the camera. Back, Escape, the Overview or a tap on the background glide back to the camera from before the first focus; Reset camera and a floor tab drop the focus. A drag, a wheel turn or a pinch stops a glide where it is. The focus is never saved. Reduced motion jumps.
 - Docs (S32): the three 3D Known limits (no re-fit on a narrower card, the half sheet covering the house, a room pick not moving the camera) are fixed and removed; `docs/card.md` describes the framing.
 - Card (internal, S32): the framing maths (`fitBox`, `project`, `glide`) is a pure module checked against three.js; `coverOf` in `src/card/frame.ts` gives the px the bottom sheet covers; the orbit frames a box and keeps a focus; `setInset` is replaced by `setFrame`.
+- Card: the ⋯ menu's Theme is one drop-down with all 13 themes, not a list of 13 radios. It is a native select: a click, or Enter, Space or Alt+Down on it, opens the list; the arrow keys still walk the menu past it. A pick writes the same `theme` into the view memory, closes the menu and returns focus to the ⋯ button. `view_switch: false` still hides it.
 
 ## 0.29.0 - 2026-10-13
 

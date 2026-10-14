@@ -11,7 +11,7 @@ vi.mock("../../src/core", async (importOriginal) => {
 });
 import { THEMES, planPivot, renderFloor, rotateAbout, viewBoxFor } from "../../src/core";
 import "../../src/card/floorplan-studio-card";
-import { hasMenuItem, menuItemDisabled, menuOf, openMenu, pickItem, stateOfItem } from "./menu-dom";
+import { hasMenuItem, menuItemDisabled, menuOf, openMenu, pickItem, stateOfItem, themeSelectValue } from "./menu-dom";
 import type { FloorplanStudioCard, FloorplanStudioCardConfig } from "../../src/card/floorplan-studio-card";
 
 const L = demo as unknown as Layout;
@@ -47,7 +47,7 @@ const checkedOf = async (el: FloorplanStudioCard, group: string, values: readonl
   for (const v of values) if ((await stateOfItem(el, `${group}:${v}`)) === "true") return v;
   return null;
 };
-const themeNow = (el: FloorplanStudioCard) => checkedOf(el, "theme", THEMES);
+const themeNow = async (el: FloorplanStudioCard) => { const v = await themeSelectValue(el); return THEMES.find((t) => `theme:${t}` === v) ?? null; };
 const viewNow = (el: FloorplanStudioCard) => checkedOf(el, "view", ["2d", "2.5d", "3d"]);
 const stored = () => Object.entries(localStorage).filter(([k]) => k.startsWith("fp-view:"));
 const fakeClock = () => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
@@ -75,7 +75,7 @@ describe("rotate buttons and the config rotation", () => {
     expect(group).not.toBeNull();
     for (const l of ["Zoom out", "Fit"]) expect(btn(el, l)!.closest(".fp-stack"), l).toBe(group);
     for (const l of ["Rotate left", "Rotate right", "Reset view"]) expect(btn(el, l), l).toBeNull();
-    for (const v of ["rotate:-1", "rotate:1", "reset", "theme:light"]) expect(await hasMenuItem(el, v), v).toBe(true);
+    for (const v of ["rotate:-1", "rotate:1", "reset", "theme"]) expect(await hasMenuItem(el, v), v).toBe(true);
     expect(menuOf(el)!.closest(".fp-stack")).toBeNull();
   });
 
@@ -83,12 +83,12 @@ describe("rotate buttons and the config rotation", () => {
     for (const cfg of [{ kiosk: true }, { rotate_switch: false, view_switch: false }]) {
       const el = await mount(cfg);
       for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasMenuItem(el, v), `${v} ${JSON.stringify(cfg)}`).toBe(false);
-      expect(await hasMenuItem(el, "theme:light")).toBe(false);
+      expect(await hasMenuItem(el, "theme")).toBe(false);
       el.remove();
     }
     const el = await mount({ view_switch: false });
     for (const v of ["rotate:-1", "rotate:1", "reset"]) expect(await hasMenuItem(el, v), v).toBe(true);
-    expect(await hasMenuItem(el, "theme:light")).toBe(false);
+    expect(await hasMenuItem(el, "theme")).toBe(false);
   });
 
   it("config rotation is the starting angle: junk is 0, anything else a multiple of 45 in 0..315", async () => {
@@ -431,9 +431,9 @@ describe("the theme items of the menu", () => {
   it("lists every theme with a readable label, and choosing sets the host theme live", async () => {
     const el = await mount({ theme: "midnight" });
     await openMenu(el);
-    const items = [...menuOf(el)!.shadowRoot!.querySelectorAll('[data-value^="theme:"]')];
-    expect(items.map((o) => o.getAttribute("data-value"))).toEqual(THEMES.map((t) => `theme:${t}`));
-    for (const o of items) expect(o.querySelector(".text")!.textContent!.trim(), o.getAttribute("data-value")!).toMatch(/^[A-Z]/);
+    const items = [...menuOf(el)!.shadowRoot!.querySelectorAll('select[data-value="theme"] option')];
+    expect(items.map((o) => (o as HTMLOptionElement).value)).toEqual(THEMES.map((t) => `theme:${t}`));
+    for (const o of items) expect(o.textContent!.trim(), (o as HTMLOptionElement).value).toMatch(/^[A-Z]/);
     expect(await themeNow(el)).toBe("midnight");
     await theme(el, "terminal");
     expect(el.getAttribute("data-theme")).toBe("terminal");

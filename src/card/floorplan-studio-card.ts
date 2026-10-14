@@ -2558,7 +2558,7 @@ export class FloorplanStudioCard extends LitElement {
         const key = this._floorKey(), none = !key || !this._layout || floorBelow(this._layout, key) === null;
         out.push({ items: [{ kind: "check", label: "Floor below", value: "ghost", checked: this._ghostOn(), disabled: none }] });
       }
-      out.push({ label: "Theme", items: THEMES.map((t) => radio(THEME_LABELS[t], `theme:${t}`, t === this._theme())) });
+      out.push({ items: [{ kind: "select", label: "Theme", value: "theme", selected: `theme:${this._theme()}`, options: THEMES.map((t) => ({ label: THEME_LABELS[t], value: `theme:${t}` })) }] });
       out.push({ items: [
         { kind: "check", label: "Labels", value: "labels", checked: this._labels() },
         { kind: "check", label: "Device names", value: "names", checked: this._names() },

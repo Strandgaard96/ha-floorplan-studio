@@ -11,6 +11,7 @@ What changed in the build against the spec:
 - The sheet glide (S32.6) is an addition to F1: a cover change eases 400 ms, a canvas resize jumps. A tap lets a running glide finish; a drag, pinch or wheel stops it where it is.
 - Known limit kept: Reset camera pressed within the 350 ms tap hold is followed by the pending focus (the hold is not cancelled by `_forgetCamera`). A device from Search or a device row does not move the camera (Q4).
 Docs: `docs/card.md` (3D view, Known limits), `docs/SPEC.md` (3D framing), `docs/PLAN.md` (row 32 is 3D framing, the extras are Sprint 33, 0.31.0), CHANGELOG. No Studio twin: the Studio has no 3D view.
+
 ## 2026-10-14: S32.7 room focus in 3D (Sonnet, judgement: the cancel and the double-tap delay)
 
 Open questions Q1 to Q5 built at their defaults (always glide to the room's fit; Back to the camera before the first focus; a device from Search does not move the camera; the exact box fit).
@@ -19,6 +20,7 @@ Open questions Q1 to Q5 built at their defaults (always glide to the room's fit;
 - Tests. `card-3d-framing.spec.ts`: the last `red(7)` marks and the `red` helper are gone (criteria 5 to 9, 41 cases, and the two 390 x 844 glide cases that S32.6 had turned green stay passing). Before the code: 36 of the 41 failed, the other 5 were the guards. Mutations: no `_holdFocus()` fails the new "a double tap shows no frame with the camera anywhere else" (26 distinct camera values against 1; the old end-state case passed without the delay, since the restore glided back); no cancel in `pointerdown` and `wheel` fails both "a real drag during the glide ends it" cases.
 - Premises moved, none weakened. Reduced-motion room case: the count of camera values starts when the Search panel is open, because at 768 px opening it narrows the stage (a resize of its own, 1284.0 to 1283.7) and the pick is then the one step. Criterion 6 on a phone: a pick opens the sheet to half and Back leaves it there, so the camera Back returns to is the floor framed above the half sheet; the pre-focus camera is taken at that stop (1.2 % from the peek framing, which the 1 % bound would call a fault). `card-3d-pick.spec.ts`: `settled` also waits on `data-easing`; the "same room again" tap and the second pair of the double-tap test are aimed at the room as the camera now shows it (projected again), each with a premise note.
 No Studio twin: the Studio has no 3D view.
+
 ## 2026-10-14: S32.6 the camera glides on a cover change (Sonnet)
 
 S32.5 already called `_apply3dFrame` on every render and stop change and made criterion 4's three cases pass, so the card needed nothing. What was left is F1's motion: until now a stop change jumped the camera. Now `setFrame` in `view3d.ts` eases it.
@@ -28,6 +30,7 @@ S32.5 already called `_apply3dFrame` on every render and stop change and made cr
 - Red marks. The sheet's glide made two S32.7 cases pass at 390 x 844 (a glide draws three frames; a drag during the glide ends it), for the sheet rather than for a room. Their `red(7)` is off at that size only, with a comment; S32.7 must keep them passing. The other sizes stay red.
 - Tests, `card-3d-framing.spec.ts`, "S32.6": peek to half eases through three or more distinct framings between the two ends, one way; a half-way drag of the handle changes nothing until the snap; a wheel or a drag on the canvas ends the glide (glide slowed to 20 s); a canvas resize sets no `data-easing`; peek, half, full, peek, half ends fitted each time and full leaves the camera. First run, before the code: three failed on "frames with data-easing set 0" and the missing attribute, the other three guards passed. Mutations: dropping the cancel in `pointerdown` and `wheel` failed both touch cases; dropping the tap finish failed the double-tap guard.
 No Studio twin: the Studio has no 3D view.
+
 ## 2026-10-14: S32.5 the view takes a frame, not an inset (Sonnet)
 
 `view3d.ts`: `setFrame({ cover, room })` replaces `setInset`. The card's `_apply3dFrame` (was `_apply3dInset`) reads the stage and card rects and gives `coverOf` the sheet's stop; the view rounds each side to whole px, junk to 0, and does nothing when the key `top,right,bottom,left` equals the last (`data-frame`, was `data-inset`). `room` is accepted and ignored until S32.7. The ResizeObserver already reached `orbit.setVisible` (S32.4's bridge), pointer and wheel already go through `rotate`, `zoom` and `pan`, which mark the camera moved, so nothing else was left of the plan text.
@@ -35,6 +38,7 @@ No Studio twin: the Studio has no 3D view.
 - Premise changes, none weakened. `card-3d-pick` (two cases) and `card-3d` (two cases) read `data-inset` against `0,0` with a fallback that passed when the attribute was absent; they read `data-frame` equal to `0,0,0,0` with no fallback. `card-3d-narrow`: the peek case expects `0,0,0,0`; the half case expects a bottom cover above 100 px and no side. `card-3d-framing` "a double tap on a room moves the camera not at all": on a phone the pick opens the sheet and the house is framed above it, so the camera moves for that alone; the phone case now expects the floor still fitted (not zoomed into the room), the wide case keeps `sameCam`. `card-3d-floors`, `card-3d-live`, `card-3d-pan` and `card-view-memory-3d` needed no change after S32.4.
 - Mutation: with the card passing an all-zero cover, the four tests above (criterion 4 and the half-sheet case) fail.
 No Studio twin: the Studio has no 3D view.
+
 ## 2026-10-14: S32.4 the orbit frames a box (Sonnet, judgement: F1's rule)
 
 `src/card/three/orbit.ts` now fits through `fitBox` (S32.2). `setInset` and `setAspect` are gone; the constructor keeps `(bounds, aspect, fov, turn)`, the aspect only a first guess of the canvas. Judgement calls:
@@ -46,6 +50,7 @@ No Studio twin: the Studio has no 3D view.
 - fitBox revised (supersedes the S32.2 premise). S32.2 put the box's own centre on the visible box's centre. Under perspective that is wrong: from 50 degrees up the near side is drawn larger, so the corners' projected extent is not centred on the box's centre; the tight side met the margin and the opposite side kept 20 px or more of slack, and the share fell to 79 to 81 % against the 85 % of "fitted". `fitBox` now centres the projected extent of the eight corners on the visible box (equal slack on opposite sides), with the distance chosen so the worse side touches the margin; the camera still looks at the box's centre and `shift` carries the difference. The 500-case seeded test now also asserts left and right slack, and top and bottom slack, equal within 0.5 px; the lower-half-covered case asserts the extent's centre on the visible centre and that the box's own centre is off it by more than 2 px. A moved camera keeps the visible-centre shift (its target is on the visible centre); a framed one has the extent shift. The red marks on criterion 1 (1024x768 turned 45, 844x390 both turns) and criterion 2 into 844x390 are removed; criteria 1 to 3 pass 160 of 160 with `--repeat-each=10`, no `test.fail()` left in them.
 - Tests migrated (finding 19). `three-orbit.test.ts`: the three inset tests become the visible-box and F1 tests; the reframe and restore tests read the unit and the fit at the angles in hand. `card-3d-below`: the garden tap looks from the north (the closer first view puts the house between the camera and the north garden). `card-3d-floors`: a floor switch is checked by the picture (inside the visible box, zoom dropped), not by the start distance. `card-3d-live`: margin kept at +8. The Living sample at (60, 60) gained 7.99 grey levels in the closer first view (30.81 to 38.80): it is the corner furthest from the lamp, the pool's edge falls off steeply there, and the fixed 20 px patch now covers less floor. The sample moved to (100, 100), a third of the way to the lamp, where the gain is 41.2 (other points: 32.1, 34.2, 85.3, 62.8). With the lamp not lit the test fails on that assertion (30.81 against 38.81).
 No Studio twin: the Studio has no 3D view.
+
 ## 2026-10-14: S32.1 the framing tests, red (Sonnet)
 
 `tests/card/card-3d-framing.spec.ts`, criteria 1 to 9 of `docs/specs/card-3d-framing.md`, 60 cases, written first. The test hook gains `box("floor" | roomIndex)` (the eight corners of the box through the real camera, page px) and `camera()` (`Orbit.state()`); `helpers-3d.ts` gains `box`, `camState`, `visibleBox`, `inside`, `fitted`, `why`, `settled`. Hook block only, so the shipped `www/` has no hook (`size-budget.spec.ts`, "carry no test hook", unchanged and green).
@@ -53,6 +58,7 @@ No Studio twin: the Studio has no 3D view.
 - Four cases pass today and are not marked: 1024x768 to 768x1024 with a moved camera (the stage is 704 px wide at one and 716 at the other, so the spec's 3 % width share holds without any re-fit; the 1024x768 to 390x844 pair in the same block does fail, on `state().zoom`), a double tap on a room at two sizes (nothing moves the camera today; a guard for S32.7's delay), and a room of 2 points or NaN corners (a pick moves nothing today; a guard). Criterion 1 at the start camera fails at all eight size and rotation pairs (the sphere is inside the box but under 85 % of either side, and on a phone it is cut at both edges).
 - Judgement calls. The sheet has no row that picks a room (rows are devices and a device does not move the camera, Q4), so "its row" has no test; the paths are a tap on the floor and the Search result. A tap's wait is the page's own clock for the 350 ms double-tap window (no state exists to poll). `settled` also compares the stage's rect, so a resize in flight is not taken for rest. The bad-room case reaches the view through the hook's `setFloor` and the card's `_pickRoom(i)`, since `validate` refuses such a layout before the view sees it. `fitBox` and `coverOf` junk (criterion 9's last sentence) belongs to S32.2 and S32.3 unit tests.
 Studio parity: the Studio has no 3D view; no twin.
+
 ## 2026-10-14: S32.2 the 3D framing maths, pure (Sonnet)
 
 New `src/card/three/frame3d.ts`, no three.js import. Judgement calls:
@@ -62,9 +68,15 @@ New `src/card/three/frame3d.ts`, no three.js import. Judgement calls:
 - `glide` returns `to` itself at t of 1 (not an equivalent azimuth mod 2 pi), `from` at 0 and for NaN, the short way across plus or minus pi, the distance on a log scale (linear if either is not positive), junk cameras null.
 - Tests: `tests/card/three-frame3d.test.ts`. First run failed on the missing module (the file did not exist yet). After the code, three mutations were each caught: lens sign flipped (3 tests fail), x and y half-extents swapped (1), margin dropped (2).
 - Studio parity: none, the Studio has no 3D view. No wiring yet, so no CHANGELOG-worthy behaviour; the line says so.
+
 ## 2026-10-14: S32.3 coverOf (Sonnet)
 
 `coverOf(stage, card, frame, stops, stop)` in `src/card/frame.ts`, as the spec's Cover term. Bottom frame only: `stage.bottom - (card.bottom - stops[stop])`, clamped to `[0, stage height]`; side, none, an unknown stop name or junk answer all zeros. Rects are `{top, bottom}` (a DOMRect fits). Stage height is `bottom - top`, so an inverted stage covers 0. No Studio twin: the Studio has no 3D view.
+
+## 2026-10-14: the card's Theme is a select in the menu, not 13 radios (Sonnet)
+
+Diego: the Theme section was a 13-line list. `<fp-menu>` gets a fourth item kind, `select`: a label and a native `<select>`, with `options` and `selected`. Native, not a custom listbox: it is accessible, has a picker on a phone, and needs no ARIA of ours. It is one Tab/arrow stop (ArrowUp/Down, Home, End move on to the next stop instead of changing the value; Enter, Space and Alt+Down call `showPicker()`). A `change` fires `fp-menu-pick` with `value` = the chosen option's value (`theme:<name>`), so `_onMenuPick` is untouched and still validates with `isTheme`; the menu closes and the button gets focus, as for any item. Labels and options are Lit text bindings. 32 px, 44 px under `pointer: coarse`, coloured only through `--fp-*`. The Studio's Theme control is unchanged.
+- Premise changes, not weakened: tests that read the Theme radios (`menuitemradio` for `theme:*`, `aria-checked` of `theme:*`) read the select's value instead, through `chooseTheme` and `themeNow` in `menu-helper.ts`, which use the real mouse and keys. `card-menu.spec.ts` no longer counts Theme labels among the radios.
 
 ## 2026-10-13: fixes from the Opus review of Sprint 31 (Sonnet)
 
@@ -96,6 +108,7 @@ Studio parity: no twin.
 ## 2026-10-13: the pulse ring follows its device every frame
 
 `_placePulse` ran only after a render. A pan or a layout settle moves the icon with no render, so the ring stayed behind (7 to 16 px). The test "All floors: a row tap..." failed about 90 % of runs under repeat load on plain main and passed alone by luck. A frame loop while the ring shows keeps it on the icon; it costs one `getBoundingClientRect` pair per frame for under three seconds. The test now waits for the lamp to stop before it measures. Failed 10 of 10 without the fix, 0 of 40 with it. Studio has no ring, no twin.
+
 ## 2026-10-13: S31.10 keys on the plan (Sonnet)
 
 D4 as the spec has it, in `src/card/floorplan-studio-card.ts` with `plan-focus.ts` and `planKeyFor` from S31.4 doing the thinking. Judgement calls:
@@ -138,6 +151,7 @@ The host's inline `height` is set from `cardHeight` (frame.ts) when its parent h
 - Listeners: window `resize` and `visualViewport` `resize` (the address bar, the keyboard), beside the ResizeObserver.
 - Test migration, premise moved, assertions kept: S8.11 "floor offset by +5000" and S9.2 "2000 cm plan, 2x" now run in a 1280 x 1100 window, so the card is not cut and the plan is the size they were written for (a smaller plan moved a pixel probe onto a wall's edge and an icon from 30.9 to 29.4 px); S8.3 "layout = panel" lost "the bug: the card is taller than the screen" (no longer true) and asserts the card ends 16 px above the bottom before the panel bounds it.
 Studio parity: no twin. The Studio is a full-page editor with no host height to fit.
+
 ## 2026-10-13: S31.6 the ⋯ menu holds the look (Sonnet)
 
 `<fp-menu>` replaces the View options box, the toolbar, the Layers and Detail buttons and the stack's rotate and reset. Items are named by a `data-value` (`view:2.5d`, `tilt:0.25`, `layer:lights`, `rotate:1`, `reset`), which tests use; the accessible names follow the spec. Judgement calls:
@@ -149,6 +163,7 @@ Studio parity: no twin. The Studio is a full-page editor with no host height to 
 - Keys: the menu takes ArrowDown, ArrowUp and Space while open (the card ignores a `defaultPrevented` key); ArrowRight and + still reach the card.
 - Dropped assertions, with the control they described: the 28 versus 32 px row height, the Tilt slider's 72 px width, the "N hidden" label. K4 now passes and lost its `test.fail`; K2 on a phone stays marked (the sheet still covers the lit lamp, S31.8).
 Studio parity: no twin. The editor keeps its own View menu; the card gets the same choices in its own menu, and `view-parity.spec.ts` ties the two (items by `data-value`).
+
 ## 2026-10-13: S31.5 the chrome around the plan (Sonnet)
 
 The card host is a grid (`"head head" "sheet stage"`); the reasoning is in the comment block above the class in `src/card/floorplan-studio-card.ts`. Decisions made on the way:
@@ -158,6 +173,7 @@ The card host is a grid (`"head head" "sheet stage"`); the reasoning is in the c
 - The drag is gone, with `_activePos`, `_positionToolbar`, `_placeTopDock`. A stored `x` and `y` are ignored; `{collapsed, chosen, all}` is what is written.
 - Test migration: look controls are reached through View options; a plan is the card minus header and sheet, so size tests measure the stage; two drag tests became "a stored position is ignored" and "a drag on the head moves nothing"; the K2 `test.fail()` is now phone-only because the tablet passes (a Search button exists). Two tests learned something real: two quick clicks on one spot are a double tap and zoom (card-room-select), and the 3D camera does not re-fit when the card narrows after the first frame (the test narrows the card before it).
 Studio parity: no twin. The Studio's own editor chrome is not the card's header or sheet; nothing in the editor changes.
+
 ## 2026-10-13: S31.1 tap tasks red, and the baseline (Sonnet)
 
 Measured on 0.28.1 with real `page.touchscreen.tap` on 768 x 1024 and 390 x 844 (hasTouch, isMobile, `pointer: coarse` asserted), the
@@ -179,6 +195,7 @@ the card`, "missing", after a 3 s poll, not a test timeout. Their later assertio
 Headroom: the card file is 104 639 bytes gzip -9 against the 115 000 limit, 10 361 bytes (10.1 KB). Above the 6 KB line, so wave 2 needs no
 question to Diego. Helpers: `tests/card/touch-helpers.ts` (`bootTouch`, `tapRole`, `tapPlan`, `taps`, `typed`, `typeText`, `boxOf`, `calls`);
 no other file uses them yet. Test only, no product code, no CHANGELOG line. Studio parity: none, this is test tooling.
+
 ## 2026-10-13: S31.2 frame maths: the phone minimum and the snap rule (Sonnet)
 
 `src/card/frame.ts`, pure. Reasoning is in the comment block at its top; the calls, short:
@@ -191,9 +208,11 @@ no other file uses them yet. Test only, no product code, no CHANGELOG line. Stud
   collapses stops onto each other (half caps at full, peek at the card), never reorders them.
 - `frameMode(width, { kiosk, sheet })`: the spec's one-argument form cannot say `none`, so the options are a second argument.
   Junk widths give `bottom`; no function throws or answers a non-finite number.
+
 ## 2026-10-13: S31.3 `<fp-menu>` (Sonnet)
 
 New `src/card/more-menu.ts`, used by nothing yet (S31.6 puts the look in it). Assumptions, not asked: a pick closes the menu for all three kinds (a check item too) and the host owns the checked state: the menu changes nothing, the host sets `items` again; `fp-menu-pick` carries a copy of the item as `detail`. The menu aligns with the button's edge on the side with more room and is clamped into the box of its shadow root's host (the body outside a shadow root); under 640 px that box wide it is a panel as wide as the box. Focus moves to the first checked enabled item, else the first, on every open, mouse included. Disabled items are skipped by arrows and stay open on a click. Tab is taken (closes, focus to the button). Studio parity: card chrome, no Studio twin. Tests: `tests/card/more-menu.spec.ts` on `tests/card/menu-harness.html` (two menus in a stand-in card's shadow root); with the Tab handler, the outside-press close and the 44 px rule removed, four tests fail.
+
 ## 2026-10-13: S31.4 plan focus: cone, cost and ties (Sonnet)
 
 `src/card/plan-focus.ts` (reasoning in its header comment). Decisions: the cone is 45 degrees about the arrow with the edge in,
@@ -258,6 +277,7 @@ turn on both floors; Apply then Undo restores no pose; the first floor's pose co
 Changes from the plan: the README has no Align text (nothing to update); docs changed are `docs/SPEC.md` (Align finds the
 turn, 0.27.0 note), `docs/editor.md` (Auto align lines) and the guide's "Line the floors up" step. The control (unaligned
 house misses by more than 2 cm) is inside the test so it can fail.
+
 ## 2026-10-12: S30.7 alignToBelow applies the turn (Sonnet)
 
 `alignToBelow` passes the floor's current place turn as `from` and writes the answer's turn and shift through `setPose`.
@@ -265,6 +285,7 @@ Nothing new in the writer: rounding, one undo step, "same" and Lock plan are `se
 alone; it is trusted only while it rounds to the stored pose, so a turn press after Apply starts from the stored pose.
 The S29.7 test "a floor with no turn behaves as before" asserted the old translation-only answer; it now asserts the
 found turn (-2.5 for the ground over the basement).
+
 ## 2026-10-12: S30.8 the Align panel shows and applies the turn (Sonnet)
 
 `alignPreview` memoises `alignCandidates` on `alignKeyOf(upper)#alignKeyOf(lower)`, with no turn: the search does not read the
@@ -524,6 +545,7 @@ far turns on the hand-align floors, from 0 (about [370, -120])
 - **`handles` option in `RenderOpts`.** The editor's corner handles come from `render.ts`, so leaving them out needed a flag there. Absent means as before; the render snapshot is unchanged.
 - **`normaliseTurn` was inexact.** `((d % 360) + 360) % 360` turned 0.1 into 0.10000000000002274, which the writer then stored. It now wraps by one subtraction, exact for an angle already in range (S29.2's helper, found when a stored rotation of 0.1 read back wrong).
 - **While the view turns.** A press during the 45 degree turn animation uses the angle at that moment (`st.turnDeg`). Left as is: nobody presses within 200 ms of turning.
+
 ## 2026-10-11: S29.8, Align stairs: the reversed flight
 
 `src/core/hand-align.ts`. A straight flight has a low end and a top end (the middles of its low and top edges, from
@@ -538,6 +560,7 @@ flight drawn the other way round). Both are tried; the smaller turn wins; a tie 
 - **Names are raw.** The text carries the stair names as written; the panel escapes them.
 - **The report** (`stairReport`) has a row per upper stair that can be drawn; the nearest lower stair by centre distance; the
   angle is between the axes modulo 180, 0 to 90 (a flight and its reverse have the same angle).
+
 ## 2026-10-11: S29.7, Align keeps the turn
 
 `alignFloor(upper, lower, turn = 0)` turns the upper floor's structure lines by `turn` (about the origin, clockwise) before it searches; junk reads as 0. The translation `t` is then in the lower floor's frame, so the upper floor's place is `{ turn, shift: t }`. `alignToBelow` takes the turn from `floorPlace(layout, key, below)`, searches with it, and writes `poseFromPlace(..., { turn, shift: t })` through `setPose`: the floor keeps its rotation and only the offset changes (with both rotations 0 this is the S27 answer). Search is still translation only; the angle search is Sprint 30. `alignKey(f, turn)` and `alignKeyOf(f, turn)` add the turn to the key only when it is not 0, so a move keeps the key, a turn changes it, and the old keys are unchanged. The Align panel still calls `alignKeyOf` and `setOffset` with one argument (S29.9 moves it over).
@@ -551,6 +574,7 @@ Design note for `EditorState` in `src/editor/state.ts`.
 - **Refused presses** (lock, limit, junk) leave the exact pose alone. A press that rounds to no change (a turn of 0.001) still advances the exact pose, so ten of them add up to a change.
 - **Move.** The direction on screen is turned back by the view turn to give the move in the floor's frame; the offset changes by that move turned by the floor's rotation. **Turn.** `rot' = rot + d`, `off' = off + R(rot)·c - R(rot')·c`, so the pivot's house point is exact.
 - **Align.** `alignToBelow` keeps the floor's turn (S29.7, below).
+
 ## 2026-10-11: S29.4, a floor below turns by its points, not by its `ref`
 
 `SceneOpts.turn` turns every solid in `add`, the one choke point of `scene-build.ts`, before the shift: base, holes and
@@ -601,6 +625,7 @@ Design note for `src/core/floor-stack.ts`, written before the code.
 ## 2026-10-11: the stairwell is clipped out of every solid, not cut where it lies strictly inside (0.26.2)
 
 Diego's first floor still showed no stairs after 0.26.1. I loaded his layout into the 3D scene (private file, nothing of it is in the repo). On `first` the solids over the flight were two: the slab, which got its hole, and one room fill (a corridor, z 0..1), which did not. Two corners of the flight lie exactly on that room's edge (the flight's north side runs along the corridor's boundary). My 0.26.1 rule cut a hole only when the whole footprint lay strictly inside the room's outline, because earcut takes holes that do not touch the contour. So the fill lay over the flight. The direction was right (`down`, floor below, none above), and no other solid, furniture or lifted fill covers it. Fix: a prism's `holes` are now convex polygons that may lie inside, touch or cross the base. `prismTriangles` triangulates the base as before and subtracts each hole from every cap triangle by splitting along the hole's edges (convex pieces, fan-triangulated); the base's own walls are left out where a hole opens them, and the hole's walls are drawn only where the hole lies inside the base. A hole that is not convex is ignored (stairwells are rectangles or a 24-gon). `buildScene` gives the hole to every solid whose box the well meets (slab and each room fill). Picking, shadows and the ring still use the outline. Tests, failing first (6 of 6): a flight on the edge of its room, across two rooms, and inside a room with a fill over it, light and blueprint, by the pixel over the deepest step; unit tests for the clipping and for which solids get a hole. I rendered his layout: `first` now shows the well in the corridor; `ground` (both) and `basement` (up) draw their flights.
+
 ## 2026-10-11: Hand align by panel buttons, not dragging (supersedes parts of the entry below)
 
 Diego changed the interaction the same day. This entry replaces the Align frame, Gestures, Undo and Pairs bullets of
@@ -746,6 +771,7 @@ Changed:
 - When: the first frame at once (nothing is on show before it); later, once no label has moved for 160 ms and no pointer is down on the view. The pointer rule is what makes a slow frame mid-drag safe: a pure timer of 80 ms flipped labels in 4 of 80 runs under load (frames of 70 ms and more on the stress house). A live update (text, a new or removed element, a device that moved) decides again at once when the view is still. A hidden loser's icon is not tappable (`hit` skips it).
 - Room priority needs the room's kind and area; `Anchors` gets an optional `roomInfo`, built in `view3d.ts` from the scene solids. Kind order: room-like kinds above garden above water.
 - Seen on the stress house: with icons first as the assumption says, most room names lose to icons at the room's centre (only "Front garden" survives on the ground floor). Left as decided; if it reads badly, the cheap change is room names above device values and names only, below icons still.
+
 ## 2026-10-10: 2.5D doors and windows get a frame of their own, FRAME_PROUD off the wall face (S28.6)
 
 - `OPENING_FRAMED` in `solids.ts` lists, per opening kind, which parts are drawn: jambs and head for a door, plus a sill for a window. Each is a quad of `FRAME_WIDTH` (5 cm) set `FRAME_PROUD` (2 cm) toward the viewer, so it cannot z-fight the wall face.
@@ -774,6 +800,7 @@ Changed:
 ## 2026-10-10: the ghost floor lies under the night veil; its night contrast is under .92 of the day's, not .8 (S28.2)
 
 - `g.ghost` is pushed before the night overlay, after the room fills and stairs. An unlit room's veil darkens it with the floor; a lit room has no veil. Measured from the real elements in their paint order (`tests/fixtures/ghost-contrast.ts`): blueprint .78 of the day contrast, light .90, and the old order gave more than the day's. The plan said under .8; the veil alone cannot reach that on light (WCAG contrast shrinks slowly under a dark veil), and a second night rule for the ghost would also dim it in lit rooms. So the bound is .92, with over 1.15:1 kept, and a lit room within 2 % of the day.
+
 ## 2026-10-10: 3D frames are `opening` solids tagged `frame`, on every kind but the doorway and the plain opening (S28.10)
 
 A frame is 2 jambs and a head, plus a sill bar when the opening's sill is above 0, all outside the gap (so they widen the span by `FRAME_WIDTH`) and `thickness + 2 * FRAME_PROUD` deep. Framed: door, glass, window, slit, fullwindow, sealed. Bare: `open` (a doorway, only an alert band) and `opening`. They carry the opening's own ref plus `ref.wall`, so a tap reaches that door, and a lowered wall clips them to `CUT_WALL_HEIGHT` with the wall (`wallZ` already keys on `ref.wall`). A bar that would lie wholly above the wall is dropped, not squeezed. The frame is a static wall mesh, never recoloured by state. The door leaf's rest role is `--fp-door` 60 % into `--fp-wall-side`; `open-door` stays the alert colour. Supersedes nothing.
@@ -804,34 +831,44 @@ The assumption "floor lighter than wall sides" holds on the light theme only. On
 ## 2026-10-10: Align's fit is a robust point-to-line least squares (review 27 re-check, minor)
 
 - The refine step averaged the pulls of the samples that were off their line and left out those already on it, so samples on the free edges of a smaller floor, passing 5 to 15 cm from some other line of the lower floor, dragged the fit: a 500 x 300 floor 2 cm in a 900 x 700 one came out 0.6 cm off, 0.5 cm in gave 0.6 cm, and a floor in the corner of a wide one 3.2 cm off. Now every sample with a line in reach adds a row (the direction to its nearest point, the distance), those already on their line say "stay", and the move is the weighted least-squares answer. A row weighs 1 / (1 + (d / c)^2)^2, c the median distance of the rows that speak for the same axis (at least 2 cm), so a few strays among many exact hits count for nothing, while a lone far pull on an axis (the ends of a 3000 x 10 floor shifted 15 cm) still counts. Chosen over a fixed reach of a few cm, which drops that lone pull too. Result: the three offsets of the test are within 0.2 cm, and the earlier cases (thin floors shifted 3 to 25 cm, combs, twin walls, the house, stress layout) are unchanged. Left as it is: a stray that is the only evidence on an axis is believed.
+
 ## 2026-10-10: Align scores the rough shortlist on the full samples before the cut (review 27 re-check, blocker)
 
 - The rough pass uses 48 samples, one of them about 2 points. A floor 26 cm and 23.7 cm in from the corner of a bigger one scored 50.0 at the near corner and 52.4 at the far ones; the near corner fell outside the 1 point tie window, was never refined, and Align moved the floor 194 cm. Now the best 10 by the rough score, and any within 4 points of the best (at most 40), are scored again on the fit samples; the tie window of 1 point and the smaller-move rule apply to those scores. Chosen over only widening the rough window, which would still cut a candidate whose rough score is far off on a different 48 samples. Tests: that floor, and 200 seeded smaller floors, each a few cm off one corner, none may land in another corner (12 of 200 did).
+
 ## 2026-10-10: the 0.25.0 changelog is written for the integrated build (review 27, finding 5)
 
 - The Unreleased section kept per-step lines ("Align does nothing yet", "No control yet", "Nothing draws it yet", "in later steps") that were false once the steps were merged. It is one user-facing line per feature of the finished sprint: offset, Floors menu, Align tab, View Floor below, both floor switches, furniture Lock, the card's ghost and floors_below, the demo, the docs. Core helpers and the stylesheet keyframes have no line of their own: nobody uses them except through those features.
+
 ## 2026-10-10: the Align preview does not search during a drag (review 27, finding 10)
 
 - The memo keyed on floor objects, and a drag makes a new floor object on every pointer move, so the preview ran `alignFloor` once per move. While a drag that has moved (not a pan or a marquee) is in progress the preview keeps its last answer, and the first render after the drag searches once. Chosen over a geometry hash, which would cost a pass over the structure on every render and still miss on every move of a drag that changes it. `alignSearches` counts the searches so a test can see them: 31 during a 30-move drag before, none now.
+
 ## 2026-10-10: the floor-switch test reads the animation, not the clock (review 27, finding 9)
 
 - `card-floor-switch.spec.ts` asserted the slide ended within 400 ms of real time, which depends on the machine. It now reads the animation's own duration (`getTiming().duration` is 220) and the `elapsedTime` the browser reports at `animationend` (0.22 s). A rule changed to 300 ms fails it; the old bound would have passed it on a fast machine.
+
 ## 2026-10-10: Apply says why it wrote nothing (review 27, finding 8)
 
 - `applyAlign` said "Already aligned" whenever `setOffset` failed without a lock, which hid an offset beyond `COORD_LIMIT`. It now says "Already aligned" only when the move is zero, and otherwise that the offset would be beyond the limit, with what to do. The lock case is unchanged.
+
 ## 2026-10-10: the Align close check runs after the host's floor property (review 27, finding 7)
 
 - `willUpdate` checked the Align mode before it applied the `floor` property, so a host-driven floor change rendered once with the panel on the old floor. The check now follows the switch. Test: record every render across `el.floor = "ground"` and assert none has the mode open on another floor.
+
 ## 2026-10-10: docs/card.md names the Studio menus as they are (review 27, finding 6)
 
 - The parity page listed Add, Draw, Edit, File. The toolbar is Add, Floors, View, Edit, File since S27.9, and Draw lives in Add. View is named in the table above it, so the sentence lists the menus that change the plan.
+
 ## 2026-10-10: the shots show the floors stack (review 27, finding 4)
 
 - `scripts/shots.mjs` adds: `card-first-ghost-<theme>` (four themes) and `-2-5d`, `card-first-below-{ghost,solid}-{blueprint,light}-3d` (orbited, floors below translucent and solid) and `editor-{ghost,align}-{blueprint,light,ha}` (View, Floor below on; Align tab open over `align-house.json`, whose first floor is 137 cm out). The card shots use the demo with the first floor's offset set to [120, 40], so the floor below is displaced and part of it falls under the room fills. The editor shots fail the run if no `g.ghost` is drawn. Light and ha look alike in the editor outside Home Assistant, as before.
+
 ## 2026-10-10: the ghost floor is drawn after the room fills and stairs, under walls (review 27, finding 3; supersedes S27.5 "first in the plan")
 
 - Drawn first, `g.ghost` sat under the current floor's opaque room fills and was hidden exactly where Align needs it. It is now pushed after the stairs and the night overlay and before the lamp auras, walls, furniture, doors, names and icons. Still one `g.ghost`, no fill, `pointer-events:none` by class, no `data-*`, one draw path for the editor and the card.
 - Tests: the markup order in `render-ghost.test.ts` (night too), and a computed-style plus paint-order pair on the real element in both hosts in blueprint, light and ha (`ghost-floor.spec.ts`, `card-ghost.spec.ts`); all six fail against the old order.
+
 ## 2026-10-10: Align refines on residual, not only on score (review 27, findings 1 and 2)
 
 - The score saturates at 100 % once every sample is within `NEAR`, so a floor 1.5 to 4.5 cm off scored 100 where it stood and the smaller-move rule kept it there. `refine` now keeps a step when the score is no lower and the mean distance to the nearest line is smaller, each axis averages the samples that pull it, and it runs until the pull is under 0.05 cm (at most 40 rounds). Of the fits that tie, moves under `2 * NEAR` apart are one answer and the smallest residual wins in it; between answers further apart the smaller move wins.
@@ -840,14 +877,17 @@ The assumption "floor lighter than wall sides" holds on the light theme only. On
 ## 2026-10-10: the demo carries a full-height window and a stack of four devices (S27.C)
 
 - `demo/layout.json` and `layout.v1.json` (the migrate test compares them) gain a `fullwindow` door on the Kitchen's east wall and four devices at one point in the Hall: computer, access point, printer, blind. The window is on o:1 because o:0 is the one outline edge with no door, and the delete-edge tests need it bare. The types are ones no Studio test counts: a light, switch or plug changes the bound-switch lists, a lock or camera the Security layer, a media type the empty Media layer. The stack sits at (560, 560), clear of the stairs, the furniture and the draw tests' clicks. A `fullwindow` pane carries `data-dp` like a drawn point, so the draw tests select `circle[data-dp]`. `scripts/shots.mjs` gives the four states and adds `card-ground-stack-{closed,open}-*`, which taps the stack for real. Still no real house.
+
 ## 2026-10-10: the exit test measures the floor against itself (S27.16)
 
 - `tests/editor/floors-exit.spec.ts` aligns `align-house.json` in the Studio with real clicks, takes the layout from the `save-request` event, and gives it to two cards. In 3D the ground floor's solid meshes are compared with the first floor drawn through the same `setBelow` with no shift, because walls have thickness and the mesh box is wider than the outline; in 2D the ghost's bounding box is compared with the first floor's outline. Both within 2 cm. A second test shows the unaligned card is over 100 cm out, so the check can fail.
 - `docs/specs/real-3d.md` criterion I is superseded: floors below are drawn, `off` by default. The 0.14.0 stack drifted because floors had no offset; Align now finds it. Floors above stay hidden.
+
 ## 2026-10-10: View > Floor below is `st.ghostFloor`, kept in localStorage (S27.11)
 
 - `EditorState.ghostFloor` with `setGhostFloor`, key `floorplan-studio:ghost-floor`, every access in try/catch, never an undo step: the same shape as Detail. `ghostOpts()` returns the ghost when the Align mode is open on this floor or the toggle is on, and nothing on the lowest floor. The item `#ghostFloor` is disabled there and its title says why.
 - Parity: `ghostFloor` is a `yes` row (the card's Floor below button, `view-parity.spec.ts`), with a second test that a 3D card has the Floors below select and no button. The View menu item is a plain chip, so a click closes the menu.
+
 ## 2026-10-10: the card's floor switch sets `data-switch` once per switch and clears it on `animationend` (S27.15)
 
 - `_selectFloor` asks `floorSwitch(keys, from, to, reduced)` and keeps the direction in `_switchDir`. `updated()` plays it after `_sync3d()`: remove `data-switch` from the plan svg, force a reflow, set it again, so two quick switches both animate. One `animationend` listener per svg (`_switchEnds`, a WeakSet) removes the attribute, so a stale value never replays on a later render.
@@ -875,29 +915,35 @@ The assumption "floor lighter than wall sides" holds on the light theme only. On
 - Align is an Inspector mode like Link: `asideMode "align"`, `alignKey` (the floor it opened on). It closes on Escape, the X, another floor, or another tab; a floor without a floor below cannot open it. The ghost is drawn only while the mode is open (`ghostOpts()` in the editor; S27.11 adds the View toggle to the same place).
 - The preview calls `alignFloor` itself and memoises it per pair of floor objects, so a `hass` update re-renders without searching again. Any edit makes new floor objects and so a new search. Apply writes `setOffset(lower.offset + t, whole cm)`, so the preview, the status ("Aligned to Ground: 100 % match") and the stored value agree. Score shows as a whole per cent. The move in words is the change from the current offset, so after Apply it reads "Already aligned" and Apply is disabled.
 - The two offset fields are text boxes (`inputmode=decimal`), not number inputs: junk is caught by us, says "Type a number of centimetres" and the field returns to the stored value. One undo step per accepted change; the same value is no step.
+
 ## 2026-10-10: Floors menu, and Draw folded into Add (S27.9)
 
 - Toolbar: Add, Floors, View, Edit, File. Floors holds `addFloor` (id kept), `alignFloor`, `mFloorUp`, `mFloorDown`, `mFloorDel`; the last three are new ids because the floor panel already owns `fup`, `fdown`, `fdel` and an id must be unique in the shadow root. Move up and Move down act on the current floor and disable at the ends; Delete floor... selects nothing and raises the panel's own confirm, so one confirm path. Align is disabled on the lowest floor and its title says why. It supersedes the Draw menu of S1.21 and Add floor in Edit of S8.1.
 - Draw items kept every id. Wall gets a nested `details.sub#drawWallSub` labelled Draw (an id that existed before), Openings ends with `drawOpening`, Areas ends with the five area draws. Nested submenus work with the existing sibling rule because it only looks at direct children.
 - Guide steps now say [Add], [Wall], [Draw] and [Floors]. `openAlign` is a stub that says so, until S27.10.
+
 ## 2026-10-10: offset writers (S27.8)
 
 - `setOffset(key, pt)` rounds to whole cm, deletes the key at `[0, 0]`, and is a no-op (no step, no lock blame) when the value equals what is stored, an absent offset counting as `[0, 0]`. A stored `[0, 0]` set to `[0, 0]` stays as written: it is valid, and a step to tidy it would be noise. Junk or out-of-range input and unknown keys return false. Under Lock plan a real change is refused with `planBlocked`.
 - `alignToBelow(key)` is `alignFloor` plus the lower floor's offset, through `setOffset`; it returns false for the lowest floor, no match, or no change. The Align tab (S27.10) shows the score by calling `alignFloor` itself and applies with `setOffset`.
 - `addFloor` copies the lowest floor's offset along with its outline.
+
 ## 2026-10-10: furniture Lock works under Lock plan (S27.1)
 
 - `EditorState.plan()` drops a furniture piece's `locked` from the compare, so ticking Lock in the panel or the context menu is one undo step under Lock plan. Moving, resizing or turning a piece is still refused. Diego, 2026-10-10: "furniture Lock must work under Lock plan". It supersedes the "known edge" of 'Lock in every panel (S26.16)' and the furniture line of S26.3, which listed Lock with the geometry.
+
 ## 2026-10-10: a floor has an offset; the stack helpers read it (S27.2, S27.3)
 
 - `Floor.offset?: [number, number]`, cm: where the floor sits in the house. Stored points never change; a point's place in the house is the point plus the offset. Chosen over rewriting every point so Align is one key and one undo step, the card's `center` pins, saved views and the trace image stay valid, and repeated aligns cannot drift by rounding. Schema stays v2.
 - Bound: two finite numbers, each within `COORD_LIMIT`. `validate` reports anything else; `migrate` drops it (as `dropBadHeights`), so a hand-edited file opens. A good value is kept as written, `[0, 0]` included; writers (S27.8) delete the key at `[0, 0]`.
 - `floorBelow`, `floorsBelow`, `floorShift` live in `src/core/floor-stack.ts`. Order is `Object.keys(floors)`, as `floorElevation` stacks. They never throw: junk layout means no floors, a junk or unknown-key offset reads as `[0, 0]`, and a key must be an own key (`toString` is not a floor).
+
 ## 2026-10-10: how Align finds the move (S27.4)
 
 - `alignFloor` follows the Sprint 27 assumption. Choices the plan left open: structure lines skip zones in the room fallback; a duplicate corner within 1 cm is one corner, ranked by the total length of the edges at it; candidates are scored coarsely first (48 samples against the 150 longest lower lines), the best three plus the no-move case are refined, then all are scored in full and the tie rule (within 1 point, smaller move) picks.
 - Caps for huge input, so a 10 000-point outline answers in about a second and never hangs: at most 1500 samples (the 10 cm step grows past that), 800 lower lines in the full score, 600 in the fit. A normal floor meets none of them. `t` is rounded to 0.1 cm and the score to 0.1 point; the caller rounds the offset to whole cm.
 - Any exception returns `null`, the same as "nothing to match".
+
 ## 2026-10-10: the floor switch is `data-switch` plus two keyframes, and `floorSwitch` decides (S27.6)
 
 - `floorSwitch(keys, from, to, reduced)` in `render.ts` returns `{ dir }` or null. `keys` is the floors lowest first; a higher new floor is "up". Null for the same floor, an unknown key, a non-array or non-string input, and `reduced === true` (a truthy junk value is not reduced, so a typo does not silently kill the motion). `indexOf` on an array, so `__proto__` is only a key like any other.
@@ -909,6 +955,7 @@ The assumption "floor lighter than wall sides" holds on the light theme only. On
 - `renderFloor` draws `RenderOpts.ghost` as one `<g class="ghost">` before everything else, even before the trace image: the outline, every room, stair and wall as `path.gl`, each point moved by the shift. No fill, text, title, device, `data-*` or `use`, so it cannot be hit-tested or select anything, and no string of the ghost floor is read, so a name cannot reach the markup. The look and `pointer-events:none` are class rules (finding 18); `--fp-ghost` is 35 % of `--fp-wall` into `--fp-bg` in the generic defaults, so every theme has it.
 - Junk draws nothing: a shift that is not two finite numbers within `COORD_LIMIT`, a ring or wall with a non-finite point (skipped alone), rings over 100 000 points. With no valid path no `g` is written. The ghost sits inside the plan turn, so it rotates with the plan.
 - Rooms and stairs are drawn as outlines only; a room's own fill covers the ghost inside the room. That is the "under everything" the plan asks for, and it shows in the shots: the ghost reads outside the current floor's footprint and through unfilled areas.
+
 ## 2026-10-10: floors below in 3D are separate meshes, set by `setBelow` (S27.7)
 
 - `View3D.setBelow(floors, mode)` takes `{ floor, elevation, shift }` entries: `elevation` is the lower floor's walking surface in the current floor's frame (negative), `shift` is the `floorShift` in cm. `SceneOpts.shift` moves every solid in plan x and y in the one `add` choke point; anything but two finite numbers means none.
@@ -1014,6 +1061,7 @@ The decisions below, each in its own entry, add up to this. Summary so a later r
 - **A drag on a member moves every unlocked member** with `moveDevices`, the delta rounded to the snap grid (Alt: 1 cm), 4 px before it starts. It records its step with `commitLiveEdit`, so a drag that ends where it began leaves none. A click on a member without a drag narrows the selection to it. A group of only locked members, or one locked device, takes the press (selection) and no drag.
 - **Escape** drops a marquee in progress, otherwise clears any selection. **Ctrl or Cmd+A** is ignored in a text field and while drawing.
 - `.marquee` and the typed-length field live in the host's `static styles` beside `.dr`, since the overlay is the host's.
+
 ## 2026-10-09: Lock in every panel (S26.16)
 
 - The device, furniture and unlinked panels get a Lock box in Appearance (`lockBox`): ticked writes `locked: true`, unticked deletes the key, one undo step each. A wall, door and opening keep `lockField`, now worded "Lock (keeps its length)". No panel says Fix or "length locked".
@@ -1031,12 +1079,14 @@ The decisions below, each in its own entry, add up to this. Summary so a later r
 - Place needs a room: its tab is off until the selection is a room with something to place, or a Place mode already holds one. Leaving for Selection keeps the ticks; the Escape key and the X return to Selection. Switching floor closes Place, as before.
 - Add stays a mode after a pick (S8.5: place many in a row); the Selection tab shows what was placed. The Left column tablist label is now named in `studio-layers.spec.ts`, since the aside has a tablist too.
 - State stays in the host, which `hass` updates do not reset (panel test). Dropped with the popups: the drag by the head, and the 780/660 px widths (S8.8); two tests changed with them, on purpose.
+
 ## 2026-10-09: menu clean-up, keys, Lock plan (S26.17-19)
 
 - Menus: a box gets `max-height` from the room under its button (minus its padding and border, since max-height is the content box) and scrolls. Sibling subs close through one `onSubToggle`. Add has no `select`: Furniture and Unlinked device are submenus of buttons (`#addFurn-<symbol>`, `#addUnlDev-<type>`); furniture names come from `FURNITURE_LABELS`. The Group light picker (`#motLightGrp`) is a sub too.
 - View keeps one Labels submenu (`#names`, `#labels`). The installed version is in the Help panel (`#version`), so `panels.ts` took two lines; `editor-app.ts` was not touched.
 - Keys: `MENU_KEYS` and `chordLabel` in `guide.ts`; `Mod` is ⌘ on a Mac, Ctrl elsewhere. Only Undo, Redo, Save and Fit to window carry one. Left out: Search, Select all, Delete, Help "?" (not menu items yet, or their keys land in other lanes), and the context menu (lane D owns `ctxItems`). Space is shown on Fit to window; it also turns the view upright.
 - Lock plan: the lock is a CSS mask (a data-URI SVG on a span), not an inline `<svg>`: an inline one came first in the shadow root and 105 tests, helpers included, take `querySelector("svg")` to be the plan. A test pins the plan as the first svg. Label and tooltip change with the state; the id `#fixPlan` stays so other tests still find it. Accessible name is the constant "Lock plan", state is `checked`. On is ink on paper, hover is the warning colour. The command list and the banner still say Fix plan (S26.24).
+
 ## 2026-10-09: every context menu comes from `ctxItems` (S26.20)
 
 - `ctxMenuView` builds each menu from `ctxItems(kind, facts)` and maps an item id to an action in `runItem`; labels, order, keys and disabled state are the model's. Twelve targets, all open a menu: a hit with no menu of its own (a room kind with none, a hidden edge, the background) opens the canvas menu, a corner handle opens none. `ctxTargetFor` (in `ctx-menu.ts`) turns a hit into the target and sets the selection; the host only keeps `hitOf` and `edgeNear`.
@@ -1063,6 +1113,7 @@ The decisions below, each in its own entry, add up to this. Summary so a later r
 ## 2026-10-09: devices can be locked (S26.1)
 
 - `Device.locked?: boolean`, schema stays v2: an old card ignores the field. Same key as a wall, door, opening, furniture piece and unlinked object, so Lock is one word everywhere. `validate` reports anything but a boolean (`"yes"`, `1`, `null`); `migrate` leaves the value as written and `validate` judges it, as it does for the other `locked` fields. What a lock stops is decided in later tasks (a drag, alone or in a group).
+
 ## 2026-10-09: Fix plan holds geometry only (S26.3)
 
 Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan changes) and the scenes carve-out of 2026-10-07, which this generalises.
@@ -1070,10 +1121,12 @@ Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan chan
 - **What goes through:** every name and title (room, floor, door, extra, stairs, furniture), colour and texture, the HA area and floor id, and every entity link (a room's `entity`, sensors and scenes; a door's sensors, locks and cover; a piece of furniture's `entity`). One undo step each. Reason (Studio review, U3): the lock told a person they could not rename a room, and names and colours are not what a lock protects.
 - **How:** `EditorState.plan()` serialises the floor without those fields. `renameFloor` and `paint` no longer ask `planOpen()`. Order, add, delete and rotate of floors stay refused.
 - **Not done here:** `editor-app.ts` still refuses the texture rotation and scale sliders under the lock (`rotateTexture`, `scaleTexture`), and `replaceFloor` still drops a live non-device change under the lock, so those two sliders stay blocked until the Inspector tasks rewire them.
+
 ## 2026-10-09: the plan draws a multi-selection (S26.4)
 
 - `RenderOpts.selection` is a `PlanSel` (`layers.ts`): `{ t, i }` as before, or `{ t: "devs", is }`. One helper, `devsHave`, answers "is device i in it" for both the draw (`.sel`) and `layerHides` (a selected member is drawn under a hidden layer), so the plan and the hit-test cannot differ.
 - A list with junk (not an array, `NaN`, 1.5, strings) selects only its integer members that exist; a non-list selects nothing. Without `devs` the markup is byte for byte as before.
+
 ## 2026-10-09: one context-menu model (S26.6)
 
 - `ctxItems(target, facts)` in `src/editor/ctx-items.ts` is pure: ids and labels only, the host maps an id to an action. Twelve targets in `CTX_TARGETS`, so a new one fails the iterating test until its list is written.
@@ -1081,6 +1134,7 @@ Supersedes the `plan()` rule of 2026-10-06 ("Fix plan": nothing of the plan chan
 - Items that read HA (Place devices from area, Add device here) are `disabled` without it, not hidden, so the menu keeps its shape.
 - "Delete n" only for two or more devices; junk counts give plain "Delete".
 - Not wired into `editor-app.ts` here: that is the later host split.
+
 ## 2026-10-09: typed length lives in `Draw` (S26.8)
 
 - `Draw.typed` is the buffer. `type(ch)` takes digits, one dot and a closing `m` (false otherwise, buffer capped at 8 characters); a minus cannot be typed. `untype()` drops the last character. `typedCm` reads it: "350" is cm, "3.5m" metres; empty, 0, over 10 000 cm (10 000 itself is fine) is null.
@@ -1117,6 +1171,7 @@ Supersedes "Mode is `full` for now" in the entry below.
 - **Kept per viewer, every storage access in try/catch.** Studio: `floorplan-studio:detail`, like the theme; card: a `detail` field in the view memory. Blocked storage means the pick lasts for the session.
 - **Tests that click idle devices at fit.** 144 card tests would miss them under `auto`. `tests/card/harness.html` and `harness-static.html` wrap `setConfig` to add `detail: "full"` when the config has no `detail`; a test sets `window.__realDetailDefault` with `addInitScript` to see the real default (`tests/card/detail-menu.spec.ts` does). No assertion changed. Alternative rejected: editing each of 50 files.
 - **Not in 3D.** The Detail button hides in live 3D, as Layers does; 3D draws every level.
+
 ## 2026-10-09: incremental render by diffing the markup, not by patching per device (S25.6)
 
 - The card still calls `renderFloor` for the whole plan on every `hass` update and gets markup back. `src/card/plan-patch.ts`
@@ -1146,6 +1201,7 @@ Supersedes "Mode is `full` for now" in the entry below.
 - **A ring takes at most `SPIDER_MAX` = 8.** Overlaps chain, so a packed grid is one group of dozens (the Sprint 23 tag-tap test's 60 switches, 20 cm apart, at 375 px). The card then fans the tapped device and its 7 nearest neighbours. That test now taps twice at 375 px: the stack, then the device.
 - **The Studio gets no ring.** It picks the top element (`hitOf`), so the device under another is not clickable there, but the Outline tab and the search select any device by name (S24.5), and the inspector then moves it. A ring would clash with drag-to-move on the same icons. Not done; say so if a ring is wanted there too.
 - **Known limits.** A card turned by Rotate does not clamp the ring to the view (the view box is in the turned frame). The ring is not kept clear of the Active panel or the control strip.
+
 ## 2026-10-09: detail levels in `renderFloor`; mode is `full` until the menu (S25.1, S25.2)
 
 - `detailLevel(zoom, mode)` and `detailFor(fit, shown, mode)` live in `src/core/detail.ts`. Far below 1.6, mid to 3.2, near
@@ -1160,6 +1216,7 @@ Supersedes "Mode is `full` for now" in the entry below.
   Playwright tests fail: at fit every idle device is gone, and the tests (and the Studio's editing) click idle devices at
   fit. Hiding idle devices while someone places them is also a real editing problem. S25.7 and S25.8 set the mode from the
   menu and the YAML key; the Studio's default there needs Diego's call (suggest `full` while editing).
+
 ## 2026-10-09: labels keep their screen size at any zoom (S25.4)
 
 Supersedes "Not done here: placing labels in CSS px outright" in "an 11 px floor on the card (S23.2)". `renderFloor` takes `zoom`, the view's zoom over the whole floor at fit (1 = fit). Text uses `kt = k / zoom`: every label size, its offsets, the name search steps, the leader width and the tag plate. Absent, 1 or junk (not a finite number above 0): byte for byte as before, so no snapshot changed.
@@ -1168,12 +1225,14 @@ Supersedes "Not done here: placing labels in CSS px outright" in "an 11 px floor
 - **The card passes `fit.w / box.w` on every render.** A zoom already re-renders the card's markup (the view box is in it), so this costs no second render; names are placed again at each zoom, which is how a name that did not fit at fit can sit inside its room once zoomed. A card pinned by `zoom_level` or `center` now draws its labels at the size of the whole-floor card, no longer enlarged with the pin.
 - **The Studio passes nothing.** Its `scale` is already the live view scale (`k = 1/scale`), so its labels were screen-sized already.
 - Test: `tests/core/label-zoom.test.ts` (zoom 2.5 and 4 and 6, junk input, discs unchanged) and `card-label-zoom.spec.ts` (a real wheel to 6x, `getBoundingClientRect` heights within 0.5 px, a 320 px card for the floor); it fails with the `zoom` line removed.
+
 ## 2026-10-09: room badges and their rollup (S25.3)
 
 - **`roomRollup(f, i, state)` / `floorRollups(f, state)`** in `src/core/rollup.ts`: lights on (`classOf`, so an unavailable lamp is not on and a bound lamp counts through its relay), motion on (icons and the room's own `motion` list, once per entity), and from `attention()` run over the one floor: `open` (kind `open`: a contact sensor, door, window or garage door standing open) and `alerts` (every other kind but unavailable, which has its own folded row there). One thing counts once per class. Alert items are put in a room by what they name (device point, piece point, `doorRoomIndex`, a new index twin of `doorRoomName`).
 - **Badges are drawn by `renderFloor` (`badges()` in the same file), hidden by CSS.** `.room-badge{display:none}`; shown only under `[data-detail="far"]` or `"mid"`. No attribute, or `near`, shows none. The rule is a class rule with `pointer-events:none` (finding 18).
 - **With `labels: false` no badge is drawn.** `labels: false` is the contract "no `<text>` at all" and a count is text. The S7.1 overprint test excludes the badge's `rb-t` text from its label count; the badge's own test checks the plate against its room's name and readout.
 - **Placement is a plain rule, not label placement**: the plate sits under the room's name (and under the readout when there is one), centred on the name's anchor. Sprint 25's CSS-px placement task (S25.4) may move it.
+
 ## 2026-10-09: full-height window (S25.D3)
 
 Diego: "allow for full height windows (we have those) so that i do not need to use a glass door for them."
@@ -1239,6 +1298,7 @@ turns about the hinge when the door is open, is unchanged. Windows, open doorway
 - Tests changed on purpose: `plan-symbols.test.ts` (the leaf is the whole path; no `A`/`a` in any symbol, no circle or
   ellipse, for every door kind in 2D and 2.5D; the gap is still cut; the sweep-flag test is deleted) and the render
   snapshot (only the three arcs removed).
+
 ## 2026-10-09: Sprint 24 review fixes, core and card (S24.R)
 
 - **A sibling battery sensor counts only when HA files it `diagnostic`** (S24.R12). Supersedes the assumption in
@@ -1372,6 +1432,7 @@ turns about the hinge when the door is open, is unchanged. Windows, open doorway
 - **A repeated area name gets the HA floor name, else the id.** Names are trimmed and compared without case.
 - **The eye paths live in the editor**, not in core's `UI_ICONS`, which the card bundle carries whole.
 - **The card's view-parity row is `#tabLayers`, "no" for now**, with why: the card's chips are S24.8.
+
 ## 2026-10-09: the S7.15 swipe flake was a fling in the test (S24.F1)
 
 - **Cause.** The test drove its swipes through CDP without timestamps, so Chromium stamped each touch with its
@@ -1446,6 +1507,7 @@ turns about the hinge when the door is open, is unchanged. Windows, open doorway
 - **A linked piece (tv, speaker, computer) is a device entry**, flagged `piece`, its index into `furniture`; the same rule as the Active list.
 - **A person has no room**: its drawn spot comes from sensors, not its stored point (as in the room summary).
 - `room-info.ts`'s private `centre` is now exported as `deviceCentre`, so search finds a device's room with the same point and `roomAt` as the room summary.
+
 ## 2026-10-08: the shipped code loses its comments and its whitespace (S24.4, S23.F5)
 
 Sprint 24 adds a search box and an Overview sheet to the card, and the card was 109229 gzip against its 115000 limit. The
@@ -1471,12 +1533,14 @@ solarized one inherited solarized's base2 for its outdoor names. The generic def
 `--fp-text-out:var(--fp-text)` on `:host,.fp,[data-theme]`, so each group resolves it from its own text; solarized's own
 rule comes later and still wins on its group. Test: `labels-css.spec.ts`, every other theme nested in solarized reads as
 it does alone.
+
 ## 2026-10-08: the 3D view keeps its shader programs across floors (S22.F1)
 
 The "20 switches" test in `card-3d-floors.spec.ts` took 23 to 29 s alone and timed out under the full suite. A CPU profile put the time in native code, not JS: three.js destroys a shader program when the last material using it is disposed, and a floor switch disposed every material of the old floor before the new one was drawn. So every switch compiled its programs again, four of them, about 0.7 s a switch in the tests' software GL. Compile time is CPU time in software GL, so the test slows with machine load: the same code took 23 s and 29 s alone on 2026-10-08, against 12 s when first logged. Not bisected.
 - **The fix is in the product.** `view3d.ts` `retire`: the first material to give up a program is kept, unused and out of the scene, until the view ends or its context is restored; any other is disposed as before. One material per program, no buffers and no maps. Geometries and textures still go at once, so the leak check reads the same counts.
 - **Not chosen:** disposing the old materials one frame later. It saves a program the next floor uses, but a program one floor needs and the next does not (the textured top on ground and first, none on test) still dies in between: 35 compiles in 21 switches instead of 84. Sharing materials across floors would need every part to stop mutating its own colour.
 - The test now also reads the live program ids (a test-hook read, `programs()`) and requires them unchanged after 21 switches. The test's own work is unchanged: 21 switches, the same memory, children and renderer checks. Alone it takes about 4.5 s.
+
 ## 2026-10-08: what needs attention, and open is not unlocked (S24.3, G1, G2, G3)
 
 The review found one "Active" number holding ten idle cameras, an armed alarm with no state, and a door called open because its lock was unlocked. `src/core/attention.ts` now lists what is wrong, apart from what is on. Pure; the panel that shows it comes next.
@@ -1878,6 +1942,7 @@ The fold is per card, in `localStorage` in try/catch, one key apart from the pan
 other), with separate ids for the Active list (`a:`) and the Room panel (`r:`): folding Lights in a room must not hide them in the
 list below. **Studio parity:** none needed. The editor has no Active list and no Room panel (they are card chrome over live state);
 the editor's own Add > Unlinked list keeps its type grouping. Stated exception, like item 16.
+
 ## 2026-10-06: S14.8, a plug is coloured by its draw (item 24)
 
 - **One source, three views.** `deviceMarkup` writes `--fp-heat` (0..1, rounded to 0.01) on the plug's icon group when the plug is
@@ -1894,6 +1959,7 @@ the editor's own Add > Unlinked list keeps its type grouping. Stated exception, 
   list, so the visual editor has two plain fields.
 - **Not done, stated.** Only plugs: the schema allows `power` on a plug only, and a switch has no sensor field. Widening that is
   a schema change for Diego to ask for.
+
 ## 2026-10-06: S14.4, the card remembers its view per floor, 2D and 3D
 
 Spec item 8. Supersedes "one zoom, focus and turn per card" of the 0.12 view memory; everything else in that entry stands.
@@ -1907,6 +1973,7 @@ Spec item 8. Supersedes "one zoom, focus and turn per card" of the 0.12 view mem
 - **Old entries.** A stored entry with top-level `zoom`, `focus`, `rotation` moves to the floor it names in `floor`; with no floor named it is dropped (whose view it was cannot be said). One lost zoom at worst.
 - **Parity with the studio.** The editor already remembers a zoom per floor (`view-memory.ts`) and draws flat only, so it has no camera. Its one turn for all floors stays: the editor edits one layout across floors and a turn there is a viewpoint on the house, not on a floor. Not changed. If Diego wants a turn per floor in the editor too, it is a small change to `ViewMemory`.
 - **Not done.** A turn in 3D is not remembered apart from the camera azimuth. The 3D "top view" and "frame a room" (S15.5) will store through the same `cam`.
+
 ## 2026-10-06: S14.7, room scenes: area first, an explicit list as the exception, lights-only presets without a confirm
 
 Diego, Sprint 14 item 19 (Hue scenes included).
@@ -1948,6 +2015,7 @@ slit was one day old, and a slit with an own sill is untouched.
 
 **The name.** Add, Openings and the wall menu already said "Slit window". The door type select listed the raw id `slit`; it now
 shows "slit window" (value still `slit`; the other kinds keep their ids as labels).
+
 ## 2026-10-06: S14.2, a tap opens a popup; OFF asks; one state text
 
 - **A tap never operates.** On an icon, a door, an unlinked appliance or an Active row, in 2D and 3D, a tap opens a popup. The
@@ -1970,6 +2038,7 @@ shows "slit window" (value still `slit`; the other kinds keep their ids as label
   trailing ".0" (48 %, not 48.0 %). A light on shows brightness as a percent, a cover its position, a plug its watts.
 - **Hover** is mouse only. In 3D it uses the pick on pointermove, once per animation frame, with no per-move allocation.
   Anchor of the popup: the pointer, or the element's box for a keyboard or row activation.
+
 ## 2026-10-06: effect size is a per-device percent, read by CSS and by the 3D pool; a siren is an entity domain
 
 S14.3, spec items 7 and 6. `Device.fx` is optional, a finite number in [25, 300] (percent of the type's own size, absent is 100).
@@ -1997,6 +2066,7 @@ range is clamped and says so), now one `optionalField` behind both. The existing
 Tests: core (validate and migrate against hostile values, 2D scale at 50, 100, 150, 300 with asymmetric numbers, an iteration over
 every type), a Chromium pair that reads `getComputedStyle` and the running animation's end frame, the 3D pool and glow reach on
 the demo's living lamp, and the editor with a real mouse, run ten times.
+
 ## 2026-10-06: S14.5, the open doorway is a solid band, devices hang lower, low walls are 110 cm
 
 Spec items 9, 10, 11. Supersedes the dashed, pulsing look of a tripped `open` door, and the line in 0.15 that 3D shows no
@@ -2104,6 +2174,7 @@ because Space must work from a plain hover, with no click first.
 
 **Item 1 of the field report (the office with no walls) was a data error in Diego's layout file, not a code defect.**
 `lowerWalls` and `wallZ` are unchanged: nothing was reproduced on the demo layout, so nothing was changed on a hunch.
+
 ## 2026-10-05: room Sensors section, add menu order and Remove button
 
 The room panel's three sensor pickers group their options "<floor title> · <room>" and sort them (`groupSensorChoices`,
@@ -2114,6 +2185,7 @@ room name or "Elsewhere". Never throws. Order inside a group is the incoming ord
 old room-name groups; `multiAttachField` takes an opt-in `look` argument.
 Remove on a room sensor is a round red icon-only button (`.btn.rm-x`, `--fp-danger`, white X, 26 px). The name is in
 `aria-label` and `title` ("Remove <room> - <sensor>"); the id `<picker>-rm<k>` is unchanged. The X path is `UI_ICONS.close` (mdiClose, inlined).
+
 ## 2026-10-05: open doorway (`door.kind` `open`)
 
 **What.** A door that is only a hole in the wall: cut like a door (210 high from 0, width a to b, the same editable
@@ -2646,6 +2718,7 @@ the toolbar alone is 90 px of 144) lays the stack out as a row under the
 chips and moves the toolbar below it: zoom and rotate stay reachable, the
 toolbar's last row is clipped. Tests that looked for the zoom buttons inside
 `.fp-zoom` now look in `.fp-stack`. No editor change.
+
 ## 2026-10-04: a cover left open on a plain door is red; walls default stays `cut`
 
 Diego confirmed three calls on 0.12.25. `.door.cover-open`, `.opn.cover-open`
@@ -2701,6 +2774,7 @@ Taps follow the icon (`g[data-x]` is the real top element); the pin and stem tak
 no pointer events. The editor's 2.5D view is a read-only preview (no selection,
 drag, handles or overlay), so it needed no change. Unlinked appliances were
 already lifted whole as solids, with no pin: unchanged. 2D output is identical.
+
 ## 2026-10-03: studio and card agree on every view control
 
 Diego, on 0.12.22: "i have buttons in the studio but not in the card ... arrow
@@ -2834,6 +2908,7 @@ unchanged: a door with a `cover` still draws orange when that cover is open.
 
 On 0.12.21 itself a cover was never on in `classOf`; if a curtain still drew
 orange on a dashboard, that was a cached 0.12.19 or older bundle.
+
 ## 2026-10-03: the view is remembered, saved on touch, and driven by keys
 
 Diego, on 0.12.21: no rotate buttons in the editor; add Cmd/Ctrl+S, arrow
@@ -2921,6 +2996,7 @@ rule (on if either entity is on): it is a lamp, not an appliance. A room or
 furniture `entity` that is a plug's switch follows the rule only when that
 plug is on the same floor as the room. The tooltip shows watts rounded to
 one decimal, always in W.
+
 ## 2026-10-03: walls keep their height; the cutaway eases and only counts inner rooms
 
 Supersedes the cutaway rule of 2026-10-02 ("the cutaway follows what a wall
@@ -2968,6 +3044,7 @@ direction, like a wall. Say if you want it.
 
 The first-floor Office is blue because `demo/layout.json` gives that room
 `color: "#4a6fa5"`, in 2D as well. Not a bug.
+
 ## 2026-10-03: stair direction
 
 Diego: the top floor shows stairs going up, not down, and stacked stairs
@@ -3470,6 +3547,7 @@ Reasons:
 The catalog entry itself is never touched by either direction — only
 `f.devices` (or `f.floors[k].devices`) gains or loses an entry, exactly like
 placing and removing any other catalogued device.
+
 ## 2026-09-27 S10.4: tapping always picks an entity, never guesses; a light's `bound` switch is left out on purpose
 
 The brief: "tapping an object with attachments (heater/ac/etc.) should open
@@ -5011,6 +5089,7 @@ View, Trace image…, the Export tick, `setTrace`). Departures, and why:
   the layout over HA's websocket. aiohttp's default maximum message is 4 MB,
   so a layout near the trace cap may be refused on Save. Not verified against
   a real HA. If it bites, lower `MAX_TRACE_BYTES` or cap the JPEG harder.
+
 ## 2026-09-24 S7.4 Zoom and pan in the card: how the brief was read
 
 Where the S7.4 block left room, or could not be done as written:
