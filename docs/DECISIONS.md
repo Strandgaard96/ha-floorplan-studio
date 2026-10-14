@@ -2,6 +2,16 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-14: S32.2 the 3D framing maths, pure (Sonnet)
+
+New `src/card/three/frame3d.ts`, no three.js import. Judgement calls:
+- Frame and signs. All points are in three's frame (x east, y up, z south), as the Orbit keeps them, so S32.4 passes its own `lo` and `hi`. `shift` is how far the picture moves on the canvas in px, right and down positive. The view applies it as `setViewOffset(w, h, -shift[0], -shift[1], w, h)`: three moves the frustum window, so the picture goes the other way. A test pins both signs against three's own projection.
+- `project(p, canvas, cam, fov, shift)` returns null for a point at or behind the camera. The polar is kept 0.001 rad off the poles (an azimuth means nothing there).
+- `fitBox` bisection. Lower bound: the largest depth by which a corner sits in front of the box centre, because under it a corner is behind the lens. Upper bound: doubled from there until every corner fits (80 tries, then null). 80 halvings on that bracket, so the tight side is within far less than 0.5 px. The camera looks at the box centre, so the fit needs only the offsets from it; `shift` then slides the centre to the visible box's centre. The margin is `max(12, 5 %)` of the visible short side; a visible box the margin eats, outside the canvas or inverted gives null. Perspective makes the near side of the box larger than the far side, so "tight" is on the worse side and the other side keeps some slack.
+- `glide` returns `to` itself at t of 1 (not an equivalent azimuth mod 2 pi), `from` at 0 and for NaN, the short way across plus or minus pi, the distance on a log scale (linear if either is not positive), junk cameras null.
+- Tests: `tests/card/three-frame3d.test.ts`. First run failed on the missing module (the file did not exist yet). After the code, three mutations were each caught: lens sign flipped (3 tests fail), x and y half-extents swapped (1), margin dropped (2).
+- Studio parity: none, the Studio has no 3D view. No wiring yet, so no CHANGELOG-worthy behaviour; the line says so.
+
 ## 2026-10-13: fixes from the Opus review of Sprint 31 (Sonnet)
 
 Six findings, one commit each; this entry grows with them.
