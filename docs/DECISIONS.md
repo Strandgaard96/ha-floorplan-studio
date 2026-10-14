@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-14: Sprint 32 Opus review fixes (Sonnet)
+
+- Blocker. `_selectFloor` now calls `_releaseFocus()` and clears `_focus3d`. A canvas tap holds the room last sent to the view for 350 ms; the view's `setFloor` drops `focused`, so the held index (Kitchen, 1) arrived as a new pick on the new floor, where index 1 is the Bathroom. Test (`card-3d-framing.spec.ts`, criterion 6): Kitchen focused, real tap on Living, real click on the First tab, camera targets recorded on every frame to rest; no frame looks at the Bathroom's centre and the end is the floor fit. Failed first (a frame at distance 0 from the Bathroom's centre); fails again with the two lines removed; 10 of 10 green with `--repeat-each=10`.
+
 ## 2026-10-14: Sprint 32 3D framing, summary (Sonnet, docs)
 
 Diego answered Q1 to Q5 with the defaults, and the build follows them: (1) a camera the person has moved keeps its angles and target on a resize, only its distance follows the box; (2) a room pick always glides to the room's fit, even when the room is in view; (3) Back returns to the camera from before the first focus, at the current angles; (4) a device from Search does not move the camera; (5) the exact box fit is the default picture for every framing, the first draw too.

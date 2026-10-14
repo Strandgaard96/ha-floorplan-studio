@@ -432,6 +432,41 @@ test.describe("S32.1 criterion 6: leaving the room goes back to the camera it ha
     expect(await ring(page)).toBe("");
     await expectFloorFitted(page, "the First floor");
   });
+
+  test("1024x768: a floor tab pressed inside the canvas tap's hold never frames a room of the new floor (Opus review, blocker)", async ({ page }) => {
+    // Premise: the Kitchen is focused; a canvas tap on Living starts the 350 ms hold, and the tab is pressed at once, inside it. The held index
+    // (Kitchen, 1) used to reach the view as a pick on First, whose room 1 is the Bathroom: the camera jumped there for ~750 ms and glided back.
+    const tab = (n: string) => card(page).locator("css=.fp-floors button", { hasText: n });
+    await boot(page, WIDE, { floor: "all" });
+    await tab("First").click();
+    await settled(page);
+    const [fx, fz] = target(await cam(page)); // the First floor's own fit, at rest
+    await tab("Ground").click();
+    await settled(page);
+    await searchKitchen(page);
+    await settled(page);
+    const living = await floorOf(page, 0);
+    expect(await picks(page, living)).toEqual({ type: "room", index: 0 });
+    await holder(page).evaluate((el) => {
+      const w = window as unknown as { __rec: { target: string }[]; __go: boolean };
+      w.__rec = []; w.__go = true;
+      const f = () => { if (!w.__go) return; w.__rec.push({ target: el.dataset.target! }); requestAnimationFrame(f); };
+      requestAnimationFrame(f);
+    });
+    const t0 = await now(page);
+    await page.mouse.click(living.x, living.y); // Living: the hold starts, the Kitchen's index is still the one held
+    await tab("First").click();
+    await expect(tab("First")).toHaveAttribute("aria-pressed", "true");
+    await after(page, t0, 450); // the hold has closed (the page's clock), then the camera rests
+    await settled(page);
+    const rec = await page.evaluate(() => { const w = window as unknown as { __rec: { target: string }[]; __go: boolean }; w.__go = false; return w.__rec; });
+    const [ex, ez] = target(await cam(page));
+    expect(Math.hypot(ex - fx, ez - fz), "ends at the First floor's fit").toBeLessThan(1);
+    const [bx, bz] = centreOf(demo.floors.first.rooms[1]); // the Bathroom
+    const near = Math.min(...rec.map((r) => { const [tx, tz] = r.target.split(",").map(Number); return Math.hypot(tx - bx, tz - bz); }));
+    // The Bathroom's fit looks at its centre (600,150); the Kitchen's own start is 70 cm off it, so only the fit itself is under 20.
+    expect(near, "no frame looks at the Bathroom's centre").toBeGreaterThan(20);
+  });
 });
 
 // ---- criterion 7: motion ----------------------------------------------------------------------------------------------------------

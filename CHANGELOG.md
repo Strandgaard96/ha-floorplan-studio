@@ -8,6 +8,7 @@
 - Docs (S32): the three 3D Known limits (no re-fit on a narrower card, the half sheet covering the house, a room pick not moving the camera) are fixed and removed; `docs/card.md` describes the framing.
 - Card (internal, S32): the framing maths (`fitBox`, `project`, `glide`) is a pure module checked against three.js; `coverOf` in `src/card/frame.ts` gives the px the bottom sheet covers; the orbit frames a box and keeps a focus; `setInset` is replaced by `setFrame`.
 - Card: the ⋯ menu's Theme is one drop-down with all 13 themes, not a list of 13 radios. It is a native select: a click, or Enter, Space or Alt+Down on it, opens the list; the arrow keys still walk the menu past it. A pick writes the same `theme` into the view memory, closes the menu and returns focus to the ⋯ button. `view_switch: false` still hides it.
+- Card (fix, review of S32): a floor tab pressed within 350 ms of a canvas tap no longer zooms into a room of the new floor. The tap's held room index (of the floor just left) reached the new floor, where the same index is another room, and the camera jumped there for about 750 ms before it glided back to the floor.
 
 ## 0.29.0 - 2026-10-13
 

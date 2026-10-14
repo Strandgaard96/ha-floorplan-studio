@@ -1543,6 +1543,8 @@ export class FloorplanStudioCard extends LitElement {
     this._kept = null; // a kept thing is kept on its floor only, and only until the person looks elsewhere
     this._pickedRoom = null; // a room of the floor just left means nothing on this one
     this._pickedFloor = null;
+    this._releaseFocus(); // a canvas tap's hold on the floor just left must not send its room index to this one,
+    this._focus3d = null; // where the same index is another room
     this._syncFloorMemory(); // and the floor now shown brings its own
     this._scheduleSave();
     this.requestUpdate();
