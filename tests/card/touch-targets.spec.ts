@@ -261,7 +261,7 @@ const STATES_TO_WALK: State[] = [
 const FINE: Record<string, { h: number; w?: number }> = {
   ".fp-head-btn": { h: 24.4 }, ".fp-floors button": { h: 24.4 }, ".fp-stack button": { h: 28, w: 28 }, ".fp-rail-open": { h: 36, w: 36 },
   ".fp-handle": { h: 64 }, ".fp-active-collapse": { h: 16 },
-  ".fp-active-row": { h: 36.6 }, "button.fp-cat": { h: 28 }, ".fp-floor-off": { h: 32 }, ".fp-ov-scope": { h: 24 },
+  "button.fp-cat": { h: 28 }, ".fp-floor-off": { h: 32 }, ".fp-ov-scope": { h: 24 },
   ".fp-back@tablet": { h: 16 }, ".fp-back@phone": { h: 40, w: 40 }, ".fp-alloff": { h: 32 }, ".fp-room-clear": { h: 24, w: 24 },
   ".fp-scene": { h: 32 }, ".fp-show-all": { h: 19.4 }, ".fp-layer-note button": { h: 24 },
   ".fp-pop button.fp-pop-primary": { h: 44 }, ".fp-pop button.fp-pop-more": { h: 36 }, ".fp-pop summary": { h: 32 }, ".fp-pop input.fp-pop-hue": { h: 20 }, ".fp-pop-confirm button": { h: 44 },
@@ -277,6 +277,10 @@ const measure = (page: Page, sel: string) => page.evaluate(`(() => { ${DEEP}
   const t = e.matches("input[type=checkbox], input[type=radio]") ? e.closest("label") ?? e : e;
   const r = t.getBoundingClientRect(); return { w: r.width, h: r.height };
 })()`) as Promise<{ w: number; h: number } | null>;
+
+/** A row whose height is its wrapped text. A pinned pixel height came from macOS fonts and read 52 px on the Linux runner (CI, 0.29.0), so under a fine
+ *  pointer the rule is pinned by what it must not carry: the 44 px minimum. */
+const TEXT_ROWS = new Set([".fp-active-row"]);
 
 for (const touch of [true, false]) {
   for (const size of ["tablet", "phone"] as const) {
@@ -305,6 +309,10 @@ for (const touch of [true, false]) {
               if (!/input|\.opt|\.fp-off-row|\.fp-handle/.test(sel)) expect(m!.w, `${sel} coarse width`).toBeGreaterThanOrEqual(MIN - 0.01);
             } else if (process.env.PIN) {
               console.log(`PIN ${JSON.stringify(sel)} ${size} ${m!.w.toFixed(1)} ${m!.h.toFixed(1)}`);
+            } else if (TEXT_ROWS.has(sel)) {
+              const min = await page.evaluate(`(() => { ${DEEP}
+                const e = deepAll(${JSON.stringify(sel)}).find(shown); return getComputedStyle(e).minHeight; })()`);
+              expect(min, `${sel} carries no coarse minimum height under a fine pointer`).not.toBe("44px");
             } else {
               const pin = FINE[`${sel}@${size}`] ?? FINE[sel];
               expect(pin, `${sel} has a pinned fine size (got ${m!.w.toFixed(1)} x ${m!.h.toFixed(1)})`).toBeDefined();
