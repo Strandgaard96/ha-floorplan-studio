@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { demo, serve, ORIGIN, card, cam, drawn, holder } from "./helpers-3d";
+import { demo, serve, ORIGIN, card, cam, drawn, holder, box, visibleBox, inside } from "./helpers-3d";
 
 // S12.6, spec assumption I (criterion 8): in 3D the selected floor is solid, only the selected floor is drawn (3D fixes: the dimmed stack was removed). Real card, demo floors, real mouse.
 // Demo: ground is 250 cm high with a 25 cm slab, so `first` stands 275 cm above it and `test` 550 cm. The garden (x 800..900,
@@ -98,7 +98,10 @@ test.describe("3D view: floors (S12.6)", () => {
     const after = await cam(page);
     expect(after.az).toBeCloseTo(before.az, 3);
     expect(after.polar).toBeCloseTo(before.polar, 3);
-    expect(after.dist).toBeCloseTo(fresh.dist, 0); // the distance frames the new floor, as a fresh view of it would
+    // S32.4 premise change: a floor switch fits the new floor's box at the angles the person has (not the start angles' distance, which
+    // is what `fresh.dist` is), so the check is on the picture: the whole floor stands inside the visible box, and the zoom is dropped.
+    expect(after.dist).toBeGreaterThan(before.dist * 1.1);
+    expect(inside(await box(page, "floor"), await visibleBox(page), 8)).toBe(true);
     // twice round to warm every cache, then twenty more
     const cycle = async () => { for (const k of ["test", "ground", "first"]) await select(page, k); };
     await cycle(); await cycle();

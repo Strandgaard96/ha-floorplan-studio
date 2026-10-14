@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Orbit, MAX_POLAR, MIN_POLAR } from "../../src/card/three/orbit";
+import { project } from "../../src/card/three/frame3d";
 
 // The camera maths of the 3D view, with no WebGL: where the camera stands and what a drag, a wheel turn and a pan do.
 
@@ -98,39 +99,231 @@ describe("Orbit", () => {
   });
 });
 
-describe("Orbit inset: a panel covers part of the view (S12.4)", () => {
-  it("frames the house in the free width: the camera backs off and the picture shifts toward the free side", () => {
-    const o = make(1.5), before = o.distance;
-    expect(o.shift).toBe(0);
-    o.setInset(0, 0.4); // a panel over the right 40 percent
-    expect(o.distance).toBeGreaterThan(before); // a narrower field must back off to fit the width
-    expect(o.shift).toBeCloseTo(-0.2, 9); // the free area's centre is 0.2 of the width left of the view's centre
-    o.setInset(0.4, 0);
-    expect(o.shift).toBeCloseTo(0.2, 9);
+const NO_COVER = { top: 0, right: 0, bottom: 0, left: 0 };
+const cover = (bottom: number) => ({ top: 0, right: 0, bottom, left: 0 });
+/** The eight corners of plan bounds, on the canvas, through the orbit's own camera (frame3d's `project`, checked against three in three-frame3d.test.ts). */
+const screen = (o: Orbit, b: { min: number[]; max: number[] }, canvas: { w: number; h: number }) => {
+  const pts: { x: number; y: number }[] = [];
+  for (const x of [b.min[0], b.max[0]]) for (const y of [b.min[1], b.max[1]]) for (const z of [b.min[2], b.max[2]]) {
+    // plan (x, y, z up) to three (x, z, y)
+    const q = project([x, z, y], canvas, { az: o.azimuth, polar: o.polar, distance: o.distance, target: o.target }, 40, o.shift);
+    if (!q) throw new Error("a corner is behind the camera");
+    pts.push(q);
+  }
+  return { left: Math.min(...pts.map((p) => p.x)), right: Math.max(...pts.map((p) => p.x)), top: Math.min(...pts.map((p) => p.y)), bottom: Math.max(...pts.map((p) => p.y)) };
+};
+const C1 = { w: 1000, h: 700 }, C2 = { w: 700, h: 1000 };
+const framedAt = (c = C1, cv = NO_COVER, deg = 0) => { const o = make(c.w / c.h, deg); o.setVisible(c, cv); return o; };
+const room = { min: [100, 100, 0] as [number, number, number], max: [400, 350, 250] as [number, number, number] };
+const near = (a: number[], b: number[], d = 6) => a.forEach((v, i) => expect(v).toBeCloseTo(b[i], d));
+
+describe("Orbit frames a box (S32.4)", () => {
+  it("the start frames the floor box exactly: tight on one side of the visible box, inside on the other", () => {
+    const o = framedAt(), r = screen(o, bounds, C1), m = Math.max(12, 0.05 * 700);
+    expect(r.left).toBeGreaterThanOrEqual(m - 0.5);
+    expect(r.right).toBeLessThanOrEqual(C1.w - m + 0.5);
+    expect(r.top).toBeGreaterThanOrEqual(m - 0.5);
+    expect(r.bottom).toBeLessThanOrEqual(C1.h - m + 0.5);
+    const slack = Math.min(r.left - m, C1.w - m - r.right, r.top - m, C1.h - m - r.bottom);
+    expect(slack).toBeLessThan(0.5); // tight on at least one side, the old 0.85 sphere was not
   });
 
-  it("clearing the inset returns the first framing; a camera the user moved keeps its distance", () => {
-    const o = make(1.5), first = o.distance;
-    o.setInset(0, 0.4);
-    o.setInset(0, 0);
-    expect(o.distance).toBeCloseTo(first, 9);
-    expect(o.shift).toBe(0);
-    o.zoom(0.5);
-    const zoomed = o.distance;
-    o.setInset(0, 0.4);
-    const fresh = make(1.5);
-    fresh.setInset(0, 0.4);
-    expect(o.distance).toBeCloseTo(zoomed * (fresh.distance / first), 6); // the same step, so the zoom the user chose is kept in proportion
+  it("a cover at the bottom frames the box above it, its centre on the visible box's centre", () => {
+    const o = framedAt(C2, cover(400)), r = screen(o, bounds, C2);
+    expect(r.bottom).toBeLessThanOrEqual(600 + 0.5);
+    expect(o.shift[1]).toBeCloseTo(-200, 6); // the picture moves up by half the cover
+    expect(o.shift[0]).toBeCloseTo(0, 6);
+    const wide = framedAt(C1), low = framedAt(C1, cover(300)); // 400 px left and the height binds: further back
+    expect(low.distance).toBeGreaterThan(wide.distance);
   });
 
-  it("never covers the whole view, and junk changes nothing", () => {
-    const o = make(1.5);
-    o.setInset(0.9, 0.9);
-    expect(o.shift).toBe(0); // equal sides: centred
-    expect(Number.isFinite(o.distance)).toBe(true);
-    const d = o.distance;
-    o.setInset(NaN, -3);
+  it("frameTo a room fits that box at the current angles and moves the target to its centre", () => {
+    const o = framedAt(), az = o.azimuth, polar = o.polar;
+    o.rotate(40, 10);
+    const [a2, p2] = [o.azimuth, o.polar];
+    expect(a2).not.toBe(az); expect(p2).not.toBe(polar);
+    expect(o.frameTo(room)).toBe(true);
+    expect(o.azimuth).toBe(a2); expect(o.polar).toBe(p2);
+    near(o.target, [250, 125, 225]); // three: plan (250, 225), half the 250 height
+    const r = screen(o, room, C1);
+    expect(r.left).toBeGreaterThan(0); expect(r.right).toBeLessThan(C1.w); expect(r.top).toBeGreaterThan(0); expect(r.bottom).toBeLessThan(C1.h);
+    expect(o.distance).toBeLessThan(framedAt().distance); // a room is closer than the house
+  });
+
+  it("frameTo junk changes nothing and says so", () => {
+    const o = framedAt(), d = o.distance, t = [...o.target];
+    for (const junk of [null, undefined, 3, { min: [NaN, 0, 0], max: [1, 1, 1] }, { min: [5, 5, 5], max: [1, 1, 1] }, { min: [0, 0], max: [1, 1] }] as never[]) expect(o.frameTo(junk)).toBe(false);
     expect(o.distance).toBe(d);
+    expect(o.target).toEqual(t);
+  });
+
+  it("framing again with no box is the floor", () => {
+    const o = framedAt(); const d = o.distance;
+    o.frameTo(room);
+    o.frameFloor();
+    expect(o.distance).toBeCloseTo(d, 6);
+    near(o.target, [500, 125, 400]);
+  });
+});
+
+describe("Orbit setVisible, F1 (S32.4)", () => {
+  it("a framed camera is fitted again to the new box: the same as a fresh orbit there", () => {
+    const o = framedAt(C1); o.setVisible(C2, NO_COVER);
+    const fresh = framedAt(C2);
+    expect(o.distance).toBeCloseTo(fresh.distance, 6);
+    near(o.target, fresh.target);
+    expect(o.shift).toEqual(fresh.shift);
+    const r = screen(o, bounds, C2);
+    expect(Math.min(r.left, C2.w - r.right, r.top, C2.h - r.bottom)).toBeGreaterThan(11.5);
+  });
+
+  it("a framed camera that has turned is fitted again at its own angles", () => {
+    const o = framedAt(C1, NO_COVER, 45); // a plan turned 45 degrees is still framed: it is the start
+    o.setVisible(C2, NO_COVER);
+    expect(o.azimuth).toBeCloseTo(Math.PI / 4, 9);
+    const r = screen(o, bounds, C2);
+    expect(Math.min(r.left, C2.w - r.right, r.top, C2.h - r.bottom)).toBeGreaterThan(11.5);
+  });
+
+  it("a moved camera keeps angles and target; the distance follows the unit; the zoom multiple is unchanged", () => {
+    const o = framedAt(C1);
+    o.rotate(-130, 20); o.zoom(0.6); o.pan(90, -30, 600);
+    const was = { az: o.azimuth, polar: o.polar, t: [...o.target], d: o.distance, st: o.state(), u: o.framing };
+    o.setVisible(C2, NO_COVER);
+    expect(o.azimuth).toBe(was.az); expect(o.polar).toBe(was.polar);
+    expect(o.target).toEqual(was.t);
+    expect(o.framing).not.toBeCloseTo(was.u, 3);
+    expect(o.distance).toBeCloseTo(was.d * (o.framing / was.u), 6);
+    expect(o.state().zoom).toBeCloseTo(was.st.zoom, 6);
+    expect(o.state().dx).toBeCloseTo(was.st.dx, 6);
+    expect(o.shift).toEqual(framedAt(C2).shift);
+  });
+
+  for (const [name, move] of [["rotate", (o: Orbit) => o.rotate(30, 0)], ["zoom", (o: Orbit) => o.zoom(0.8)], ["pan", (o: Orbit) => o.pan(20, 0, 600)]] as const) {
+    it(`any ${name} makes the camera moved: a resize no longer fits it again`, () => {
+      const o = framedAt(C1); move(o);
+      const t = [...o.target], d = o.distance, u = o.framing;
+      o.setVisible(C2, NO_COVER);
+      expect(o.target).toEqual(t);
+      expect(o.distance).toBeCloseTo(d * (o.framing / u), 6);
+      const refit = framedAt(C2); move(refit); refit.frameFloor(); // what a framed camera would do: fit again at these angles
+      expect(o.distance !== refit.distance || o.target.some((v, i) => v !== refit.target[i])).toBe(true);
+    });
+  }
+
+  it("a restored camera is not framed: a resize keeps its zoom multiple", () => {
+    const o = framedAt(C1);
+    o.restore({ az: 0.4, polar: 0.9, zoom: 0.5, dx: 30, dz: -20 });
+    o.setVisible(C2, NO_COVER);
+    expect(o.state().zoom).toBeCloseTo(0.5, 6);
+    near([o.state().dx, o.state().dz], [30, -20]);
+    expect(o.azimuth).toBeCloseTo(0.4, 9);
+  });
+
+  it("a visible box under 120 px wide or high is ignored; a change of 1 px or less is too", () => {
+    const o = framedAt(C2, cover(100));
+    const d = o.distance, sh = [...o.shift];
+    o.setVisible(C2, cover(C2.h - 100)); // 100 px high: the sheet at full
+    expect(o.distance).toBe(d); expect(o.shift).toEqual(sh);
+    o.setVisible({ w: 110, h: 1000 }, NO_COVER);
+    expect(o.distance).toBe(d);
+    o.setVisible(C2, cover(100.9));
+    expect(o.distance).toBe(d); expect(o.shift).toEqual(sh);
+    o.setVisible(C2, cover(102));
+    expect(o.shift[1]).not.toBe(sh[1]); // the width binds here, so only the slide moves
+  });
+
+  it("back from an ignored box fits the full stage again, as the first draw did", () => {
+    const o = framedAt(C1), first = o.distance;
+    o.setVisible(C1, cover(300)); // 400 px left: the height binds
+    expect(o.distance).toBeGreaterThan(first);
+    o.setVisible(C1, cover(C1.h - 50));
+    o.setVisible(C1, NO_COVER);
+    expect(o.distance).toBeCloseTo(first, 6);
+  });
+
+  it("junk changes nothing and never throws", () => {
+    const o = framedAt(C1), d = o.distance, sh = [...o.shift];
+    for (const [c, cv] of [[{ w: NaN, h: 5 }, NO_COVER], [{ w: 0, h: 0 }, NO_COVER], [null, NO_COVER], [C2, null], [C2, { top: NaN, right: 0, bottom: 0, left: 0 }], [C2, cover(Infinity)], [{ w: -3, h: 1000 }, NO_COVER]] as never[][]) {
+      expect(() => o.setVisible(c as never, cv as never)).not.toThrow();
+    }
+    expect(o.distance).toBe(d); expect(o.shift).toEqual(sh);
+    // a cover beyond the stage is clamped (nothing is left to see: ignored)
+    o.setVisible(C1, cover(1e9));
+    expect(o.distance).toBe(d);
+  });
+});
+
+describe("Orbit focus and unfocus (S32.4)", () => {
+  it("focus frames the room; unfocus returns the pre-focus distance and target", () => {
+    const o = framedAt(); o.zoom(0.7); o.pan(30, 10, 600);
+    const d = o.distance, t = [...o.target];
+    expect(o.focus(room)).toBe(true);
+    near(o.target, [250, 125, 225]);
+    expect(o.distance).not.toBeCloseTo(d, 0);
+    o.unfocus();
+    expect(o.distance).toBeCloseTo(d, 6);
+    near(o.target, t);
+  });
+
+  it("a second focus keeps the first pre-focus camera", () => {
+    const o = framedAt(), d = o.distance, t = [...o.target];
+    o.focus(room);
+    o.focus({ min: [600, 400, 0], max: [900, 700, 250] });
+    o.unfocus();
+    expect(o.distance).toBeCloseTo(d, 6);
+    near(o.target, t);
+  });
+
+  it("while focused, state is the floor camera with the angles the person has now", () => {
+    const o = framedAt(); o.zoom(0.7); o.pan(30, 10, 600);
+    const before = o.state();
+    o.focus(room);
+    o.rotate(60, 15);
+    const s = o.state();
+    expect(s.az).toBeCloseTo(o.azimuth, 10); expect(s.polar).toBeCloseTo(o.polar, 10);
+    expect(s.az).not.toBeCloseTo(before.az, 3);
+    expect(s.zoom).toBeCloseTo(before.zoom, 6);
+    expect(s.dx).toBeCloseTo(before.dx, 6); expect(s.dz).toBeCloseTo(before.dz, 6);
+    o.unfocus();
+    expect(o.azimuth).toBeCloseTo(s.az, 10); // unfocus keeps the current angles
+    expect(o.state().zoom).toBeCloseTo(before.zoom, 6);
+  });
+
+  it("a framed pre-focus camera is framed again after unfocus; a moved one stays moved", () => {
+    const a = framedAt(C1); a.focus(room); a.unfocus(); a.setVisible(C2, NO_COVER);
+    expect(a.distance).toBeCloseTo(framedAt(C2).distance, 6);
+    const b = framedAt(C1); b.zoom(0.7); b.focus(room); b.unfocus(); const z = b.state().zoom; b.setVisible(C2, NO_COVER);
+    expect(b.state().zoom).toBeCloseTo(z, 6);
+  });
+
+  it("a focused camera is framed: a resize fits the room again; once moved, the distance follows the unit", () => {
+    const o = framedAt(C1); o.focus(room); o.setVisible(C2, NO_COVER);
+    const fresh = framedAt(C2); fresh.focus(room);
+    expect(o.distance).toBeCloseTo(fresh.distance, 6);
+    o.rotate(20, 0);
+    const d = o.distance, u = o.framing;
+    o.setVisible(C1, NO_COVER);
+    expect(o.distance).toBeCloseTo(d * (o.framing / u), 6);
+    o.unfocus(); // the pre-focus zoom follows the unit too: nothing jumps
+    expect(o.state().zoom).toBeCloseTo(1, 6);
+  });
+
+  it("reset, reframe and restore drop the focus", () => {
+    const o = framedAt(); o.focus(room); o.rotate(40, 5); o.reset();
+    near(o.target, [500, 125, 400]); expect(o.state().zoom).toBeCloseTo(1, 6);
+    o.focus(room); o.reframe({ min: [0, 0, 0], max: [300, 300, 250] });
+    near(o.target, [150, 125, 150]);
+    o.focus(room); o.restore({ az: 0, polar: 0.8, zoom: 0.5, dx: 0, dz: 0 });
+    expect(o.state().zoom).toBeCloseTo(0.5, 6);
+    o.unfocus(); // nothing to go back to: no change
+    expect(o.state().zoom).toBeCloseTo(0.5, 6);
+  });
+
+  it("unfocus with no focus changes nothing", () => {
+    const o = framedAt(); o.rotate(10, 10); const d = o.distance, t = [...o.target];
+    o.unfocus();
+    expect(o.distance).toBe(d); expect(o.target).toEqual(t);
   });
 });
 
@@ -143,6 +336,8 @@ describe("Orbit reframe: another floor, the same way of looking (S12.6)", () => 
     o.pan(30, 30, 800);
     const [az, polar] = [o.azimuth, o.polar];
     const fresh = new Orbit(small, 1.5, 40, 20);
+    fresh.rotate(-100, 40); fresh.frameFloor(); // the same angles: a floor switch frames at the way of looking the person has
+    const atStart = new Orbit(small, 1.5, 40, 20);
     o.reframe(small);
     expect(o.azimuth).toBe(az);
     expect(o.polar).toBe(polar);
@@ -151,14 +346,14 @@ describe("Orbit reframe: another floor, the same way of looking (S12.6)", () => 
     expect(o.framing).toBeCloseTo(fresh.framing, 6);
     o.rotate(50, 50);
     o.reset();
-    expect(o.distance).toBeCloseTo(fresh.distance, 6); // back to the new floor's frame, with the first azimuth
-    expect(o.target).toEqual(fresh.target);
+    expect(o.distance).toBeCloseTo(atStart.distance, 6); // back to the new floor's frame, with the first azimuth
+    expect(o.target).toEqual(atStart.target);
   });
-  it("keeps the panel inset, and junk bounds change nothing", () => {
+  it("keeps the visible box (the cover), and junk bounds change nothing", () => {
     const o = make();
-    o.setInset(0.2, 0.1);
-    const fresh = new Orbit(small, 1.5, 40, 0);
-    fresh.setInset(0.2, 0.1);
+    o.setVisible(C2, cover(300));
+    const fresh = new Orbit(small, 0.7, 40, 0);
+    fresh.setVisible(C2, cover(300));
     o.reframe(small);
     expect(o.distance).toBeCloseTo(fresh.distance, 6);
     const d = o.distance, t = [...o.target];
@@ -213,9 +408,10 @@ describe("Orbit state and restore: the camera a floor is left with (S14.4)", () 
   it("restore after the view changed size lands at the same multiple of the framing distance", () => {
     const o = make(1.5);
     o.restore({ az: 0, polar: 0.8, zoom: 0.5, dx: 0, dz: 0 });
-    o.setAspect(0.6);
+    o.setVisible(C2, NO_COVER);
+    expect(o.state().zoom).toBeCloseTo(0.5, 6); // a restored camera is moved: its multiple of the unit survives the new shape
     expect(o.state().zoom).toBeCloseTo(o.distance / o.framing, 10); // read against the new framing
-    const p = make(0.6);
+    const p = make(0.7); p.setVisible(C2, NO_COVER);
     p.restore(o.state());
     expect(p.distance).toBeCloseTo(o.distance, 6);
   });

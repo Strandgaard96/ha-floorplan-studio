@@ -200,8 +200,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     camera.near = Math.max(1, orbit.framing * 0.02);
     camera.far = orbit.framing * FAR_PLANES;
     camera.lookAt(orbit.target[0], orbit.target[1], orbit.target[2]);
-    const { w, h } = size(), shift = orbit.shift;
-    if (shift !== 0) camera.setViewOffset(w, h, -shift * w, 0, w, h); else camera.clearViewOffset();
+    const { w, h } = size(), [sx, sy] = orbit.shift;
+    if (sx !== 0 || sy !== 0) camera.setViewOffset(w, h, -sx, -sy, w, h); else camera.clearViewOffset();
     camera.updateProjectionMatrix();
     camera.updateMatrixWorld(true);
     updateWalls([x, z, y]);
@@ -247,13 +247,18 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
   /** Renders once, on the next frame. A burst of changes (a drag) is one frame; with no change there is no frame at all. */
   const want = () => { if (!raf && !disposed) raf = requestAnimationFrame(draw); };
 
+  // S32.4 bridge: the orbit takes a px cover; until S32.5's `setFrame`, the card's inset fractions are turned into one here.
+  const syncVisible = () => {
+    const { w, h } = size();
+    orbit.setVisible({ w, h }, { top: 0, bottom: 0, left: inset[0] * w, right: inset[1] * w });
+  };
   const resize = () => {
     if (disposed) return;
     const { w, h } = size();
     renderer.setPixelRatio(Math.min(2, globalThis.devicePixelRatio || 1));
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
-    orbit.setAspect(w / h);
+    syncVisible();
     want();
   };
 
@@ -848,7 +853,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       else {
         const { w, h } = size();
         orbit = new Orbit(bounds, w / h, FOV, opts.turnDeg);
-        orbit.setInset(inset[0], inset[1]); // a new floor keeps the room the list takes
+        syncVisible(); // a new floor keeps the room the list takes
         framed = true;
       }
       if (!orbit.finite) { fail("it could not start"); return; } // numbers no camera can frame: say so, do not draw a blank
@@ -882,7 +887,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const key = `${Math.max(0, +left || 0).toFixed(3)},${Math.max(0, +right || 0).toFixed(3)}`;
       if (key === container.dataset.inset) return; // the card says it after every render: the same inset is no frame
       inset = [left, right];
-      orbit.setInset(left, right);
+      syncVisible();
       container.dataset.inset = key;
       want();
     },

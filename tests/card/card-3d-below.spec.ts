@@ -88,7 +88,9 @@ test.describe("3D view: floors below (S27.7)", () => {
 
   test("a tap on a lower floor's garden picks nothing, in every mode", async ({ page }) => {
     await boot(page);
-    await hook(page, (h) => h.look(0.6, 0.9));
+    // S32.4 premise change: the first view is now the exact box fit, closer than the old sphere, so from the south the house stands
+    // between the camera and the north garden and a ray to it meets the house. Looked at from the north, the garden is in front.
+    await hook(page, (h) => h.look(Math.PI + 0.6, 0.9));
     for (const mode of ["off", "solid", "ghost"]) {
       await setBelow(page, BELOW, mode);
       if (mode !== "off") expect((await hook(page, (h) => h.below())).count, mode).toBeGreaterThan(0);

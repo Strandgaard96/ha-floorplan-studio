@@ -128,7 +128,11 @@ test.describe("S32.1 criterion 1: the first draw fits the house", () => {
     });
   }
 });
-const RED_FIRST = new Set<string>(["768x1024/0", "768x1024/45", "1024x768/0", "1024x768/45", "390x844/0", "390x844/45", "844x390/0", "844x390/45"]);
+// S32.4: the orbit frames a box exactly (fitBox), so five of these eight now pass through the view's px-cover bridge. Three still fail:
+// fitBox centres the box's own centre, but a view from 50 degrees up draws the near side larger, so the corners' extent is not
+// centred on it; the tight side is tight and the opposite side keeps slack, and the share of the visible box falls to 79-81 %,
+// under the 85 % of "fitted". Left marked for the coordinator (a fitBox or a criterion call, not the orbit's).
+const RED_FIRST = new Set<string>(["1024x768/45", "844x390/0", "844x390/45"]);
 
 // ---- criterion 2: a resize re-fits a camera nobody has moved ---------------------------------------------------------------------
 
@@ -136,14 +140,13 @@ test.describe("S32.1 criterion 2: a resize re-fits the house", () => {
   const PAIRS: readonly (readonly [Size, Size])[] = [[[1024, 768], [768, 1024]], [[768, 1024], [1024, 768]], [[390, 844], [844, 390]], [[844, 390], [390, 844]], [[390, 844], [360, 844]]];
   for (const [from, to] of PAIRS) {
     test(`${name(from)} to ${name(to)}`, async ({ page }) => {
-      red(5);
+      red(5, to[0] === 844); // 844x390 is one of the three sizes whose fit stays under 85 % (see RED_FIRST)
       await boot(page, from);
       await resize(page, to);
       await expectFloorFitted(page);
     });
   }
   test("1024x768: the side sheet folded and opened (a real click on its button)", async ({ page }) => {
-    red(5);
     await boot(page, WIDE);
     const before = await stage(page);
     await card(page).getByRole("button", { name: "Fold overview" }).click();
@@ -175,7 +178,6 @@ test.describe("S32.1 criterion 3: a resize does not snap a moved camera", () => 
     test(`1024x768 to ${name(to)}: angles, target and zoom stay, the house keeps its share of the visible width`, async ({ page }) => {
       // 1024x768 to 768x1024 is the spec's pair; the stage is 704 px wide at the one and 716 at the other, so a camera that never
       // follows the box still keeps its width share within 3 % (red(5, false)): the phone pair, 704 to 390, is the one that tells.
-      red(5, to[0] === 390);
       await boot(page, WIDE);
       await moved(page);
       const a = await cam(page), z = (await camState(page)).zoom, s = await share(page);

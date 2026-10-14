@@ -4025,7 +4025,7 @@ Lane cover (the card's frame maths, pure):
       Files: `src/card/frame.ts`, `tests/card/frame.test.ts`.
 
 Wave 2, after S32.2:
-- [ ] S32.4 The orbit frames a box (Sonnet, **judgement**: F1's rule). `src/card/three/orbit.ts`: the unit (spec, Terms),
+- [x] S32.4 The orbit frames a box (Sonnet, **judgement**: F1's rule). `src/card/three/orbit.ts`: the unit (spec, Terms),
       a px cover with a two-axis `shift`, `frameTo(box)` through `fitBox`, `setVisible(canvas, cover)` with F1 (framed:
       frame again; moved: distance follows the unit; under 120 px: ignored; under 1 px: ignored), `focus(box)` and
       `unfocus()` that keep the pre-focus camera, `state()` as the floor camera while focused, `restore` not framed,
