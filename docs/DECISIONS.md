@@ -5,6 +5,7 @@ Newest first. A change supersedes; nothing is edited.
 ## 2026-10-14: Sprint 32 Opus review fixes (Sonnet)
 
 - Blocker. `_selectFloor` now calls `_releaseFocus()` and clears `_focus3d`. A canvas tap holds the room last sent to the view for 350 ms; the view's `setFloor` drops `focused`, so the held index (Kitchen, 1) arrived as a new pick on the new floor, where index 1 is the Bathroom. Test (`card-3d-framing.spec.ts`, criterion 6): Kitchen focused, real tap on Living, real click on the First tab, camera targets recorded on every frame to rest; no frame looks at the Bathroom's centre and the end is the floor fit. Failed first (a frame at distance 0 from the Bathroom's centre); fails again with the two lines removed; 10 of 10 green with `--repeat-each=10`.
+- Resize refit. Criterion 2 only guarded the start angles and the whole floor. Two more cases in `card-3d-framing.spec.ts`: a room focused (Kitchen) stays fitted to the room after 1024x768 to 768x1024; a floor reframed at turned angles (drag, then the First tab) and left alone is fitted again exactly on the same resize. With the refit in `Orbit.setVisible` removed (scratch mutation, restored) both fail; with it, 5 of 5 green each. No code change.
 
 ## 2026-10-14: Sprint 32 3D framing, summary (Sonnet, docs)
 

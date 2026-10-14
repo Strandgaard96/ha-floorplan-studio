@@ -137,6 +137,29 @@ test.describe("S32.1 criterion 2: a resize re-fits the house", () => {
       await expectFloorFitted(page);
     });
   }
+  // Opus review: criterion 2 was only guarded at the start angles and for the floor. These two take the other branches of the orbit's refit.
+  test("1024x768 to 768x1024: a room focused stays fitted to the room after a resize", async ({ page }) => {
+    await boot(page, WIDE);
+    await focusKitchen(page, "search");
+    await settled(page);
+    await expectRoomFitted(page, KITCHEN, "the Kitchen before the resize");
+    await resize(page, [768, 1024]);
+    await expectRoomFitted(page, KITCHEN, "the Kitchen after the resize");
+  });
+  test("1024x768 to 768x1024: a floor reframed at turned angles, then left alone, is fitted again exactly on a resize", async ({ page }) => {
+    // The drag leaves the start angles; the floor tab reframes the new floor at those angles and marks it framed (nobody has moved it).
+    await boot(page, WIDE, { floor: "all" });
+    const start = await camState(page);
+    await orbitDrag(page, 120, 40);
+    await card(page).locator("css=.fp-floors button", { hasText: "First" }).click();
+    await expect(card(page).locator("css=.fp-floors button", { hasText: "First" })).toHaveAttribute("aria-pressed", "true");
+    await settled(page);
+    const turned = await camState(page);
+    expect(Math.abs(turned.az - start.az) > 0.1 && Math.abs(turned.polar - start.polar) > 0.01, "the angles are not the start angles").toBe(true);
+    await expectFloorFitted(page, "the First floor before the resize");
+    await resize(page, [768, 1024]);
+    await expectFloorFitted(page, "the First floor after the resize");
+  });
   test("1024x768: the side sheet folded and opened (a real click on its button)", async ({ page }) => {
     await boot(page, WIDE);
     const before = await stage(page);
