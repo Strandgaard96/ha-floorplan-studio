@@ -2,6 +2,11 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-14: the card's Theme is a select in the menu, not 13 radios (Sonnet)
+
+Diego: the Theme section was a 13-line list. `<fp-menu>` gets a fourth item kind, `select`: a label and a native `<select>`, with `options` and `selected`. Native, not a custom listbox: it is accessible, has a picker on a phone, and needs no ARIA of ours. It is one Tab/arrow stop (ArrowUp/Down, Home, End move on to the next stop instead of changing the value; Enter, Space and Alt+Down call `showPicker()`). A `change` fires `fp-menu-pick` with `value` = the chosen option's value (`theme:<name>`), so `_onMenuPick` is untouched and still validates with `isTheme`; the menu closes and the button gets focus, as for any item. Labels and options are Lit text bindings. 32 px, 44 px under `pointer: coarse`, coloured only through `--fp-*`. The Studio's Theme control is unchanged.
+- Premise changes, not weakened: tests that read the Theme radios (`menuitemradio` for `theme:*`, `aria-checked` of `theme:*`) read the select's value instead, through `chooseTheme` and `themeNow` in `menu-helper.ts`, which use the real mouse and keys. `card-menu.spec.ts` no longer counts Theme labels among the radios.
+
 ## 2026-10-13: fixes from the Opus review of Sprint 31 (Sonnet)
 
 Six findings, one commit each; this entry grows with them.

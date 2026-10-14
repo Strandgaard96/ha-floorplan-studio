@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Card: the ⋯ menu's Theme is one drop-down with all 13 themes, not a list of 13 radios. It is a native select: a click, or Enter, Space or Alt+Down on it, opens the list; the arrow keys still walk the menu past it. A pick writes the same `theme` into the view memory, closes the menu and returns focus to the ⋯ button. `view_switch: false` still hides it.
+
 ## 0.29.0 - 2026-10-13
 
 - Card (fix, review of S31): Back and Escape no longer take keyboard focus from another control on the page when the card only has the pointer over it; focus moves to the sheet's control only if it was already in the card.

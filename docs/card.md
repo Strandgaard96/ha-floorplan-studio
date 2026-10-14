@@ -255,6 +255,8 @@ below) beside the plan from 640 px or under it on a phone, and a small zoom clus
 3D), the only thing that floats over it. Everything about how the plan looks is in the header's ⋯ menu ("View options"): View, Tilt,
 Walls, Floor below, Theme, Labels, Device names, Detail, Layers, Rotate left, Rotate right
 and Reset view. Each item writes what the old control wrote, into the same view memory.
+Theme is one drop-down with every theme in it (a native select: click it, or Arrow to it and press Enter, Space or
+Alt+Down), not a row of radios. A pick sets the theme, closes the menu and returns focus to the ⋯ button. The Studio's own Theme control is unchanged.
 `view_switch: false` drops the look items and keeps Detail, Layers, Rotate and Reset; a
 kiosk has no menu, except that `rotate_switch: true` shows one with Rotate and Reset.
 
@@ -268,7 +270,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#labelsSub` Labels submenu | yes | holds the two rows below; the Labels and Device names items of the ⋯ menu |
 | `#labels` Names and values | yes | the Labels item of the ⋯ menu |
 | `#names` Names | yes | the Device names item of the ⋯ menu, config `names` |
-| `#thSub` Theme | yes | the Theme radios of the ⋯ menu |
+| `#thSub` Theme | yes | the Theme drop-down of the ⋯ menu (the Studio's own control is unchanged) |
 | `#fit` Fit to window | yes | the Fit button (Home view on a pinned card) |
 | `#recenter` Re-center | yes | the same Fit button |
 | `#zin` `#zout` Zoom | yes | the + and − buttons in the cluster, the Up and Down keys, pinch and wheel |
