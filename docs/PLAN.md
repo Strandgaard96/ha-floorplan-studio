@@ -3994,7 +3994,7 @@ coder's note (a comment block at the top of the change) before accepting. Opus r
 Wave 0 and wave 1 run together, three lanes, no shared file:
 
 Lane red (test hook and the exit spec):
-- [ ] S32.1 The framing tests, red (Sonnet). Test hook in `view3d.ts`, inside `if (__FP3D_TEST__)` only: `box("floor")`
+- [x] S32.1 The framing tests, red (Sonnet). Test hook in `view3d.ts`, inside `if (__FP3D_TEST__)` only: `box("floor")`
       and `box(roomIndex)`, the eight corners of the box (spec, Terms) projected by `project`, as `{left, top, right,
       bottom}` on the page. `tests/card/helpers-3d.ts`: `visibleBox(page)` (the `.fp-3d` rect, less the bottom sheet's
       cover at its `data-stop` from the card's `--fp-sheet-*`), `inside(box, vis, 8)`, `fitted(box, vis)`,

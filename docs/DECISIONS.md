@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-14: S32.1 the framing tests, red (Sonnet)
+
+`tests/card/card-3d-framing.spec.ts`, criteria 1 to 9 of `docs/specs/card-3d-framing.md`, 60 cases, written first. The test hook gains `box("floor" | roomIndex)` (the eight corners of the box through the real camera, page px) and `camera()` (`Orbit.state()`); `helpers-3d.ts` gains `box`, `camState`, `visibleBox`, `inside`, `fitted`, `why`, `settled`. Hook block only, so the shipped `www/` has no hook (`size-budget.spec.ts`, "carry no test hook", unchanged and green).
+- 56 cases are `test.fail()` ("S32.n removes this", n the task that makes them pass); each fails on an assertion (not fitted, no `data-easing` seen, ring not set, zoom changed), none on a timeout. The tasks: S32.5 criteria 1 to 3, S32.6 criterion 4, S32.7 criteria 5 to 9.
+- Four cases pass today and are not marked: 1024x768 to 768x1024 with a moved camera (the stage is 704 px wide at one and 716 at the other, so the spec's 3 % width share holds without any re-fit; the 1024x768 to 390x844 pair in the same block does fail, on `state().zoom`), a double tap on a room at two sizes (nothing moves the camera today; a guard for S32.7's delay), and a room of 2 points or NaN corners (a pick moves nothing today; a guard). Criterion 1 at the start camera fails at all eight size and rotation pairs (the sphere is inside the box but under 85 % of either side, and on a phone it is cut at both edges).
+- Judgement calls. The sheet has no row that picks a room (rows are devices and a device does not move the camera, Q4), so "its row" has no test; the paths are a tap on the floor and the Search result. A tap's wait is the page's own clock for the 350 ms double-tap window (no state exists to poll). `settled` also compares the stage's rect, so a resize in flight is not taken for rest. The bad-room case reaches the view through the hook's `setFloor` and the card's `_pickRoom(i)`, since `validate` refuses such a layout before the view sees it. `fitBox` and `coverOf` junk (criterion 9's last sentence) belongs to S32.2 and S32.3 unit tests.
+Studio parity: the Studio has no 3D view; no twin.
+
 ## 2026-10-13: fixes from the Opus review of Sprint 31 (Sonnet)
 
 Six findings, one commit each; this entry grows with them.

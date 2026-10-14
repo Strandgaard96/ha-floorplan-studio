@@ -968,6 +968,28 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
     };
     testHook = {
       project,
+      /** S32.1: what the framing frames, as a screen rectangle (page px): the eight corners of the box through the real camera. "floor" is the floor's scene bounds; a room index is that room's floor polygon extent padded 50 cm, from its slab top to the wall top. Null when there is no such box. */
+      box(which: "floor" | number) {
+        let lo: [number, number, number], hi: [number, number, number];
+        if (which === "floor") {
+          const b = plan?.bounds;
+          if (!b) return null;
+          lo = [b.min[0], b.min[1], b.min[2]]; hi = [b.max[0], b.max[1], b.max[2]];
+        } else {
+          const rs = typeof which === "number" ? roomSolid.get(which) : undefined;
+          if (!rs || !rs.base.length) return null;
+          const top = wallTop();
+          lo = [Math.min(...rs.base.map((q) => q[0])) - 50, Math.min(...rs.base.map((q) => q[1])) - 50, rs.z];
+          hi = [Math.max(...rs.base.map((q) => q[0])) + 50, Math.max(...rs.base.map((q) => q[1])) + 50, Math.max(rs.z, top)];
+        }
+        if (![...lo, ...hi].every(Number.isFinite)) return null;
+        let left = Infinity, top2 = Infinity, right = -Infinity, bottom = -Infinity;
+        for (const x of [lo[0], hi[0]]) for (const y of [lo[1], hi[1]]) for (const z of [lo[2], hi[2]]) {
+          const p = project(x, y, z);
+          left = Math.min(left, p.x); right = Math.max(right, p.x); top2 = Math.min(top2, p.y); bottom = Math.max(bottom, p.y);
+        }
+        return { left, top: top2, right, bottom };
+      },
       /** Where the middle of the top of a solid (a device `kind` "device" with its index, say) is on the screen, or null. */
       where(kind: string, index: number) {
         const sol = plan?.solids.find((x) => x.kind === kind && x.ref.index === index);
@@ -977,6 +999,8 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
         return project(cx, cy, sol.shape.z1);
       },
       pick: (cx: number, cy: number) => api.pick(cx, cy),
+      /** S32.1: the camera as the card would store it ({ az, polar, zoom, dx, dz }; zoom is a multiple of the fit). */
+      camera: () => api.camera(),
       setBelow: (floors: unknown, mode: string) => api.setBelow(floors, mode),
       /** The floors below as drawn: one entry per mesh, its material and its box in plan terms [x0, y0, z0, x1, y1, z1]. */
       below() {
