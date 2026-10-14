@@ -10,6 +10,7 @@
 - Card: the ⋯ menu's Theme is one drop-down with all 13 themes, not a list of 13 radios. It is a native select: a click, or Enter, Space or Alt+Down on it, opens the list; the arrow keys still walk the menu past it. A pick writes the same `theme` into the view memory, closes the menu and returns focus to the ⋯ button. `view_switch: false` still hides it.
 - Card (fix, review of S32): a floor tab pressed within 350 ms of a canvas tap no longer zooms into a room of the new floor. The tap's held room index (of the floor just left) reached the new floor, where the same index is another room, and the camera jumped there for about 750 ms before it glided back to the floor.
 - Card (fix, review of S32): a camera held at its near limit (a tiny room) is centred in the visible box. The lens shift was worked out for the distance before the clamp.
+- Card (fix, review of S32): quick taps on the bottom sheet's handle no longer drift the zoom of a camera you have moved. A tap that landed during a glide scaled the zoom from the mid-glide distance; it now scales from the glide's end.
 
 ## 0.29.0 - 2026-10-13
 

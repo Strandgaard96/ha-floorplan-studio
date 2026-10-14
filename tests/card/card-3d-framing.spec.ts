@@ -114,6 +114,7 @@ async function escape(page: Page) {
   await page.keyboard.press("Escape");
 }
 const handle = (page: Page) => card(page).locator("css=.fp-bottom .fp-handle");
+const sheet = (page: Page) => card(page).locator("css=.fp-bottom");
 
 // ---- criterion 1: first draw -----------------------------------------------------------------------------------------------------
 
@@ -278,7 +279,6 @@ test.describe("S32.1 criterion 4: the house above the bottom sheet", () => {
 // wheel on the canvas ends a glide where it is; reduced motion jumps (the case above). The recorder samples on every animation frame.
 
 test.describe("S32.6: the camera glides to the new framing when the sheet changes stop", () => {
-  const sheet = (page: Page) => card(page).locator("css=.fp-bottom");
   /** Records, from now on and on every animation frame, the camera values and whether `data-easing` is set. */
   const record = (page: Page) => holder(page).evaluate((el) => {
     const w = window as unknown as { __rec: { dist: number; target: string; ease: boolean; drawn: number }[]; __go: boolean };
@@ -384,6 +384,26 @@ test.describe("S32.6: the camera glides to the new framing when the sheet change
     await settled(page);
     expect((await cam(page)).dist, "half again").toBeCloseTo(half.dist, 0);
     await expectFloorFitted(page, "the house above the half sheet again");
+  });
+
+  test("390x844, a moved camera: fast taps peek, half, peek, half, peek leave the zoom where it was (Opus review)", async ({ page }) => {
+    // A moved camera keeps its zoom multiple across a sheet change: its distance is scaled by the unit's ratio. A tap that lands while the last
+    // glide runs used to scale from the mid-glide distance, so the zoom drifted a little with every quick tap.
+    await boot(page, PHONE);
+    const v = await visibleBox(page);
+    await page.mouse.move((v.left + v.right) / 2, (v.top + v.bottom) / 2);
+    for (let i = 0; i < 3; i++) await page.mouse.wheel(0, -120);
+    await frames(page, 3);
+    await settled(page);
+    const z0 = (await camState(page)).zoom;
+    await page.evaluate(() => (window as unknown as { __fp3d: { glideMs(ms: number): void } }).__fp3d.glideMs(1500)); // slow enough that each tap lands mid-glide
+    for (const stop of ["half", "peek", "half", "peek"]) {
+      await handle(page).click();
+      await expect(sheet(page)).toHaveAttribute("data-stop", stop);
+      await frames(page, 8);
+    }
+    await settled(page);
+    expect((await camState(page)).zoom, "the zoom after four quick taps, back at peek").toBeCloseTo(z0, 3);
   });
 });
 

@@ -934,6 +934,7 @@ export function createView3D(container: HTMLElement, opts: View3DOptions): View3
       const room = frame && typeof frame === "object" && typeof frame.room === "number" && Number.isInteger(frame.room) && frame.room >= 0 ? frame.room : null;
       if (key === container.dataset.frame && room === focused) return; // the card says it after every render: the same frame is no frame
       const seen = container.dataset.frame !== undefined, from = pose();
+      if (easing) setPose(easing.to); // a glide in flight is on its way to `easing.to`: a moved camera's distance is scaled from there, not from mid-glide
       cover = next;
       syncVisible();
       container.dataset.frame = key;
