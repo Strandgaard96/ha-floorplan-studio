@@ -26,10 +26,27 @@ export async function itemOf(el: FloorplanStudioCard, value: string): Promise<HT
 }
 /** Opens the menu and clicks the item (Alt held when `alt`). The menu closes on a pick. Throws when there is no such item. */
 export async function pickItem(el: FloorplanStudioCard, value: string, alt = false): Promise<void> {
+  if (value.startsWith("theme:")) return chooseThemeItem(el, value);
   const it = await itemOf(el, value);
   if (!it) throw new Error(`no menu item "${value}"`);
   it.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true, altKey: alt }));
   await settle(el);
+}
+/** The Theme item is a select (DECISIONS 2026-10-14): choosing is a value and a `change` on it, as a row of its list does. Throws when the select has no such option. */
+async function chooseThemeItem(el: FloorplanStudioCard, value: string): Promise<void> {
+  await openMenu(el);
+  const sel = panel(el)!.querySelector<HTMLSelectElement>('select[data-value="theme"]');
+  if (!sel || ![...sel.options].some((o) => o.value === value)) throw new Error(`no menu item "${value}"`);
+  sel.value = value;
+  sel.dispatchEvent(new Event("change", { bubbles: true }));
+  await settle(el);
+}
+/** The Theme select's value ("theme:midnight"), or null without one. Opens, reads, closes. */
+export async function themeSelectValue(el: FloorplanStudioCard): Promise<string | null> {
+  await openMenu(el);
+  const v = panel(el)!.querySelector<HTMLSelectElement>('select[data-value="theme"]')?.value ?? null;
+  await closeMenu(el);
+  return v;
 }
 /** `aria-checked` of an item, or null for an action. Opens, reads, closes. */
 export async function stateOfItem(el: FloorplanStudioCard, value: string): Promise<string | null> {

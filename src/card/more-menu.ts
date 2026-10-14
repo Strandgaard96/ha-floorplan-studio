@@ -1,9 +1,13 @@
 import { LitElement, html, css, nothing, type PropertyValues } from "lit";
 
-export type MenuItemKind = "radio" | "check" | "action";
+export type MenuItemKind = "radio" | "check" | "action" | "select";
+export interface MenuOption { label: string; value: string }
 export interface MenuItem {
   kind: MenuItemKind;
   label: string;
+  /** For `select`: the choices and the value shown. A change fires `fp-menu-pick` with `value` set to the option's value. */
+  options?: MenuOption[];
+  selected?: string;
   /** What the host reads back from `fp-menu-pick`. */
   value?: string;
   /** For `radio` and `check`. The host owns the state: a pick changes nothing here, the host sets `items` again. */
@@ -18,6 +22,8 @@ export interface MenuSection {
 
 const PANEL_UNDER = 640;
 const ENABLED = "[role^=menuitem]:not([aria-disabled=true])";
+/** Every stop for the arrow keys: the enabled items and the enabled select. */
+const STOPS = `${ENABLED}, select.sel:not(:disabled)`;
 
 /**
  * S31.3: `<fp-menu>`, a menu button and its menu, the ⋯ of the card's header. WAI-ARIA menu button: the button has
@@ -43,6 +49,7 @@ export class FpMenu extends LitElement {
   /** Accessible name of the button and of the menu. */
   declare label: string;
   private declare opened: boolean;
+  private lastChar = -Infinity;
   private menuId = `fp-menu-${Math.random().toString(36).slice(2)}`;
 
   constructor() {
@@ -54,7 +61,7 @@ export class FpMenu extends LitElement {
 
   private get btn(): HTMLButtonElement | null { return this.renderRoot?.querySelector("button.btn") ?? null; }
   private get panel(): HTMLElement | null { return this.renderRoot?.querySelector("[role=menu]") ?? null; }
-  private enabled(): HTMLElement[] { return [...(this.panel?.querySelectorAll<HTMLElement>(ENABLED) ?? [])]; }
+  private enabled(): HTMLElement[] { return [...(this.panel?.querySelectorAll<HTMLElement>(STOPS) ?? [])]; }
 
   override disconnectedCallback() {
     super.disconnectedCallback();
@@ -93,9 +100,10 @@ export class FpMenu extends LitElement {
   }
 
   /** `alt`: Alt was held for the click or the key (S31.6: the Layers items show one family alone, as the chips did). */
-  private pick(item: MenuItem, alt = false) {
+  private pick(item: MenuItem, alt = false, chosen?: string) {
     if (item.disabled) return;
-    this.dispatchEvent(new CustomEvent("fp-menu-pick", { detail: { ...item, alt }, bubbles: true, composed: true }));
+    const detail = chosen === undefined ? { ...item, alt } : { ...item, value: chosen, alt };
+    this.dispatchEvent(new CustomEvent("fp-menu-pick", { detail, bubbles: true, composed: true }));
     this.close(true);
   }
 
@@ -146,6 +154,21 @@ export class FpMenu extends LitElement {
     const list = this.enabled();
     const at = list.indexOf(ev.target as HTMLElement);
     const go = (i: number) => { ev.preventDefault(); list[(i + list.length) % list.length]?.focus(); };
+    const sel = ev.target instanceof HTMLSelectElement ? ev.target : null;
+    if (sel) {
+      // A native select would change its value on an arrow and open on Space; in a menu an arrow moves to the next stop.
+      // Alt+ArrowDown, Enter and Space open the list (a closed select on some platforms does not do it by itself).
+      // A Space inside a type-ahead ("Beach house") is a letter, not the opener.
+      const typing = ev.key === " " && ev.timeStamp - this.lastChar < 1000;
+      if (ev.key.length === 1 && ev.key !== " ") this.lastChar = ev.timeStamp;
+      if (!typing && (ev.key === "Enter" || ev.key === " " || (ev.key === "ArrowDown" && ev.altKey) || (ev.key === "ArrowUp" && ev.altKey))) {
+        ev.preventDefault();
+        try { sel.showPicker(); } catch { /* not allowed or unsupported: the click path still works */ }
+        return;
+      }
+      // Typed search ("Mid") stays the select's own; only the menu's keys are taken.
+      if (!["ArrowDown", "ArrowUp", "Home", "End", "Escape", "Tab"].includes(ev.key)) return;
+    }
     switch (ev.key) {
       case "ArrowDown": go(at + 1); break;
       case "ArrowUp": go(at < 0 ? -1 : at - 1); break;
@@ -169,6 +192,16 @@ export class FpMenu extends LitElement {
       }
     }
   };
+
+  /** A `select` item: the label and a native select. An option is a text binding; an unknown `selected` leaves the browser's first option showing. */
+  private renderSelect(it: MenuItem, i: number) {
+    const opts = (Array.isArray(it.options) ? it.options : []).filter((o) => o && typeof o.value === "string");
+    return html`<label class="item select" data-i=${i}><span class="text">${it.label}</span>
+      <select class="sel" aria-label=${it.label} data-value=${it.value ?? nothing} ?disabled=${!!it.disabled}
+        @change=${(ev: Event) => { const v = (ev.target as HTMLSelectElement).value; this.pick(it, false, v); }}>
+        ${opts.map((o) => html`<option value=${o.value} ?selected=${o.value === it.selected}>${String(o.label)}</option>`)}
+      </select></label>`;
+  }
 
   private flat(): MenuItem[] {
     return this.sections().flatMap((s) => s.items);
@@ -203,6 +236,7 @@ export class FpMenu extends LitElement {
               ${s.label ? html`<div class="gl" aria-hidden="true">${s.label}</div>` : nothing}
               ${s.items.map((it) => {
                 const i = n++;
+                if (it.kind === "select") return this.renderSelect(it, i);
                 const withState = it.kind === "radio" || it.kind === "check";
                 const on = withState && !!it.checked;
                 return html`<div
@@ -236,6 +270,11 @@ export class FpMenu extends LitElement {
     .item:hover{background:color-mix(in srgb, var(--fp-ink) 14%, transparent)}
     .item:focus{outline:none;background:var(--fp-ink);color:var(--fp-bg)}
     .item[aria-disabled=true]{opacity:.5;cursor:default}
+    .item.select{cursor:default;justify-content:space-between}
+    .item.select:focus-within{background:transparent;color:var(--fp-ink)}
+    .sel{font:inherit;box-sizing:border-box;min-height:32px;max-width:60%;color:var(--fp-ink);background:var(--fp-room);
+      border:1px solid var(--fp-idle);border-radius:4px;padding:0 4px;cursor:pointer}
+    .sel:focus{outline:2px solid var(--fp-ink);outline-offset:1px}
     .mark{flex:none;width:1.2em;text-align:center}
     .mark.on::before{content:"✓"}
     .radio .mark.on::before{content:"●"}
@@ -243,6 +282,7 @@ export class FpMenu extends LitElement {
     @media (pointer:coarse){
       .btn{min-width:44px;min-height:44px}
       .item{min-height:44px}
+      .sel{min-height:44px}
     }
   `;
 }
