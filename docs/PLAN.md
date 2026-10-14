@@ -4017,7 +4017,7 @@ Lane maths (the 3D chunk, pure):
       Files: new `src/card/three/frame3d.ts`, new `tests/card/three-frame3d.test.ts`.
 
 Lane cover (the card's frame maths, pure):
-- [ ] S32.3 `coverOf` (Sonnet). In `src/card/frame.ts` beside `sheetStops`: `coverOf(stage, card, frame, stops, stop)`
+- [x] S32.3 `coverOf` (Sonnet). In `src/card/frame.ts` beside `sheetStops`: `coverOf(stage, card, frame, stops, stop)`
       returns `{top, right, bottom, left}` px: only `bottom` in the `bottom` frame, `stage.bottom − (card.bottom −
       stops[stop])` clamped to `[0, stage height]`; 0 for `side` and `none`. Test, failing first, in
       `tests/card/frame.test.ts`: each stop at 390 x 844 and 360 x 640, a card shorter than peek plus header, side and

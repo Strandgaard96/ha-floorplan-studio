@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-14: S32.3 coverOf (Sonnet)
+
+`coverOf(stage, card, frame, stops, stop)` in `src/card/frame.ts`, as the spec's Cover term. Bottom frame only: `stage.bottom - (card.bottom - stops[stop])`, clamped to `[0, stage height]`; side, none, an unknown stop name or junk answer all zeros. Rects are `{top, bottom}` (a DOMRect fits). Stage height is `bottom - top`, so an inverted stage covers 0. No Studio twin: the Studio has no 3D view.
+
 ## 2026-10-13: fixes from the Opus review of Sprint 31 (Sonnet)
 
 Six findings, one commit each; this entry grows with them.
