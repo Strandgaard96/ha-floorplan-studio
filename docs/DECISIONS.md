@@ -18,6 +18,9 @@ New `src/card/three/frame3d.ts`, no three.js import. Judgement calls:
 - `glide` returns `to` itself at t of 1 (not an equivalent azimuth mod 2 pi), `from` at 0 and for NaN, the short way across plus or minus pi, the distance on a log scale (linear if either is not positive), junk cameras null.
 - Tests: `tests/card/three-frame3d.test.ts`. First run failed on the missing module (the file did not exist yet). After the code, three mutations were each caught: lens sign flipped (3 tests fail), x and y half-extents swapped (1), margin dropped (2).
 - Studio parity: none, the Studio has no 3D view. No wiring yet, so no CHANGELOG-worthy behaviour; the line says so.
+## 2026-10-14: S32.3 coverOf (Sonnet)
+
+`coverOf(stage, card, frame, stops, stop)` in `src/card/frame.ts`, as the spec's Cover term. Bottom frame only: `stage.bottom - (card.bottom - stops[stop])`, clamped to `[0, stage height]`; side, none, an unknown stop name or junk answer all zeros. Rects are `{top, bottom}` (a DOMRect fits). Stage height is `bottom - top`, so an inverted stage covers 0. No Studio twin: the Studio has no 3D view.
 
 ## 2026-10-13: fixes from the Opus review of Sprint 31 (Sonnet)
 

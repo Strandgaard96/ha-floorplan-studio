@@ -3,6 +3,7 @@ import {
   HEADER_H,
   PEEK_H,
   cardHeight,
+  coverOf,
   frameMode,
   nextOnHandleTap,
   sheetStops,
@@ -153,5 +154,80 @@ describe("nextOnHandleTap", () => {
     expect(nextOnHandleTap("half")).toBe("peek");
     expect(nextOnHandleTap("full")).toBe("half");
     expect(nextOnHandleTap("junk" as never)).toBe("half");
+  });
+});
+
+// S32.3: how far the bottom sheet lies over the 3D stage. Rects are {top, bottom} in page px (DOMRect shape); only
+// bottom matters. Stage: the .fp-3d box. Peek is its own grid row, so the stage ends above it and the cover is 0.
+describe("coverOf", () => {
+  const ZERO = { top: 0, right: 0, bottom: 0, left: 0 };
+  // 390 x 844 phone: card 640 tall from y 100 to 740, header 52, peek row 64 under the stage.
+  const phone = () => {
+    const card = { top: 100, bottom: 740 };
+    const stops = sheetStops(640, HEADER_H);
+    const stage = { top: 152, bottom: 740 - PEEK_H }; // 152..676
+    return { card, stops, stage };
+  };
+
+  it("390 x 844: peek 0, half and full cover the lower part", () => {
+    const { card, stops, stage } = phone();
+    expect(stops).toEqual({ peek: 64, half: 340, full: 588 });
+    expect(coverOf(stage, card, "bottom", stops, "peek")).toEqual(ZERO);
+    // half: sheet top at 740 - 340 = 400; stage bottom 676; cover 276
+    expect(coverOf(stage, card, "bottom", stops, "half")).toEqual({ ...ZERO, bottom: 276 });
+    // full: sheet top at 740 - 588 = 152; cover is the whole stage height 524
+    expect(coverOf(stage, card, "bottom", stops, "full")).toEqual({ ...ZERO, bottom: 524 });
+  });
+
+  it("360 x 640: a short card, each stop", () => {
+    const card = { top: 60, bottom: 60 + 480 };
+    const stops = sheetStops(480, HEADER_H); // half 340, full 428
+    const stage = { top: 112, bottom: card.bottom - PEEK_H }; // 112..476, height 364
+    expect(coverOf(stage, card, "bottom", stops, "peek").bottom).toBe(0);
+    expect(coverOf(stage, card, "bottom", stops, "half").bottom).toBe(476 - (540 - 340)); // 276
+    expect(coverOf(stage, card, "bottom", stops, "full").bottom).toBe(364); // clamped to the stage height
+  });
+
+  it("a card shorter than peek plus header never goes negative or past the stage", () => {
+    const card = { top: 0, bottom: 100 };
+    const stops = sheetStops(100, HEADER_H); // peek 64, full 64 (card - header 48 < peek)
+    const stage = { top: 52, bottom: 100 };
+    for (const s of NAMES) {
+      const c = coverOf(stage, card, "bottom", stops, s);
+      expect(c.bottom).toBeGreaterThanOrEqual(0);
+      expect(c.bottom).toBeLessThanOrEqual(48);
+    }
+    expect(coverOf(stage, card, "bottom", stops, "full").bottom).toBe(48);
+  });
+
+  it("side and none frames cover nothing, at every stop", () => {
+    const { card, stops, stage } = phone();
+    for (const f of ["side", "none"] as const) for (const s of NAMES) {
+      expect(coverOf(stage, card, f, stops, s)).toEqual(ZERO);
+    }
+  });
+
+  it("junk rects, stops and names answer finite, never throw", () => {
+    const { card, stops, stage } = phone();
+    const bad = [NaN, -Infinity, Infinity, -5, 0];
+    for (const a of bad) for (const b of bad) {
+      for (const s of NAMES) {
+        const c = coverOf({ top: a, bottom: b }, { top: a, bottom: b }, "bottom", stops, s);
+        for (const v of Object.values(c)) { expect(Number.isFinite(v)).toBe(true); expect(v).toBeGreaterThanOrEqual(0); }
+      }
+    }
+    for (const j of [null, undefined, {}, 5, "x"] as never[]) {
+      const c = coverOf(j, j, "bottom", j, "half");
+      expect(c).toEqual(ZERO);
+      expect(coverOf(stage, card, "bottom", j, "half")).toEqual(ZERO);
+      expect(coverOf(stage, card, "junk" as never, stops, "half")).toEqual(ZERO);
+      expect(coverOf(stage, card, "bottom", stops, j as never)).toEqual(ZERO);
+    }
+    expect(coverOf(stage, card, "bottom", { peek: NaN, half: NaN, full: NaN }, "half")).toEqual(ZERO);
+  });
+
+  it("an inverted stage (bottom above top) covers nothing", () => {
+    const { card, stops } = phone();
+    expect(coverOf({ top: 600, bottom: 300 }, card, "bottom", stops, "full")).toEqual(ZERO);
   });
 });
