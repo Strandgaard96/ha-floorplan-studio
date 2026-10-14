@@ -48,8 +48,9 @@ export function project(p: V3, canvas: Canvas, cam: Cam, fovDeg: number, shift: 
 
 /**
  * The smallest distance at which the eight corners of `box`, seen from azimuth `az` and `polar`, all project inside `visible`
- * (a rect on the canvas) less a margin of max(12 px, 5 % of its short side), with the box's centre on the visible box's centre.
- * The camera looks at the box's centre; `shift` slides the picture to the visible centre. Found by bisection: the further the
+ * (a rect on the canvas) less a margin of max(12 px, 5 % of its short side), with the projected extent of the corners centred on the
+ * visible box (equal slack on opposite sides). The camera looks at the box's centre; `shift` slides the picture so the extent's centre
+ * lands on the visible centre (S32.4: not the box's own centre, which perspective leaves off-centre). Found by bisection: the further the
  * camera, the smaller every corner's offset from the centre, so "fits" is monotone in the distance once every corner is in
  * front of the camera.
  */
@@ -70,13 +71,28 @@ export function fitBox(box: Box, az: number, polar: number, fovDeg: number, canv
     pts.push({ x: dot(rel, r), y: dot(rel, u), z: dot(rel, f) });
   }
   const behind = Math.max(0, ...pts.map((q) => -q.z));
-  const fits = (d: number) => pts.every((q) => { const depth = d + q.z; return depth > 1e-9 && Math.abs(q.x / depth) * k <= hx && Math.abs(q.y / depth) * k <= hy; });
+  // The corners' extent on screen at distance d (px, relative to the canvas centre, y down), or null if a corner is behind the lens.
+  const span = (d: number) => {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const q of pts) {
+      const depth = d + q.z;
+      if (!(depth > 1e-9)) return null;
+      const x = (q.x / depth) * k, y = (-q.y / depth) * k;
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+    return { x0, x1, y0, y1 };
+  };
+  const fits = (d: number) => { const e = span(d); return !!e && (e.x1 - e.x0) / 2 <= hx && (e.y1 - e.y0) / 2 <= hy; };
   let lo = behind, hi = Math.max(1, behind * 2);
   for (let i = 0; i < 80 && !fits(hi); i++) { lo = hi; hi *= 2; }
   if (!fits(hi)) return null;
   for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (fits(mid)) hi = mid; else lo = mid; }
-  const shift: [number, number] = [(left + right) / 2 - canvas.w / 2, (top + bottom) / 2 - canvas.h / 2];
-  return { distance: Math.max(1, hi), target, shift };
+  const distance = Math.max(1, hi), e = span(distance);
+  if (!e) return null;
+  // The extent's own centre goes to the visible centre (equal margins on opposite sides), not the box's centre: under perspective
+  // the near side is drawn larger, so the two differ.
+  const shift: [number, number] = [(left + right) / 2 - canvas.w / 2 - (e.x0 + e.x1) / 2, (top + bottom) / 2 - canvas.h / 2 - (e.y0 + e.y1) / 2];
+  return { distance, target, shift };
 }
 
 /** Ease-out cubic. */

@@ -131,8 +131,10 @@ describe("Orbit frames a box (S32.4)", () => {
   it("a cover at the bottom frames the box above it, its centre on the visible box's centre", () => {
     const o = framedAt(C2, cover(400)), r = screen(o, bounds, C2);
     expect(r.bottom).toBeLessThanOrEqual(600 + 0.5);
-    expect(o.shift[1]).toBeCloseTo(-200, 6); // the picture moves up by half the cover
-    expect(o.shift[0]).toBeCloseTo(0, 6);
+    // S32.4 revision with fitBox: the corners' extent (not the box's own centre) is centred on the visible box, 700 x 600 here
+    expect((r.left + r.right) / 2).toBeCloseTo(350, 0);
+    expect((r.top + r.bottom) / 2).toBeCloseTo(300, 0);
+    expect(o.shift[1]).toBeLessThan(0); // and the picture went up
     const wide = framedAt(C1), low = framedAt(C1, cover(300)); // 400 px left and the height binds: further back
     expect(low.distance).toBeGreaterThan(wide.distance);
   });
@@ -196,7 +198,7 @@ describe("Orbit setVisible, F1 (S32.4)", () => {
     expect(o.distance).toBeCloseTo(was.d * (o.framing / was.u), 6);
     expect(o.state().zoom).toBeCloseTo(was.st.zoom, 6);
     expect(o.state().dx).toBeCloseTo(was.st.dx, 6);
-    expect(o.shift).toEqual(framedAt(C2).shift);
+    expect(o.shift).toEqual([0, 0]); // a moved camera's target stays on the visible centre (no cover here)
   });
 
   for (const [name, move] of [["rotate", (o: Orbit) => o.rotate(30, 0)], ["zoom", (o: Orbit) => o.zoom(0.8)], ["pan", (o: Orbit) => o.pan(20, 0, 600)]] as const) {

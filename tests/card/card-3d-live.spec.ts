@@ -97,14 +97,14 @@ const roomLabel = (page: Page, r: number) => card(page).locator(`css=.fp3-rm[dat
 test.describe("3D view: lights", () => {
   test("a lamp that is on lights its own room's floor and not the neighbour's; off puts both back", async ({ page }) => {
     await boot(page);
-    const living = await at(page, 60, 60, 1), kitchen = await at(page, 720, 60, 1), pool = await at(page, 230, 170, 1);
+    // S32.4: sampled at (100, 100), a third of the way to the lamp. The old (60, 60) corner gains 8.0 grey levels in the closer first view (the 20 px patch covers less of the floor, and the pool's edge falls off steeply there); (100, 100) gains 41.
+    const living = await at(page, 100, 100, 1), kitchen = await at(page, 720, 60, 1), pool = await at(page, 230, 170, 1);
     const before = { living: await mean(page, living), kitchen: await mean(page, kitchen), pool: await mean(page, pool) };
     const cam0 = await cam(page);
     await setStates(page, { ...QUIET(), "light.demo_living": st("on", { rgb_color: [255, 170, 60], brightness: 255 }, iso(5)) });
     const after = { living: await mean(page, living), kitchen: await mean(page, kitchen), pool: await mean(page, pool) };
     // Living is brighter and warmer (red over blue); the Kitchen, next door and behind a wall, did not move by a grey level
-    // S32.4 premise change: the exact fit samples the Living room a little further from the lamp (7.95 grey levels against 8 before), so the margin is 6
-    expect(lum(after.living)).toBeGreaterThan(lum(before.living) + 6);
+    expect(lum(after.living)).toBeGreaterThan(lum(before.living) + 8);
     expect(after.living[0] / after.living[2]).toBeGreaterThan((before.living[0] / before.living[2]) * 1.03);
     for (let k = 0; k < 3; k++) expect(Math.abs(after.kitchen[k] - before.kitchen[k]), `kitchen channel ${k}`).toBeLessThanOrEqual(1.5);
     // nearer the lamp is brighter still: the pool, not only the room's lift

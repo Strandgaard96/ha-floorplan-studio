@@ -93,7 +93,7 @@ describe("fitBox", () => {
     };
   };
 
-  it("is inside the margin on every side and tight on one, within 0.5 px, over 500 seeded cases", () => {
+  it("is inside the margin on every side, tight on one, and the extent is centred on the visible box, over 500 seeded cases", () => {
     const r = rng(11);
     for (let i = 0; i < 500; i++) {
       const k = makeCase(r), f = fitBox(k.box, k.az, k.polar, k.fov, { w: k.w, h: k.h }, k.vis);
@@ -102,22 +102,29 @@ describe("fitBox", () => {
       const slacks = [e.slackL, e.slackR, e.slackT, e.slackB];
       for (const s of slacks) expect(s).toBeGreaterThan(-0.5);
       expect(Math.min(...slacks)).toBeLessThan(0.5);
+      // S32.4 revision: equal slack on opposite sides, so the projected extent (not the box's own centre) sits on the visible centre.
+      expect(Math.abs(e.slackL - e.slackR)).toBeLessThan(0.5);
+      expect(Math.abs(e.slackT - e.slackB)).toBeLessThan(0.5);
     }
   });
 
-  it("looks at the box centre and shifts the picture to the visible box's centre (lower half covered)", () => {
+  it("looks at the box centre and centres the projected extent on the visible box (lower half covered)", () => {
     const box: Box = { min: [0, 0, 0], max: [1000, 250, 800] };
     const w = 390, h = 700, vis = { left: 0, top: 0, right: 390, bottom: 350 }; // the sheet covers the lower half
     const f = fitBox(box, 0.3, 0.9, 40, { w, h }, vis)!;
-    expect(f.target).toEqual([500, 125, 400]);
-    expect(f.shift[0]).toBeCloseTo(0, 9);
-    expect(f.shift[1]).toBeCloseTo(175 - 350, 9); // visible centre 175 against canvas centre 350: up
-    const c = project(f.target, { w, h }, { az: 0.3, polar: 0.9, distance: f.distance, target: f.target }, 40, f.shift)!;
-    expect(c.x).toBeCloseTo(195, 6);
-    expect(c.y).toBeCloseTo(175, 6);
-    // And three agrees about where the house stands.
-    const t = threeProject([500, 125, 400], { az: 0.3, polar: 0.9, distance: f.distance, target: f.target }, 40, w, h, f.shift);
-    expect(t.y).toBeCloseTo(175, 6);
+    expect(f.target).toEqual([500, 125, 400]); // the camera still looks at the box's centre
+    const cam: Cam = { az: 0.3, polar: 0.9, distance: f.distance, target: f.target };
+    const pts = corners(box).map((c) => project(c, { w, h }, cam, 40, f.shift)!);
+    const cx = (Math.min(...pts.map((p) => p.x)) + Math.max(...pts.map((p) => p.x))) / 2, cy = (Math.min(...pts.map((p) => p.y)) + Math.max(...pts.map((p) => p.y))) / 2;
+    expect(cx).toBeCloseTo(195, 6);
+    expect(cy).toBeCloseTo(175, 6);
+    // The old premise (S32.2) put the box's own centre on the visible centre. From 0.9 rad the near side is drawn larger, so the
+    // two differ by pixels: the box's centre is NOT on the visible centre any more, the extent is.
+    const c = project(f.target, { w, h }, cam, 40, f.shift)!;
+    expect(Math.abs(c.y - 175)).toBeGreaterThan(2);
+    // And three agrees about where the extent stands.
+    const t = corners(box).map((p) => threeProject(p, cam, 40, w, h, f.shift));
+    expect((Math.min(...t.map((p) => p.y)) + Math.max(...t.map((p) => p.y))) / 2).toBeCloseTo(175, 6);
   });
 
   it("a smaller visible box needs a farther camera", () => {
