@@ -1,6 +1,6 @@
 # Card 3D framing
 
-Status: planned 2026-10-14 for 0.30.0 (Sprint 32). Waits for Diego's yes on the open questions at the end. Plan:
+Status: planned 2026-10-14 for 0.30.0 (Sprint 32). Approved by Diego 2026-10-14, built as Sprint 32. Plan:
 `docs/PLAN.md`, Sprint 32.
 
 ## Why
