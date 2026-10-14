@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.30.0 - 2026-10-14
 
 - Card (S32): the 3D view frames the house exactly. The first view, Reset camera and a floor switch fit the floor's box inside the part of the view the chrome leaves (the old rounder fit is gone, so the first picture is slightly larger or smaller, and a plan turned 45 degrees is no longer cut at a corner). When the card is resized (a window, a tablet turned, the side sheet opening or folding) an untouched camera is fitted again; a camera you have turned, zoomed or panned keeps its angles and target and only its distance follows the size.
 - Card (S32): on a phone the 3D house is framed above the bottom sheet. At half the whole house sits above it, at the peek the whole view is used again, and at full the camera keeps its half framing. The camera glides, 400 ms, when the sheet changes stop; dragging the handle moves nothing, the snap does. A resize jumps.
