@@ -12,6 +12,11 @@ Newest first. A change supersedes; nothing is edited.
 - Demo. One fan, `fan.demo_bedroom`, in the Bedroom, in `demo/layout.json` and in `demo/layout.v1.json` (the migrate test compares the two). `scripts/shots.mjs` gives it off, on (60 %) and unavailable states.
 - Not done here: the speed slider is S33.2. Existing `other` or `ac` devices on a `fan.*` entity are not retyped (X1).
 - Proof. `tests/core/fan-type.test.ts`: 10 of 10 failed before the code. `tests/card/fan-css.spec.ts` (computed style, every theme) fails with the CSS rule removed ("blueprint: fan on is its own colour", got the idle grey) and passes 10 of 10 with `--repeat-each=10`.
+## 2026-10-15: S33.3 tap_action and hold_action reader (Sonnet)
+
+- `tapActionOf(raw)` and `holdActionOf(raw)` in `src/card/tap-action.ts` return `{ action, warn }`. A string is the action; an object's `action` is read inside a try, so a getter or proxy that throws is junk. Absent (`undefined`, `null`) is the default with `warn: false`; anything else not in the known list (arrays, numbers, `{}`, `navigate`, `Toggle`, a hold of `popup` or `toggle`) is the default with `warn: true`. Lookup is `includes` on an array, never a property of an object, so `__proto__` cannot match.
+- The reader returns a flag, not a message: the card owns the once-per-card warning and names the key (S33.4).
+- Test `tests/card/tap-action.test.ts`: failed first (module missing); with `toggle` added to the hold list (scratch mutation, restored) it fails.
 
 ## 2026-10-15: frame-25d reads pixels from a canvas, not page.screenshot (Sonnet, CI flake)
 
