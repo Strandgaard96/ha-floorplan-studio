@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Card (S33.9, internal): `dashboardFor`, the pure builder behind the coming dashboard strategy: one panel view per floor, or one markdown view saying what failed. Nothing is registered yet (S33.10).
+
 ## 0.30.1 - 2026-10-15
 
 - Tests (internal): `frame-25d.spec.ts` reads the frame pixels from a canvas instead of `page.screenshot`, which failed on the CI runner. No change to the card or the Studio.

@@ -4162,7 +4162,7 @@ Lane views (schema first):
       Files: `src/core/schema.ts`, `src/core/migrate.ts`, new `tests/core/saved-views.test.ts`, `docs/schema.md`.
 
 Lane strategy (pure first):
-- [ ] S33.9 Build a dashboard from a layout (Sonnet). New `src/card/strategy.ts`: `dashboardFor(result, config)`,
+- [x] S33.9 Build a dashboard from a layout (Sonnet). New `src/card/strategy.ts`: `dashboardFor(result, config)`,
       where `result` is the load reply or an error, returns the Lovelace dashboard of spec X4. Test, failing first,
       new `tests/card/strategy.test.ts`: three floors in order, slugs, merged `card` options that never replace `type`
       or `floor`, a floor named `__proto__`, a title with `"><script>` (passed as data, never as HTML), no layout, an

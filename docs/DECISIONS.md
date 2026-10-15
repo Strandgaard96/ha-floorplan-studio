@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.9 dashboardFor (Sonnet, card only)
+
+- `src/card/strategy.ts`: `dashboardFor(result, config)` is pure and never throws. `result` is the `{ layout }` reply (shape from `websocket.py`), `{ error }` or an Error. It runs `migrate` then `validate`; `migrate` throws on a bad shape, so that is caught and shown like a `validate` failure.
+- One panel view per floor in the layout's order, `title` the floor's title (key if empty), `path` a slug of the key, made unique with `-2`, `-3` (a key like `***` or `__proto__` slugs to `floor` or `proto`, never empty). The card is `{ type, floor }` plus `config.card`; `type`, `floor` and `__proto__` in `config.card` are dropped, and options are set with `defineProperty`.
+- No layout, a load error, an invalid layout or no floors: one view, one markdown card with what failed and what to do. Titles are data in the result; Lovelace renders them, this file builds no HTML.
+- No Studio twin (spec X4: the Studio's twin is the Install code block, S33.11). Not registered as an element yet: that is S33.10.
+
 ## 2026-10-15: frame-25d reads pixels from a canvas, not page.screenshot (Sonnet, CI flake)
 
 - Symptom. CI failed on main at 0.29.0 (other test), 6607f0f and 0.30.0 with `page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot` in `tests/card/frame-25d.spec.ts`, once on `midnight`, once on `a-team`: a different case each time, so not the theme. 2 workers on a 2-core runner, about 14 minutes in. Locally 300 of 300 passed (`--repeat-each=20`, 2 workers), so the cause is not reproduced.
