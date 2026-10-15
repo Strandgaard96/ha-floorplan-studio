@@ -16,6 +16,16 @@ const CARD_TYPE = "custom:floorplan-studio-card";
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === "object" && x !== null && !Array.isArray(x);
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+/** S33 review: text copied from a layout or an error into a markdown card. Home Assistant renders markdown content as a Jinja template, so `{` and `}` become entities (no `{{ }}` or `{% %}` survives), and `<`, `>` and `&` do too (no tag, no entity read as typed). */
+const esc = (t: string): string => t.replace(/[&<>{}]/g, (c) => `&#${c.charCodeAt(0)};`);
+/** At most 10 error lines, then how many more. */
+const MAX_LISTED = 10;
+const listErrors = (errors: string[]): string => {
+  const shown = errors.slice(0, MAX_LISTED).map((e) => `- ${esc(e)}`);
+  if (errors.length > MAX_LISTED) shown.push(`... and ${errors.length - MAX_LISTED} more`);
+  return shown.join("\n");
+};
+
 /** One view with one markdown card that says what failed and what to do. */
 function problem(title: string, lines: string[]): StrategyDashboard {
   return { title, views: [{ title, path: "floorplan", panel: true, cards: [{ type: "markdown", content: lines.join("\n\n") }] }] };
@@ -34,7 +44,7 @@ export function dashboardFor(result: unknown, config: unknown): StrategyDashboar
 
     const failed = result instanceof Error || (isObj(result) && result.error !== undefined && result.error !== null);
     if (failed) {
-      const why = reason(result instanceof Error ? result : (result as Record<string, unknown>).error);
+      const why = esc(reason(result instanceof Error ? result : (result as Record<string, unknown>).error));
       return problem(title, [
         `**The floor plan could not be loaded.**${why ? ` ${why}` : ""}`,
         "Check that the Floorplan Studio integration is installed and set up (Settings, Devices & services), then reload this dashboard.",
@@ -49,13 +59,13 @@ export function dashboardFor(result: unknown, config: unknown): StrategyDashboar
     }
     let migrated;
     try { migrated = migrate(raw); } catch (e) {
-      return problem(title, ["**The saved floor plan is not valid.**", `- ${reason(e)}`, "Open it in the Floorplan Studio, fix it and Save again."]);
+      return problem(title, ["**The saved floor plan is not valid.**", `- ${esc(reason(e))}`, "Open it in the Floorplan Studio, fix it and Save again."]);
     }
     const checked = validate(migrated);
     if (!checked.ok) {
       return problem(title, [
         "**The saved floor plan is not valid.**",
-        checked.errors.map((e) => `- ${e}`).join("\n"),
+        listErrors(checked.errors),
         "Open it in the Floorplan Studio, fix it and Save again.",
       ]);
     }

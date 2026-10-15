@@ -87,6 +87,27 @@ describe("dashboardFor", () => {
     expect(dashboardFor({ error: { code: "not_loaded", message: "Floorplan Studio is not set up." } } as any, {}).views[0].cards[0].content).toContain("not set up");
   });
 
+  // S33 review: the error card is a markdown card and Home Assistant renders markdown as a Jinja template, so text copied
+  // from a stranger's layout must not carry a live `{{ }}` or a tag.
+  it("escapes layout text copied into the error card, so no template or tag survives", () => {
+    const evil = `{{ states('lock.front') }}"><script>alert(1)</script>{% x %}&amp;`;
+    const bad = clone(); bad.floors[evil] = 5;
+    const text = dashboardFor({ layout: bad }, {}).views[0].cards[0].content as string;
+    expect(text).toContain("The saved floor plan is not valid");
+    expect(text).toContain("lock.front"); // it is still shown, as text
+    expect(text).not.toMatch(/\{\{|\{%|<script|<|>/);
+    expect(text).toContain("&#38;amp;"); // an entity in the source is shown as typed, not read
+  });
+
+  it("lists at most 10 errors and says how many more", () => {
+    const bad = clone();
+    for (const d of bad.floors.ground.devices) d.entity = "no entity";
+    for (let i = 0; i < 25; i++) bad.floors.ground.devices.push({ id: `x${i}`, type: "light", entity: "nope", name: "n", x: 1, y: 1 });
+    const text = dashboardFor({ layout: bad }, {}).views[0].cards[0].content as string;
+    expect(text.split("\n").filter((l) => l.startsWith("- "))).toHaveLength(10);
+    expect(text).toMatch(/\.\.\. and \d+ more/);
+  });
+
   it("says why when the layout is invalid, and lists the errors", () => {
     const bad = clone(); bad.version = 7;
     const d = dashboardFor({ layout: bad }, {});
