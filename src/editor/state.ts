@@ -1,5 +1,6 @@
 import { alignFloor, floorBelow, floorPlace, floorPose, normaliseTurn, placePoint, poseFromPlace, DETAIL_MODES, parseDetailMode, FURNITURE, MAX_ROOM_SENSORS, DEVICE_TYPES, furnitureForEntity, FLOOR_COLOURS, inside, roomAt, MAX_PALETTE, TEXTURE_IDS, THEMES, contentPoints, findPowerSensor, haFloorIdsForPlanFloor, migrate, parseLayers, placeableDevicesInArea, placedEntities, planPivot, rotateAbout, stairSteps, switchChoicesForLight, typeForEntity, unplacedCatalog, unplacedHaEntities, validate, viewBoxFor } from "../core";
-import { COORD_LIMIT } from "../core/schema";
+import { COORD_LIMIT, MAX_VIEWS, MAX_VIEW_ZOOM } from "../core/schema";
+import type { SavedView } from "../core/schema";
 import type { DetailMode, CatalogEntry, DeviceType, Floor, HaData, LayerId, Layout, Pt, Stairs, SwitchChoice, Theme, Trace } from "../core";
 import { setRoomList, type RoomSensorField } from "./ops";
 import { normaliseRotation } from "../card/view-state";
@@ -476,9 +477,86 @@ export class EditorState {
     if (!this.fresh() || i < 0 || ks.length < 2 || !this.planOpen()) return false;
     this.snapshot();
     this.layout.floors = floorsOf(ks.filter((k) => k !== key).map((k) => [k, this.layout.floors[k]]));
+    if (this.layout.views) this.setViews(this.layout.views.filter((v) => v.floor !== key)); // S33.7: a view of a floor that is gone would fail validate; it goes in this same step
     delete this.views[key];
     this.confirmDelete = false;
     if (this.floor === key) { this.floor = ks[i + 1] ?? ks[i - 1]; this.sel = null; this.openDoor = null; }
+    return true;
+  }
+
+  // ---- S33.7: saved views. A view is a way of looking, kept in the layout so every card offers it. Not geometry: Lock plan lets it through. ----
+
+  /** The views the layout holds, in order. */
+  get savedViews(): SavedView[] { return this.layout.views ?? []; }
+  /** Writes the list, and leaves no empty `views` key behind. */
+  private setViews(vs: SavedView[]): void { if (vs.length) this.layout.views = vs; else delete this.layout.views; }
+
+  /**
+   * What the plan on screen says about zoom, in the card's terms, or null when the floor is shown whole.
+   * Decision (S33.7): "whole" stores nothing. A card opens with its own window, whose fit differs from the Studio's, so a
+   * stored zoom of 1 would not be the card's whole floor; leaving zoom and centre out lets the card fit its own. Whole is:
+   * the view at the Studio's fit (as `exportView` judges it), or no tighter than the card's own fit (zoomed out, or panned
+   * while zoomed out: a zoom below 1 cannot be stored, and a floor cut off at the edge is not what anyone meant). Zoomed in
+   * is the ratio against the card's fit (60 cm margin, as Copy card view) held to 1..MAX_VIEW_ZOOM, with the centre in plan cm.
+   */
+  private viewPose(): { zoom: number; center: Pt } | null {
+    const v = this.views[this.floor];
+    if (!v || !(v.w > 0) || !(v.h > 0)) return null;
+    const mem = this.exportView().zooms?.some(([k]) => k === this.floor);
+    if (!mem) return null; // shown whole, as the memory judges it
+    const fit = viewBoxFor(this.f, 60, this.rotation);
+    const zoom = Math.min(fit.w / v.w, fit.h / v.h);
+    if (!(zoom >= 1)) return null; // NaN too
+    const lim = (n: number) => Math.min(COORD_LIMIT, Math.max(-COORD_LIMIT, Math.round(n)));
+    return { zoom: Math.round(Math.min(MAX_VIEW_ZOOM, zoom) * 100) / 100, center: [lim(v.x + v.w / 2), lim(v.y + v.h / 2)] };
+  }
+
+  /** Saves what is on screen as a view: the floor on show, the user's turn (left out at 0), zoom and centre unless the floor is shown whole, and the mode the viewer should open in (`undefined`: the viewer's choice). One undo step. Returns the new id, or "" for an empty or over-long name or when the layout already holds MAX_VIEWS. */
+  saveView(name: string, mode?: "2d" | "2.5d" | "3d"): string {
+    const n = name.trim();
+    if (!n || n.length > 60 || this.savedViews.length >= MAX_VIEWS) return "";
+    const ids = new Set(this.savedViews.map((v) => v.id)), base = `view-${slug(n) || "view"}`.slice(0, 56);
+    let id = base;
+    for (let i = 2; ids.has(id); i++) id = `${base}-${i}`;
+    const sv: SavedView = { id, name: n, floor: this.floor };
+    if (mode) sv.mode = mode;
+    const rot = normaliseRotation(this.viewRot);
+    if (rot) sv.rotation = rot;
+    const p = this.viewPose();
+    if (p) { sv.zoom = p.zoom; sv.center = p.center; }
+    this.fresh(); this.snapshot();
+    this.setViews([...this.savedViews, sv]);
+    return id;
+  }
+
+  /** Renames a view: one undo step, none for the same name (after trim), an empty or over-long one, or an id that is not here. */
+  renameView(id: string, name: string): boolean {
+    const n = name.trim(), i = this.savedViews.findIndex((v) => v.id === id);
+    if (i < 0 || !n || n.length > 60 || this.savedViews[i].name === n) return false;
+    this.fresh(); this.snapshot();
+    this.setViews(this.savedViews.map((v, j) => (j === i ? { ...v, name: n } : v)));
+    return true;
+  }
+
+  /** Deletes a view: one undo step. False for an id that is not here. */
+  deleteView(id: string): boolean {
+    if (!this.savedViews.some((v) => v.id === id)) return false;
+    this.fresh(); this.snapshot();
+    this.setViews(this.savedViews.filter((v) => v.id !== id));
+    return true;
+  }
+
+  /** Shows a view: its floor, the turn (none named is 0), and its zoom and centre, or the whole floor. Not an edit: no undo step, the layout is untouched. The mode is the card's; the Studio draws flat only. False for an id that is not here. */
+  applyView(id: string): boolean {
+    const v = this.savedViews.find((x) => x.id === id);
+    if (!v || !hasOwn(this.layout.floors, v.floor)) return false;
+    this.floor = v.floor; this.sel = null; this.confirmDelete = false;
+    this.viewRot = normaliseRotation(v.rotation ?? 0);
+    this.fit();
+    if (v.zoom !== undefined && v.center) {
+      const fit = viewBoxFor(this.f, 60, this.rotation), w = fit.w / v.zoom, h = fit.h / v.zoom;
+      this.views[v.floor] = { x: v.center[0] - w / 2, y: v.center[1] - h / 2, w, h };
+    }
     return true;
   }
 
