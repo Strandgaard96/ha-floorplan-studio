@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.3 tap_action and hold_action reader (Sonnet)
+
+- `tapActionOf(raw)` and `holdActionOf(raw)` in `src/card/tap-action.ts` return `{ action, warn }`. A string is the action; an object's `action` is read inside a try, so a getter or proxy that throws is junk. Absent (`undefined`, `null`) is the default with `warn: false`; anything else not in the known list (arrays, numbers, `{}`, `navigate`, `Toggle`, a hold of `popup` or `toggle`) is the default with `warn: true`. Lookup is `includes` on an array, never a property of an object, so `__proto__` cannot match.
+- The reader returns a flag, not a message: the card owns the once-per-card warning and names the key (S33.4).
+- Test `tests/card/tap-action.test.ts`: failed first (module missing); with `toggle` added to the hold list (scratch mutation, restored) it fails.
+
 ## 2026-10-15: frame-25d reads pixels from a canvas, not page.screenshot (Sonnet, CI flake)
 
 - Symptom. CI failed on main at 0.29.0 (other test), 6607f0f and 0.30.0 with `page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot` in `tests/card/frame-25d.spec.ts`, once on `midnight`, once on `a-team`: a different case each time, so not the theme. 2 workers on a 2-core runner, about 14 minutes in. Locally 300 of 300 passed (`--repeat-each=20`, 2 workers), so the cause is not reproduced.

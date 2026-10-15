@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Card (internal, S33.3): `src/card/tap-action.ts` reads the `tap_action` and `hold_action` keys (popup, more-info, toggle, none; more-info, none) from untrusted YAML and never throws. Nothing uses it yet; S33.4 wires it in.
+
 ## 0.30.1 - 2026-10-15
 
 - Tests (internal): `frame-25d.spec.ts` reads the frame pixels from a canvas instead of `page.screenshot`, which failed on the CI runner. No change to the card or the Studio.

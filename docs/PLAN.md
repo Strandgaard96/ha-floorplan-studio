@@ -4148,7 +4148,7 @@ Lane fan (core tables, then the popup):
       Files: `src/card/popup.ts`, `src/card/popup-ui.ts`, `tests/card/card-fan.spec.ts`.
 
 Lane tap (pure first):
-- [ ] S33.3 Read `tap_action` and `hold_action` (Sonnet). New `src/card/tap-action.ts`: `tapActionOf(raw)` and
+- [x] S33.3 Read `tap_action` and `hold_action` (Sonnet). New `src/card/tap-action.ts`: `tapActionOf(raw)` and
       `holdActionOf(raw)` return one of spec X2's actions; a string is the action; anything else is the default plus a
       `warn` flag. Test, failing first, new `tests/card/tap-action.test.ts`: every action, every unsupported HA action,
       `__proto__`, arrays, numbers, null, an object with a getter that throws.
