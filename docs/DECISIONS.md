@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.4 tap_action in the card (Sonnet, judgement)
+
+- Change. `bindDeviceActions` takes `tapAction()`, `holdAction()` (read per press, so `setConfig` needs no rebind) and `toggle()`. The card passes them to the plan and to the 3D view, not to the Active list rows (a row is a list, not an icon) and not to doors, appliances or linked pieces (spec X2). One `console.warn` per card, naming the key or keys, from `setConfig`.
+- Judgement, the stack. The toggle branch sits inside `solo`, so a stack fans out first for every tap action, `none` and `more-info` included. Without that, a tap that does nothing would leave overlapped icons unreachable. A tap that fans a stack out never toggles.
+- Judgement, the vacuum. Its branch stays ahead of the toggle: `popup` and `toggle` open its own dialog (it is `NO_TOGGLE`, and a bare tap never starts the robot). `more-info` and `none` are honoured, because the person asked for them in so many words. A media player is the same: its tap is already more-info, `none` silences it, `toggle` is more-info.
+- Toggle. The card runs the popup's own rule (`_popupOp`, `lampOp`): ON and a light's OFF call at once; any other OFF opens the popup already at Confirm turn off (S14.2 stands, so turning OFF a non-light by toggle still asks); no button (sensor, camera, no state) opens the popup. The call code is one `_runOp`, shared with the popup's button.
+- Hold. `hold_action: none` arms a hold that does nothing, so the release of a long press does not become a tap. Kiosk starts no timer, as before. A hold with no entity is as before.
+- Proof. `tests/card/card-tap-action.spec.ts` (20 tests): 13 failed before the code; stack, door, kiosk and absent-key guards passed already, and the stack guard fails with `solo` removed. `--repeat-each=10`: 200 of 200.
+- Not done here: `docs/card.md` still says `tap_action` is not an option (S33.11 owns the docs).
 ## 2026-10-15: S33.1 fan is a device type (Sonnet)
 
 - Change. `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`; spec X1's table is built as written. Parity: both, one draw path (`renderFloor`), the type menu is `TYPE_LABELS` in `src/editor/panels.ts`.
