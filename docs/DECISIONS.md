@@ -17,6 +17,11 @@ Newest first. A change supersedes; nothing is edited.
 - `tapActionOf(raw)` and `holdActionOf(raw)` in `src/card/tap-action.ts` return `{ action, warn }`. A string is the action; an object's `action` is read inside a try, so a getter or proxy that throws is junk. Absent (`undefined`, `null`) is the default with `warn: false`; anything else not in the known list (arrays, numbers, `{}`, `navigate`, `Toggle`, a hold of `popup` or `toggle`) is the default with `warn: true`. Lookup is `includes` on an array, never a property of an object, so `__proto__` cannot match.
 - The reader returns a flag, not a message: the card owns the once-per-card warning and names the key (S33.4).
 - Test `tests/card/tap-action.test.ts`: failed first (module missing); with `toggle` added to the hold list (scratch mutation, restored) it fails.
+## 2026-10-15: S33.6 Layout.views in the schema (Sonnet)
+
+- Built to spec X3. `SavedView`, `MAX_VIEWS` = 24, `viewProblems` (one predicate), used by `validate` (errors name `views[i]`) and by `migrate`, which keeps the good entries in order, drops bad ones and repeated ids, caps at 24, and drops a `views` that is not an array. A view is a convenience; it never costs the plan.
+- `floor` must be an own key of `floors`, so `__proto__` and `constructor` fail. `MAX_VIEW_ZOOM` = 8 lives in `schema.ts` (core does not import the card); a test holds it equal to the card's `MAX_ZOOM`.
+- Not done here, by task scope: the Delete floor writer dropping its views (Studio lane, S33.7). No Studio or card twin yet.
 
 ## 2026-10-15: frame-25d reads pixels from a canvas, not page.screenshot (Sonnet, CI flake)
 

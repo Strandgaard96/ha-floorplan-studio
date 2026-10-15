@@ -201,12 +201,36 @@ S6.7: one HA entity as it stood the moment the editor wrote `Layout.available` â
 export interface AvailableEntity { entity: string; name: string; domain: string; area?: string; areaName?: string; room?: string; dc?: string; placed: boolean }
 ```
 
+## MAX_VIEWS
+
+Most saved views a layout keeps.
+
+```ts
+export const MAX_VIEWS = 24;
+```
+
+## MAX_VIEW_ZOOM
+
+The most a saved view may zoom in. The card's own `MAX_ZOOM` (`viewport.ts`) is the same number; a test holds them together.
+
+```ts
+export const MAX_VIEW_ZOOM = 8;
+```
+
+## SavedView
+
+A named way of looking at the plan, saved in the Studio and offered by every card. `floor` is a key of `floors`; `mode` is how it opens (left out: the viewer's choice); `rotation` is the turn in degrees, a multiple of 45 from 0 to 315; `zoom` (1 to 8) and `center` (cm) come together or not at all. No 3D camera.
+
+```ts
+export interface SavedView { id: string; name: string; floor: string; mode?: "2d" | "2.5d" | "3d"; rotation?: number; zoom?: number; center?: Pt }
+```
+
 ## Layout
 
 `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned.
 
 ```ts
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 ```
 
 ## MAX_TRACE_BYTES

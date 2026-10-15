@@ -1,5 +1,5 @@
 import { stairSteps } from "./geometry";
-import { COORD_LIMIT, FX_MIN, FX_MAX, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
+import { COORD_LIMIT, FX_MIN, FX_MAX, MAX_VIEWS, viewProblems, type CatalogEntry, type Device, type DeviceType, type Layout, type Pt } from "./schema";
 
 const slug = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const KINDS: [string, string][] = [["rooms", "room"], ["walls", "wall"], ["stairs", "stairs"], ["doors", "door"], ["openings", "opening"], ["extras", "extra"], ["furniture", "furniture"], ["unlinked", "unlinked"]];
@@ -58,6 +58,17 @@ function dropBadFx(f: any) {
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
 
+/** S33.6: the saved views that `validate` would accept, in order, first of a duplicate id, at most MAX_VIEWS. */
+function keepViews(views: unknown[], floors: unknown): unknown[] {
+  const ids = new Set<string>(), kept: unknown[] = [];
+  for (const v of views) {
+    if (kept.length >= MAX_VIEWS) break;
+    if (viewProblems(v, floors).length || ids.has((v as any).id)) continue;
+    ids.add((v as any).id); kept.push(v);
+  }
+  return kept;
+}
+
 /** Accepts a v1 or v2 layout and returns a new v2 layout. The input is never changed. Missing arrays and ids are filled in. */
 export function migrate(x: unknown): Layout {
   if (!isObj(x)) throw new Error("Not a layout: expected a JSON object");
@@ -106,6 +117,7 @@ export function migrate(x: unknown): Layout {
   const out: any = { version: 2, unit: "cm", north: src.north ?? 0, rotate: src.rotate ?? 0, floors, catalog: src.catalog };
   if (src.palette !== undefined) out.palette = src.palette;
   if (src.colors !== undefined) out.colors = src.colors; // passed through; validate judges it. Never invented.
+  if (Array.isArray(src.views)) out.views = keepViews(src.views, floors); // S33.6: a view is a convenience; a bad one is dropped, never the plan
   if (Array.isArray(out.catalog) && v === 1) for (const c of out.catalog) c.type = RENAME[c.type] ?? c.type;
   if (!Array.isArray(out.catalog)) out.catalog = buildCatalog(out);
   return out as Layout;
