@@ -29,7 +29,7 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   furniture. Attach rooms to areas and devices to entities from pickers. The
   device type menu lists the common types first (light, switch, motion,
   window / door sensor, temperature, speaker, TV), then the rest A to Z,
-  including siren and alarm.
+  including siren, alarm and fan.
 - A dumb light on a smart switch is one icon: bind the switch to the light
   ("Controlled by") and the plan shows both as one lamp.
 - A 2.5D view, in the card (`view: 2.5d`, or the View dropdown beside the zoom
@@ -68,7 +68,9 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   Open, Close, Lock, Unlock), sliders for a light's brightness, colour
   temperature and colour when it has them, and a More info link. Turning
   anything but a light off asks once more. A hold still opens more-info. A
-  mouse hover shows the name and state.
+  mouse hover shows the name and state. `tap_action` and `hold_action` change
+  that for the whole card (popup, more-info, toggle, nothing). A fan has a speed
+  slider in its popup.
 - Pinch, drag and double-tap to zoom and pan on a phone, Ctrl/Cmd+wheel and
   drag on a desktop. In the 3D view, drag turns the house; the middle button,
   or Space plus a drag, pans. A kiosk mode strips the card down to the plan for a
@@ -82,6 +84,11 @@ A real house, on the card in 2.5D, three themes (room and device names blurred):
   the two lines for whatever it's currently showing.
 - **File → Install code** in the editor writes a whole dashboard, not just
   the card, ready to paste and matched to your plan's theme and floors.
+  The same panel gives three lines for a strategy dashboard instead, which
+  Home Assistant rebuilds on every load, so a floor you add later shows up on
+  its own.
+- **View → Saved views** keeps a named view (floor, mode, turn, zoom) in the
+  layout; every card offers it in its ⋯ menu.
 - A scanned or photographed plan can be traced: load it in the editor, scale
   it to a real measurement, draw over it, then hide or drop it. It never
   reaches the card.

@@ -94,6 +94,14 @@ in `prompts/`, then fixed in the editor.
   conditioner's colours come from its state (`--fp-dev-ac-cool`, blue, and
   `--fp-dev-ac-heat`, orange), one knob cannot name two of them. Decided in
   S2.10; a cool and a heat knob can come later if anyone asks.
+- `views` (optional, S33.6) is a list of saved views, at most 24 (`MAX_VIEWS`). A view is `{ id, name, floor, mode?, rotation?, zoom?, center? }`:
+  `id` 1 to 64 characters, unique in the list; `name` 1 to 60 characters; `floor` the key of a floor; `mode` `2d`, `2.5d` or `3d`
+  (absent: the viewer's choice); `rotation` a multiple of 45 in [0, 360); `zoom` from 1 to 8 as a ratio against the viewer's own fit;
+  `center` `[x, y]` plan cm within +-10 000 000; `zoom` and `center` come together or not at all. No 3D camera is stored. `validate`
+  checks every field and never throws; `migrate` keeps a `views` array, drops each entry that would fail and the first of a duplicate id,
+  and drops a `views` that is not an array, so a stranger's file opens without its bad views. Deleting a floor deletes its views in
+  the same undo step. The schema stays v2: a card older than 0.31.0 drops `views` when it loads the layout. Studio: View, Saved views;
+  card: the Views section of the ⋯ menu.
 - `floor.offset` (optional, S27.2) is where the floor sits in the house, in cm, x
   right and y down as every plan point. A point's place in the house is its
   stored point plus the floor's offset; stored coordinates never change. Absent
@@ -227,13 +235,18 @@ it is turn 0 and `from.offset - to.offset`. Junk on either floor, and an unknown
   `cover` is a cover entity for doors that HA can open.
 - `device.type`: heater, light, switch, plug, temp, humidity, motion, contact,
   camera, climate, ac, tv, computer, media, cover, battery, inverter, server,
-  access_point, other, person, radar, vacuum, speaker, siren, alarm. Heaters have `a`/`b`
-  (a bar), the rest `x`/`y`. `ac` is an air conditioner, heat pump, fan or air
-  cleaner; what it is doing comes from the entity, not from the layout. A
+  access_point, other, person, radar, vacuum, speaker, siren, alarm, fan. Heaters have `a`/`b`
+  (a bar), the rest `x`/`y`. `ac` is an air conditioner, heat pump or air
+  cleaner (a fan has its own type since S33.1; a device already typed `ac` on a `fan.*` entity keeps it); what it is doing comes from the entity, not from the layout. A
   `person` has a `person.*` or `device_tracker.*` entity. A `radar`'s own
   `entity` is its presence sensor (typically a `binary_sensor.*occupancy`,
   such as an mmWave sensor's own occupancy binary sensor). A `vacuum`'s own
   `entity` is its `vacuum.*` domain entity; it has no field of its own (S7.10).
+- `fan` (S33.1, 2026-10-15). A `fan.*` entity is typed `fan` when placed from a list. On while its entity is on; `--fp-dev-fan`,
+  solid when on. A tap opens the popup (Turn on, Turn off; OFF asks first); with `percentage` and `supported_features & 1` the popup has
+  a Speed slider and release makes one `fan.set_percentage` (S33.2). Listed in Active, group Fans in All off, ceiling height as a
+  light. Not retyped on existing devices. The schema stays v2; a card older than 0.31.0 refuses a layout with a `fan` device and
+  reads "No layout" until the page reloads.
 - `siren` and `alarm` (S18.14, 2026-10-07). A `siren.*` entity is typed siren and an
   `alarm_control_panel.*` entity alarm when placed from a list (both were `other`). A siren is
   on while its entity is on; an alarm is on in every state but `disarmed` (armed_*, arming,
@@ -444,7 +457,7 @@ the "Click" column below says "toggle", "more-info" or "chooser" for a tap, read
 first (a Confirm turn off step in the popup) for every type except a light. A light adds brightness, colour temperature and
 hue sliders per its `supported_color_modes`, with one `light.turn_on` on release. A mouse hover shows a tooltip with the name
 and the state text. Types without a toggle (`NO_TOGGLE`) show name, state and More info only. The state text is one
-formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. See `docs/card.md`, "Tap, hold and hover".
+formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. See `docs/card.md`, "Tap, hold and hover". S33.4: the card keys `tap_action` (`popup`, `more-info`, `toggle`, `none`) and `hold_action` (`more-info`, `none`) change what a tap and a hold on a device icon do; `toggle` still asks before turning anything but a light off.
 
 | Entity domain / device type | Idle | Active | Colour | Click |
 |---|---|---|---|---|
@@ -460,7 +473,8 @@ formatter (`src/core/state-text.ts`) for the plan, the popup and the tooltip. Se
 | temp, humidity (sensor) | grey icon, value as a label next to it | humidity: grey icon and halo, no brighter than off | `--fp-idle` (#8b8578) | more-info |
 | temp or humidity sensor inside a room of kind garden | green icon (class `outdoor`, from the centre of the icon) | as its type | `--fp-dev-garden` (#3f8f4f) idle, as its type when on | more-info |
 | heater, climate (TRV, thermostat) | heater bar grey with target; icon and halo grey | orange icon and halo when heating | `--fp-dev-heater` / `--fp-dev-climate` (#e8801a) | with `trvs`/`tempSensors` attached: tap opens a chooser listing the heater plus all of them, never a guess (S10.4); long press opens more-info for the heater alone (S10.3 review). With none attached: popup; long press: more-info, unchanged |
-| ac (air conditioner, heat pump, fan, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | `--fp-dev-ac-cool` (#2c7fb8) / `--fp-dev-ac-heat` (#e8801a) | with `linked` climate/TRV entities: tap opens the chooser (S10.4), long press opens more-info for the ac alone (S10.3 review). With none: toggle; long press: more-info, unchanged |
+| ac (air conditioner, heat pump, air cleaner) | grey | blue while `hvac_action` is cooling, orange while heating, grey otherwise | `--fp-dev-ac-cool` (#2c7fb8) / `--fp-dev-ac-heat` (#e8801a) | with `linked` climate/TRV entities: tap opens the chooser (S10.4), long press opens more-info for the ac alone (S10.3 review). With none: toggle; long press: more-info, unchanged |
+| fan (`fan.*`) | grey | a solid disc in the fan's colour while its entity is on | `--fp-dev-fan` | popup (Turn on/off; Speed slider with `percentage` and SET_SPEED); long press: more-info |
 | tv | grey | blue icon and halo when the player is on or playing | `--fp-dev-tv` (#2c7fb8) | more-info |
 | battery, inverter, server, access_point | grey icon on the round disc, `on` or off | grey, unchanged | — (idle grey `--fp-idle`; `layout.colors` can name one) | more-info |
 | computer | grey | blue icon and halo | `--fp-dev-computer` (#2c7fb8) | more-info |

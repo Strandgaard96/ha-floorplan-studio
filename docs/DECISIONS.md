@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.11 the open questions Q1, Q4, Q5, Q6 held, and the docs (Sonnet)
+
+- Diego approved Sprint 33 on 2026-10-15 with the defaults. Each held; nothing changed on the way. The questions Q2 and Q3 belong to Sprint 34.
+- Q1, saved views. Held: in the layout, saved in the Studio, offered by every card. Studio and card both have it (`viewsSub` in `view-parity.spec.ts`). Per-viewer views from the card stay out.
+- Q4, strategy. Held: one panel view per floor, each card pinned to its floor. Card bundle only; the Studio's Install code shows the three lines. The strategy interface is not in Home Assistant's documented API; S33.12 tries it on Diego's HA.
+- Q5, `tap_action`. Held: card-wide, device icons only, `popup`, `more-info`, `toggle`, `none`; `hold_action` `more-info` and `none`. OFF by toggle asks for every type but a light. Card only, on purpose: a click in the Studio selects.
+- Q6, fan. Held: a Fans group in All off, ceiling height as a light. Studio and card both, through `renderFloor` and the type menu.
+- Docs checked against the code, not the spec: `MAX_VIEWS` is 24, `MAX_VIEW_ZOOM` 8, a hold is `HOLD_MS` 500 ms (the plan said 600 in a test brief; the code and the docs say 500), the Views section sits after Device names and stays under `view_switch: false`, nothing is offered under `kiosk`, a saved view whose id is `2d`, `2.5d` or `3d` is not offered. The strategy takes `title` and `card:`; `card:` never replaces `type` or `floor`.
+- The README has no state table. Its feature list names fan, `tap_action`, saved views and the strategy instead.
+- The CHANGELOG carries the older-card note (spec Risks): a card older than 0.31.0 reads "No layout" for a layout with a fan device until the page reloads, and drops `views`.
+
 ## 2026-10-15: S33.10 the strategy element and the Studio's strategy block (Sonnet)
 
 - Built to spec X4. `src/card/strategy.ts` gains `generate(config, hass)` and `strategyElement()`. `generate` sends `{ type: "floorplan_studio/load" }` on `hass.connection.sendMessagePromise` and hands the reply (`{ layout }`, shape from `websocket.py` `ws_load`) or the failure to `dashboardFor`. It never rejects: no `hass`, no connection, a `sendMessagePromise` that is not a function, a rejection (HA's `{ code, message }`) and a synchronous throw all give the error view.

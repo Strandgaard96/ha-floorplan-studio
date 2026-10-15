@@ -4205,7 +4205,7 @@ Wave 2, after wave 1. Lane views' Studio task runs beside the card lane; the car
       Files: `src/card/strategy.ts`, the card entry, `src/editor/editor-app.ts` (Install code only), the tests.
 
 Wave 3, on `task/s33-extras`:
-- [ ] S33.11 Exit, docs, shots (Sonnet; the docs part may go to Haiku). Every exit-test file green, `--repeat-each=10`
+- [x] S33.11 Exit, docs, shots (Sonnet; the docs part may go to Haiku). Every exit-test file green, `--repeat-each=10`
       on each new Playwright file. Docs: `docs/card.md` (Config keys: `tap_action`, `hold_action`; Tap, hold and hover:
       the line that says `tap_action` is not an option goes; Saved views; A premade dashboard: the strategy; fan in
       What a device looks like), `docs/editor.md` (Saved views), `docs/SPEC.md` (schema `views`, fan type, the `ac`
