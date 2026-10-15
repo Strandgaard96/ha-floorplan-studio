@@ -4195,7 +4195,7 @@ Wave 2, after wave 1. Lane views' Studio task runs beside the card lane; the car
       `view-parity.spec.ts` and the table in `docs/card.md`.
       Files: `src/card/more-menu.ts`, `src/card/floorplan-studio-card.ts`, `tests/card/card-saved-views.spec.ts`,
       `tests/card/view-parity.spec.ts`, `docs/card.md` (the parity table only).
-- [ ] S33.10 The strategy element (Sonnet). After S33.9 and S33.8 (the card bundle's entry). `defineElement(
+- [x] S33.10 The strategy element (Sonnet). After S33.9 and S33.8 (the card bundle's entry). `defineElement(
       "ll-strategy-dashboard-floorplan-studio", ...)` with `static async generate(config, hass)` calling
       `floorplan_studio/load` and `dashboardFor`. Test, failing first, in `tests/card/strategy.test.ts`: the element
       is defined after the bundle loads; `generate` with a stub `hass.connection.sendMessagePromise` whose reply is

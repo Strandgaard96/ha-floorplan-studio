@@ -1515,6 +1515,12 @@ export class FloorplanStudioEditor extends LitElement {
     return lines.join("\n");
   }
 
+  /** S33.10: the same dashboard as a strategy: Home Assistant asks the card's script for it on every load, so a floor added in
+   * the Studio is there next time, which the YAML above (a snapshot) is not. Three lines, no per-plan values. */
+  private strategyYaml(): string {
+    return ["title: Floorplan", "strategy:", "  type: custom:floorplan-studio"].join("\n");
+  }
+
   private copyInstallCode(code: string) {
     const cb = navigator.clipboard;
     if (!cb) { this.status = "Could not copy — select the text and copy it by hand."; this.requestUpdate(); return; }
@@ -1617,7 +1623,7 @@ export class FloorplanStudioEditor extends LitElement {
    * into a TEXTAREA (so as not to steal Delete/Backspace from someone editing a field) and focus sits in this one
    * the moment it opens. */
   private installCodeView() {
-    const code = this.installCodeYaml();
+    const code = this.installCodeYaml(), strategy = this.strategyYaml();
     // S8.10 follow-up (Opus review): same fixed-90px overlap as the draggable panels (see panelTop's own comment),
     // just with a static CSS top instead of a JS position — cleared here with an inline style, which wins over the
     // class's own top:90px.
@@ -1628,6 +1634,9 @@ export class FloorplanStudioEditor extends LitElement {
       <p>A whole dashboard, matching what you're editing now — nothing else to install. Settings → Dashboards → Add dashboard → New dashboard from scratch, then its ⋮ menu, Edit in YAML, paste this over what's there. Or paste just the <code>cards:</code> entry into an existing dashboard.</p>
       <textarea id="installcodeText" readonly rows="12" @focus=${(e: Event) => (e.target as HTMLTextAreaElement).select()} @keydown=${(e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); this.toggleInstallCode(); } }}>${code}</textarea>
       <button class="btn keep" id="installcodeCopy" @click=${() => this.copyInstallCode(code)}>Copy</button>
+      <p><strong>Or as a strategy.</strong> The same dashboard, built by Home Assistant each time it loads, so a floor you add here shows up without pasting again. Paste this instead (Edit in YAML). Options for every card go under <code>card:</code>, for example <code>card: {theme: slate}</code>.</p>
+      <textarea id="installcodeStrategy" readonly rows="3" style="flex-shrink:0" @focus=${(e: Event) => (e.target as HTMLTextAreaElement).select()} @keydown=${(e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); this.toggleInstallCode(); } }}>${strategy}</textarea>
+      <button class="btn keep" id="installcodeStrategyCopy" @click=${() => this.copyInstallCode(strategy)}>Copy</button>
     </div>`;
   }
 

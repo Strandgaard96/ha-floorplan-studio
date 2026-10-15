@@ -81,3 +81,28 @@ export function dashboardFor(result: unknown, config: unknown): StrategyDashboar
     return problem("Floorplan", ["**The dashboard could not be built.**", "Reload it. If it persists, open the Floorplan Studio and Save again."]);
   }
 }
+
+/** The strategy's one call, as Home Assistant makes it: `static async generate(config, hass)` on the element. It asks the
+ * integration for the layout (`floorplan_studio/load`, reply `{ layout }`) and hands the reply, or the failure, to
+ * `dashboardFor`. A missing `hass`, a connection without `sendMessagePromise`, a rejection and a throw are all a failed load:
+ * this never rejects, so the dashboard always has something to show. */
+export async function generate(config: unknown, hass: unknown): Promise<StrategyDashboard> {
+  let result: unknown;
+  try {
+    const conn = isObj(hass) ? hass.connection : undefined;
+    const send = isObj(conn) ? conn.sendMessagePromise : undefined;
+    if (typeof send !== "function") result = { error: "Home Assistant's connection was not available." };
+    else result = await (send as (m: unknown) => Promise<unknown>).call(conn, { type: "floorplan_studio/load" });
+  } catch (e) {
+    result = { error: e ?? "The load failed." };
+  }
+  return dashboardFor(result, config);
+}
+
+/** The element Home Assistant looks up as `ll-strategy-dashboard-floorplan-studio`, for `strategy: { type: custom:floorplan-studio }`.
+ * Built on call, not at import, so this module stays loadable where there is no DOM. */
+export function strategyElement(): CustomElementConstructor {
+  return class FloorplanStudioStrategy extends HTMLElement {
+    static generate = generate;
+  };
+}

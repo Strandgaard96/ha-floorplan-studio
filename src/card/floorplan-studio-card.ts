@@ -15,6 +15,7 @@ import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind
 // second built file (PLAN block interface).
 import "./config-editor";
 import { defineElement } from "./define";
+import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, planKeyFor, type ViewKey } from "./view-keys";
@@ -4053,5 +4054,7 @@ if (typeof window !== "undefined") {
     });
 }
 defineElement("floorplan-studio-card", FloorplanStudioCard, CARD_VERSION);
+// S33.10: the dashboard strategy (`strategy: { type: custom:floorplan-studio }`); the same registry race as the card (S8.3).
+if (typeof window !== "undefined" && window.customElements) defineElement("ll-strategy-dashboard-floorplan-studio", strategyElement(), CARD_VERSION);
 // One line, so "which card is my dashboard running" is a look at the console, not a guess.
 if (typeof console !== "undefined" && CARD_VERSION !== "dev") console.info(`Floorplan Studio card ${CARD_VERSION}`);

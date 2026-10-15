@@ -2,6 +2,15 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.10 the strategy element and the Studio's strategy block (Sonnet)
+
+- Built to spec X4. `src/card/strategy.ts` gains `generate(config, hass)` and `strategyElement()`. `generate` sends `{ type: "floorplan_studio/load" }` on `hass.connection.sendMessagePromise` and hands the reply (`{ layout }`, shape from `websocket.py` `ws_load`) or the failure to `dashboardFor`. It never rejects: no `hass`, no connection, a `sendMessagePromise` that is not a function, a rejection (HA's `{ code, message }`) and a synchronous throw all give the error view.
+- The element is built by a function, not at import, because the class extends `HTMLElement` and `strategy.ts` stays loadable without a DOM. The card's file registers it with `defineElement("ll-strategy-dashboard-floorplan-studio", ...)` right after the card, so it has the same 30-second registry watch (S8.3). Card only: no editor twin, a strategy is not a view control.
+- Studio, File, Install code. A second block, "Or as a strategy", with three lines (`title: Floorplan`, `strategy:`, `  type: custom:floorplan-studio`) and its own Copy. No theme or floor list in it: that is the point, nothing in it goes stale. A line says options for every card go under `card:`. The textarea does not shrink (`flex-shrink:0`, inline) so the three lines stay visible when the window is low; the first block shrinks instead.
+- Not verified here: that Home Assistant calls `generate` this way. The custom strategy API is not part of its documented card API (spec Risks); the release step (S33.12) tries it on Diego's HA and reads the generated dashboard back. The element is checked in the built bundle (`customElements.get`, `generate` on the demo layout gives ground, first, test).
+- Proof. `tests/card/strategy.test.ts`: the 5 new tests failed first (element not defined), 14 of 14 pass; `tests/editor/editor.spec.ts` "S33.10" failed first (no "Or as a strategy") and passes 10 of 10 with `--repeat-each=10`. Install code looked at in the Studio at 1280x800, 1280x560 and 380x700 (scratchpad `install-*.png`), blueprint theme only.
+- Not done here: the docs prose (S33.11).
+
 ## 2026-10-15: S33.8 saved views in the card (Sonnet)
 
 - Built to spec X3, Card. `_savedViews()` offers a view when its floor is one the card can show (`_floorList()`, or the one floor it is pinned to) and the card is not kiosk. `_applySavedView(id)`: floor (`_selectFloor`), mode, turn, then zoom and centre. Written to view memory by the same `_saveViewNow` as any pick; no new storage key.

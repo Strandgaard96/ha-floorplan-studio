@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dashboardFor } from "../../src/card/strategy";
+import "../../src/card/floorplan-studio-card"; // the bundle's entry: it is what defines the strategy element
 import demo from "../../demo/layout.json";
 
 // S33.9. The shape of a load reply is copied from custom_components/floorplan_studio/websocket.py: `{ layout }`,
@@ -105,5 +106,61 @@ describe("dashboardFor", () => {
       expect(cardOf(d.views[0]).floor).toBe("ground");
     }
     expect(() => dashboardFor(Symbol("x") as any, Symbol("y") as any)).not.toThrow();
+  });
+});
+
+// S33.10, spec X4. Home Assistant builds a dashboard from `strategy: { type: custom:floorplan-studio }` by calling
+// `static async generate(config, hass)` on the element `ll-strategy-dashboard-floorplan-studio`. The load reply `{ layout }`
+// is copied from custom_components/floorplan_studio/websocket.py (`ws_load`: `connection.send_result(msg["id"], {"layout": ...})`);
+// a failed command rejects with `{ code, message }` (HA's websocket error shape).
+describe("the strategy element", () => {
+  const NAME = "ll-strategy-dashboard-floorplan-studio";
+  type Strategy = { generate(config: unknown, hass: unknown): Promise<any> };
+  const element = () => customElements.get(NAME) as unknown as Strategy;
+  const hassWith = (reply: () => Promise<unknown>) => {
+    const sent: unknown[] = [];
+    return { sent, hass: { connection: { sendMessagePromise: (m: unknown) => { sent.push(m); return reply(); } } } };
+  };
+
+  it("is defined once the card's bundle has loaded", () => {
+    expect(element()).toBeTypeOf("function");
+    expect(element().generate).toBeTypeOf("function");
+  });
+
+  it("asks for the layout with floorplan_studio/load and returns the dashboard of three floors", async () => {
+    const layout = withFloors({ ground: "Ground", first: "First", attic: "Attic" });
+    const { hass, sent } = hassWith(async () => ({ layout }));
+    const d = await element().generate({ type: "custom:floorplan-studio", title: "House", card: { theme: "slate", floor: "nope" } }, hass);
+    expect(sent).toEqual([{ type: "floorplan_studio/load" }]);
+    expect(d.title).toBe("House");
+    expect(d.views.map((v: any) => v.title)).toEqual(["Ground", "First", "Attic"]);
+    expect(d.views.map((v: any) => cardOf(v))).toEqual([
+      { type: "custom:floorplan-studio-card", floor: "ground", theme: "slate" },
+      { type: "custom:floorplan-studio-card", floor: "first", theme: "slate" },
+      { type: "custom:floorplan-studio-card", floor: "attic", theme: "slate" },
+    ]);
+  });
+
+  it("returns the one view that says why when the load is rejected, and does not throw", async () => {
+    const { hass } = hassWith(() => Promise.reject({ code: "not_loaded", message: "Floorplan Studio is not set up." }));
+    const d = await element().generate({}, hass);
+    expect(d.views).toHaveLength(1);
+    expect(d.views[0].cards[0].type).toBe("markdown");
+    expect(d.views[0].cards[0].content).toContain("Floorplan Studio is not set up.");
+  });
+
+  it("returns the one view for no layout saved yet, and for no hass or no connection", async () => {
+    const none = await element().generate({}, hassWith(async () => ({ layout: null })).hass);
+    expect(none.views[0].cards[0].content).toContain("no floor plan yet");
+    for (const h of [undefined, null, {}, { connection: {} }, { connection: { sendMessagePromise: 5 } }]) {
+      const d = await element().generate({}, h);
+      expect(d.views).toHaveLength(1);
+      expect(d.views[0].cards[0].type).toBe("markdown");
+    }
+  });
+
+  it("a connection that throws on call is the error view too", async () => {
+    const d = await element().generate({}, { connection: { sendMessagePromise: () => { throw new Error("socket closed"); } } });
+    expect(d.views[0].cards[0].content).toContain("socket closed");
   });
 });

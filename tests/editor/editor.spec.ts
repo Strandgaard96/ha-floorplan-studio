@@ -273,6 +273,22 @@ test("S6.6: File, Install code shows the card YAML for this plan — its theme a
   await expect(panel).toHaveCount(0);
 });
 
+test("S33.10: Install code shows a second block, Or as a strategy, with the three lines, and Copy puts them on the clipboard", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: (t: string) => { (window as any).__copied = t; return Promise.resolve(); } }, configurable: true });
+  });
+  await menu(page, "File");
+  await page.locator("#installcode").click();
+  await expect(page.locator(`${EDITOR} .installcode-panel`)).toContainText("Or as a strategy");
+  const text = page.locator(`${EDITOR} #installcodeStrategy`);
+  expect(await text.inputValue()).toBe("title: Floorplan\nstrategy:\n  type: custom:floorplan-studio");
+  // the first block is still there and still the whole-dashboard YAML
+  expect(await page.locator(`${EDITOR} #installcodeText`).inputValue()).toContain("type: custom:floorplan-studio-card");
+  await page.locator(`${EDITOR} #installcodeStrategyCopy`).click();
+  expect(await page.evaluate(() => (window as any).__copied)).toBe("title: Floorplan\nstrategy:\n  type: custom:floorplan-studio");
+});
+
 test("S6.6: Install code reflects the theme picked in View", async ({ page }) => {
   await menu(page, "View");
   await page.locator(`${EDITOR} #thSub summary`).click();
