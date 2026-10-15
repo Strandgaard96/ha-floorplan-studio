@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.31.0 - 2026-10-15
 
 - Card (S33 review): `tap_action: toggle` no longer acts blind on a lock, a cover or a siren (nor climate, humidifier, water_heater, automation, remote, media_player or group): a tap opens the popup. Only a light, a switch, an input_boolean and a fan toggle at once. Enter on a focused icon always opens the popup, as before.
 - Schema (S33 review): a saved view whose id is `2d`, `2.5d` or `3d` is refused by `validate` and dropped by `migrate`: the card never offered it, so the Studio must not list it. The Studio's own ids start `view-` and never clash.
