@@ -5,6 +5,7 @@
 - Card and Studio (S33.1): `fan` is a device type. A `fan.*` entity is typed `fan` when placed from an area menu or the entity list, drawn with the mdi fan glyph in its own colour (`--fp-dev-fan`) when on, switched by Turn on and Turn off (OFF asks first), listed in Active, counted in All off under a new "Fans" group, and shown at ceiling height in 3D. Existing devices already typed `other` or `ac` on a `fan.*` entity keep their type; change it in the device panel. The demo has one fan.
 - Card (internal, S33.3): `src/card/tap-action.ts` reads the `tap_action` and `hold_action` keys (popup, more-info, toggle, none; more-info, none) from untrusted YAML and never throws. Nothing uses it yet; S33.4 wires it in.
 - Schema (S33.6): a layout may carry `views`, up to 24 saved views (floor, mode, turn, zoom and centre). `migrate` keeps the good ones and drops each bad one, so a stranger's file still opens. An older card (0.30.x) drops `views` when it loads the layout.
+- Card (S33.9, internal): `dashboardFor`, the pure builder behind the coming dashboard strategy: one panel view per floor, or one markdown view saying what failed. Nothing is registered yet (S33.10).
 
 ## 0.30.1 - 2026-10-15
 

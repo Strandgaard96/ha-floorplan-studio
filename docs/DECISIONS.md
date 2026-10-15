@@ -22,6 +22,12 @@ Newest first. A change supersedes; nothing is edited.
 - Built to spec X3. `SavedView`, `MAX_VIEWS` = 24, `viewProblems` (one predicate), used by `validate` (errors name `views[i]`) and by `migrate`, which keeps the good entries in order, drops bad ones and repeated ids, caps at 24, and drops a `views` that is not an array. A view is a convenience; it never costs the plan.
 - `floor` must be an own key of `floors`, so `__proto__` and `constructor` fail. `MAX_VIEW_ZOOM` = 8 lives in `schema.ts` (core does not import the card); a test holds it equal to the card's `MAX_ZOOM`.
 - Not done here, by task scope: the Delete floor writer dropping its views (Studio lane, S33.7). No Studio or card twin yet.
+## 2026-10-15: S33.9 dashboardFor (Sonnet, card only)
+
+- `src/card/strategy.ts`: `dashboardFor(result, config)` is pure and never throws. `result` is the `{ layout }` reply (shape from `websocket.py`), `{ error }` or an Error. It runs `migrate` then `validate`; `migrate` throws on a bad shape, so that is caught and shown like a `validate` failure.
+- One panel view per floor in the layout's order, `title` the floor's title (key if empty), `path` a slug of the key, made unique with `-2`, `-3` (a key like `***` or `__proto__` slugs to `floor` or `proto`, never empty). The card is `{ type, floor }` plus `config.card`; `type`, `floor` and `__proto__` in `config.card` are dropped, and options are set with `defineProperty`.
+- No layout, a load error, an invalid layout or no floors: one view, one markdown card with what failed and what to do. Titles are data in the result; Lovelace renders them, this file builds no HTML.
+- No Studio twin (spec X4: the Studio's twin is the Install code block, S33.11). Not registered as an element yet: that is S33.10.
 
 ## 2026-10-15: frame-25d reads pixels from a canvas, not page.screenshot (Sonnet, CI flake)
 
