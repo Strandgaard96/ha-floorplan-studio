@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.30.1 - 2026-10-15
+
+- Tests (internal): `frame-25d.spec.ts` reads the frame pixels from a canvas instead of `page.screenshot`, which failed on the CI runner. No change to the card or the Studio.
+
 ## 0.30.0 - 2026-10-14
 
 - Card (S32): the 3D view frames the house exactly. The first view, Reset camera and a floor switch fit the floor's box inside the part of the view the chrome leaves (the old rounder fit is gone, so the first picture is slightly larger or smaller, and a plan turned 45 degrees is no longer cut at a corner). When the card is resized (a window, a tablet turned, the side sheet opening or folding) an untouched camera is fitted again; a camera you have turned, zoomed or panned keeps its angles and target and only its distance follows the size.
