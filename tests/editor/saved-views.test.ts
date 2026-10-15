@@ -16,6 +16,11 @@ const ok = (s: EditorState) => { const r = validate(s.layout); expect(r.ok ? [] 
 const steps = (s: EditorState) => { let n = 0; const keep = JSON.stringify(s.layout); while (s.undo()) n++; while (s.redo()) { /* back to the end */ } expect(JSON.stringify(s.layout)).toBe(keep); return n; };
 
 describe("saveView", () => {
+  it("a view named 2d, 2.5d or 3d gets an id that is no view mode (S33 review)", () => {
+    const s = mk();
+    for (const n of ["2d", "2.5d", "3d"]) { const id = s.saveView(n); expect(["2d", "2.5d", "3d"]).not.toContain(id); expect(id).not.toBe(""); }
+    expect(validate(s.layout).ok).toBe(true);
+  });
   it("stores the floor on show and the turn, and nothing of zoom when the floor is shown whole", () => {
     const s = mk(); s.setFloor("first"); s.viewRot = 90; s.fit();
     const id = s.saveView("Upstairs");

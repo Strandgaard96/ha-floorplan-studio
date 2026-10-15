@@ -45,6 +45,9 @@ describe("S33.6 Layout.views: validate (spec X3, criterion 8)", () => {
     ["a rotation of -45", [good({ rotation: -45 })]],
     ["a fractional rotation", [good({ rotation: 45.5 })]],
     ["a mode of 4d", [good({ mode: "4d" })]],
+    ["an id of 2d (the card's View mode value)", [good({ id: "2d" })]],
+    ["an id of 2.5d", [good({ id: "2.5d" })]],
+    ["an id of 3d", [good({ id: "3d" })]],
   ];
   for (const [label, v] of bad) it(`rejects ${label} without throwing`, () => {
     const l = withViews(v);
@@ -82,6 +85,11 @@ describe("S33.6 Layout.views: migrate", () => {
     const m = migrate(withViews([keep1, 5, null, good({ id: "c", rotation: 30 }), good({ id: "d", floor: "__proto__" }), good({ id: "e", zoom: 2 }), keep2, good({ id: "a" })]));
     expect(m.views).toEqual([keep1, keep2]);
     expect(ok(m)).toBe(true);
+  });
+  it("drops a view whose id is a view mode, keeps its neighbours (S33 review: the card hides it, the Studio would list it)", () => {
+    const keep = good({ id: "view-a" });
+    for (const id of ["2d", "2.5d", "3d"]) { const m = migrate(withViews([good({ id }), keep])); expect(m.views, id).toEqual([keep]); expect(ok(m)).toBe(true); }
+    expect(migrate(withViews([good({ id: "2D" })])).views).toHaveLength(1); // only the three exact values are reserved
   });
   it("keeps the first 24 of more than 24", () => {
     const m = migrate(withViews(Array.from({ length: 30 }, (_, i) => good({ id: `v${i}` }))));

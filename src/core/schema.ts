@@ -212,6 +212,7 @@ export function viewProblems(v: unknown, floors: unknown): string[] {
   if (!isObj(v)) return ["is not an object"];
   const out: string[] = [];
   if (!(typeof v.id === "string" && v.id.length >= 1 && v.id.length <= 64)) out.push("id must be text of 1 to 64 characters");
+  else if (v.id === "2d" || v.id === "2.5d" || v.id === "3d") out.push("id must not be a view mode (2d, 2.5d, 3d): the card's menu uses those values");
   if (!(typeof v.name === "string" && v.name.length >= 1 && v.name.length <= 60)) out.push("name must be text of 1 to 60 characters");
   if (!(typeof v.floor === "string" && isObj(floors) && Object.prototype.hasOwnProperty.call(floors, v.floor))) out.push("floor must be the key of a floor");
   if (v.mode !== undefined && !(v.mode === "2d" || v.mode === "2.5d" || v.mode === "3d")) out.push("mode must be 2d, 2.5d or 3d");
