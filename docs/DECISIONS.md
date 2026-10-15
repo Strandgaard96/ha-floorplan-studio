@@ -8,10 +8,12 @@ Newest first. A change supersedes; nothing is edited.
 - Shown whenever the popup has a button (state not `unavailable`), on or off, as the light's sliders are. A fan that is off with `percentage` 0 shows the slider at 0.
 - Criterion 4 needed no code: All off ("Turn off on this floor") already lists a fan under Fans (S33.1). `floorOffCalls` sends it as `homeassistant.turn_off` with the other non-light, non-switch entities, which Home Assistant routes to the fan; the test pins that. Not changed.
 - Proof. `tests/card/card-fan.spec.ts`: 4 of 7 failed first (slider tests: no Speed input); the other 3 (tap, Turn on, OFF asks first) were already true after S33.1. 10 of 10 with `--repeat-each=10`.
+
 ## 2026-10-15: S33.5 Tap and Hold in the Edit-card form (Sonnet)
 
 - Two selects, `#tap_action` and `#hold_action`, after Active list. A pick writes `{ action }`; the default (popup, more-info) drops the key. Shown value comes from the same readers as the card (`tapActionOf`, `holdActionOf`), so a string, an object and junk read the same in the form and on the card. Junk shows the default and fires no event until the person picks.
 - Proof. New test in `tests/card/config-editor.spec.ts` failed first (no `select#tap_action`); 10 of 10 with `--repeat-each=10`. The form is not in `npm run shots`; not looked at as an image.
+
 ## 2026-10-15: S33.4 tap_action in the card (Sonnet, judgement)
 
 - Change. `bindDeviceActions` takes `tapAction()`, `holdAction()` (read per press, so `setConfig` needs no rebind) and `toggle()`. The card passes them to the plan and to the 3D view, not to the Active list rows (a row is a list, not an icon) and not to doors, appliances or linked pieces (spec X2). One `console.warn` per card, naming the key or keys, from `setConfig`.
@@ -21,6 +23,7 @@ Newest first. A change supersedes; nothing is edited.
 - Hold. `hold_action: none` arms a hold that does nothing, so the release of a long press does not become a tap. Kiosk starts no timer, as before. A hold with no entity is as before.
 - Proof. `tests/card/card-tap-action.spec.ts` (20 tests): 13 failed before the code; stack, door, kiosk and absent-key guards passed already, and the stack guard fails with `solo` removed. `--repeat-each=10`: 200 of 200.
 - Not done here: `docs/card.md` still says `tap_action` is not an option (S33.11 owns the docs).
+
 ## 2026-10-15: S33.7 saved views in the Studio (Sonnet, judgement: what a view stores when the floor is shown whole)
 
 - Decision. Shown whole stores no `zoom` and no `center`. Only floor, `rotation` (left out at 0), `mode` (left out for Viewer's choice) and `name`. Why: a card opens in its own window with its own fit (the card's margin is 60 cm, the Studio's 80 cm, and the aspect differs), so a stored `zoom: 1` with a centre would pin the Studio's picture on a card where it is a different crop. Leaving both out lets every card do what it does for a floor with no view: fit the floor. The schema already says zoom and centre come together or not at all.
@@ -31,6 +34,7 @@ Newest first. A change supersedes; nothing is edited.
 - UI. A `#viewsSub` submenu in View: `#saveView` opens an inline form (`#viewName`, `#viewMode`), Enter saves, Escape cancels, an empty name says so and saves nothing. One button per view of the floor on show (`data-view`), names as text (a `"><script>` name is tested). Right-click or the menu key opens Rename and Delete (`#viewCtx`) inside the menu, so a click in it does not close the View menu. Closing the submenu drops the form and the menu.
 - Proof. `tests/editor/saved-views.test.ts`: 23 of 23 failed first (no `saveView`); with the `deleteFloor` line removed 5 fail. `tests/editor/saved-views.spec.ts`: 7 of 8 failed before the UI existed (the eighth passed only because the dev server picked up the UI mid-run, so it proves nothing on its own); 80 of 80 with `--repeat-each=10`.
 - Not done here: the card's Views section and the `view-parity.spec.ts` row (S33.8); the docs (S33.11).
+
 ## 2026-10-15: S33.1 fan is a device type (Sonnet)
 
 - Change. `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`; spec X1's table is built as written. Parity: both, one draw path (`renderFloor`), the type menu is `TYPE_LABELS` in `src/editor/panels.ts`.
@@ -41,16 +45,19 @@ Newest first. A change supersedes; nothing is edited.
 - Demo. One fan, `fan.demo_bedroom`, in the Bedroom, in `demo/layout.json` and in `demo/layout.v1.json` (the migrate test compares the two). `scripts/shots.mjs` gives it off, on (60 %) and unavailable states.
 - Not done here: the speed slider is S33.2. Existing `other` or `ac` devices on a `fan.*` entity are not retyped (X1).
 - Proof. `tests/core/fan-type.test.ts`: 10 of 10 failed before the code. `tests/card/fan-css.spec.ts` (computed style, every theme) fails with the CSS rule removed ("blueprint: fan on is its own colour", got the idle grey) and passes 10 of 10 with `--repeat-each=10`.
+
 ## 2026-10-15: S33.3 tap_action and hold_action reader (Sonnet)
 
 - `tapActionOf(raw)` and `holdActionOf(raw)` in `src/card/tap-action.ts` return `{ action, warn }`. A string is the action; an object's `action` is read inside a try, so a getter or proxy that throws is junk. Absent (`undefined`, `null`) is the default with `warn: false`; anything else not in the known list (arrays, numbers, `{}`, `navigate`, `Toggle`, a hold of `popup` or `toggle`) is the default with `warn: true`. Lookup is `includes` on an array, never a property of an object, so `__proto__` cannot match.
 - The reader returns a flag, not a message: the card owns the once-per-card warning and names the key (S33.4).
 - Test `tests/card/tap-action.test.ts`: failed first (module missing); with `toggle` added to the hold list (scratch mutation, restored) it fails.
+
 ## 2026-10-15: S33.6 Layout.views in the schema (Sonnet)
 
 - Built to spec X3. `SavedView`, `MAX_VIEWS` = 24, `viewProblems` (one predicate), used by `validate` (errors name `views[i]`) and by `migrate`, which keeps the good entries in order, drops bad ones and repeated ids, caps at 24, and drops a `views` that is not an array. A view is a convenience; it never costs the plan.
 - `floor` must be an own key of `floors`, so `__proto__` and `constructor` fail. `MAX_VIEW_ZOOM` = 8 lives in `schema.ts` (core does not import the card); a test holds it equal to the card's `MAX_ZOOM`.
 - Not done here, by task scope: the Delete floor writer dropping its views (Studio lane, S33.7). No Studio or card twin yet.
+
 ## 2026-10-15: S33.9 dashboardFor (Sonnet, card only)
 
 - `src/card/strategy.ts`: `dashboardFor(result, config)` is pure and never throws. `result` is the `{ layout }` reply (shape from `websocket.py`), `{ error }` or an Error. It runs `migrate` then `validate`; `migrate` throws on a bad shape, so that is caught and shown like a `validate` failure.
