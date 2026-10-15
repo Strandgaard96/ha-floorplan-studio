@@ -4141,7 +4141,7 @@ Lane fan (core tables, then the popup):
       Files: `src/core/schema.ts`, `src/core/ha.ts`, `src/core/icons.ts`, `src/core/render.ts` (colour var only),
       the theme files, `src/core/{active,attention,categories,floor-off,heights,room-info,solids,state-text,layers}.ts`,
       `src/card/three/palette.ts`, `src/editor` type menu, the iterating tests, `docs/schema.md`, the demo (one fan).
-- [ ] S33.2 Fan speed in the popup (Sonnet). Spec X1, Speed. A `fan` with `percentage` and `supported_features & 1`
+- [x] S33.2 Fan speed in the popup (Sonnet). Spec X1, Speed. A `fan` with `percentage` and `supported_features & 1`
       gets a slider; release makes one `fan.set_percentage`. Test, failing first, `tests/card/card-fan.spec.ts`:
       criteria 3 and 4 with real clicks and a real drag; a fan without SET_SPEED gets no slider; `percentage` junk
       (`"40"`, `NaN`, 140) draws no slider or a clamped one, never throws.

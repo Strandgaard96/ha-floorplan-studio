@@ -5,7 +5,7 @@ import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
-import { lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
+import { fanCaps, lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
 import { TOUCH_CSS } from "./touch-css";
 import { POPUP_CSS, placeNear, popupTemplate, type PopupSubject, type SliderKind } from "./popup-ui";
@@ -2246,6 +2246,7 @@ export class FloorplanStudioCard extends LitElement {
   private _levelOf(kind: SliderKind, a: Record<string, unknown> | undefined): number | null {
     const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
     if (kind === "b") { const b = n(a?.brightness); return b === null ? null : Math.max(1, Math.min(100, Math.round((b / 255) * 100))); }
+    if (kind === "s") { const v = n(a?.percentage); return v === null ? null : Math.max(0, Math.min(100, Math.round(v))); }
     if (kind === "t") return n(a?.color_temp_kelvin);
     const hs = a?.hs_color;
     const h = Array.isArray(hs) ? n(hs[0]) : null;
@@ -2264,15 +2265,16 @@ export class FloorplanStudioCard extends LitElement {
     const s = p.s, st = this._hass?.states[s.entity ?? ""], op = this._popupOp(s);
     const light = op !== null && s.entity?.startsWith("light.") && st?.state !== "off" ? true : op !== null && s.entity?.startsWith("light.");
     const caps = light ? lightCaps(st?.attributes) : null;
+    const fan = op !== null && s.entity?.startsWith("fan.") ? fanCaps(st?.attributes) : null;
     const level = (k: SliderKind) => {
       const now = this._levelOf(k, st?.attributes);
       return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
     };
     return popupTemplate({
-      subject: s, text: this._subjectText(s), op, confirming: p.confirming, kiosk: this._kiosk(), caps,
+      subject: s, text: this._subjectText(s), op, confirming: p.confirming, kiosk: this._kiosk(), caps, fan,
       info: this._kiosk() || !(s.entity ?? s.entities[0]) ? [] : deviceInfo((s.entity ?? s.entities[0])!, { ...this._hass, states: this._stateForRender() }),
       doorLabel: s.door?.cover ? (this._coverService(s.door) === "close_cover" ? "Close" : "Open") : null,
-      level: { b: caps?.brightness ? level("b") : null, t: caps?.temp ? level("t") : null, h: caps?.hue ? level("h") : null },
+      level: { b: caps?.brightness ? level("b") : null, s: fan ? level("s") : null, t: caps?.temp ? level("t") : null, h: caps?.hue ? level("h") : null },
       act: () => this._popupAct(),
       cancel: () => { if (this._popup) { this._popup.confirming = false; this.requestUpdate(); } },
       more: () => this._popupMore(),
@@ -2308,13 +2310,18 @@ export class FloorplanStudioCard extends LitElement {
     else if (p.s.entities.length === 1) fireEvent(this, "hass-more-info", { entityId: p.s.entities[0]! });
   }
 
-  /** A slider moving only changes the number shown; its release (`change`) is the one `light.turn_on`, so dragging never floods Home Assistant. */
+  /** A slider moving only changes the number shown; its release (`change`) is the one `light.turn_on` (a fan's speed: `fan.set_percentage`), so dragging never floods Home Assistant. */
   private _popupSlide(kind: SliderKind, value: number, commit: boolean): void {
     const p = this._popup, entity = p?.s.entity;
     if (!p || !entity || !Number.isFinite(value)) return;
     const a = this._hass?.states[entity]?.attributes;
     p.draft = { kind, value, from: this._levelOf(kind, a) };
     if (commit) {
+      if (kind === "s") {
+        this._hass?.callService?.("fan", "set_percentage", { entity_id: entity, percentage: Math.max(0, Math.min(100, value)) });
+        this.requestUpdate();
+        return;
+      }
       const hs = a?.hs_color, sat = Array.isArray(hs) && typeof hs[1] === "number" && Number.isFinite(hs[1]) ? hs[1] : 100;
       const data = kind === "b" ? { brightness_pct: value } : kind === "t" ? { color_temp_kelvin: value } : { hs_color: [value, sat] };
       this._hass?.callService?.("light", "turn_on", { entity_id: entity, ...data });

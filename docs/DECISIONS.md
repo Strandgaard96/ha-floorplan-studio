@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.2 fan speed in the popup (Sonnet, card only)
+
+- Built to spec X1, Speed. `fanCaps(attrs)` in `src/card/popup.ts`: a slider only when `supported_features` is a number with bit 1 set and `percentage` is a finite number; the step is `percentage_step` when in (0, 100], else 1. Strings, `NaN`, `null` or a missing key mean no slider, never a throw. A `percentage` outside 0..100 is shown clamped. Slider kind `s` ("Speed", 0 to 100) joins `SliderKind`; the commit is one `fan.set_percentage` with `entity_id` and `percentage`, sent on release only (the light's draft logic is reused).
+- Shown whenever the popup has a button (state not `unavailable`), on or off, as the light's sliders are. A fan that is off with `percentage` 0 shows the slider at 0.
+- Criterion 4 needed no code: All off ("Turn off on this floor") already lists a fan under Fans (S33.1). `floorOffCalls` sends it as `homeassistant.turn_off` with the other non-light, non-switch entities, which Home Assistant routes to the fan; the test pins that. Not changed.
+- Proof. `tests/card/card-fan.spec.ts`: 4 of 7 failed first (slider tests: no Speed input); the other 3 (tap, Turn on, OFF asks first) were already true after S33.1. 10 of 10 with `--repeat-each=10`.
 ## 2026-10-15: S33.1 fan is a device type (Sonnet)
 
 - Change. `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`; spec X1's table is built as written. Parity: both, one draw path (`renderFloor`), the type menu is `TYPE_LABELS` in `src/editor/panels.ts`.

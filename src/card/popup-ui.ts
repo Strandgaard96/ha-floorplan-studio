@@ -1,7 +1,7 @@
 // S14.2: the tap popup's markup and its placement. The card owns the state (floorplan-studio-card.ts); this draws it.
 import { css, html, nothing } from "lit";
 import type { Device, Door, InfoRow } from "../core";
-import type { LightCaps, PopupOp } from "./popup";
+import type { FanCaps, LightCaps, PopupOp } from "./popup";
 
 /** What a popup is about: a device, a door or an appliance, reduced to what the popup reads. `key` tells one subject from another (a second tap on the same one closes). */
 export interface PopupSubject {
@@ -20,7 +20,7 @@ export interface PopupSubject {
   lamp?: Device;
 }
 
-export type SliderKind = "b" | "t" | "h";
+export type SliderKind = "b" | "t" | "h" | "s";
 
 export interface PopupView {
   subject: PopupSubject;
@@ -33,7 +33,9 @@ export interface PopupView {
   /** Kiosk mode: More info is left out, so a tap cannot reach Home Assistant's dialog. */
   kiosk: boolean;
   caps: LightCaps | null;
-  /** brightness percent, kelvin, hue degrees; null when the light does not say. */
+  /** S33.2: a fan with a speed slider, or null. */
+  fan: FanCaps | null;
+  /** brightness percent, kelvin, hue degrees, fan speed percent; null when the entity does not say. */
   level: Record<SliderKind, number | null>;
   /** S24.7 (A3): what Home Assistant's registries know (`deviceInfo`), folded under "Details". It replaces the ▸ chevron every
    *  row used to carry. Empty in kiosk, as More info is. */
@@ -80,7 +82,7 @@ export const POPUP_CSS = css`
   .fp-tip span { opacity: 0.8; }
 `;
 
-const RANGE: Record<SliderKind, { label: string; unit: string }> = { b: { label: "Brightness", unit: " %" }, t: { label: "Colour temperature", unit: " K" }, h: { label: "Colour", unit: "°" } };
+const RANGE: Record<SliderKind, { label: string; unit: string }> = { b: { label: "Brightness", unit: " %" }, t: { label: "Colour temperature", unit: " K" }, h: { label: "Colour", unit: "°" }, s: { label: "Speed", unit: " %" } };
 
 /** The popup, drawn from `v`. Every string reaches the page through lit's text bindings, which escape it (finding 2). */
 export function popupTemplate(v: PopupView) {
@@ -102,6 +104,7 @@ export function popupTemplate(v: PopupView) {
   return html`<div class=${v.inSheet ? "fp-pop fp-pop-sheet" : "fp-pop"} role="dialog" aria-label=${s.name} data-pop @keydown=${v.key}>
     <div class="fp-pop-name">${s.name}</div>
     <div class="fp-pop-state">${v.text}</div>
+    ${v.fan ? html`<div class="fp-pop-sliders">${slider("s", 0, 100, v.fan.step)}</div>` : nothing}
     ${v.caps && (v.caps.brightness || v.caps.temp || v.caps.hue) ? html`<div class="fp-pop-sliders">
       ${v.caps.brightness ? slider("b", 1, 100, 1) : nothing}
       ${v.caps.temp ? slider("t", v.caps.temp.min, v.caps.temp.max, 50) : nothing}

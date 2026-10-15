@@ -64,3 +64,15 @@ export function lightCaps(attrs: Record<string, unknown> | undefined): LightCaps
   if (!(min < max)) { min = 2000; max = 6500; }
   return { brightness, temp: modes.includes("color_temp") ? { min, max } : null, hue: modes.some((m) => COLOUR_MODES.includes(m)) };
 }
+
+export interface FanCaps { step: number }
+
+/** S33.2 (X1, Speed): a fan has a speed slider when it reports a numeric `percentage` and `supported_features & 1` (SET_SPEED).
+ *  The step is `percentage_step` when that is a number in (0, 100], else 1. Junk in either is no slider, never a throw. */
+export function fanCaps(attrs: Record<string, unknown> | undefined): FanCaps | null {
+  const a = attrs && typeof attrs === "object" ? attrs : {};
+  const features = a.supported_features, pct = a.percentage, step = a.percentage_step;
+  if (typeof features !== "number" || !Number.isFinite(features) || (Math.trunc(features) & 1) === 0) return null;
+  if (typeof pct !== "number" || !Number.isFinite(pct)) return null;
+  return { step: typeof step === "number" && Number.isFinite(step) && step > 0 && step <= 100 ? step : 1 };
+}
