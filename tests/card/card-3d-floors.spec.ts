@@ -81,7 +81,7 @@ test.describe("3D view: floors (S12.6)", () => {
     const l = await hook(page, (h) => h.live());
     expect(l.lifted).toEqual([]);
     expect(l.pools.filter((p) => p.visible)).toEqual([]);
-    expect(await card(page).locator("css=.fp3-ic").count()).toBe(6); // only the first floor's six devices, none of the ground floor's eight
+    expect(await card(page).locator("css=.fp3-ic").count()).toBe(7); // only the first floor's seven devices (S33.1 added the fan), none of the ground floor's eight
   });
 
   test("switching keeps the angle, reframes the distance, and 20 switches leave no mesh behind", async ({ page }) => {
