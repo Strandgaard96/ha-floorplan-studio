@@ -2,6 +2,14 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33 Opus review fixes (Sonnet)
+
+- 1, blocker. `tap_action: toggle` ran any op without a confirm at once: a lock's Unlock, a cover's Open and an off siren's Turn on. Supersedes the S33.4 rule "ON acts at once". Now `TOGGLE_AT_ONCE` (card) lists the entity domains that act at once: `light`, `switch`, `input_boolean`, `fan`. Every other domain opens the popup. Domains checked against `SWITCHABLE` and `popupOp`: lock and cover (no confirm, a physical door: popup), siren (loud: popup), climate, humidifier, water_heater (a setpoint device, not a lamp), automation (Turn off disables it), remote, media_player, group (`homeassistant.turn_off` reaches every member). A `switch` can drive a garage relay; that is the user's wiring and it stays a plain switch. The popup then shows the same button; nothing else changed. Test: `card-tap-action.spec.ts`, lock, cover and siren (3 failed first, with a real click and no popup), plus a fan and an automation as guards.
+- 2. Spec X1 says "unlinked menu: offered". `fan` was missing from `UNLINKED_TYPES`; added, with a test that every type the spec's tables name is checked.
+- 3. A saved view whose id is `2d`, `2.5d` or `3d` is refused by `viewProblems`, so `validate` and `migrate` drop it. The card hid such a view (its menu value is the View mode's); the Studio would have listed it. The Studio's `saveView` ids always start `view-`, so it never minted one.
+- 4. `dashboardFor`'s error card is markdown, which Home Assistant renders as a Jinja template. Layout text copied into it (floor names, validation errors) now has `{`, `<`, `>` and `&` escaped as entities, and the list is capped at 10 lines plus "... and N more".
+- 5. Enter on a focused device icon opens the popup whatever `tap_action` says. Kept, and written down in `docs/card.md`.
+
 ## 2026-10-15: S33.11 the open questions Q1, Q4, Q5, Q6 held, and the docs (Sonnet)
 
 - Diego approved Sprint 33 on 2026-10-15 with the defaults. Each held; nothing changed on the way. The questions Q2 and Q3 belong to Sprint 34.

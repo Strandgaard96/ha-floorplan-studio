@@ -21,6 +21,8 @@ const STATES = () => ({
   "sensor.demo_living_temperature": st("21.5", { unit_of_measurement: "°C" }),
   "camera.demo_hall": st("idle"), "climate.demo_living": st("heat"),
   "binary_sensor.demo_front_door": st("off"),
+  "lock.demo_front": st("locked"), "cover.demo_garage": st("closed"), "siren.demo_alarm": st("off"),
+  "fan.demo_ceiling": st("off"), "automation.demo_night": st("on"),
 });
 
 async function boot(page: Page, extra: Record<string, unknown> = {}) {
@@ -28,6 +30,15 @@ async function boot(page: Page, extra: Record<string, unknown> = {}) {
   page.on("console", (m) => { if (m.type() === "warning") warns.push(m.text()); });
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto(URL_);
+  const layout = structuredClone(demo);
+  // S33 review: devices 12 to 16 are a lock, a cover, a siren, a fan and an automation, the entities `toggle` must not act on blind.
+  layout.floors.ground.devices.push(
+    { id: "lock-x", type: "lock", entity: "lock.demo_front", name: "Front lock", x: 300, y: 420 },
+    { id: "cover-x", type: "cover", entity: "cover.demo_garage", name: "Garage", x: 450, y: 380 },
+    { id: "siren-x", type: "siren", entity: "siren.demo_alarm", name: "Siren", x: 200, y: 420 },
+    { id: "fan-x", type: "fan", entity: "fan.demo_ceiling", name: "Fan", x: 520, y: 420 },
+    { id: "auto-x", type: "other", entity: "automation.demo_night", name: "Night", x: 350, y: 330 },
+  );
   await page.addScriptTag({ content: CARD_JS, type: "module" });
   await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
   await page.evaluate(([config, states]) => {
@@ -38,7 +49,7 @@ async function boot(page: Page, extra: Record<string, unknown> = {}) {
     el.setConfig(config);
     el.hass = { states, callService: (d: string, s: string, data: Record<string, unknown>) => { w.__calls.push(`${d}.${s} ${JSON.stringify(data)}`); } };
     return el.updateComplete;
-  }, [{ layout: structuredClone(demo), floor: "ground", ...extra }, STATES()] as const);
+  }, [{ layout, floor: "ground", ...extra }, STATES()] as const);
   await card(page).evaluate((el) => el.shadowRoot!.querySelector<HTMLButtonElement>(".fp-active-collapse[aria-expanded=true]")?.click());
   return warns;
 }
@@ -100,6 +111,27 @@ test.describe("tap_action: toggle", () => {
     expect(await calls(page)).toEqual([]);
     await pop(page).locator("css=.fp-pop-do").click();
     expect(await calls(page)).toEqual(['switch.turn_off {"entity_id":"switch.demo_tv_plug"}']);
+  });
+
+  // S33 review, blocker: a stray tap must never unlock a door, move a garage door or sound a siren.
+  for (const [name, idx, label] of [["a locked lock", 12, "Unlock"], ["a closed cover", 13, "Open"], ["an off siren", 14, "Turn on"]] as const) {
+    test(`${name} opens the popup and calls no service`, async ({ page }) => {
+      await boot(page, { tap_action: { action: "toggle" } });
+      await tapIcon(page, idx);
+      await expect(pop(page)).toBeVisible();
+      await expect(pop(page).locator("css=.fp-pop-do")).toHaveText(label);
+      expect(await calls(page)).toEqual([]);
+    });
+  }
+
+  test("a fan turns on at once; an on automation opens the popup (only light, switch, input_boolean and fan act blind)", async ({ page }) => {
+    await boot(page, { tap_action: { action: "toggle" } });
+    await tapIcon(page, 15);
+    expect(await calls(page)).toEqual(['fan.turn_on {"entity_id":"fan.demo_ceiling"}']);
+    await expect(pop(page)).toHaveCount(0);
+    await tapIcon(page, 16);
+    await expect(pop(page)).toBeVisible();
+    expect(await calls(page)).toEqual(['fan.turn_on {"entity_id":"fan.demo_ceiling"}']);
   });
 
   test("a temperature sensor and a camera open the popup, as without tap_action, and call nothing", async ({ page }) => {

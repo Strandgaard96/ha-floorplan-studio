@@ -305,6 +305,9 @@ const PX_STEP = Math.log(1.01);
 const qpx = (p: number): number => (p > 0 ? Math.exp(Math.floor(Math.log(p) / PX_STEP + 1e-9) * PX_STEP) : 0);
 const qstrip = (s: number, w: number): number => { const u = w * 0.005; return u > 0 ? Math.round(s / u) * u : s; };
 
+/** S33 review: the entity domains `tap_action: toggle` may operate without the popup. A plain on/off of a light, a switch, an input_boolean or a fan. Lock, cover and siren open the popup: a stray tap never unlocks a door, moves a garage door or sounds a siren. Climate, humidifier, water_heater, automation, remote, media_player and group do too: their on/off is not a lamp's. */
+const TOGGLE_AT_ONCE = new Set(["light", "switch", "input_boolean", "fan"]);
+
 export class FloorplanStudioCard extends LitElement {
   static styles = [unsafeCSS(FLOORPLAN_CSS), css`
     /* S8.2: height 100% on both, matching Home Assistant's own cards (thermostat, map). In an "auto" grid row
@@ -2183,7 +2186,7 @@ export class FloorplanStudioCard extends LitElement {
     };
   }
 
-  /** `tap_action: toggle`: the popup's button, pressed for the person. ON, and a light's OFF, act at once; any other OFF opens the popup at its Confirm step (S14.2 stands). No button (a sensor, a camera, no state) is the popup as ever. */
+  /** `tap_action: toggle`: the popup's button, pressed for the person, but only for a plain on/off. A lock, cover or siren (and any other domain) opens the popup instead. ON, and a light's OFF, act at once; any other OFF opens the popup at its Confirm step (S14.2 stands). No button (a sensor, a camera, no state) is the popup as ever. */
   private _tapToggle(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
     const s = this._subjectOf(t), op = s ? this._popupOp(s) : null;
     if (!s || !op || !s.entity || s.door || this._dialogOpen()) { this._openPopup(t, at, from); return; }
@@ -2192,6 +2195,7 @@ export class FloorplanStudioCard extends LitElement {
       if (this._popup?.s.key === s.key) { this._popup.confirming = true; this.requestUpdate(); }
       return;
     }
+    if (!TOGGLE_AT_ONCE.has(s.entity.split(".")[0] ?? "")) { this._openPopup(t, at, from); return; } // a lock, a cover, a siren: a stray tap must not act
     this._hideTip();
     this._closePopup();
     this._runOp(s, op);
