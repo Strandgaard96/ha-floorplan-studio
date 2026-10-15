@@ -12,6 +12,7 @@ import { menuItem, openMenu } from "./menu-helper";
 
 // S31.6: `has` is a selector in the card's shadow root (the zoom cluster); `item` is the `data-value` of an item of the ⋯ menu.
 type Decision = { card: "yes"; has: string } | { card: "yes"; item: string } | { card: "deliberate"; why: string };
+const FIRST_VIEW = "view-living";
 const EDITING_AID = "an editing aid: it helps place and measure things, and a dashboard viewer places nothing";
 /** Editor control id -> what the card does. `has` / `item`: where the card has it. */
 const PARITY: Record<string, Decision> = {
@@ -28,8 +29,8 @@ const PARITY: Record<string, Decision> = {
   thSub: { card: "yes", item: "theme" },
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
-  // S33.7: the Studio's Saved views. Saving writes the layout, which a viewer's card never does (spec X3 non-goal); showing one is the card's Views section (S33.8, which turns viewsSub into a yes: `item: "view:<first id>"`, on a layout that has views).
-  viewsSub: { card: "deliberate", why: "until S33.8: the card's Views section is its twin" },
+  // S33.7: the Studio's Saved views. Saving writes the layout, which a viewer's card never does (spec X3 non-goal); showing one is the card's Views section (S33.8): an item `view:<id>` per view of the layout, so the card below is given a layout that has one.
+  viewsSub: { card: "yes", item: `view:${FIRST_VIEW}` },
   saveView: { card: "deliberate", why: "authoring: it writes a view into the layout, which a card never does" },
   viewsNone: { card: "deliberate", why: "the empty-state note of the Studio's submenu" },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },
@@ -53,6 +54,8 @@ const CARD_ONLY: Record<string, { item: string }> = {
 };
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
+/** The card is checked on a layout that has a saved view: the Views section is drawn only for one that does. */
+const withView = { ...structuredClone(demo), views: [{ id: FIRST_VIEW, name: "Living", floor: "ground" }] };
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 const HARNESS = pathToFileURL(resolve("tests/card/harness.html")).href;
 
@@ -82,7 +85,7 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
     el.setConfig({ type: "custom:floorplan-studio-card", view: "2.5d", layout });
     el.hass = { states: {}, themes: { darkMode: false } };
     await el.updateComplete;
-  }, demo);
+  }, withView);
   await openMenu(page);
   for (const [id, d] of Object.entries(PARITY)) {
     if (d.card !== "yes") continue;

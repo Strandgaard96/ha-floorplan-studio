@@ -281,7 +281,7 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#ghostFloor` Floor below | yes | the Floor below item of the ⋯ menu (2D and 2.5D), kept per viewer; config `ghost_floor`. In 3D the same choice is the Floors below radios (off, ghost, solid); config `floors_below` |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
-| `#viewsSub` Saved views | no | until S33.8: the Views section of the ⋯ menu is its twin (a view is saved in the Studio, into the layout, and every card offers it) |
+| `#viewsSub` Saved views | yes | the Views section of the ⋯ menu, one item per view of the layout on a floor the card shows; a pick sets floor, mode, turn, zoom and centre like any viewer's pick (a view with no turn turns the plan to 0, in 3D the floor's framed camera stands), kept per viewer; Reset view goes back to the config. A view is saved in the Studio, into the layout |
 | `#saveView` Save current view | no | authoring: it writes a view into the layout, which a card never does |
 | `#viewsNone` No saved views on this floor | no | the empty-state note of the Studio's submenu |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |

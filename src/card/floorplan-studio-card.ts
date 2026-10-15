@@ -3,7 +3,7 @@ import { planPatch } from "./plan-patch"; // S25.6: the plan is patched, not rep
 import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_LABELS, DETAIL_MODES, detailFor, type DetailMode, DEFAULT_MOTION_FADE_S, allOffTitle, customCalls, NAME_MIN_PX, customScene, presetCalls, roomScenes, sceneNeedsConfirm, entitiesOfDevice, entitiesOfDoor, moreInfoEntities, stateText, wattsOf, DEVICE_ICONS, FLOORPLAN_CSS, THEMES, UI_ICONS, WALLS_LABELS, WALLS_MODES, wallsModeOf, type PlanView, activeDevices, findPowerSensor, floorsAroundKey, floorPlace, floorBelow, floorsBelow, floorElevation, floorSwitch, deviceColourVars, plugThreshold, heatRange, pieceDevice, HEAT_FROM, HEAT_TO, clampTilt, groupByCategory, deviceInfo, filterToRoom, formatChanged, roomSummary, attention, deviceCentre, formatAge, relayText, floorSummary, floorOffRows, floorOffCalls, OFF_GROUPS, OFF_GROUP_LABEL, layoutEntries, LAYERS, layerCounts, layerOfType, soloLayer, toggleLayer, migrate, planPivot, renderFloor, rotateAbout, tag, validate, viewBoxFor } from "../core";
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
-import type { Device, Door, Floor, Layout } from "../core";
+import type { Device, Door, Floor, Layout, SavedView } from "../core";
 import { tapActionOf, holdActionOf } from "./tap-action";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
 import { fanCaps, lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
@@ -609,6 +609,9 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedLabels: boolean | null = null;
   private _pickedNames: boolean | null = null;
   private _pickedRot: number | null = null;
+  /** S33.8: the id of the saved view the viewer last picked from the Views section; it is the checked item until the viewer
+   * does anything that is not that view (another floor, Reset view, a new config). View state like `_pickedRot`: never reset by `hass`. */
+  private _appliedView: string | null = null;
   /** Whether the pointer is over this card: with focus, what decides which card the view keys belong to. */
   private _hovered = false;
   /** A turn in flight: `from` and `to` are user angles in degrees, unwrapped (`to` may be 360, or -45) so the
@@ -740,6 +743,7 @@ export class FloorplanStudioCard extends LitElement {
   private _loadViewState(): void {
     this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedRot = this._pickedDetail = this._pickedGhost = this._pickedBelow = null;
     this._pendingView = null;
+    this._appliedView = null;
     this._shownFloor = null;
     this._floorViews = new Map();
     this._memFloor = null;
@@ -1538,6 +1542,7 @@ export class FloorplanStudioCard extends LitElement {
    * the plan itself).  */
   private _selectFloor(key: string): void {
     if (this._shownFloor === key) return;
+    this._appliedView = null; // a saved view is checked only while its floor is the one on show
     // S27.15: 2D and 2.5D fade the new floor in from the way it travels; 3D cuts (no plan root to animate), and reduced motion cuts.
     const from = this._floorKey(), keys = this._layout ? Object.keys(this._layout.floors) : [];
     this._switchDir = from && this._viewPick() !== "3d" ? floorSwitch(keys, from, key, this._reducedMotion())?.dir ?? null : null;
@@ -2619,6 +2624,8 @@ export class FloorplanStudioCard extends LitElement {
         { kind: "check", label: "Device names", value: "names", checked: this._names() },
       ] });
     }
+    const saved = this._savedViews();
+    if (saved.length) out.push({ label: "Views", items: saved.map((v) => radio(v.name, `view:${v.id}`, v.id === this._appliedView)) });
     if (this._activeListVisible() && f && !this._shows3d()) {
       out.push({ label: "Detail", items: DETAIL_MODES.map((m) => radio(DETAIL_LABELS[m], `detail:${m}`, m === this._detailMode())) });
       const n = layerCounts(f), hidden = this._hiddenLayers;
@@ -2634,6 +2641,42 @@ export class FloorplanStudioCard extends LitElement {
     return out;
   }
 
+  /** S33.8: the layout's saved views this card offers, in the layout's order. A view is offered when its floor is one the card can
+   *  show (`floors`, or the one floor it is pinned to), and when its id is not one of the View modes (`2d`, `2.5d`, `3d`): the menu value
+   *  is `view:<id>` for both, and the mode must keep its own item. The layout went through `validate`, so a view here is well formed. */
+  private _savedViews(): SavedView[] {
+    const views = this._layout?.views;
+    if (!views?.length || this._kiosk()) return [];
+    const list = this._floorList(), shown = this._floorKey();
+    const keys = list ? list.map(([k]) => k) : shown ? [shown] : [];
+    return views.filter((v) => keys.includes(v.floor) && !isView(v.id));
+  }
+
+  /** S33.8, spec X3: a saved view is a viewer's pick. Floor, then mode (a view with none leaves the viewer's own), then turn (a view with
+   *  none is turned 0, so one view never inherits the last one's turn), then zoom and centre (2D and 2.5D; zoom is a ratio against this
+   *  card's fit, the centre is plan cm). In 3D the floor's framed camera stands. Written to view memory like any pick; Reset view goes
+   *  back to the config, not to a saved view. */
+  private _applySavedView(id: string): void {
+    const v = this._savedViews().find((x) => x.id === id);
+    if (!v) return;
+    this._settleTurn(false);
+    this._selectFloor(v.floor);
+    if (v.mode !== undefined && isView(v.mode)) { this._pickedView = v.mode; this._fallback3d = null; }
+    const flat = this._viewPick() !== "3d";
+    const anchor = flat && v.zoom !== undefined && v.center ? { focus: [v.center[0], v.center[1]] as Pt, zoom: v.zoom } : null;
+    this._view = null;
+    this._pendingView = null;
+    this._forgetCamera();
+    const to = normaliseRotation(v.rotation ?? 0), from = this._userAngle();
+    if (to === from) {
+      this._pendingView = anchor;
+      this._pickedRot = to === normaliseRotation(this._config.rotation) ? null : to;
+    } else this._startTurn(from + shortestDelta(from, to), anchor); // its settle writes the turn
+    this._appliedView = v.id; // after _selectFloor, which lets go of a view of another floor
+    this._saveViewNow();
+    this.requestUpdate();
+  }
+
   /** One pick from the ⋯ menu. The value is `kind:arg`; every arg is checked against its list (the menu is the host's own
    *  data, but a stale or forged event must change nothing). Each case does what the control it replaced did. */
   private _onMenuPick = (ev: Event): void => {
@@ -2642,7 +2685,10 @@ export class FloorplanStudioCard extends LitElement {
     const i = v.indexOf(":"), kind = i < 0 ? v : v.slice(0, i), arg = i < 0 ? "" : v.slice(i + 1);
     const done = () => { this._saveViewNow(); this.requestUpdate(); };
     switch (kind) {
-      case "view": if (isView(arg)) { this._pickedView = arg; this._fallback3d = null; done(); } break; // a new pick tries 3D again
+      case "view":
+        if (isView(arg)) { this._pickedView = arg; this._fallback3d = null; done(); } // a new pick tries 3D again
+        else this._applySavedView(arg); // S33.8: not a mode, so a saved view's id
+        break;
       case "tilt": if (TILT_STEPS.includes(Number(arg))) { this._pickedTilt = clampTilt(Number(arg)); done(); } break;
       case "walls": if ((WALLS_MODES as readonly string[]).includes(arg)) { this._pickedWalls = arg as WallsMode; done(); } break;
       case "below": if ((BELOW_MODES as readonly string[]).includes(arg)) { this._pickedBelow = arg as BelowMode; done(); } break;
@@ -3559,6 +3605,7 @@ export class FloorplanStudioCard extends LitElement {
   /** Reset view: every view option back to the config's own, the stored entry cleared, the floor kept. The turn goes
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
+    this._appliedView = null;
     this._fallback3d = null;
     this._pickedView = this._pickedTilt = this._pickedWalls = this._pickedTheme = this._pickedLabels = this._pickedNames = this._pickedDetail = this._pickedGhost = this._pickedBelow = null;
     this._pendingView = null;

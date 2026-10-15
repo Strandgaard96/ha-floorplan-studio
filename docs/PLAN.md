@@ -4188,7 +4188,7 @@ Wave 2, after wave 1. Lane views' Studio task runs beside the card lane; the car
       first, in `tests/card/config-editor.spec.ts`: pick Toggle, the config gains `tap_action: {action: toggle}`; back
       to Popup, the key is gone.
       Files: `src/card/config-editor.ts`, `tests/card/config-editor.spec.ts`.
-- [ ] S33.8 Saved views in the card (Sonnet). After S33.4 (shared card file) and S33.6. Spec X3, Card: the Views
+- [x] S33.8 Saved views in the card (Sonnet). After S33.4 (shared card file) and S33.6. Spec X3, Card: the Views
       section of the ⋯ menu, apply as a viewer's pick, Reset view to the config. Test, failing first, new
       `tests/card/card-saved-views.spec.ts`: criterion 10 with real clicks, in 2D and 3D; a view on a floor the card's
       `floors` leaves out is not offered; a `hass` update keeps the applied view; the `viewsSub` row in

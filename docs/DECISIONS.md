@@ -2,6 +2,18 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.8 saved views in the card (Sonnet)
+
+- Built to spec X3, Card. `_savedViews()` offers a view when its floor is one the card can show (`_floorList()`, or the one floor it is pinned to) and the card is not kiosk. `_applySavedView(id)`: floor (`_selectFloor`), mode, turn, then zoom and centre. Written to view memory by the same `_saveViewNow` as any pick; no new storage key.
+- Judgement, the menu value. The spec fixes `view:<id>`, which is also the View mode's value (`view:2d`). The mode wins: a saved view whose id is `2d`, `2.5d` or `3d` is not offered, so a stranger's file cannot shadow a core control. `_onMenuPick` tries the mode first, a saved view second. The Studio's ids (`view-<slug>`) never clash.
+- Mode absent leaves the viewer's own mode (Viewer's choice). Rotation absent is 0, as S33.7 asked. A turn goes the short way, with the zoom and centre as the turn's anchor, so the zoomed box lands at the new angle. In 3D (the mode after the pick) zoom and centre are skipped and the floor's stored camera is forgotten, so the floor is framed again.
+- Zoom is a ratio against the card's own fit (60 cm margin), the centre is plan cm before any turn; both are what `_anchorOfView` already stores. `validate` has run on the layout, so a view here is well formed.
+- Checked item. `_appliedView` is the id of the last pick. It is cleared by another floor, Reset view and a new config, not by `hass`, and not stored: after a reload the view is still applied (the floor memory holds it) but no item is checked.
+- Reset view returns to the config, not to a saved view (X3). It was already so: no change to it.
+- Parity. `viewsSub` in `view-parity.spec.ts` is now `yes`, item `view:view-living`, and the 2.5D card in that test gets a layout with one view (the section is drawn only for a layout that has one). `docs/card.md` parity row updated.
+- Proof. `tests/card/card-saved-views.spec.ts` (12 tests): 10 of 12 failed first (no Views section); with `_savedViews` made to return nothing 11 of 12 fail (the twelfth, no views no section, holds either way). 120 of 120 with `--repeat-each=10`. Screenshots of the open menu in light, midnight and blueprint looked at (scratchpad `views-*.png`); `npm run shots` not run: the plan's render is untouched.
+- Not done here: the strategy (S33.10); the docs prose (S33.11).
+
 ## 2026-10-15: S33.2 fan speed in the popup (Sonnet, card only)
 
 - Built to spec X1, Speed. `fanCaps(attrs)` in `src/card/popup.ts`: a slider only when `supported_features` is a number with bit 1 set and `percentage` is a finite number; the step is `percentage_step` when in (0, 100], else 1. Strings, `NaN`, `null` or a missing key mean no slider, never a throw. A `percentage` outside 0..100 is shown clamped. Slider kind `s` ("Speed", 0 to 100) joins `SliderKind`; the commit is one `fan.set_percentage` with `entity_id` and `percentage`, sent on release only (the light's draft logic is reused).

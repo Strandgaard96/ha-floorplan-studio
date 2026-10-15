@@ -10,6 +10,7 @@
 - Schema (S33.6): a layout may carry `views`, up to 24 saved views (floor, mode, turn, zoom and centre). `migrate` keeps the good ones and drops each bad one, so a stranger's file still opens. An older card (0.30.x) drops `views` when it loads the layout.
 - Card (S33.9, internal): `dashboardFor`, the pure builder behind the coming dashboard strategy: one panel view per floor, or one markdown view saying what failed. Nothing is registered yet (S33.10).
 - Studio (S33.7): View, Saved views. Save current view asks a name and Open in (Viewer's choice, 2D, 2.5D, 3D) and keeps the floor on show, the turn, and the zoom and centre when the floor is zoomed in; a floor shown whole stores no zoom, so each card fits it to its own window. A click on a view shows it (no undo step); a right-click gives Rename and Delete. Save, rename and delete are one undo step each. Delete floor drops that floor's views in the same step, and Undo brings them back. The card's twin is S33.8.
+- Card (S33.8): the ⋯ menu has a Views section when the layout has saved views: one item per view on a floor the card shows (`floors`, or its one pinned floor; `kiosk` has no menu). A pick is a viewer's pick: floor, then mode, then turn (a view with none turns the plan to 0), then zoom (a ratio against the card's own fit) and centre; in 3D the floor's framed camera stands. It is remembered like any pick, a `hass` update keeps it, and Reset view goes back to the config. A view whose id is `2d`, `2.5d` or `3d` is not offered (its menu value would be the View mode's).
 
 ## 0.30.1 - 2026-10-15
 
