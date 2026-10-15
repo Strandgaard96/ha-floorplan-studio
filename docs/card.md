@@ -281,6 +281,9 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#ghostFloor` Floor below | yes | the Floor below item of the ⋯ menu (2D and 2.5D), kept per viewer; config `ghost_floor`. In 3D the same choice is the Floors below radios (off, ghost, solid); config `floors_below` |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
+| `#viewsSub` Saved views | no | until S33.8: the Views section of the ⋯ menu is its twin (a view is saved in the Studio, into the layout, and every card offers it) |
+| `#saveView` Save current view | no | authoring: it writes a view into the layout, which a card never does |
+| `#viewsNone` No saved views on this floor | no | the empty-state note of the Studio's submenu |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
 | `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail radios of the ⋯ menu, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |
 | `#tabLayers` Layers (hide a family) | yes | the Layers section of the ⋯ menu has a check per family: a pick hides it, Alt-click shows it alone; kept per viewer. Not in 3D |

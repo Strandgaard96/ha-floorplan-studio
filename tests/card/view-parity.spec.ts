@@ -28,6 +28,10 @@ const PARITY: Record<string, Decision> = {
   thSub: { card: "yes", item: "theme" },
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
+  // S33.7: the Studio's Saved views. Saving writes the layout, which a viewer's card never does (spec X3 non-goal); showing one is the card's Views section (S33.8, which turns viewsSub into a yes: `item: "view:<first id>"`, on a layout that has views).
+  viewsSub: { card: "deliberate", why: "until S33.8: the card's Views section is its twin" },
+  saveView: { card: "deliberate", why: "authoring: it writes a view into the layout, which a card never does" },
+  viewsNone: { card: "deliberate", why: "the empty-state note of the Studio's submenu" },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },
   // S24.6: Layers replaced the Filter menu; S24.8 gives the card a text chip per family in its Overview, unfolded by this button.
   // S25.8: the Detail button beside Layers, same three choices; the card starts on Auto, the Studio on Full.
