@@ -4178,13 +4178,13 @@ Wave 2, after wave 1. Lane views' Studio task runs beside the card lane; the car
       `validate`; one undo step each; an unchanged rename is no step, finding 6) and
       `tests/editor/saved-views.spec.ts` (criterion 9 with real clicks; a `"><script>` name drawn as text).
       Files: `src/editor/state.ts`, `src/editor/toolbar.ts`, `src/editor/editor-app.ts`, the two tests.
-- [ ] S33.4 `tap_action` in the card (Sonnet, **judgement**: where the toggle branch sits against the stack and the
+- [x] S33.4 `tap_action` in the card (Sonnet, **judgement**: where the toggle branch sits against the stack and the
       vacuum). `bindDeviceActions` takes the two actions; the card passes them from `setConfig`; one console warning
       per card for an unsupported action. Test, failing first, new `tests/card/card-tap-action.spec.ts`: criteria 5 to
       7 with real clicks and a real 600 ms hold, `hass.callService` recorded; a stack still fans first; kiosk never
       holds; doors and appliances unchanged.
       Files: `src/card/actions.ts`, `src/card/floorplan-studio-card.ts`, the new spec.
-- [ ] S33.5 Tap and Hold in the Edit-card form (Sonnet). Two selects; a default left out of the YAML. Test, failing
+- [x] S33.5 Tap and Hold in the Edit-card form (Sonnet). Two selects; a default left out of the YAML. Test, failing
       first, in `tests/card/config-editor.spec.ts`: pick Toggle, the config gains `tap_action: {action: toggle}`; back
       to Popup, the key is gone.
       Files: `src/card/config-editor.ts`, `tests/card/config-editor.spec.ts`.

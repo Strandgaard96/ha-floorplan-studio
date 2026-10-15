@@ -4,6 +4,7 @@ import { ALL_OFF_TITLE, SPIDER_MAX, STACK_PX, spiderLayout, stackGroups, DETAIL_
 import type { LayerId, OffRow, SearchEntry } from "../core";
 import type { ActiveDevice, Attention, AttentionItem, AttentionKind, CategoryId, DeviceType, ThingRef, PowerCandidate, RoomDeviceRow, RoomSensorRow, RoomSummary, Theme, WallsMode } from "../core";
 import type { Device, Door, Floor, Layout } from "../core";
+import { tapActionOf, holdActionOf } from "./tap-action";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
 import { fanCaps, lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
@@ -80,6 +81,10 @@ export interface FloorplanStudioCardConfig {
    * multi-floor layout with neither key set — instead shows just its first floor, with no switcher: use one card
    * per floor instead (see `docs/card.md`). */
   kiosk?: boolean;
+  /** S33.4: what a tap on a device icon does: `popup` (default), `more-info`, `toggle` or `none`; a string is the action. `toggle` turns ON at once and a light OFF at once; any other OFF opens the popup at Confirm turn off. Anything else (navigate, a number, junk) is `popup`, with one console warning. See docs/card.md. */
+  tap_action?: unknown;
+  /** S33.4: what a hold of 500 ms does: `more-info` (default) or `none`. Kiosk never holds. */
+  hold_action?: unknown;
   /** S9.1: the colour an open contact door or window (and its S8.13 alert line) draws in, as `#rrggbb`; unset
    * keeps the theme's own default (--fp-dev-contact). A value that is not a plain 6-digit hex is ignored, the
    * same as any other untrusted config (CLAUDE.md finding 1) — never thrown on. */
@@ -1180,6 +1185,7 @@ export class FloorplanStudioCard extends LitElement {
     this._flushSave(); // under the old config's key
     this._settleTurn(false);
     this._config = config ?? {};
+    this._warnActions();
     this._closePopup();
     this._focusDev = null;
     this._hideTip();
@@ -1685,6 +1691,7 @@ export class FloorplanStudioCard extends LitElement {
             getUnlinked: (i) => this._floor()?.unlinked[i],
             getPiece: (i) => this._floor()?.furniture?.[i],
             stack: (i) => this._tapStack(i),
+            ...this._tapOpts(),
           })
         : null;
       this._unbindSpider?.();
@@ -1875,6 +1882,7 @@ export class FloorplanStudioCard extends LitElement {
       openPopup: (t, at, from) => this._openPopup(t, at, from),
       getUnlinked: (i) => this._floor()?.unlinked[i],
       getPiece: (i) => this._floor()?.furniture?.[i],
+      ...this._tapOpts(),
       resolve: (e) => {
         if (e.pointerType === "mouse" && e.button !== 0) return null;
         const p = this._pick3d(e);
@@ -2150,6 +2158,39 @@ export class FloorplanStudioCard extends LitElement {
     ring.style.width = ring.style.height = `${size}px`;
   }
 
+  /** S33.4: one console warning per card for a `tap_action` or `hold_action` that is there but not usable; absent is no warning. */
+  private _actionsWarned = false;
+  private _warnActions(): void {
+    if (this._actionsWarned) return;
+    const keys = [tapActionOf(this._config.tap_action).warn ? "tap_action" : "", holdActionOf(this._config.hold_action).warn ? "hold_action" : ""].filter(Boolean);
+    if (!keys.length) return;
+    this._actionsWarned = true;
+    console.warn(`floorplan-studio-card: ${keys.join(" and ")} not supported, using the default. tap_action takes popup, more-info, toggle or none; hold_action takes more-info or none (docs/card.md).`);
+  }
+
+  /** S33.4: the card-wide tap and hold actions for the device icons of the plan and the 3D view. Read afresh per press, so `setConfig` needs no rebind. */
+  private _tapOpts() {
+    return {
+      tapAction: () => tapActionOf(this._config.tap_action).action,
+      holdAction: () => holdActionOf(this._config.hold_action).action,
+      toggle: (t: TapTarget, at: { x: number; y: number }, from: Element | null) => this._tapToggle(t, at, from),
+    };
+  }
+
+  /** `tap_action: toggle`: the popup's button, pressed for the person. ON, and a light's OFF, act at once; any other OFF opens the popup at its Confirm step (S14.2 stands). No button (a sensor, a camera, no state) is the popup as ever. */
+  private _tapToggle(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
+    const s = this._subjectOf(t), op = s ? this._popupOp(s) : null;
+    if (!s || !op || !s.entity || s.door || this._dialogOpen()) { this._openPopup(t, at, from); return; }
+    if (op.confirm) {
+      this._openPopup(t, at, from);
+      if (this._popup?.s.key === s.key) { this._popup.confirming = true; this.requestUpdate(); }
+      return;
+    }
+    this._hideTip();
+    this._closePopup();
+    this._runOp(s, op);
+  }
+
   private _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
     const s = this._subjectOf(t);
     if (!s) return;
@@ -2297,9 +2338,14 @@ export class FloorplanStudioCard extends LitElement {
     const op = this._popupOp(p.s);
     if (!op || !p.s.entity) return;
     if (op.confirm && !p.confirming) { p.confirming = true; this.requestUpdate(); return; }
-    if (op.calls) for (const c of op.calls) this._hass?.callService?.(c.domain, c.service, c.data);
-    else this._hass?.callService?.(op.domain, op.service, { entity_id: p.s.entity });
+    this._runOp(p.s, op);
     this._closePopup();
+  }
+
+  /** The one call (or the calls of a relay-lit lamp's Turn off) a popup button makes. */
+  private _runOp(s: PopupSubject, op: PopupOp): void {
+    if (op.calls) for (const c of op.calls) this._hass?.callService?.(c.domain, c.service, c.data);
+    else this._hass?.callService?.(op.domain, op.service, { entity_id: s.entity });
   }
 
   private _popupMore(): void {
