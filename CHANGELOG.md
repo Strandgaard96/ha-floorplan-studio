@@ -9,6 +9,7 @@
 - Card (S33.5): the Edit-card form has Tap (Popup, More info, Toggle, Nothing) and Hold (More info, Nothing). A default is left out of the YAML.
 - Schema (S33.6): a layout may carry `views`, up to 24 saved views (floor, mode, turn, zoom and centre). `migrate` keeps the good ones and drops each bad one, so a stranger's file still opens. An older card (0.30.x) drops `views` when it loads the layout.
 - Card (S33.9, internal): `dashboardFor`, the pure builder behind the coming dashboard strategy: one panel view per floor, or one markdown view saying what failed. Nothing is registered yet (S33.10).
+- Studio (S33.7): View, Saved views. Save current view asks a name and Open in (Viewer's choice, 2D, 2.5D, 3D) and keeps the floor on show, the turn, and the zoom and centre when the floor is zoomed in; a floor shown whole stores no zoom, so each card fits it to its own window. A click on a view shows it (no undo step); a right-click gives Rename and Delete. Save, rename and delete are one undo step each. Delete floor drops that floor's views in the same step, and Undo brings them back. The card's twin is S33.8.
 
 ## 0.30.1 - 2026-10-15
 
