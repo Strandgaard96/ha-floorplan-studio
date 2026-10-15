@@ -205,7 +205,7 @@ export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch",
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
-export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light"];
+export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light", "fan"];
 
 /** What is wrong with one saved view, as short phrases; empty when it is good. Never throws. `floors` is the layout's floors: a view must name one of its own keys (not `__proto__`, not `constructor`). Shared by `validate` and `migrate`, so a view that migrate keeps is a view validate accepts. */
 export function viewProblems(v: unknown, floors: unknown): string[] {

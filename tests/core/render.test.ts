@@ -2071,6 +2071,13 @@ describe("unlinked appliances (S4.25)", () => {
     for (const t of UNLINKED_TYPES) expect(DEVICE_ICONS[t], t).toBeTruthy();
   });
 
+  it("every DEVICE_TYPES member is decided for the Unlinked device menu, and fan is offered (spec X1: a fan with no entity is still a drawing)", () => {
+    // Types a person does not place as a drawing: they need an entity to mean anything (sensors, relays, locks, people...).
+    const NOT_OFFERED = ["switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "media", "cover", "lock", "vibration", "other", "person", "radar", "vacuum", "siren", "alarm", "access_point"];
+    for (const t of DEVICE_TYPES) expect((UNLINKED_TYPES as readonly string[]).includes(t) !== NOT_OFFERED.includes(t), `${t} is in exactly one list`).toBe(true);
+    expect(UNLINKED_TYPES).toContain("fan");
+  });
+
   it("the CSS fill override rule exists and names --fp-dev-fill with an idle fallback", () => {
     expect(FLOORPLAN_CSS).toContain(".dev.unl path{fill:var(--fp-dev-fill,var(--fp-idle))}");
   });
