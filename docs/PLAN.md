@@ -4171,7 +4171,7 @@ Lane strategy (pure first):
 
 Wave 2, after wave 1. Lane views' Studio task runs beside the card lane; the card file takes one task at a time:
 
-- [ ] S33.7 Saved views in the Studio (Sonnet, **judgement**: what "Save current view" stores when the floor is
+- [x] S33.7 Saved views in the Studio (Sonnet, **judgement**: what "Save current view" stores when the floor is
       shown whole). Spec X3, Studio. View menu `#viewsSub`: Save current view (name, Open in), apply, Rename, Delete;
       one undo step for save, rename and delete, none for apply; Delete floor drops its views in the same step. Test,
       failing first: `tests/editor/saved-views.test.ts` (state: every floor operation on a layout with views, then

@@ -57,6 +57,8 @@ export const toolbarCss = css`
     .keyed{display:inline-flex;align-items:baseline;gap:10px}
     .box .keyed{display:flex}
     .kbd{margin-left:auto;padding-left:6px;font:600 .8em ui-monospace,monospace;opacity:.7;white-space:nowrap}
+    .viewform{display:flex;flex-direction:column;gap:4px;padding-left:20px}
+    .viewform input{width:100%;box-sizing:border-box}
     .layers-note{font-size:.85em;max-width:16em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .bar-search{flex:0 1 260px;min-width:160px}
     /* S7.2: the status line sits in the toolbar. A long message is cut with an ellipsis (the full text is in
@@ -135,6 +137,29 @@ const fitBox = (ev: Event) => {
  * tests and helpers rely on. The path is one of our own constants, so the data URI needs no further escaping. */
 const maskOf = (d: string) => `--lk:url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='${d}'/></svg>`)}")`;
 
+/** S33.7: View, Saved views. Save current view (a name and Open in), then one item per view of the floor on show: a click shows it, a right-click (or the menu key) opens Rename and Delete. Names are data and go in as text. */
+function viewsSub(h: FloorplanStudioEditor) {
+  const st = h.st, form = h.viewForm, mine = st.savedViews.filter((v) => v.floor === st.floor);
+  const closed = (ev: Event) => { onSubToggle(ev); if (!(ev.currentTarget as HTMLDetailsElement).open) h.resetViews(); };
+  const current = h.viewMenu ? st.savedViews.find((v) => v.id === h.viewMenu!.id) : undefined;
+  return html`<details class="sub" id="viewsSub" @toggle=${closed}><summary class="btn">Saved views</summary>
+    <button class="btn keep" id="saveView" title="Keep the floor, the turn and the zoom on show as a view every card offers" @click=${() => void h.startSaveView()}>Save current view…</button>
+    ${form ? html`<div class="viewform">
+      <label for="viewName">${form.rename ? "Rename view" : "Name of the view"}</label>
+      <input id="viewName" type="text" maxlength="60" autocomplete="off" .value=${form.rename ? st.savedViews.find((v) => v.id === form.rename)?.name ?? "" : ""} @keydown=${h.onViewFormKey}>
+      ${form.rename ? nothing : html`<label for="viewMode">Open in</label>
+      <select id="viewMode" @keydown=${h.onViewFormKey}><option value="">Viewer's choice</option><option value="2d">2D</option><option value="2.5d">2.5D</option><option value="3d">3D</option></select>`}
+      <div class="rotrow"><button class="btn keep" id="viewOk" @click=${() => h.submitViewForm()}>${form.rename ? "Rename" : "Save"}</button><button class="btn keep" id="viewCancel" @click=${() => { h.viewForm = null; h.requestUpdate(); }}>Cancel</button></div>
+    </div>` : nothing}
+    ${mine.map((v) => html`<button class="btn" data-view=${v.id} title=${`Show this view${v.mode ? `, opening in ${v.mode.toUpperCase()}` : ""}. Right-click to rename or delete`} @click=${() => h.applyView(v.id)} @contextmenu=${(e: MouseEvent) => h.openViewMenu(e, v.id)}>${v.name}</button>`)}
+    ${mine.length ? nothing : html`<span class="grp" id="viewsNone">No saved views on this floor</span>`}
+    ${current ? html`<div class="ctxmenu" id="viewCtx" role="menu" style=${`left:${h.viewMenu!.x}px;top:${h.viewMenu!.y}px`}>
+      <button class="btn keep" id="viewRename" role="menuitem" @click=${() => h.renameViewFromMenu()}>Rename…</button>
+      <button class="btn keep danger" id="viewDelete" role="menuitem" @click=${() => h.deleteViewFromMenu()}>Delete</button>
+    </div>` : nothing}
+  </details>`;
+}
+
 export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
   const st = h.st, ha = st.ha;
   const { groups, activeGroup } = floorGroups(st);
@@ -207,6 +232,7 @@ export function toolbarView(h: FloorplanStudioEditor, entries: SearchEntry[]) {
           <details class="sub" id="detailSub" @toggle=${onSubToggle}><summary class="btn">Detail: ${DETAIL_LABELS[st.detail]}</summary>
             ${DETAIL_MODES.map((m) => html`<button class="btn keep" data-detail=${m} aria-pressed=${pressed(st.detail === m)} title=${m === "auto" ? "Follow the zoom: rooms far out, devices closer in" : m === "full" ? "Always draw everything (the default while editing)" : "Always draw only rooms and what needs attention"} @click=${() => { st.setDetail(m); h.requestUpdate(); }}>${DETAIL_LABELS[m]}</button>`)}
           </details>
+          ${viewsSub(h)}
           <button class="btn" id="recenter" @click=${() => { st.recenter(); h.requestUpdate(); }}>Re-center</button>
           <button class="btn keyed" id="fit" title="Fit the whole floor in the window" @click=${() => { st.fit(); h.requestUpdate(); }}>Fit to window${kbd(MENU_KEYS.fit)}</button>
           <button class="btn" id="copyCardView" title="Copies center and zoom_level for a card pinned to what's on screen now" @click=${() => h.copyCardView()}>Copy card view</button>
