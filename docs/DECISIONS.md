@@ -2,15 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 ## 2026-10-15: S33.2 fan speed in the popup (Sonnet, card only)
 
 - Built to spec X1, Speed. `fanCaps(attrs)` in `src/card/popup.ts`: a slider only when `supported_features` is a number with bit 1 set and `percentage` is a finite number; the step is `percentage_step` when in (0, 100], else 1. Strings, `NaN`, `null` or a missing key mean no slider, never a throw. A `percentage` outside 0..100 is shown clamped. Slider kind `s` ("Speed", 0 to 100) joins `SliderKind`; the commit is one `fan.set_percentage` with `entity_id` and `percentage`, sent on release only (the light's draft logic is reused).
 - Shown whenever the popup has a button (state not `unavailable`), on or off, as the light's sliders are. A fan that is off with `percentage` 0 shows the slider at 0.
 - Criterion 4 needed no code: All off ("Turn off on this floor") already lists a fan under Fans (S33.1). `floorOffCalls` sends it as `homeassistant.turn_off` with the other non-light, non-switch entities, which Home Assistant routes to the fan; the test pins that. Not changed.
 - Proof. `tests/card/card-fan.spec.ts`: 4 of 7 failed first (slider tests: no Speed input); the other 3 (tap, Turn on, OFF asks first) were already true after S33.1. 10 of 10 with `--repeat-each=10`.
-=======
 ## 2026-10-15: S33.5 Tap and Hold in the Edit-card form (Sonnet)
 
 - Two selects, `#tap_action` and `#hold_action`, after Active list. A pick writes `{ action }`; the default (popup, more-info) drops the key. Shown value comes from the same readers as the card (`tapActionOf`, `holdActionOf`), so a string, an object and junk read the same in the form and on the card. Junk shows the default and fires no event until the person picks.
@@ -24,8 +21,6 @@ Newest first. A change supersedes; nothing is edited.
 - Hold. `hold_action: none` arms a hold that does nothing, so the release of a long press does not become a tap. Kiosk starts no timer, as before. A hold with no entity is as before.
 - Proof. `tests/card/card-tap-action.spec.ts` (20 tests): 13 failed before the code; stack, door, kiosk and absent-key guards passed already, and the stack guard fails with `solo` removed. `--repeat-each=10`: 200 of 200.
 - Not done here: `docs/card.md` still says `tap_action` is not an option (S33.11 owns the docs).
->>>>>>> task/s33-4
-=======
 ## 2026-10-15: S33.7 saved views in the Studio (Sonnet, judgement: what a view stores when the floor is shown whole)
 
 - Decision. Shown whole stores no `zoom` and no `center`. Only floor, `rotation` (left out at 0), `mode` (left out for Viewer's choice) and `name`. Why: a card opens in its own window with its own fit (the card's margin is 60 cm, the Studio's 80 cm, and the aspect differs), so a stored `zoom: 1` with a centre would pin the Studio's picture on a card where it is a different crop. Leaving both out lets every card do what it does for a floor with no view: fit the floor. The schema already says zoom and centre come together or not at all.
@@ -36,7 +31,6 @@ Newest first. A change supersedes; nothing is edited.
 - UI. A `#viewsSub` submenu in View: `#saveView` opens an inline form (`#viewName`, `#viewMode`), Enter saves, Escape cancels, an empty name says so and saves nothing. One button per view of the floor on show (`data-view`), names as text (a `"><script>` name is tested). Right-click or the menu key opens Rename and Delete (`#viewCtx`) inside the menu, so a click in it does not close the View menu. Closing the submenu drops the form and the menu.
 - Proof. `tests/editor/saved-views.test.ts`: 23 of 23 failed first (no `saveView`); with the `deleteFloor` line removed 5 fail. `tests/editor/saved-views.spec.ts`: 7 of 8 failed before the UI existed (the eighth passed only because the dev server picked up the UI mid-run, so it proves nothing on its own); 80 of 80 with `--repeat-each=10`.
 - Not done here: the card's Views section and the `view-parity.spec.ts` row (S33.8); the docs (S33.11).
->>>>>>> task/s33-7
 ## 2026-10-15: S33.1 fan is a device type (Sonnet)
 
 - Change. `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`; spec X1's table is built as written. Parity: both, one draw path (`renderFloor`), the type menu is `TYPE_LABELS` in `src/editor/panels.ts`.
