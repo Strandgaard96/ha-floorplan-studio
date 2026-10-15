@@ -22,7 +22,7 @@ const STATES = () => ({
   "camera.demo_hall": st("idle"), "climate.demo_living": st("heat"),
   "binary_sensor.demo_front_door": st("off"),
   "lock.demo_front": st("locked"), "cover.demo_garage": st("closed"), "siren.demo_alarm": st("off"),
-  "fan.demo_ceiling": st("off"), "automation.demo_night": st("on"),
+  "fan.demo_ceiling": st("off"), "automation.demo_night": st("off"),
 });
 
 async function boot(page: Page, extra: Record<string, unknown> = {}) {
@@ -124,7 +124,7 @@ test.describe("tap_action: toggle", () => {
     });
   }
 
-  test("a fan turns on at once; an on automation opens the popup (only light, switch, input_boolean and fan act blind)", async ({ page }) => {
+  test("a fan turns on at once; an automation that is off opens the popup (its Turn on has no confirm) (only light, switch, input_boolean and fan act blind)", async ({ page }) => {
     await boot(page, { tap_action: { action: "toggle" } });
     await tapIcon(page, 15);
     expect(await calls(page)).toEqual(['fan.turn_on {"entity_id":"fan.demo_ceiling"}']);
