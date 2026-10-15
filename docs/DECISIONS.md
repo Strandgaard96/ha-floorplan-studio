@@ -2,6 +2,17 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.1 fan is a device type (Sonnet)
+
+- Change. `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`; spec X1's table is built as written. Parity: both, one draw path (`renderFloor`), the type menu is `TYPE_LABELS` in `src/editor/panels.ts`.
+- Decisions per table. `typeForEntity`: `fan.*` is `fan`; `TYPE_RULES.fan` offers the fan domain; `AREA_PLACEABLE_TYPES` has it. `NO_TOGGLE`: not in it. `ROOM_ROW_TAP`: toggle. `FLOOR_OFF_GROUP`: new group `fans` ("Fans"), between plugs and media. `ACTIVE_LIST_RULE`: on. `ATTENTION_RULE`: none. `CATEGORY_OF`: climate. `DEVICE_Z` 215 and `UNLINKED_HEIGHTS` 250, as light. `DEVICE_SOLID`: none. Popup OFF asks first (no code: `popupOp` already does for any non-light on a `fan.*`).
+- Colour. `--fp-dev-fan`, rule `.dev-fan.on{--fp-dev:var(--fp-dev-fan)}`. Light `#1f9ec4`, midnight `#4cc3e8`, solarized `#2aa198`. The generated themes (blueprint, slate, terminal, coffee and the rest) take `devFor("fan")`, which is their accent, as every type without its own override does, so a fan is orange in blueprint like the plug and the computer. Left as is: a per-theme override is a theme decision, not this task's.
+- Copied lists updated by hand: `src/card/three/palette.ts`, `tests/core/icons.test.ts`. The three-palette test did not fail on its own, as the plan said it would not.
+- Tests moved to the new premise (each a table that was a decision per type): `no-toggle-types`, `popup-rules`, `active`, `cover-idle`, `floor-off`, `ha` (the "falls back to other" case used `fan.x`, now `humidifier.x`), `heights`, `room-info` (the toggle set gains fan), `scene`, `solids-devices`, `solids-objects` (fan stems, 215 cm). No premise weakened.
+- Demo. One fan, `fan.demo_bedroom`, in the Bedroom, in `demo/layout.json` and in `demo/layout.v1.json` (the migrate test compares the two). `scripts/shots.mjs` gives it off, on (60 %) and unavailable states.
+- Not done here: the speed slider is S33.2. Existing `other` or `ac` devices on a `fan.*` entity are not retyped (X1).
+- Proof. `tests/core/fan-type.test.ts`: 10 of 10 failed before the code. `tests/card/fan-css.spec.ts` (computed style, every theme) fails with the CSS rule removed ("blueprint: fan on is its own colour", got the idle grey) and passes 10 of 10 with `--repeat-each=10`.
+
 ## 2026-10-15: frame-25d reads pixels from a canvas, not page.screenshot (Sonnet, CI flake)
 
 - Symptom. CI failed on main at 0.29.0 (other test), 6607f0f and 0.30.0 with `page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot` in `tests/card/frame-25d.spec.ts`, once on `midnight`, once on `a-team`: a different case each time, so not the theme. 2 workers on a 2-core runner, about 14 minutes in. Locally 300 of 300 passed (`--repeat-each=20`, 2 workers), so the cause is not reproduced.

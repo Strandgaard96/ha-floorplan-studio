@@ -27,7 +27,7 @@ export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
   // On the wall: top edge of the unit.
   boiler: 120, battery: 120, inverter: 100, ac: 220, climate: 150, media: 100, other: 100,
   // Ceiling-mounted.
-  light: 250, camera: 230, motion: 230, radar: 230, access_point: 230,
+  light: 250, fan: 250, camera: 230, motion: 230, radar: 230, access_point: 230,
   // Small wall fittings at hand height.
   switch: 120, plug: 30, temp: 150, humidity: 150, contact: 120, vibration: 120, lock: 100,
   siren: 230, alarm: 120, // a siren high on the wall or ceiling; an alarm keypad at hand height
@@ -38,7 +38,7 @@ export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
 export const DEVICE_Z: Record<DeviceType, number> = {
   // Ceiling-mounted. The icon stands for the fitting, not for its mount: a pendant or a dome hangs 35-45 cm under a 250 cm ceiling in 3D,
   // so it reads as in the room and not stuck to the slab (S14.5, Diego: "put all lights and high icons lower, they float too high").
-  light: 215, camera: 205, motion: 205, radar: 205, access_point: 205,
+  light: 215, fan: 215, camera: 205, motion: 205, radar: 205, access_point: 205,
   // On the wall, up high: 25 cm lower than the real unit's top edge, for the same reason.
   ac: 195, cover: 175,
   // Wall fittings at hand height (a switch is 120 by habit in Europe, a plug sits low; a thermostat or sensor at eye level, 135).

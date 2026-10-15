@@ -8,7 +8,7 @@ import { popupOp } from "../../src/card/popup";
 const TOGGLES: Record<string, string> = {
   light: "a lamp is flipped by hand", switch: "on/off", plug: "on/off", heater: "climate or switch, on/off", climate: "on/off", ac: "on/off",
   tv: "power", computer: "power", boiler: "on/off", car: "a charger switch", ups: "on/off", printer: "power", other: "no type to rule it out; the domain decides",
-  lock: "lock/unlock", cover: "open/close", siren: "a real turn_on/turn_off (S18.14)",
+  lock: "lock/unlock", cover: "open/close", fan: "a person switches a fan (S33.1)", siren: "a real turn_on/turn_off (S18.14)",
 };
 
 describe("every device type is toggling or NO_TOGGLE, on purpose", () => {

@@ -13,14 +13,14 @@ import { pieceDevice } from "./solids";
  * floor or state lists nothing, never throws.
  */
 
-export type OffGroup = "lights" | "switches" | "plugs" | "media";
-export const OFF_GROUPS: readonly OffGroup[] = ["lights", "switches", "plugs", "media"];
-export const OFF_GROUP_LABEL: Record<OffGroup, string> = { lights: "Lights", switches: "Switches", plugs: "Plugs", media: "Media" };
+export type OffGroup = "lights" | "switches" | "plugs" | "fans" | "media";
+export const OFF_GROUPS: readonly OffGroup[] = ["lights", "switches", "plugs", "fans", "media"];
+export const OFF_GROUP_LABEL: Record<OffGroup, string> = { lights: "Lights", switches: "Switches", plugs: "Plugs", fans: "Fans", media: "Media" };
 
 /** Which group a type's row goes in, or null: not offered. A heater, a cover or a vacuum is not "off" in one tap, and a
  *  sensor cannot be turned off. Every type is a decision (finding 17); a test iterates `DEVICE_TYPES`. */
 export const FLOOR_OFF_GROUP: Record<DeviceType, OffGroup | null> = {
-  light: "lights", switch: "switches", plug: "plugs", tv: "media", media: "media", speaker: "media",
+  light: "lights", switch: "switches", plug: "plugs", fan: "fans", tv: "media", media: "media", speaker: "media",
   heater: null, temp: null, humidity: null, motion: null, contact: null, camera: null, climate: null, ac: null, computer: null,
   cover: null, battery: null, inverter: null, server: null, access_point: null, lock: null, vibration: null, other: null,
   boiler: null, car: null, ups: null, printer: null, person: null, radar: null, vacuum: null, siren: null, alarm: null,

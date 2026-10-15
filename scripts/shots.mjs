@@ -93,6 +93,10 @@ MON.forEach((t, i) => monLayout.floors.ground.devices.push({ id: `mon-${t}`, typ
 monLayout.floors.ground.devices.push({ id: "mon-person", type: "person", entity: "person.demo_sam", name: "Sam", x: 770, y: 500, room: "sensor.demo_sam_room" });
 Object.assign(STATES.off, { "person.demo_sam": "not_home", "sensor.demo_sam_room": "not_home", "person.demo_alex": "not_home" });
 Object.assign(STATES.on, { "person.demo_sam": "home", "sensor.demo_sam_room": "Kitchen", "person.demo_alex": "home" });
+// S33.1: the demo fan, off and running.
+Object.assign(STATES.off, { "fan.demo_bedroom": "off" });
+Object.assign(STATES.on, { "fan.demo_bedroom": ["on", { percentage: 60, supported_features: 1 }] });
+Object.assign(STATES.gone, { "fan.demo_bedroom": "unavailable" });
 Object.assign(STATES.gone, { "person.demo_sam": "unavailable", "sensor.demo_sam_room": "unavailable", "person.demo_alex": "unavailable" });
 // The demo's own radar (first floor, Office) gets the same on/off/gone treatment as the ground floor's mon-radar,
 // so the first-floor shots show it doing something too, not permanently idle for want of a state.

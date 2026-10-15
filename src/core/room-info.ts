@@ -19,7 +19,7 @@ export { meanReading };
  *  four types a person would flip by hand toggle; everything else opens more-info, as `NO_TOGGLE` (actions.ts) does
  *  for the plan, and a test holds the two together: no type toggles here that the plan refuses to toggle. */
 export const ROOM_ROW_TAP: Record<DeviceType, "toggle" | "more-info"> = {
-  light: "toggle", switch: "toggle", plug: "toggle", cover: "toggle",
+  light: "toggle", switch: "toggle", plug: "toggle", fan: "toggle", cover: "toggle",
   motion: "more-info", contact: "more-info", heater: "more-info", climate: "more-info", ac: "more-info", tv: "more-info",
   media: "more-info", speaker: "more-info", computer: "more-info", person: "more-info", camera: "more-info", vacuum: "more-info",
   temp: "more-info", humidity: "more-info", battery: "more-info", inverter: "more-info", server: "more-info", access_point: "more-info",

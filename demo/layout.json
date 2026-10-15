@@ -628,6 +628,14 @@
           "y": 150
         },
         {
+          "id": "fan-bedroom",
+          "type": "fan",
+          "entity": "fan.demo_bedroom",
+          "name": "Bedroom fan",
+          "x": 90,
+          "y": 210
+        },
+        {
           "id": "temp-bedroom",
           "type": "temp",
           "entity": "sensor.demo_bedroom_temperature",
@@ -923,6 +931,14 @@
       "type": "radar",
       "name": "Office radar",
       "entity": "binary_sensor.demo_office_radar_occupancy"
+    },
+    {
+      "id": "fan-bedroom",
+      "floor": "first",
+      "room": "Bedroom",
+      "type": "fan",
+      "name": "Bedroom fan",
+      "entity": "fan.demo_bedroom"
     },
     {
       "id": "computer-hall",

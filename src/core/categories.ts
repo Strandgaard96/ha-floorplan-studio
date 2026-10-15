@@ -22,7 +22,7 @@ export const CATEGORIES: readonly { id: CategoryId; label: string }[] = [
 
 export const CATEGORY_OF: Record<DeviceType, CategoryId> = {
   light: "lights",
-  heater: "climate", climate: "climate", ac: "climate", boiler: "climate",
+  heater: "climate", climate: "climate", ac: "climate", boiler: "climate", fan: "climate",
   camera: "security", siren: "security", alarm: "security", lock: "security", motion: "security", contact: "security", vibration: "security", radar: "security",
   tv: "media", media: "media", speaker: "media",
   switch: "power", plug: "power", battery: "power", inverter: "power", ups: "power",

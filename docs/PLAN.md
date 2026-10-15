@@ -4129,7 +4129,7 @@ coder's note before accepting. Opus reviews the integrated build once.
 Wave 1, four lanes, no shared file except where named:
 
 Lane fan (core tables, then the popup):
-- [ ] S33.1 Fan is a device type (Sonnet). `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`, with spec X1's
+- [x] S33.1 Fan is a device type (Sonnet). `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`, with spec X1's
       entry in every per-type table. Test, failing first, new `tests/core/fan-type.test.ts`: `typeForEntity` of a
       `fan.*` is `fan`; `validate` takes a fan device; `DEVICE_ICONS.fan` starts with `M`; `NO_TOGGLE` lacks it;
       `ROOM_ROW_TAP.fan` is `toggle`; `FLOOR_OFF_GROUP.fan` is `fans` and `OFF_GROUPS` is lights, switches, plugs, fans,
