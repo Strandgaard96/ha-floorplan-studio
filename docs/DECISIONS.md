@@ -2,6 +2,13 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: frame-25d reads pixels from a canvas, not page.screenshot (Sonnet, CI flake)
+
+- Symptom. CI failed on main at 0.29.0 (other test), 6607f0f and 0.30.0 with `page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot` in `tests/card/frame-25d.spec.ts`, once on `midnight`, once on `a-team`: a different case each time, so not the theme. 2 workers on a 2-core runner, about 14 minutes in. Locally 300 of 300 passed (`--repeat-each=20`, 2 workers), so the cause is not reproduced.
+- Cause, a guess. The capture is a compositor round trip, and it times out when the runner is loaded (the other worker drives WebGL on software GL) and the page is a fresh context at 4x. Nothing in the test is wrong; the capture path is the weak part.
+- Change. The test no longer calls `page.screenshot`. It serialises the live SVG with `FLOORPLAN_CSS` embedded, draws it at 4x on a canvas in the page, and reads the same eight probes. No compositor, no protocol capture. It is still Chromium's own rasteriser applying the real stylesheet: with `.frame` set to `#f0f` the file fails on every case ("got 255,0,255 want ..."). The first test in the file still checks the cascade in the live DOM.
+- Not changed. `shade-25d`, `tree-25d`, `window-pane` and `camera-cone-clip` still screenshot; none has failed on CI. Move them the same way if one does.
+
 ## 2026-10-14: Sprint 32 Opus review fixes (Sonnet)
 
 - Blocker. `_selectFloor` now calls `_releaseFocus()` and clears `_focus3d`. A canvas tap holds the room last sent to the view for 350 ms; the view's `setFloor` drops `focused`, so the held index (Kitchen, 1) arrived as a new pick on the new floor, where index 1 is the Bathroom. Test (`card-3d-framing.spec.ts`, criterion 6): Kitchen focused, real tap on Living, real click on the First tab, camera targets recorded on every frame to rest; no frame looks at the Bathroom's centre and the end is the floor fit. Failed first (a frame at distance 0 from the Bathroom's centre); fails again with the two lines removed; 10 of 10 green with `--repeat-each=10`.
