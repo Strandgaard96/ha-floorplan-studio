@@ -2,6 +2,10 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.5 Tap and Hold in the Edit-card form (Sonnet)
+
+- Two selects, `#tap_action` and `#hold_action`, after Active list. A pick writes `{ action }`; the default (popup, more-info) drops the key. Shown value comes from the same readers as the card (`tapActionOf`, `holdActionOf`), so a string, an object and junk read the same in the form and on the card. Junk shows the default and fires no event until the person picks.
+- Proof. New test in `tests/card/config-editor.spec.ts` failed first (no `select#tap_action`); 10 of 10 with `--repeat-each=10`. The form is not in `npm run shots`; not looked at as an image.
 ## 2026-10-15: S33.4 tap_action in the card (Sonnet, judgement)
 
 - Change. `bindDeviceActions` takes `tapAction()`, `holdAction()` (read per press, so `setConfig` needs no rebind) and `toggle()`. The card passes them to the plan and to the 3D view, not to the Active list rows (a row is a list, not an icon) and not to doors, appliances or linked pieces (spec X2). One `console.warn` per card, naming the key or keys, from `setConfig`.

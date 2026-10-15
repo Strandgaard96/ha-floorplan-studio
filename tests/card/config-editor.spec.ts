@@ -537,3 +537,37 @@ test("plug_heat_from and plug_heat_to: default 0 and 2000, written when changed,
     expect(id in ((await events(page)).at(-1) as { config: Record<string, unknown> }).config, id).toBe(false);
   }
 });
+
+test("tap_action and hold_action selects: defaults shown, a pick writes {action}, the default drops the key, junk shows the default", async ({ page }) => {
+  await open(page);
+  await mount(page, { layout: demo });
+  const editor = page.locator("#editor");
+  const last = async () => ((await events(page)).at(-1) as { config: Record<string, unknown> }).config;
+  await expect(editor.locator("select#tap_action")).toHaveValue("popup");
+  await expect(editor.locator("select#hold_action")).toHaveValue("more-info");
+  await expect(editor.locator("select#tap_action option")).toHaveText(["Popup", "More info", "Toggle", "Nothing"]);
+  await expect(editor.locator("select#hold_action option")).toHaveText(["More info", "Nothing"]);
+
+  await editor.locator("select#tap_action").selectOption("toggle");
+  expect((await last()).tap_action).toEqual({ action: "toggle" });
+  await editor.locator("select#tap_action").selectOption("popup");
+  expect("tap_action" in (await last())).toBe(false);
+
+  await editor.locator("select#hold_action").selectOption("none");
+  expect((await last()).hold_action).toEqual({ action: "none" });
+  await editor.locator("select#hold_action").selectOption("more-info");
+  expect("hold_action" in (await last())).toBe(false);
+
+  // A pick leaves the other keys alone, and the string form and the object form both show.
+  await page.evaluate(() => document.getElementById("editor")!.remove());
+  await mount(page, { layout: demo, tap_action: "more-info", hold_action: { action: "none" } });
+  await expect(page.locator("#editor select#tap_action")).toHaveValue("more-info");
+  await expect(page.locator("#editor select#hold_action")).toHaveValue("none");
+
+  // Junk (navigate, a number, a hold of toggle) shows the default and fires nothing.
+  await page.evaluate(() => document.getElementById("editor")!.remove());
+  await mount(page, { layout: demo, tap_action: { action: "navigate" }, hold_action: 7 });
+  await expect(page.locator("#editor select#tap_action")).toHaveValue("popup");
+  await expect(page.locator("#editor select#hold_action")).toHaveValue("more-info");
+  expect(await events(page)).toEqual([]);
+});

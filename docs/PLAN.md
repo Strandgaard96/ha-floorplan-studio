@@ -4184,7 +4184,7 @@ Wave 2, after wave 1. Lane views' Studio task runs beside the card lane; the car
       7 with real clicks and a real 600 ms hold, `hass.callService` recorded; a stack still fans first; kiosk never
       holds; doors and appliances unchanged.
       Files: `src/card/actions.ts`, `src/card/floorplan-studio-card.ts`, the new spec.
-- [ ] S33.5 Tap and Hold in the Edit-card form (Sonnet). Two selects; a default left out of the YAML. Test, failing
+- [x] S33.5 Tap and Hold in the Edit-card form (Sonnet). Two selects; a default left out of the YAML. Test, failing
       first, in `tests/card/config-editor.spec.ts`: pick Toggle, the config gains `tap_action: {action: toggle}`; back
       to Popup, the key is gone.
       Files: `src/card/config-editor.ts`, `tests/card/config-editor.spec.ts`.
