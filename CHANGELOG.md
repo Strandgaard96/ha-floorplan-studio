@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Schema (S33.6): a layout may carry `views`, up to 24 saved views (floor, mode, turn, zoom and centre). `migrate` keeps the good ones and drops each bad one, so a stranger's file still opens. An older card (0.30.x) drops `views` when it loads the layout.
+
 ## 0.30.1 - 2026-10-15
 
 - Tests (internal): `frame-25d.spec.ts` reads the frame pixels from a canvas instead of `page.screenshot`, which failed on the CI runner. No change to the card or the Studio.

@@ -2,6 +2,12 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-15: S33.6 Layout.views in the schema (Sonnet)
+
+- Built to spec X3. `SavedView`, `MAX_VIEWS` = 24, `viewProblems` (one predicate), used by `validate` (errors name `views[i]`) and by `migrate`, which keeps the good entries in order, drops bad ones and repeated ids, caps at 24, and drops a `views` that is not an array. A view is a convenience; it never costs the plan.
+- `floor` must be an own key of `floors`, so `__proto__` and `constructor` fail. `MAX_VIEW_ZOOM` = 8 lives in `schema.ts` (core does not import the card); a test holds it equal to the card's `MAX_ZOOM`.
+- Not done here, by task scope: the Delete floor writer dropping its views (Studio lane, S33.7). No Studio or card twin yet.
+
 ## 2026-10-15: frame-25d reads pixels from a canvas, not page.screenshot (Sonnet, CI flake)
 
 - Symptom. CI failed on main at 0.29.0 (other test), 6607f0f and 0.30.0 with `page.screenshot: Protocol error (Page.captureScreenshot): Unable to capture screenshot` in `tests/card/frame-25d.spec.ts`, once on `midnight`, once on `a-team`: a different case each time, so not the theme. 2 workers on a 2-core runner, about 14 minutes in. Locally 300 of 300 passed (`--repeat-each=20`, 2 workers), so the cause is not reproduced.

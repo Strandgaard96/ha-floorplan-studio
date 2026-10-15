@@ -4155,7 +4155,7 @@ Lane tap (pure first):
       Files: new `src/card/tap-action.ts`, new `tests/card/tap-action.test.ts`.
 
 Lane views (schema first):
-- [ ] S33.6 `Layout.views` in the schema (Sonnet). Spec X3: the type, `MAX_VIEWS`, `validate`, and `migrate` passing
+- [x] S33.6 `Layout.views` in the schema (Sonnet). Spec X3: the type, `MAX_VIEWS`, `validate`, and `migrate` passing
       `views` through and dropping bad entries. Test, failing first, new `tests/core/saved-views.test.ts`: criterion 8,
       plus a layout saved with views, run through `migrate` and `validate` again, keeps them (today `migrate` drops the
       key). `npm run docs:schema`.
