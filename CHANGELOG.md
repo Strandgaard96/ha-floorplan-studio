@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.0 - 2026-10-16
+
+- Synced with upstream 0.31.0: Align turns and places floors (0.27.0 to 0.28.1), the Studio's door guides (0.28.1), and Sprint 33 (fan device type with a speed slider, `tap_action` and `hold_action`, saved views, the dashboard strategy). Saved views are a Views row in View options. Upstream's 0.29.0 to 0.30.1 card layout and 3D framing are not taken; the fork keeps its own card. Details in the two "Merged from upstream" sections below and in `FORK.md`.
+- Upgrade: reload open dashboard pages after installing. A card older than this one reads "No layout" for a layout that has a `fan` device.
+
 ## 0.27.2 - 2026-10-12
 
 - 3D: window and door frames, furniture and TVs no longer flicker while the view turns. A frame lies in its wall's planes (and a piece set into a wall shares its face), so which face won the depth test changed with every small turn; frames, furniture and device bodies are now drawn a hair toward the camera, a TV's screen a hair more.
