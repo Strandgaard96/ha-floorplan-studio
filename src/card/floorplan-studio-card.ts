@@ -35,7 +35,7 @@ import {
   activeDevices,
   findPowerSensor,
   floorsAroundKey,
-  floorShift,
+  floorPlace,
   floorBelow,
   floorsBelow,
   floorElevation,
@@ -95,9 +95,10 @@ import type {
   Theme,
   WallsMode,
 } from "../core";
-import type { Device, Door, Floor, Layout } from "../core";
+import type { Device, Door, Floor, Layout, SavedView } from "../core";
+import { tapActionOf, holdActionOf } from "./tap-action";
 import { TAP_SLOP_PX, THINGS, bindDeviceActions, fireEvent, thingKind, type TapTarget } from "./actions";
-import { lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
+import { fanCaps, lampOp, lightCaps, popupOp, type PopupOp } from "./popup";
 import { SCENES_CSS, scenesTemplate } from "./room-scenes-ui";
 import { POPUP_CSS, placeNear, popupTemplate, type Anchor, type PopupSubject, type SliderKind } from "./popup-ui";
 // S7.7: side-effect import only — registers floorplan-studio-card-editor so getConfigElement() below can create
@@ -105,6 +106,7 @@ import { POPUP_CSS, placeNear, popupTemplate, type Anchor, type PopupSubject, ty
 // second built file (PLAN block interface).
 import "./config-editor";
 import { defineElement } from "./define";
+import { strategyElement } from "./strategy";
 import { CARD_VERSION } from "./version";
 import { MAX_ZOOM, MIN_ZOOM, clamp, panBy, pinch, pinnedView, sameView, zoomAt, type Pt, type View } from "./viewport";
 import { PAN_STEP, isSearchChord, viewKeyFor, type ViewKey } from "./view-keys";
@@ -195,6 +197,10 @@ export interface FloorplanStudioCardConfig {
    * multi-floor layout with neither key set — instead shows just its first floor, with no switcher: use one card
    * per floor instead (see `docs/card.md`). */
   kiosk?: boolean;
+  /** S33.4: what a tap on a device icon does: `popup` (default), `more-info`, `toggle` or `none`; a string is the action. `toggle` turns ON at once and a light OFF at once; any other OFF opens the popup at Confirm turn off. Anything else (navigate, a number, junk) is `popup`, with one console warning. See docs/card.md. */
+  tap_action?: unknown;
+  /** S33.4: what a hold of 500 ms does: `more-info` (default) or `none`. Kiosk never holds. */
+  hold_action?: unknown;
   /** S9.1: the colour an open contact door or window (and its S8.13 alert line) draws in, as `#rrggbb`; unset
    * keeps the theme's own default (--fp-dev-contact). A value that is not a plain 6-digit hex is ignored, the
    * same as any other untrusted config (CLAUDE.md finding 1) — never thrown on. */
@@ -424,6 +430,9 @@ const loadLib3d = (): Promise<Lib3d> => {
 /** The card that has focus (or has something inside it focused), whatever shadow roots it sits in. */
 let focusedCard: FloorplanStudioCard | null = null;
 
+/** S33 review: the entity domains `tap_action: toggle` may operate without the popup. A plain on/off of a light, a switch, an input_boolean or a fan. Lock, cover and siren open the popup: a stray tap never unlocks a door, moves a garage door or sounds a siren. Climate, humidifier, water_heater, automation, remote, media_player and group do too: their on/off is not a lamp's. */
+const TOGGLE_AT_ONCE = new Set(["light", "switch", "input_boolean", "fan"]);
+
 /** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 export class FloorplanStudioCard extends LitElement {
   static styles = [
@@ -496,6 +505,8 @@ export class FloorplanStudioCard extends LitElement {
     .fp-view-menu { position: absolute; top: calc(100% + 4px); right: 36px; display: flex; flex-direction: column; gap: var(--fp-space-2); box-sizing: border-box; width: max-content; min-width: 200px; max-width: calc(100vw - 32px); max-height: 60vh; overflow-y: auto; padding: var(--fp-space-2); background: var(--fp-room); border: 1px solid var(--fp-idle); border-radius: var(--fp-radius-surface); box-shadow: var(--fp-shadow-lg); }
     .fp-vm-row { display: flex; align-items: center; justify-content: space-between; gap: var(--fp-space-3); font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-vm-row > span { flex: 0 0 auto; }
+    /* S33.8: the Views row: its label above one full-width button per saved view. */
+    .fp-vm-views { display: flex; flex-direction: column; gap: var(--fp-space-1); font: 14px/1.2 var(--fp-font, system-ui, sans-serif); color: var(--fp-ink); }
     .fp-zoom .fp-view-menu select, .fp-viewonly .fp-view-menu select { flex: 1 1 auto; min-width: 0; max-width: 150px; }
     .fp-zoom .fp-view-menu input[type="range"], .fp-viewonly .fp-view-menu input[type="range"] { flex: 1 1 auto; min-width: 0; max-width: 120px; }
     .fp-zoom .fp-view-menu button, .fp-viewonly .fp-view-menu button { width: 100%; justify-content: flex-start; gap: var(--fp-space-2); padding: 0 var(--fp-space-2); font: 14px/1 var(--fp-font, system-ui, sans-serif); box-shadow: none; }
@@ -783,6 +794,9 @@ export class FloorplanStudioCard extends LitElement {
   private _pickedLabels: boolean | null = null;
   private _pickedNames: boolean | null = null;
   private _pickedRot: number | null = null;
+  /** S33.8: the id of the saved view the viewer last picked from the Views section; it is the checked item until the viewer
+   * does anything that is not that view (another floor, Reset view, a new config). View state like `_pickedRot`: never reset by `hass`. */
+  private _appliedView: string | null = null;
   /** Whether the pointer is over this card: with focus, what decides which card the view keys belong to. */
   private _hovered = false;
   /** A turn in flight: `from` and `to` are user angles in degrees, unwrapped (`to` may be 360, or -45) so the
@@ -932,6 +946,7 @@ export class FloorplanStudioCard extends LitElement {
       this._pickedHeat =
         null;
     this._pendingView = null;
+    this._appliedView = null;
     this._shownFloor = null;
     this._floorViews = new Map();
     this._memFloor = null;
@@ -1389,6 +1404,7 @@ export class FloorplanStudioCard extends LitElement {
     this._flushSave(); // under the old config's key
     this._settleTurn(false);
     this._config = config ?? {};
+    this._warnActions();
     this._closePopup();
     this._hideTip();
     this._layout = null;
@@ -1768,6 +1784,7 @@ export class FloorplanStudioCard extends LitElement {
    * the plan itself).  */
   private _selectFloor(key: string): void {
     if (this._shownFloor === key) return;
+    this._appliedView = null; // a saved view is checked only while its floor is the one on show
     // S27.15: 2D and 2.5D fade the new floor in from the way it travels; 3D cuts (no plan root to animate), and reduced motion cuts.
     const from = this._floorKey(),
       keys = this._layout ? Object.keys(this._layout.floors) : [];
@@ -1940,6 +1957,7 @@ export class FloorplanStudioCard extends LitElement {
               getUnlinked: (i) => this._floor()?.unlinked[i],
               getPiece: (i) => this._floor()?.furniture?.[i],
               stack: (i) => this._tapStack(i),
+              ...this._tapOpts(),
             },
           )
         : null;
@@ -2135,7 +2153,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** S27.14: gives the view the floors below the shown one: each lower floor at its elevation relative to this one (negative) and its
-   * `floorShift`. Only when something changed (the view rebuilds its meshes on every call), and always after `setFloor`. */
+   * `floorPlace` (shift and turn). Only when something changed (the view rebuilds its meshes on every call), and always after `setFloor`. */
   private _sync3dBelow(): void {
     const layout = this._layout,
       key = this._floorKey(),
@@ -2144,12 +2162,11 @@ export class FloorplanStudioCard extends LitElement {
     const mode = this._below();
     const keys = mode === "off" ? [] : floorsBelow(layout, key),
       here = floorElevation(layout, key);
-    const entries = keys.map((k) => ({
-      floor: layout.floors[k],
-      elevation: floorElevation(layout, k) - here,
-      shift: floorShift(layout, k, key),
-    }));
-    const nums = JSON.stringify(entries.map((e) => [e.elevation, e.shift]));
+    const entries = keys.map((k) => {
+      const p = floorPlace(layout, k, key);
+      return { floor: layout.floors[k], elevation: floorElevation(layout, k) - here, shift: p.shift, turn: p.turn };
+    });
+    const nums = JSON.stringify(entries.map((e) => [e.elevation, e.shift, e.turn]));
     const last = this._view3dBelow;
     if (
       last &&
@@ -2199,6 +2216,7 @@ export class FloorplanStudioCard extends LitElement {
         openPopup: (t, at, from) => this._openPopup(t, at, from),
         getUnlinked: (i) => this._floor()?.unlinked[i],
         getPiece: (i) => this._floor()?.furniture?.[i],
+        ...this._tapOpts(),
         resolve: (e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return null;
           const p = this._pick3d(e);
@@ -2604,6 +2622,55 @@ export class FloorplanStudioCard extends LitElement {
     ring.style.width = ring.style.height = `${size}px`;
   }
 
+  /** S33.4: one console warning per card for a `tap_action` or `hold_action` that is there but not usable; absent is no warning. */
+  private _actionsWarned = false;
+  private _warnActions(): void {
+    if (this._actionsWarned) return;
+    const keys = [
+      tapActionOf(this._config.tap_action).warn ? "tap_action" : "",
+      holdActionOf(this._config.hold_action).warn ? "hold_action" : "",
+    ].filter(Boolean);
+    if (!keys.length) return;
+    this._actionsWarned = true;
+    console.warn(
+      `floorplan-studio-card: ${keys.join(" and ")} not supported, using the default. tap_action takes popup, more-info, toggle or none; hold_action takes more-info or none (docs/card.md).`,
+    );
+  }
+
+  /** S33.4: the card-wide tap and hold actions for the device icons of the plan and the 3D view. Read afresh per press, so `setConfig` needs no rebind. */
+  private _tapOpts() {
+    return {
+      tapAction: () => tapActionOf(this._config.tap_action).action,
+      holdAction: () => holdActionOf(this._config.hold_action).action,
+      toggle: (t: TapTarget, at: { x: number; y: number }, from: Element | null) => this._tapToggle(t, at, from),
+    };
+  }
+
+  /** `tap_action: toggle`: the popup's button, pressed for the person, but only for a plain on/off. A lock, cover or siren (and any other domain) opens the popup instead. ON, and a light's OFF, act at once; any other OFF opens the popup at its Confirm step (S14.2 stands). No button (a sensor, a camera, no state) is the popup as ever. */
+  private _tapToggle(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
+    const s = this._subjectOf(t),
+      op = s ? this._popupOp(s) : null;
+    if (!s || !op || !s.entity || s.door || this._dialogOpen()) {
+      this._openPopup(t, at, from);
+      return;
+    }
+    if (op.confirm) {
+      this._openPopup(t, at, from);
+      if (this._popup?.s.key === s.key) {
+        this._popup.confirming = true;
+        this.requestUpdate();
+      }
+      return;
+    }
+    if (!TOGGLE_AT_ONCE.has(s.entity.split(".")[0] ?? "")) {
+      this._openPopup(t, at, from);
+      return;
+    } // a lock, a cover, a siren: a stray tap must not act
+    this._hideTip();
+    this._closePopup();
+    this._runOp(s, op);
+  }
+
   private _openPopup(t: TapTarget, at: { x: number; y: number }, from: Element | null): void {
     const s = this._subjectOf(t);
     const thing =
@@ -2731,6 +2798,10 @@ export class FloorplanStudioCard extends LitElement {
       const b = n(a?.brightness);
       return b === null ? null : Math.max(1, Math.min(100, Math.round((b / 255) * 100)));
     }
+    if (kind === "s") {
+      const v = n(a?.percentage);
+      return v === null ? null : Math.max(0, Math.min(100, Math.round(v)));
+    }
     if (kind === "t") return n(a?.color_temp_kelvin);
     const hs = a?.hs_color;
     const h = Array.isArray(hs) ? n(hs[0]) : null;
@@ -2755,6 +2826,7 @@ export class FloorplanStudioCard extends LitElement {
         ? true
         : op !== null && s.entity?.startsWith("light.");
     const caps = light ? lightCaps(st?.attributes) : null;
+    const fan = op !== null && s.entity?.startsWith("fan.") ? fanCaps(st?.attributes) : null;
     const level = (k: SliderKind) => {
       const now = this._levelOf(k, st?.attributes);
       return p.draft && p.draft.kind === k && p.draft.from === now ? p.draft.value : now;
@@ -2767,6 +2839,7 @@ export class FloorplanStudioCard extends LitElement {
       confirming: p.confirming,
       kiosk: this._kiosk(),
       caps,
+      fan,
       info:
         this._kiosk() || !(s.entity ?? s.entities[0])
           ? []
@@ -2774,6 +2847,7 @@ export class FloorplanStudioCard extends LitElement {
       doorLabel: s.door?.cover ? (this._coverService(s.door) === "close_cover" ? "Close" : "Open") : null,
       level: {
         b: caps?.brightness ? level("b") : null,
+        s: fan ? level("s") : null,
         t: caps?.temp ? level("t") : null,
         h: caps?.hue ? level("h") : null,
       },
@@ -2813,9 +2887,14 @@ export class FloorplanStudioCard extends LitElement {
       this.requestUpdate();
       return;
     }
-    if (op.calls) for (const c of op.calls) this._hass?.callService?.(c.domain, c.service, c.data);
-    else this._hass?.callService?.(op.domain, op.service, { entity_id: p.s.entity });
+    this._runOp(p.s, op);
     this._closePopup();
+  }
+
+  /** The one call (or the calls of a relay-lit lamp's Turn off) a popup button makes. */
+  private _runOp(s: PopupSubject, op: PopupOp): void {
+    if (op.calls) for (const c of op.calls) this._hass?.callService?.(c.domain, c.service, c.data);
+    else this._hass?.callService?.(op.domain, op.service, { entity_id: s.entity });
   }
 
   private _popupMore(): void {
@@ -2826,7 +2905,7 @@ export class FloorplanStudioCard extends LitElement {
     else if (p.s.entities.length === 1) fireEvent(this, "hass-more-info", { entityId: p.s.entities[0]! });
   }
 
-  /** A slider moving only changes the number shown; its release (`change`) is the one `light.turn_on`, so dragging never floods Home Assistant. */
+  /** A slider moving only changes the number shown; its release (`change`) is the one `light.turn_on` (a fan's speed: `fan.set_percentage`), so dragging never floods Home Assistant. */
   private _popupSlide(kind: SliderKind, value: number, commit: boolean): void {
     const p = this._popup,
       entity = p?.s.entity;
@@ -2834,6 +2913,14 @@ export class FloorplanStudioCard extends LitElement {
     const a = this._hass?.states[entity]?.attributes;
     p.draft = { kind, value, from: this._levelOf(kind, a) };
     if (commit) {
+      if (kind === "s") {
+        this._hass?.callService?.("fan", "set_percentage", {
+          entity_id: entity,
+          percentage: Math.max(0, Math.min(100, value)),
+        });
+        this.requestUpdate();
+        return;
+      }
       const hs = a?.hs_color,
         sat = Array.isArray(hs) && typeof hs[1] === "number" && Number.isFinite(hs[1]) ? hs[1] : 100;
       const data =
@@ -4189,12 +4276,14 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** The floor below and its shift for `renderFloor`, or `undefined`: off, 3D (its own Floors below select), or the lowest floor. */
-  private _ghost(): { floor: Floor; shift: Pt } | undefined {
+  private _ghost(): { floor: Floor; shift: Pt; turn: number } | undefined {
     const key = this._floorKey(),
       layout = this._layout;
     if (!this._ghostOn() || !key || !layout) return undefined;
     const below = floorBelow(layout, key);
-    return below ? { floor: layout.floors[below], shift: floorShift(layout, below, key) } : undefined;
+    if (!below) return undefined;
+    const place = floorPlace(layout, below, key); // S29.5: the turn and the shift, as the Studio's ghost reads them
+    return { floor: layout.floors[below], shift: place.shift, turn: place.turn };
   }
 
   /** S27.13: the Floor below button, 2D and 2.5D. Disabled on the lowest floor, which has nothing under it. */
@@ -4282,6 +4371,58 @@ export class FloorplanStudioCard extends LitElement {
     return true;
   }
 
+  /** S33.8: the layout's saved views this card offers, in the layout's order. A view is offered when its floor is one the card can
+   *  show (`floors`, or the one floor it is pinned to), and when its id is not one of the View modes (`2d`, `2.5d`, `3d`: `validate`
+   *  refuses those, so this is belt and braces for a layout that skipped it). None in kiosk. The layout went through `validate`. */
+  private _savedViews(): SavedView[] {
+    const views = this._layout?.views;
+    if (!views?.length || this._kiosk()) return [];
+    const list = this._floorList(),
+      shown = this._floorKey();
+    const keys = list ? list.map(([k]) => k) : shown ? [shown] : [];
+    return views.filter((v) => keys.includes(v.floor) && !isView(v.id));
+  }
+
+  /** S33.8, spec X3: a saved view is a viewer's pick, made through this fork's own view state. Floor, then mode (a view with none
+   *  leaves the viewer's own), then turn (a view with none is turned 0, so one view never inherits the last one's turn), then zoom
+   *  and centre (2D and 2.5D; zoom is a ratio against this card's fit, the centre is plan cm). In 3D the floor's own camera
+   *  stands. Written to view memory like any pick; Reset view goes back to the config, not to a saved view. */
+  private _applySavedView(id: string): void {
+    const v = this._savedViews().find((x) => x.id === id);
+    if (!v) return;
+    this._settleTurn(false);
+    this._selectFloor(v.floor);
+    if (v.mode !== undefined && isView(v.mode)) {
+      this._pickedView = v.mode;
+      this._fallback3d = null;
+    }
+    const flat = this._viewPick() !== "3d";
+    const anchor =
+      flat && v.zoom !== undefined && v.center ? { focus: [v.center[0], v.center[1]] as Pt, zoom: v.zoom } : null;
+    this._view = null;
+    this._pendingView = null;
+    this._forgetCamera();
+    const to = normaliseRotation(v.rotation ?? 0),
+      from = this._userAngle();
+    if (to === from) {
+      this._pendingView = anchor;
+      this._pickedRot = to === normaliseRotation(this._config.rotation) ? null : to;
+    } else this._startTurn(from + shortestDelta(from, to), anchor); // its settle writes the turn
+    this._appliedView = v.id; // after _selectFloor, which lets go of a view of another floor
+    this._saveViewNow();
+    this.requestUpdate();
+  }
+
+  /** S33.8: the Views row of View options, one toggle button per saved view; the applied one is pressed. */
+  private _savedViewsRow() {
+    const saved = this._savedViews();
+    if (!saved.length) return null;
+    return html`<div class="fp-vm-views" role="group" aria-label="Views"><span>Views</span>${saved.map(
+      (v) =>
+        html`<button type="button" data-view=${v.id} aria-pressed=${v.id === this._appliedView ? "true" : "false"} @click=${() => this._applySavedView(v.id)}>${v.name}</button>`,
+    )}</div>`;
+  }
+
   /** The look controls themselves, in the View options menu: a labelled row each, so none is a bare icon. */
   private _lookControls(current: CardView) {
     const labels = this._labels();
@@ -4293,7 +4434,7 @@ export class FloorplanStudioCard extends LitElement {
       html`<label class="fp-vm-row"><span>${name}</span>${control}</label>`;
     return html`<div class="fp-view-menu" id="fp-view-menu" role="group" aria-label="View options">
       ${in3d ? html`${row("Walls", this._wallsSelect())}${row("Floors below", this._belowSelect())}` : current === "2.5d" ? html`${row("Tilt", this._tiltSlider())}${row("Walls", this._wallsSelect())}` : null}
-      ${row("Theme", this._themeSelect())}
+      ${row("Theme", this._themeSelect())}${this._savedViewsRow()}
       <button type="button" aria-label="Labels" title="Labels" aria-pressed=${labels ? "true" : "false"} @click=${() => {
         this._pickedLabels = !labels;
         this._saveViewNow();
@@ -4370,6 +4511,7 @@ export class FloorplanStudioCard extends LitElement {
    * back the short way (315 to 0 is +45). */
   private _resetView(): void {
     const hadFocus = !!this.shadowRoot?.activeElement?.matches('button[aria-label="Reset view"]');
+    this._appliedView = null;
     this._fallback3d = null;
     this._pickedView =
       this._pickedTilt =
@@ -4894,5 +5036,8 @@ if (typeof window !== "undefined") {
     });
 }
 defineElement("floorplan-studio-card", FloorplanStudioCard, CARD_VERSION);
+// S33.10: the dashboard strategy (`strategy: { type: custom:floorplan-studio }`); the same registry race as the card (S8.3).
+if (typeof window !== "undefined" && window.customElements)
+  defineElement("ll-strategy-dashboard-floorplan-studio", strategyElement(), CARD_VERSION);
 // One line, so "which card is my dashboard running" is a look at the console, not a guess.
 if (typeof console !== "undefined" && CARD_VERSION !== "dev") console.info(`Floorplan Studio card ${CARD_VERSION}`);

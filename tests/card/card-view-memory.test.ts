@@ -722,7 +722,7 @@ describe("the view is remembered per floor (S14.4)", () => {
 });
 
 describe("the ghost floor: YAML default and the viewer's choice (S27.13)", () => {
-  // The demo's first floor has the ground under it; "test" is the third. The card hands renderFloor the floor below and floorShift.
+  // The demo's first floor has the ground under it; "test" is the third. The card hands renderFloor the floor below and its place (floorPlace).
   const ghostOf = () => lastOpts().ghost;
   const ghostBtn = (el: FloorplanStudioCard) => btn(el, "Floor below");
 

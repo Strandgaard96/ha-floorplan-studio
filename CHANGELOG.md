@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.32.0 - 2026-10-16
+
+- Synced with upstream 0.31.0: Align turns and places floors (0.27.0 to 0.28.1), the Studio's door guides (0.28.1), and Sprint 33 (fan device type with a speed slider, `tap_action` and `hold_action`, saved views, the dashboard strategy). Saved views are a Views row in View options. Upstream's 0.29.0 to 0.30.1 card layout and 3D framing are not taken; the fork keeps its own card. Details in the two "Merged from upstream" sections below and in `FORK.md`.
+- Upgrade: reload open dashboard pages after installing. A card older than this one reads "No layout" for a layout that has a `fan` device.
+
 ## 0.27.2 - 2026-10-12
 
 - 3D: window and door frames, furniture and TVs no longer flicker while the view turns. A frame lies in its wall's planes (and a piece set into a wall shares its face), so which face won the depth test changed with every small turn; frames, furniture and device bodies are now drawn a hair toward the camera, a TV's screen a hair more.
@@ -18,6 +23,65 @@
 - A playing speaker or media player shows its cover art on the plan in place of its icon, with a ring in its colour; at the furthest zoom it is a dot again. Only Home Assistant's own image proxy or a relative picture is drawn; any other address is ignored. YAML `media_art: false` turns it off.
 - Temperature colours, groundwork: three per-theme tokens (`--fp-temp-cold`, `-mid`, `-hot`) and the card keys `temp_colors`, `heat_min`, `heat_max` (default on, 17 and 25 °C). Nothing is drawn with them yet.
 - Phone: in the room sheet (card narrower than 480 px) the device groups are an accordion, so opening Security with Lights open shows the motion sensor instead of leaving it 900 px down a 235 px window; the opened group scrolls to the top. The duplicate "Active here" list is not drawn in the sheet. Wide cards are unchanged.
+
+## Merged from upstream 0.31.0 (sync of 2026-10-16)
+
+Upstream's own version number (its 0.31.0 is Sprint 33); the fork's version is unchanged by the sync. Upstream's 0.29.0 to 0.30.1
+(card layout, 3D framing) are not taken. Where upstream says "the ⋯ menu", this fork has the Views row of View options.
+
+### upstream 0.31.0 - 2026-10-15
+
+- Card (S33 review): `tap_action: toggle` no longer acts blind on a lock, a cover or a siren (nor climate, humidifier, water_heater, automation, remote, media_player or group): a tap opens the popup. Only a light, a switch, an input_boolean and a fan toggle at once. Enter on a focused icon always opens the popup, as before.
+- Schema (S33 review): a saved view whose id is `2d`, `2.5d` or `3d` is refused by `validate` and dropped by `migrate`: the card never offered it, so the Studio must not list it. The Studio's own ids start `view-` and never clash.
+- Card and Studio (S33.1): `fan` is a device type. A `fan.*` entity is typed `fan` when placed from an area menu or the entity list, drawn with the mdi fan glyph in its own colour (`--fp-dev-fan`) when on, switched by Turn on and Turn off (OFF asks first), listed in Active, counted in All off under a new "Fans" group, and shown at ceiling height in 3D. Existing devices already typed `other` or `ac` on a `fan.*` entity keep their type; change it in the device panel. The demo has one fan.
+- Card (S33.2): a fan that reports a `percentage` and supports speed (`supported_features & 1`) gets a Speed slider in its popup, 0 to 100 %, stepped by `percentage_step`. Moving it changes the number; release makes one `fan.set_percentage`. A fan without either attribute keeps just its button. No Studio twin: the popup is card chrome.
+- Card (internal, S33.3): `src/card/tap-action.ts` reads the `tap_action` and `hold_action` keys (popup, more-info, toggle, none; more-info, none) from untrusted YAML and never throws. S33.4 uses it.
+- Card (S33.4): `tap_action` (popup, more-info, toggle, none) and `hold_action` (more-info, none) work on device icons, in 2D and 3D. `toggle` turns a device on at once and a light off at once; any other turn off opens the popup at Confirm turn off. A stack still fans out first, a kiosk never holds, and doors, appliances and the Active list keep what they do. A value the card cannot use is the default, with one console warning.
+- Card (S33.5): the Edit-card form has Tap (Popup, More info, Toggle, Nothing) and Hold (More info, Nothing). A default is left out of the YAML.
+- Schema (S33.6): a layout may carry `views`, up to 24 saved views (floor, mode, turn, zoom and centre). `migrate` keeps the good ones and drops each bad one, so a stranger's file still opens. An older card (0.30.x) drops `views` when it loads the layout.
+- Card (S33.9, internal): `dashboardFor`, the pure builder behind the coming dashboard strategy: one panel view per floor, or one markdown view saying what failed. S33.10 registers it.
+- Studio (S33.7): View, Saved views. Save current view asks a name and Open in (Viewer's choice, 2D, 2.5D, 3D) and keeps the floor on show, the turn, and the zoom and centre when the floor is zoomed in; a floor shown whole stores no zoom, so each card fits it to its own window. A click on a view shows it (no undo step); a right-click gives Rename and Delete. Save, rename and delete are one undo step each. Delete floor drops that floor's views in the same step, and Undo brings them back. The card's twin is S33.8.
+- Card (S33.8): View options (this fork has no ⋯ menu) has a Views row when the layout has saved views: one button per view, the applied one pressed; one per view on a floor the card shows (`floors`, or its one pinned floor; `kiosk` and `view_switch: false` draw no View options). A pick is a viewer's pick: floor, then mode, then turn (a view with none turns the plan to 0), then zoom (a ratio against the card's own fit) and centre; in 3D the floor's framed camera stands. It is remembered like any pick, a `hass` update keeps it, and Reset view goes back to the config. A view whose id is `2d`, `2.5d` or `3d` is not offered (the mode keeps its own button).
+- Card and Studio (S33.10): the card's script defines the dashboard strategy `ll-strategy-dashboard-floorplan-studio`. A dashboard whose raw config is `strategy: { type: custom:floorplan-studio }` is built by Home Assistant on every load: one panel view per floor, in order, each with a Floorplan Studio card pinned to its floor, so a floor added in the Studio shows up without pasting again. `title` renames the dashboard and `card:` options (`theme`, `view`, ...) go to every card, never over `type` or `floor`. With no layout, a failed load or an invalid layout it is one view that says what failed. File, Install code in the Studio shows the three lines under "Or as a strategy".
+
+- Docs (S33.11): `card.md`, `editor.md`, `SPEC.md` and the README describe the fan, `tap_action` and `hold_action`, saved views and the strategy. Upgrade notes: a card older than 0.31.0 (an open dashboard page that has not reloaded) reads "No layout" for a layout that has a `fan` device, because its `validate` refuses the new type; reload the page (the version check asks it to). It also drops `views` when it loads a layout, so saved views do not show there; the Studio, from 0.31.0, keeps them.
+
+## Merged from upstream 0.27.0 to 0.28.1 (sync of 2026-10-16)
+
+Upstream's own version numbers; they collide with this fork's 0.27.x above, and the fork's version is unchanged by the sync. Newest first.
+
+### upstream 0.28.1 - 2026-10-13
+
+- Studio: doors are visible again. A door or glass door with no closed sensor is a hole in the card (0.12.x S25.D1), and the Studio has no live state, so every door there was an invisible gap. In the Studio alone such a door now draws a faint dashed guide line (`.door.guide`, thin, 55 % of --fp-door or --fp-glass). The card and 2.5D/3D keep the hole; a selected door, a window and the doorway kind look as before.
+
+### upstream 0.28.0 - 2026-10-12
+
+- Editor state: `alignToBelow` applies the turn the search finds, preferring a small change from the floor's current turn; one undo step, none when the pose is unchanged, refused under Lock plan. On the hand-align house, Align then Apply on the ground and the first floor lands every outline corner within 2 cm and the turn within 0.2 degree.
+- Core: `alignFloor(upper, lower, from = 0)` now searches the turn too. It tries every candidate turn, refines turn and shift together, and returns `{ turn, t, score, weak, alt }`: a far turn (more than 10 degrees from `from`) wins only by 25 points and not weak, ties go to the turn nearer `from`, and `alt` names the best other turn that fits nearly as well. `alignCandidates` and `chooseAlign` are exported. Callers that passed a turn now pass it as `from`.
+- Core: Align reads the lower floor through an exact line index (a bucket grid), so a distance query looks at a few lines instead of all of them. Every answer is bit for bit what the scan gave (a recorded set of answers checks it); on the heavy stress floor the translation search takes about a tenth of the time.
+- Core: `refinePlace` refines the turn and the shift together (robust weighted least squares, linearised about the placed lines' centre, the turn moving at most 2 degrees), so a candidate turn a fraction of a degree off ends within 0.05 degree and 0.5 cm.
+- Core: `turnCandidates(upper, lower)` lists the turns worth searching, from the two floors' wall directions (modulo 90 degrees, 0.25 degree bins, at most 13 candidates); `alignShift` is 0.27.0's translation search under its new name. Test helper `tests/fixtures/align-turn.ts`.
+- Core: `alignSummary` and `alignStatus` word the Align panel (match, weak, the other fit, the change from the current place, Apply's status). The Studio's Align panel uses them (see the Studio line below).
+- Studio: Align finds the turn. The Auto align block says the change in words ("Turn 2.5° anticlockwise, move the centre 38 cm left, 90 cm down"), names another turn that fits as well ("A half turn (177.5°) fits about as well") and Apply writes the turn and the offset in one undo step. A move, a turn press or an undo does not search again; a changed wall does.
+- Studio, Align (review fixes): short lines count when the turn is searched (a floor drawn with a click every 15 cm was missed), a weak answer no longer offers another weak fit as "fits about as well", Apply's status says "turned 2.5° anticlockwise" like the panel, and junk in the fits never throws.
+
+### upstream 0.27.0 - 2026-10-11
+
+- Studio, Align to floor below (review fixes): a typed offset or rotation that would pass the coordinate limit now says so in the status line instead of reverting silently.
+- Studio, Align to floor below (review fixes): the plan is read-only while Align is open. A press only pans, nothing is selected, dragged or deleted, Delete, Backspace, Ctrl+A, double click and the right-click menu do nothing (nor does the Outline's menu or Menu key, and an Outline click only centres, it selects nothing), starting a draw closes Align, and the Align keys never run in a draw or a text box. A device can no longer be dragged while Align is open.
+- Studio, Align to floor below (review fixes): the rotation box turns the floor about the same pivot as the Turn buttons, so a typed angle no longer swings the floor about its stored origin. The offset and rotation boxes take decimals only (`3,5`, `-2.25`; not `0x10` or `1e3`), and a stored rotation of -180 is not rewritten as 180 by a no-op edit. Align stairs and a refused press say "Already aligned" when the pose does not change, and the limit message only when it does pass the limit.
+- Studio, Align to floor below (review fixes): Align stairs and the stair list pick the same stair: the one below nearest to the stair above.
+- Core: `floorShift` is gone; `floorPlace` (turn and shift) replaces it everywhere. Test-only: an end-to-end test aligns the stairs of the example three-floor house in the Studio, saves, and reads the file in the card: the stairs of every floor lie on the one below within 2 cm in 3D, and the ghost floor is drawn where the poses put it.
+- Studio, Align to floor below: a Stairs section lists each stair of this floor with the nearest stair below (distance and angle, live on every press), and Align stairs lays the first stair of this floor on the nearest stair below in one undo step, saying what it did. Round stairs move and do not turn. On a coarse pointer every Align button is 44 px (a more specific rule had held the Move and step buttons at 32 px).
+- Studio, Align to floor below: the arrow keys move this floor and `,` `.` turn it, by the chosen steps (a held key is one step; a text box keeps its keys; the arrows still pan outside Align). A rotation box takes typed degrees, and Reset zeroes the offset and the rotation in one undo step. Help lists the keys.
+- Studio, Align to floor below: six buttons move this floor up, down, left and right (as drawn on screen, so a turned view still moves the right way) and turn it anticlockwise and clockwise about the centre of its structure, by steps you choose (1, 5, 50 cm; 0.1, 0.5, 1, 3 degrees; the choice is remembered in this browser). One press, one undo step. The floor below is drawn turned as faint lines, the plan shows only a cross at the pivot while the panel is open, and Apply keeps the floor's turn. Fixed on the way: a stored rotation such as 0.1 was written as 0.10000000000002274.
+- 3D: the floors below turn with their `rotation`. Slabs, walls, stairs, crowns and contact shadows are placed by the turn and then the shift; the card gives the view `floorPlace`, so a change of rotation alone redraws the ghost and the floors below.
+- The ghost floor can turn: `renderFloor`'s `ghost` takes a `turn` (degrees, clockwise) and places every point with it before the shift. No turn, or 0, draws exactly what it drew.
+- A floor can carry a `rotation` (degrees, clockwise, about its stored origin, before the offset). The schema and `migrate` accept and check it; the card, the 3D view and the Studio draw floors with it, and the Align panel sets it.
+- Core: pose helpers (`floorPlace`, `placePoint`, `composePlace`, `poseFromPlace`, `floorPivot` and friends) turn and shift a floor into another's frame, which the ghost, 3D and the Align panel use. Test fixture `hand-align-house.json`.
+- Core: `stairAxis`, `stairReport` and `stairPlace` read the stairs of two floors and answer how far and how crooked they lie, and the place that lays one on the other (a flight drawn the other way round is matched too); the Align panel's Stairs section and Align stairs use them.
+- Editor state: `setPose`, `nudgeFloor` and `turnFloor` write a floor's rotation (0.01 degree) and offset (0.1 cm, was whole cm) as one undo step each, from an exact session pose so many small presses do not drift. A new floor copies the lowest floor's rotation. The Align panel's buttons, keys and boxes call them.
+- Align to floor below keeps the floor's turn: `alignFloor` takes a turn and searches with the floor's lines turned by it. Still translation only.
 
 ## 0.26.2 - 2026-10-11
 

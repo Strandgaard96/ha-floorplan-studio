@@ -79,6 +79,7 @@ export const ATTENTION_RULE: Record<DeviceType, AttentionRule> = {
   radar: "none",
   vacuum: "none",
   siren: "none",
+  fan: "none",
 };
 
 /** The device types whose battery is their charge, a reading, not a maintenance job: a home storage battery, an

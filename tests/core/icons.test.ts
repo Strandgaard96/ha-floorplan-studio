@@ -35,6 +35,7 @@ const DEVICE_TYPES: DeviceType[] = [
   "vacuum",
   "siren",
   "alarm",
+  "fan",
 ];
 const SYMBOLS: FurnitureSymbol[] = [
   "table",

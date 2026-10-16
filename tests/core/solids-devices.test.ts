@@ -78,6 +78,7 @@ const KIND: Record<DeviceType, "radiator" | "speaker" | "tv" | "none"> = {
   vacuum: "none",
   siren: "none",
   alarm: "none",
+  fan: "none", // S33.1: as a light, no 2.5D body
 };
 
 describe("2.5D device solids", () => {

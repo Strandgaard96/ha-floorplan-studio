@@ -178,11 +178,11 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 
 ## Floor
 
-`ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. `offset` (S27.2, cm, x right and y down) is where the floor sits in the house: a point's place in the house is its stored point plus the offset. Stored coordinates never change; absent means [0, 0], and writers delete the key at [0, 0].
+`ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. `offset` (S27.2, cm, x right and y down) is where the floor sits in the house: a point's place in the house is its stored point plus the offset. Stored coordinates never change; absent means [0, 0], and writers delete the key at [0, 0]. `rotation` (S29.1, degrees, clockwise on screen with y pointing down, from -180 to 180) turns the floor about its stored origin [0, 0] before the offset: a stored point p sits in the house at R(rotation) Â· p + offset. Absent means 0, and writers delete the key at 0.
 
 ```ts
 export interface Floor {
-  ha?: string; height?: number; slab?: number; offset?: [number, number]; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 ```
@@ -201,12 +201,36 @@ S6.7: one HA entity as it stood the moment the editor wrote `Layout.available` â
 export interface AvailableEntity { entity: string; name: string; domain: string; area?: string; areaName?: string; room?: string; dc?: string; placed: boolean }
 ```
 
+## MAX_VIEWS
+
+Most saved views a layout keeps.
+
+```ts
+export const MAX_VIEWS = 24;
+```
+
+## MAX_VIEW_ZOOM
+
+The most a saved view may zoom in. The card's own `MAX_ZOOM` (`viewport.ts`) is the same number; a test holds them together.
+
+```ts
+export const MAX_VIEW_ZOOM = 8;
+```
+
+## SavedView
+
+A named way of looking at the plan, saved in the Studio and offered by every card. `floor` is a key of `floors`; `mode` is how it opens (left out: the viewer's choice); `rotation` is the turn in degrees, a multiple of 45 from 0 to 315; `zoom` (1 to 8) and `center` (cm) come together or not at all. No 3D camera.
+
+```ts
+export interface SavedView { id: string; name: string; floor: string; mode?: "2d" | "2.5d" | "3d"; rotation?: number; zoom?: number; center?: Pt }
+```
+
 ## Layout
 
 `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned.
 
 ```ts
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 ```
 
 ## MAX_TRACE_BYTES

@@ -42,13 +42,14 @@ const floor = (devices: Device[], furniture: unknown[] = []): Floor =>
   }) as unknown as Floor;
 
 describe("FLOOR_OFF_GROUP: every device type is a decision (finding 17)", () => {
-  it("names a group or null for each type, and only these four types are listed", () => {
+  it("names a group or null for each type, and only these types are listed (S33.1: fan joins, in its own group)", () => {
     for (const t of DEVICE_TYPES) expect(Object.hasOwn(FLOOR_OFF_GROUP, t), t).toBe(true);
     const listed = DEVICE_TYPES.filter((t) => FLOOR_OFF_GROUP[t] !== null);
     expect(Object.fromEntries(listed.map((t) => [t, FLOOR_OFF_GROUP[t]]))).toEqual({
       light: "lights",
       switch: "switches",
       plug: "plugs",
+      fan: "fans",
       tv: "media",
       media: "media",
       speaker: "media",

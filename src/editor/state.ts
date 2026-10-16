@@ -1,6 +1,11 @@
 import {
   alignFloor,
   floorBelow,
+  floorPlace,
+  floorPose,
+  normaliseTurn,
+  placePoint,
+  poseFromPlace,
   DETAIL_MODES,
   parseDetailMode,
   FURNITURE,
@@ -30,7 +35,8 @@ import {
   validate,
   viewBoxFor,
 } from "../core";
-import { COORD_LIMIT } from "../core/schema";
+import { COORD_LIMIT, MAX_VIEWS, MAX_VIEW_ZOOM } from "../core/schema";
+import type { SavedView } from "../core/schema";
 import type {
   DetailMode,
   CatalogEntry,
@@ -222,6 +228,14 @@ export function ptOf(f: Floor, ref: PtRef): Pt | null {
 
 const MAX_HISTORY = 100;
 
+/** The stored precision of a pose (S29.6): rotation wrapped into (-180, 180] and rounded to 0.01 degree, offset to 0.1 cm, no -0. */
+function roundPose(rot: number, off: Pt): { rot: number; off: Pt } {
+  return {
+    rot: normaliseTurn(Math.round(normaliseTurn(rot) * 100) / 100) + 0,
+    off: [Math.round(off[0] * 10) / 10 + 0, Math.round(off[1] * 10) / 10 + 0],
+  };
+}
+const turnVec = (v: Pt, deg: number): Pt => placePoint({ turn: deg, shift: [0, 0] }, v);
 const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k);
 export const slug = (t: string) =>
   t
@@ -461,6 +475,8 @@ export class EditorState {
       furniture: [],
       unlinked: [],
     };
+    if (typeof first?.rotation === "number" && Number.isFinite(first.rotation) && first.rotation !== 0)
+      nf.rotation = first.rotation; // and the turn it was drawn with (S29.6)
     if (first?.offset) nf.offset = [first.offset[0], first.offset[1]]; // it copies that floor's outline, so it sits where that floor sits (S27.8)
     if (first?.owk) nf.owk = structuredClone(first.owk); // Opus review: the outline's kinds must follow its points, or a new floor's perimeter drops back to the wk-less default
     for (const s of first?.stairs ?? []) nf.stairs.push({ ...structuredClone(s), id: newId(nf, key, "stairs") });
@@ -473,41 +489,166 @@ export class EditorState {
   }
 
   /**
-   * Sets where a floor sits in the house (S27.8), whole cm; `[0, 0]` deletes the key. One undo step; none when the value
-   * is unchanged. False for an unknown floor, a value that is not two finite numbers within COORD_LIMIT, and under Lock
-   * plan (`planBlocked`), where the offset is geometry. Does not move the selection or the current floor.
+   * S29.6: sets where a floor sits in the house, its rotation (degrees, normalised to (-180, 180], rounded to 0.01) and
+   * its offset (cm, rounded to 0.1); each key is deleted at 0. One undo step; none when the rounded pose is the stored
+   * one. False for an unknown floor, a rotation that is not a finite number, an offset that is not two finite numbers
+   * within COORD_LIMIT, and under Lock plan (`planBlocked`), where the pose is geometry. Does not move the selection
+   * or the current floor. Every other pose writer goes through here.
    */
-  setOffset(key: string, to: Pt): boolean {
-    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
-    if (
-      !Array.isArray(to) ||
-      to.length !== 2 ||
-      !to.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)
-    )
-      return false;
-    const x = Math.round(to[0]) + 0,
-      y = Math.round(to[1]) + 0; // + 0: no -0
-    const cur = this.layout.floors[key].offset,
-      cx = cur?.[0] ?? 0,
-      cy = cur?.[1] ?? 0;
-    if (x === cx && y === cy) return false;
-    if (!this.planOpen()) return false;
-    this.snapshot();
-    const fl = this.layout.floors[key];
-    if (x === 0 && y === 0) delete fl.offset;
-    else fl.offset = [x, y];
-    return true;
+  setPose(key: string, pose: { rot: number; off: Pt }): boolean {
+    return this.writePose(key, pose) === "wrote";
   }
 
-  /** Lays a floor on the floor below it: the offset of the one below plus the best translation (S27.4), whole cm. False when there is no floor below, nothing to match, or nothing changes. */
+  /**
+   * "wrote" a step was recorded; "same" the rounded pose is the stored one (nothing recorded); "refused" nothing
+   * written. Rounds rotation to 0.01 and offset to 0.1 cm; this is the only place the stored pose is written.
+   */
+  private writePose(key: string, pose: { rot: number; off: Pt }): "wrote" | "same" | "refused" {
+    return (this.lastPose = this.writePoseNow(key, pose));
+  }
+
+  /** What the last pose write came to (review 29): "same" means the rounded pose was the stored one, "refused" that nothing could be written (lock, limit, junk), so a caller can say which. */
+  lastPose: "wrote" | "same" | "refused" = "refused";
+
+  private writePoseNow(key: string, pose: { rot: number; off: Pt }): "wrote" | "same" | "refused" {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return "refused";
+    const rot = pose?.rot,
+      off = pose?.off;
+    if (typeof rot !== "number" || !Number.isFinite(rot)) return "refused";
+    if (
+      !Array.isArray(off) ||
+      off.length !== 2 ||
+      !off.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)
+    )
+      return "refused";
+    const r = roundPose(rot, off);
+    const fl = this.layout.floors[key];
+    const cur = fl.offset,
+      cx = cur?.[0] ?? 0,
+      cy = cur?.[1] ?? 0,
+      cr =
+        fl.rotation === undefined
+          ? 0
+          : typeof fl.rotation === "number"
+            ? fl.rotation === -180
+              ? 180
+              : fl.rotation
+            : NaN; // junk is never the same: it is healed. A stored -180 is 180, so a no-op edit does not rewrite it
+    if (r.rot === cr && r.off[0] === cx && r.off[1] === cy) return "same";
+    if (!this.planOpen()) return "refused";
+    this.snapshot();
+    if (r.rot === 0) delete fl.rotation;
+    else fl.rotation = r.rot;
+    if (r.off[0] === 0 && r.off[1] === 0) delete fl.offset;
+    else fl.offset = r.off;
+    return "wrote";
+  }
+
+  /** Sets only where a floor sits (S27.8, now to 0.1 cm), keeping its rotation. `[0, 0]` deletes the key. See `setPose`. */
+  setOffset(key: string, to: Pt): boolean {
+    if (!hasOwn(this.layout.floors, key)) {
+      this.fresh();
+      return false;
+    }
+    return this.setPose(key, { rot: floorPose(this.layout, key).rot, off: to });
+  }
+
+  /**
+   * S29.6, the session pose. Each press rounds what it stores, and many small rounded steps would add up. So the editor
+   * keeps an exact (unrounded) pose for the floor being aligned and applies each press to that; the stored pose is the
+   * exact one rounded. The exact pose is trusted only while its rounding equals the stored pose: after anything else
+   * writes the pose (a box, Reset, Apply, Align stairs, undo, redo, a load) the two differ, and the next press starts
+   * from the stored pose. Not in the layout, not an undo step. A press refused (lock, limit) leaves it alone.
+   */
+  private exact: { key: string; rot: number; off: Pt } | null = null;
+
+  private exactPose(key: string): { rot: number; off: Pt } {
+    const stored = floorPose(this.layout, key),
+      e = this.exact;
+    if (e && e.key === key) {
+      const r = roundPose(e.rot, e.off);
+      if (r.rot === stored.rot && r.off[0] === stored.off[0] && r.off[1] === stored.off[1])
+        return { rot: e.rot, off: [e.off[0], e.off[1]] };
+    }
+    return { rot: stored.rot, off: [stored.off[0], stored.off[1]] };
+  }
+
+  private press(key: string, rot: number, off: Pt): boolean {
+    const r = this.writePose(key, { rot, off });
+    if (r === "refused") return false;
+    this.exact = { key, rot: normaliseTurn(rot), off };
+    return r === "wrote";
+  }
+
+  /**
+   * Moves floor `key` by `cm` along a direction on screen (`screenDir`, any length; up is [0, -1]). The move in the floor's
+   * own frame is that direction turned back by `viewTurn` (degrees, the view's clockwise turn), and the offset changes by
+   * that move turned by the floor's rotation. One undo step. False for an unknown floor, no direction, a value that
+   * is not finite, a result beyond COORD_LIMIT, and under Lock plan.
+   */
+  nudgeFloor(key: string, screenDir: Pt, cm: number, viewTurn: number): boolean {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
+    const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+    if (!Array.isArray(screenDir) || !fin(screenDir[0]) || !fin(screenDir[1]) || !fin(cm) || !fin(viewTurn))
+      return false;
+    const len = Math.hypot(screenDir[0], screenDir[1]);
+    if (!len || !cm) return false;
+    const e = this.exactPose(key);
+    const m = turnVec([(screenDir[0] / len) * cm, (screenDir[1] / len) * cm], -viewTurn),
+      h = turnVec(m, e.rot);
+    return this.press(key, e.rot, [e.off[0] + h[0], e.off[1] + h[1]]);
+  }
+
+  /**
+   * Turns floor `key` by `deg` clockwise about `pivot`, a point in the floor's own frame (see `floorPivot`), so that the
+   * pivot's place in the house does not change: `rot' = rot + deg`, `off' = off + R(rot)·c - R(rot')·c`. One undo step.
+   * False as `nudgeFloor`.
+   */
+  turnFloor(key: string, deg: number, pivot: Pt): boolean {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
+    const fin = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+    if (!fin(deg) || !Array.isArray(pivot) || !fin(pivot[0]) || !fin(pivot[1]) || !deg) return false;
+    const e = this.exactPose(key),
+      rot = normaliseTurn(e.rot + deg);
+    const a = turnVec(pivot, e.rot),
+      b = turnVec(pivot, rot);
+    return this.press(key, rot, [e.off[0] + a[0] - b[0], e.off[1] + a[1] - b[1]]);
+  }
+
+  /**
+   * Review 29: sets the rotation (degrees, clockwise) of floor `key` to `rot` about `pivot` (see `floorPivot`), as the Turn
+   * buttons turn it: the pivot's place in the house does not change, the offset follows, one undo step, the same pose
+   * rounding. It is `turnFloor` by the difference, so the two cannot disagree. False when the angle is, to 0.01 degree, the
+   * stored one (a stored -180 stays -180), for junk, and as `nudgeFloor` for the rest.
+   */
+  setRotation(key: string, rot: number, pivot: Pt): boolean {
+    if (!this.fresh() || !hasOwn(this.layout.floors, key)) return false;
+    if (typeof rot !== "number" || !Number.isFinite(rot)) return false;
+    const e = this.exactPose(key),
+      want = roundPose(rot, [0, 0]).rot;
+    if (roundPose(e.rot, [0, 0]).rot === want) {
+      this.lastPose = "same";
+      return false;
+    }
+    return this.turnFloor(key, normaliseTurn(rot) - e.rot, pivot);
+  }
+
+  /**
+   * Lays a floor on the floor below it (S27.4, S30.7): searches the turn as well as the shift, preferring a small change
+   * from the floor's current turn (`from`), and writes both through `setPose`: one undo step, none when the rounded pose is
+   * the stored one, refused under Lock plan. The exact session pose is not touched; it is trusted only while it rounds to
+   * the stored pose, so the next press starts from what Apply wrote. False when there is no floor below, nothing to match,
+   * or nothing changes.
+   */
   alignToBelow(key: string): boolean {
     if (!this.fresh()) return false;
     const below = floorBelow(this.layout, key);
     if (below === null) return false;
-    const r = alignFloor(this.layout.floors[key], this.layout.floors[below]);
+    const from = floorPlace(this.layout, key, below).turn;
+    const r = alignFloor(this.layout.floors[key], this.layout.floors[below], from);
     if (!r) return false;
-    const lo = this.layout.floors[below].offset;
-    return this.setOffset(key, [(lo?.[0] ?? 0) + r.t[0], (lo?.[1] ?? 0) + r.t[1]]);
+    const p = poseFromPlace(this.layout, key, below, { turn: r.turn, shift: r.t });
+    return this.setPose(key, p);
   }
 
   /** Adds the same stairs to every floor, each with an id of its own, as one undo step; selects the one on the current floor. A floor that has stairs gets another: two flights are legitimate. False when the plan is fixed. */
@@ -537,12 +678,109 @@ export class EditorState {
     if (!this.fresh() || i < 0 || ks.length < 2 || !this.planOpen()) return false;
     this.snapshot();
     this.layout.floors = floorsOf(ks.filter((k) => k !== key).map((k) => [k, this.layout.floors[k]]));
+    if (this.layout.views) this.setViews(this.layout.views.filter((v) => v.floor !== key)); // S33.7: a view of a floor that is gone would fail validate; it goes in this same step
     delete this.views[key];
     this.confirmDelete = false;
     if (this.floor === key) {
       this.floor = ks[i + 1] ?? ks[i - 1];
       this.sel = null;
       this.openDoor = null;
+    }
+    return true;
+  }
+
+  // ---- S33.7: saved views. A view is a way of looking, kept in the layout so every card offers it. Not geometry: Lock plan lets it through. ----
+
+  /** The views the layout holds, in order. */
+  get savedViews(): SavedView[] {
+    return this.layout.views ?? [];
+  }
+  /** Writes the list, and leaves no empty `views` key behind. */
+  private setViews(vs: SavedView[]): void {
+    if (vs.length) this.layout.views = vs;
+    else delete this.layout.views;
+  }
+
+  /**
+   * What the plan on screen says about zoom, in the card's terms, or null when the floor is shown whole.
+   * Decision (S33.7): "whole" stores nothing. A card opens with its own window, whose fit differs from the Studio's, so a
+   * stored zoom of 1 would not be the card's whole floor; leaving zoom and centre out lets the card fit its own. Whole is:
+   * the view at the Studio's fit (as `exportView` judges it), or no tighter than the card's own fit (zoomed out, or panned
+   * while zoomed out: a zoom below 1 cannot be stored, and a floor cut off at the edge is not what anyone meant). Zoomed in
+   * is the ratio against the card's fit (60 cm margin, as Copy card view) held to 1..MAX_VIEW_ZOOM, with the centre in plan cm.
+   */
+  private viewPose(): { zoom: number; center: Pt } | null {
+    const v = this.views[this.floor];
+    if (!v || !(v.w > 0) || !(v.h > 0)) return null;
+    const mem = this.exportView().zooms?.some(([k]) => k === this.floor);
+    if (!mem) return null; // shown whole, as the memory judges it
+    const fit = viewBoxFor(this.f, 60, this.rotation);
+    const zoom = Math.min(fit.w / v.w, fit.h / v.h);
+    if (!(zoom >= 1)) return null; // NaN too
+    const lim = (n: number) => Math.min(COORD_LIMIT, Math.max(-COORD_LIMIT, Math.round(n)));
+    return {
+      zoom: Math.round(Math.min(MAX_VIEW_ZOOM, zoom) * 100) / 100,
+      center: [lim(v.x + v.w / 2), lim(v.y + v.h / 2)],
+    };
+  }
+
+  /** Saves what is on screen as a view: the floor on show, the user's turn (left out at 0), zoom and centre unless the floor is shown whole, and the mode the viewer should open in (`undefined`: the viewer's choice). One undo step. Returns the new id, or "" for an empty or over-long name or when the layout already holds MAX_VIEWS. */
+  saveView(name: string, mode?: "2d" | "2.5d" | "3d"): string {
+    const n = name.trim();
+    if (!n || n.length > 60 || this.savedViews.length >= MAX_VIEWS) return "";
+    const ids = new Set(this.savedViews.map((v) => v.id)),
+      base = `view-${slug(n) || "view"}`.slice(0, 56);
+    let id = base;
+    for (let i = 2; ids.has(id); i++) id = `${base}-${i}`;
+    const sv: SavedView = { id, name: n, floor: this.floor };
+    if (mode) sv.mode = mode;
+    const rot = normaliseRotation(this.viewRot);
+    if (rot) sv.rotation = rot;
+    const p = this.viewPose();
+    if (p) {
+      sv.zoom = p.zoom;
+      sv.center = p.center;
+    }
+    this.fresh();
+    this.snapshot();
+    this.setViews([...this.savedViews, sv]);
+    return id;
+  }
+
+  /** Renames a view: one undo step, none for the same name (after trim), an empty or over-long one, or an id that is not here. */
+  renameView(id: string, name: string): boolean {
+    const n = name.trim(),
+      i = this.savedViews.findIndex((v) => v.id === id);
+    if (i < 0 || !n || n.length > 60 || this.savedViews[i].name === n) return false;
+    this.fresh();
+    this.snapshot();
+    this.setViews(this.savedViews.map((v, j) => (j === i ? { ...v, name: n } : v)));
+    return true;
+  }
+
+  /** Deletes a view: one undo step. False for an id that is not here. */
+  deleteView(id: string): boolean {
+    if (!this.savedViews.some((v) => v.id === id)) return false;
+    this.fresh();
+    this.snapshot();
+    this.setViews(this.savedViews.filter((v) => v.id !== id));
+    return true;
+  }
+
+  /** Shows a view: its floor, the turn (none named is 0), and its zoom and centre, or the whole floor. Not an edit: no undo step, the layout is untouched. The mode is the card's; the Studio draws flat only. False for an id that is not here. */
+  applyView(id: string): boolean {
+    const v = this.savedViews.find((x) => x.id === id);
+    if (!v || !hasOwn(this.layout.floors, v.floor)) return false;
+    this.floor = v.floor;
+    this.sel = null;
+    this.confirmDelete = false;
+    this.viewRot = normaliseRotation(v.rotation ?? 0);
+    this.fit();
+    if (v.zoom !== undefined && v.center) {
+      const fit = viewBoxFor(this.f, 60, this.rotation),
+        w = fit.w / v.zoom,
+        h = fit.h / v.zoom;
+      this.views[v.floor] = { x: v.center[0] - w / 2, y: v.center[1] - h / 2, w, h };
     }
     return true;
   }

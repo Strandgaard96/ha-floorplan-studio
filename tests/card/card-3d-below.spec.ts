@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { serve, ORIGIN, card, drawn, cam } from "./helpers-3d";
 import { openViewMenu } from "./shell-helpers";
+import { FIRST_TO_GROUND, GROUND_TO_BASEMENT } from "../fixtures/hand-align-truth";
 
 // S27.7: the 3D view can draw the floors below, through the view's `setBelow` (the card calls it from S27.14). Real card, the stress layout,
 // the test hook of the test build. Stress: ground is 270 high with a 25 slab, so `first` stands 295 above it. Ground's back garden is
@@ -23,6 +24,7 @@ interface Hook {
   look(az: number, polar: number): void;
   setBelow(floors: unknown, mode: string): void;
   below(): BelowInfo;
+  belowSolids(): { kind: string; tag: string; base: number[][]; rot: number | null }[];
 }
 const hook = <T, A = undefined>(page: Page, fn: (h: Hook, a: A) => T, arg?: A) =>
   page.evaluate(`(${fn.toString()})(window.__fp3d, ${JSON.stringify(arg ?? null)})`) as Promise<Awaited<T>>;
@@ -153,7 +155,7 @@ test.describe("3D view: floors below (S27.7)", () => {
 });
 
 // S27.14: the card gives the view its floors below: `floors_below` in YAML, a Floors below select beside Walls, kept per viewer. The
-// card calls `setBelow` with `floorsBelow`, the `floorElevation` differences and `floorShift`. What is drawn is read back through the
+// card calls `setBelow` with `floorsBelow`, the `floorElevation` differences and `floorPlace`. What is drawn is read back through the
 // view's test hook, as above, so the card's numbers are tested at the pixel end, not by spying on the call.
 const EDITOR_URL = "file://" + process.cwd() + "/tests/card/config-editor-harness.html";
 const CARD_JS = readFileSync("dist/floorplan-studio-card.js", "utf8");
@@ -269,7 +271,7 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
     await expect.poll(() => y0(page), { timeout: 8000 }).toBeCloseTo(-320, 0);
   });
 
-  test("the floor's offset moves the floor below: the card passes floorShift", async ({ page }) => {
+  test("the floor's offset moves the floor below: the card passes the shift (floorPlace)", async ({ page }) => {
     const lows = async (layout: unknown) => {
       await bootCard(page, { floors_below: "solid" }, layout);
       await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
@@ -386,5 +388,180 @@ test.describe("3D view: the card's floors below (S27.14)", () => {
     await expect(page.locator("#editor select#floors_below")).toHaveValue("off");
     await mount({ floors_below: "ghost", layout: stress });
     await expect(page.locator("#editor select#floors_below")).toHaveValue("ghost");
+  });
+});
+
+// S29.4 and S29.5: the floors below turn. The fixture `hand-align-house.json` stores no pose; the truth says the ground is turned -2.50 degrees and shifted
+// [-57, 112] from the basement, the first 4.00 degrees and [83, -41] from the ground. Everything here is worked out by hand from that truth, with no
+// helper of src/core, so the expected corners do not come from the code under test. The view's test hook gives back the solids its floor-below meshes
+// were made from, in the current floor's frame.
+const house = JSON.parse(readFileSync("tests/fixtures/hand-align-house.json", "utf8"));
+const rad = (d: number) => (d * Math.PI) / 180;
+const turn = (v: number[], d: number): [number, number] => [
+  v[0]! * Math.cos(rad(d)) - v[1]! * Math.sin(rad(d)),
+  v[0]! * Math.sin(rad(d)) + v[1]! * Math.cos(rad(d)),
+];
+/** A ground point in the first floor's frame: the inverse of the first-to-ground place, p = R(-t)(p' - s). */
+const groundInFirst = (p: number[]): [number, number] =>
+  turn([p[0]! - FIRST_TO_GROUND.shift[0], p[1]! - FIRST_TO_GROUND.shift[1]], -FIRST_TO_GROUND.turn);
+const TRUE = {
+  turn: -FIRST_TO_GROUND.turn,
+  shift: turn(FIRST_TO_GROUND.shift, -FIRST_TO_GROUND.turn).map((v) => -v) as [number, number],
+};
+const FOOT = (house.floors.ground.stairs[0].pts as number[][]).map(groundInFirst);
+const nearest = (base: number[][], want: number[]) =>
+  Math.min(...base.map((q) => Math.hypot(q[0]! - want[0]!, q[1]! - want[1]!)));
+const stairBase = async (page: Page) =>
+  (await hook(page, (h) => h.belowSolids())).filter((x) => x.kind === "stair").flatMap((x) => x.base);
+/** The fixture with the truth written as a pose: ground against the basement, first against the ground. */
+const posedHouse = (off = false) => {
+  const l = structuredClone(house);
+  l.floors.ground.rotation = GROUND_TO_BASEMENT.turn;
+  l.floors.ground.offset = GROUND_TO_BASEMENT.shift;
+  const o = turn(FIRST_TO_GROUND.shift, GROUND_TO_BASEMENT.turn);
+  l.floors.first.rotation = GROUND_TO_BASEMENT.turn + FIRST_TO_GROUND.turn;
+  l.floors.first.offset = [GROUND_TO_BASEMENT.shift[0] + o[0], GROUND_TO_BASEMENT.shift[1] + o[1]];
+  if (off)
+    for (const k of ["ground", "first"]) {
+      delete l.floors[k].offset;
+    }
+  return l;
+};
+
+test.describe("3D view: the floors below turn (S29.4)", () => {
+  test("the ground's stair footprint, under the first floor, is where the truth puts it within 1 cm; with no turn it is not", async ({
+    page,
+  }) => {
+    await bootCard(page, {}, structuredClone(house));
+    await setBelow(
+      page,
+      [{ floor: house.floors.ground, elevation: -295, shift: TRUE.shift, turn: TRUE.turn }],
+      "solid",
+    );
+    const base = await stairBase(page);
+    expect(base.length).toBeGreaterThan(12); // one block per step
+    for (const [i, c] of FOOT.entries()) expect(nearest(base, c), `footprint corner ${i}`).toBeLessThan(1);
+    await setBelow(page, [{ floor: house.floors.ground, elevation: -295, shift: TRUE.shift }], "solid"); // the same place without its turn
+    const flat = await stairBase(page);
+    expect(
+      Math.max(...FOOT.map((c) => nearest(flat, c))),
+      "a floor below that ignores its turn misses a corner by more than 5 cm",
+    ).toBeGreaterThan(5);
+  });
+
+  test("a floor below turned is drawn turned: its mesh extent is the turned solids' extent", async ({ page }) => {
+    await bootCard(page, {}, structuredClone(house));
+    await setBelow(
+      page,
+      [{ floor: house.floors.ground, elevation: -295, shift: TRUE.shift, turn: TRUE.turn }],
+      "solid",
+    );
+    const boxes = (await hook(page, (h) => h.below())).meshes.map((m) => m.box),
+      solids = await hook(page, (h) => h.belowSolids());
+    const pts = solids.flatMap((x) => x.base);
+    const ext = [
+      Math.min(...pts.map((q) => q[0]!)),
+      Math.min(...pts.map((q) => q[1]!)),
+      Math.max(...pts.map((q) => q[0]!)),
+      Math.max(...pts.map((q) => q[1]!)),
+    ];
+    const got = [
+      Math.min(...boxes.map((b) => b[0]!)),
+      Math.min(...boxes.map((b) => b[1]!)),
+      Math.max(...boxes.map((b) => b[3]!)),
+      Math.max(...boxes.map((b) => b[4]!)),
+    ];
+    got.forEach((v, i) => expect(v, `edge ${i}`).toBeCloseTo(ext[i]!, 1));
+    // the slab's outline corner (0, 0) of the ground lies at the true place, not at the shift
+    const corner = groundInFirst([0, 0]);
+    expect(
+      nearest(
+        (await hook(page, (h) => h.belowSolids())).filter((x) => x.kind === "floor").flatMap((x) => x.base),
+        corner,
+      ),
+    ).toBeLessThan(1);
+  });
+
+  test("a tap on the turned floor below picks nothing, in every mode", async ({ page }) => {
+    await bootCard(page, {}, structuredClone(house));
+    await hook(page, (h) => h.look(0.6, 0.9));
+    for (const mode of ["solid", "ghost"]) {
+      await setBelow(page, [{ floor: house.floors.ground, elevation: -295, shift: TRUE.shift, turn: TRUE.turn }], mode);
+      // the ground's wing (y 600..900) is clear of the first floor's outline (y -23..645) above it: a point of the wing, at the ground's room-fill top
+      const at = await hook(page, (h, p) => h.project(p[0]!, p[1]!, -294), groundInFirst([300, 820]));
+      await page.mouse.click(at.x, at.y);
+      expect(await hook(page, (h, p) => h.pick(p.x, p.y), at), mode).toBeNull();
+      expect(await card(page).locator("css=.fp-3d[data-ring]:not([data-ring=''])").count(), mode).toBe(0);
+    }
+  });
+
+  test("20 calls with a turning floor below leave no mesh, geometry, solid or scene child behind", async ({ page }) => {
+    await bootCard(page, {}, structuredClone(house));
+    const one = (t: number) => [{ floor: house.floors.ground, elevation: -295, shift: TRUE.shift, turn: t }];
+    await setBelow(page, one(TRUE.turn), "solid");
+    const after1 = {
+      mem: await hook(page, (h) => h.memory()),
+      kids: (await hook(page, (h) => h.live())).children,
+      n: (await hook(page, (h) => h.below())).count,
+      solids: (await hook(page, (h) => h.belowSolids())).length,
+    };
+    for (let i = 0; i < 20; i++) await setBelow(page, one(i % 2 ? TRUE.turn : -TRUE.turn + 0.5 * i), "solid");
+    await setBelow(page, one(TRUE.turn), "solid");
+    expect((await hook(page, (h) => h.below())).count).toBe(after1.n);
+    expect((await hook(page, (h) => h.belowSolids())).length).toBe(after1.solids);
+    expect((await hook(page, (h) => h.live())).children).toBe(after1.kids);
+    expect((await hook(page, (h) => h.memory())).geometries).toBe(after1.mem.geometries);
+  });
+
+  test("junk turns draw the floor unturned and do not throw", async ({ page }) => {
+    await bootCard(page, {}, structuredClone(house));
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    for (const junk of ["4", null, NaN, 1e9, [4], {}]) {
+      await setBelow(page, [{ floor: house.floors.ground, elevation: -295, shift: [0, 0], turn: junk }], "solid");
+      expect(nearest(await stairBase(page), house.floors.ground.stairs[0].pts[0]), JSON.stringify(junk)).toBeLessThan(
+        1,
+      );
+    }
+    expect(errors).toEqual([]);
+  });
+});
+
+// S29.5: the card gives `floorPlace`: the turn and the shift together.
+test.describe("3D view: the card passes the pose of the floors (S29.5)", () => {
+  test("the card's floors below sit where the poses put them: the stair footprint, within 1 cm", async ({ page }) => {
+    await bootCard(page, { floors_below: "solid" }, posedHouse());
+    await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
+    const base = await stairBase(page);
+    for (const [i, c] of FOOT.entries()) expect(nearest(base, c), `footprint corner ${i}`).toBeLessThan(1);
+  });
+
+  test("changing only a floor's rotation draws the floor below again (the offsets are zero, so the shift stays [0, 0])", async ({
+    page,
+  }) => {
+    const layout = structuredClone(house);
+    await bootCard(page, { floors_below: "solid" }, layout);
+    await expect.poll(async () => (await hook(page, (h) => h.below())).count, { timeout: 8000 }).toBeGreaterThan(0);
+    const corner = house.floors.ground.stairs[0].pts[2] as number[];
+    expect(nearest(await stairBase(page), corner), "a floor with no pose lies as drawn").toBeLessThan(0.01);
+    // the same layout object, the floor objects the card already holds: only a number changes, so the elevation, the shift and the floors are what they were
+    await page.evaluate(() => {
+      const el = document.getElementById("card") as unknown as {
+        _layout: { floors: Record<string, { rotation?: number }> };
+        requestUpdate(): void;
+        updateComplete: Promise<unknown>;
+      };
+      el._layout.floors.first!.rotation = 3;
+      el.requestUpdate();
+      return el.updateComplete;
+    });
+    // the floor below is now 3 degrees anticlockwise of the first floor's frame: ground to first has turn -3
+    const want = turn(corner, -3);
+    await expect
+      .poll(async () => nearest(await stairBase(page), want), {
+        timeout: 8000,
+        message: "the floor below turned by -3 degrees",
+      })
+      .toBeLessThan(0.05);
   });
 });

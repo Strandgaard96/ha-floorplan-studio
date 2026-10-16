@@ -50,8 +50,7 @@ test("an unfocused width box shows the layout value again after the field is com
   await page.locator("#fw").press("Enter");
   await page.locator("#fh").click(); // focus leaves the width box
   await expect(page.locator("#fw")).toHaveValue("222"); // an unfocused box still renders the stored value
-  await page.locator(`details.menu > summary:text-is("File")`).click();
-  await page.locator("#undo").click();
+  await page.locator("#undo").click(); // Undo is in the toolbar, not in File: no menu is opened to reach it
   expect(JSON.parse(await layoutJson(page)).floors.ground.furniture.at(-1).w).toBe(Number(w0));
 });
 

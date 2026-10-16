@@ -909,6 +909,7 @@ describe("scene: devices match the 2.5D numbers", () => {
     vacuum: "none",
     siren: "none",
     alarm: "none",
+    fan: "none", // S33.1
   };
   it("decides every DeviceType: a solid for the three, a point at deviceZ for the rest", () => {
     expect(Object.keys(KIND).sort()).toEqual([...DEVICE_TYPES].sort());

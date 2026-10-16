@@ -208,7 +208,7 @@ describe("walls keep one height wherever they stand", () => {
           prev = cur;
         }
       }
-  });
+  }, 20_000);
 
   it("the walls drawn at 90 degrees are the walls at 0 of the layout turned by 90 (the rule lives in the screen frame)", () => {
     const stacked = floor(

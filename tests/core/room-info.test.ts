@@ -305,9 +305,9 @@ describe("a tap on a room row", () => {
     expect(Object.keys(ROOM_ROW_TAP).sort()).toEqual([...DEVICE_TYPES].sort());
     for (const t of DEVICE_TYPES) if (ROOM_ROW_TAP[t] === "toggle") expect(NO_TOGGLE.has(t), t).toBe(false);
   });
-  it("toggles light, switch, plug and cover, and opens more-info for the rest", () => {
+  it("toggles light, switch, plug, fan and cover (S33.1: a fan is switched by hand), and opens more-info for the rest", () => {
     expect(DEVICE_TYPES.filter((t) => ROOM_ROW_TAP[t] === "toggle")).toEqual(
-      DEVICE_TYPES.filter((t) => ["light", "switch", "plug", "cover"].includes(t)),
+      DEVICE_TYPES.filter((t) => ["light", "switch", "plug", "fan", "cover"].includes(t)),
     );
   });
 });

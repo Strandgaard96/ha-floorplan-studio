@@ -305,6 +305,34 @@ test("S6.6: File, Install code shows the card YAML for this plan — its theme a
   await expect(panel).toHaveCount(0);
 });
 
+test("S33.10: Install code shows a second block, Or as a strategy, with the three lines, and Copy puts them on the clipboard", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    (window as any).__copied = null;
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: (t: string) => {
+          (window as any).__copied = t;
+          return Promise.resolve();
+        },
+      },
+      configurable: true,
+    });
+  });
+  await menu(page, "File");
+  await page.locator("#installcode").click();
+  await expect(page.locator(`${EDITOR} .installcode-panel`)).toContainText("Or as a strategy");
+  const text = page.locator(`${EDITOR} #installcodeStrategy`);
+  expect(await text.inputValue()).toBe("title: Floorplan\nstrategy:\n  type: custom:floorplan-studio");
+  // the first block is still there and still the whole-dashboard YAML
+  expect(await page.locator(`${EDITOR} #installcodeText`).inputValue()).toContain("type: custom:floorplan-studio-card");
+  await page.locator(`${EDITOR} #installcodeStrategyCopy`).click();
+  expect(await page.evaluate(() => (window as any).__copied)).toBe(
+    "title: Floorplan\nstrategy:\n  type: custom:floorplan-studio",
+  );
+});
+
 test("S6.6: Install code reflects the theme picked in View", async ({ page }) => {
   await menu(page, "View");
   await page.locator(`${EDITOR} #thSub summary`).click();
@@ -2119,7 +2147,9 @@ test("S8.10: the toolbar's Redo button sits flush against the toolbar's right ed
 test("S8.10 follow-up: the right-aligned cluster is tight — equal gaps, Redo flush right, a status change moves no button", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
+  // Wide enough that the cluster is one row in any system font. At 1280 it is one row on a Mac and two on the CI runner's
+  // wider font, so "one row" there was a fact about the font, not about the toolbar. Narrower widths are the 380 test below.
+  await page.setViewportSize({ width: 1920, height: 800 });
   // Break it: put back `.status{flex:0 1 12em;min-width:6em;max-width:12em}` (the pre-follow-up rule that always
   // reserved 12em for "Ready") and this fails — the gap right before Help balloons far past the 6px flex gap.
   const items = await page.locator(".bar-right > *").evaluateAll((els) =>
@@ -2132,7 +2162,7 @@ test("S8.10 follow-up: the right-aligned cluster is tight — equal gaps, Redo f
         return { id: (el as HTMLElement).id || el.className, x: r.x, right: r.x + r.width, cy: r.y + r.height / 2 };
       }),
   );
-  // Single row at 1280: every visible item shares the same row (align-items:center lines up their vertical
+  // Single row at 1920: every visible item shares the same row (align-items:center lines up their vertical
   // centres, not their tops — items differ in height, a <span> vs a <details>/<button>).
   const rowCy = items[0].cy;
   for (const it of items) expect(Math.abs(it.cy - rowCy), it.id).toBeLessThan(3);
@@ -4945,7 +4975,7 @@ test("S1.36: Edit, Device colours has a row per type with a colour input and a r
   page,
 }) => {
   await openDevCols(page);
-  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(32); // S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
+  await expect(page.locator(`${EDITOR} .devcols-panel [data-type]`)).toHaveCount(33); // S33.1 added fan; S4.25 added boiler, car, ups, printer, speaker; S7.8/S7.9 added person, radar; S7.10 added vacuum; S18.14 added siren, alarm
   await expect(colourRow(page, "light").locator("input[type=color]")).toHaveValue("#e0a800");
   await expect(colourRow(page, "light").locator("button")).toHaveCount(1);
   await expect(page.locator(`${EDITOR} #devcolsx`)).toBeVisible();
@@ -6019,7 +6049,7 @@ test("S8.9 CSS pair: a plain wall is 10cm thick, an external wall 20cm, each hal
       { id: "s89-we", a: [1900, 560], b: [2000, 560], kind: "external" },
     );
     g.doors.push(
-      { id: "s89-di", name: "Internal", kind: "door", a: [1920, 500], b: [1980, 500] },
+      { id: "s89-di", name: "Internal", kind: "window", a: [1920, 500], b: [1980, 500] },
       { id: "s89-de", name: "External", kind: "window", a: [1920, 560], b: [1980, 560] },
     );
     el.layout = l;
@@ -6039,7 +6069,7 @@ test("S8.9 CSS pair: a plain wall is 10cm thick, an external wall 20cm, each hal
       .filter({ hasText: name })
       .first()
       .evaluate((e) => parseFloat(getComputedStyle(e).strokeWidth));
-  expect(await wByTitle("Internal")).toBe(10); // s89-di, on the internal wall
+  expect(await wByTitle("Internal")).toBe(10); // s89-di, a window on the internal wall; a sensorless door is a 1.5 px guide in the Studio now, see door-guide.spec.ts
   expect(await wByTitle("External")).toBe(20); // s89-de, on the external wall
 });
 

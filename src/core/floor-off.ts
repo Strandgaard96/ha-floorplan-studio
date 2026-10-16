@@ -13,12 +13,13 @@ import { pieceDevice } from "./solids";
  * floor or state lists nothing, never throws.
  */
 
-export type OffGroup = "lights" | "switches" | "plugs" | "media";
-export const OFF_GROUPS: readonly OffGroup[] = ["lights", "switches", "plugs", "media"];
+export type OffGroup = "lights" | "switches" | "plugs" | "fans" | "media";
+export const OFF_GROUPS: readonly OffGroup[] = ["lights", "switches", "plugs", "fans", "media"];
 export const OFF_GROUP_LABEL: Record<OffGroup, string> = {
   lights: "Lights",
   switches: "Switches",
   plugs: "Plugs",
+  fans: "Fans",
   media: "Media",
 };
 
@@ -28,6 +29,7 @@ export const FLOOR_OFF_GROUP: Record<DeviceType, OffGroup | null> = {
   light: "lights",
   switch: "switches",
   plug: "plugs",
+  fan: "fans",
   tv: "media",
   media: "media",
   speaker: "media",

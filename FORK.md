@@ -5,7 +5,7 @@ What this fork changed compared with upstream
 Newest first. Add an entry with every change that upstream does not have.
 
 **Forked from:** upstream `main` at `27fb096` (release 0.20.0, 2026-10-07).
-**Last synced:** upstream `main` at `d1ec086` (release 0.26.2, 2026-10-11).
+**Last synced:** upstream `main` at `3b4bc25` (release 0.31.0, 2026-10-15).
 
 To see the full difference at any time:
 
@@ -15,6 +15,58 @@ git fetch upstream
 git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
+
+## 2026-10-16: Upstream 0.29.0 to 0.30.1 declined (merge `605b911`)
+
+Upstream's Sprint 31 (card layout and touch: header bar, side and bottom sheets, the ⋯ `fp-menu` in `more-menu.ts`,
+`frame.ts`, `plan-focus.ts`, 44 px targets) and Sprint 32 (3D framing: `fitBox`, `setFrame`, the glide) are not taken. This
+fork's own card UI refactor covers the same ground with a different shell: one toolbar (View segmented control and a View
+options popover), a folded Overview, the popup beside the device. Taking them would have meant two competing shells in
+`floorplan-studio-card.ts`. The commit is `git merge -s ours` of upstream `977623e` (0.30.1), so git treats everything up to
+there as merged and later syncs no longer offer those files or hunks. The fork's `docs/PLAN.md` and `docs/DECISIONS.md` carry
+upstream's Sprint 31 and 32 only as the roadmap rows (labelled "Upstream").
+
+## 2026-10-16: Sync with upstream 0.31.0 (branch `task/upstream-sync-0.31`)
+
+Merged upstream `3b4bc25` (Sprint 33, release 0.31.0): the `fan` device type and its speed slider, `tap_action` and
+`hold_action`, saved views (schema, Studio menu, card), the `ll-strategy-dashboard-floorplan-studio` dashboard strategy and the
+S33 Opus review fixes. The plain merge left 39 files in conflict; the code files were merged again with base (`977623e`) and
+upstream oxfmt-formatted first, which left real conflicts only in four places:
+
+- `src/card/floorplan-studio-card.ts`: S33's saved views sat inside upstream's ⋯ menu (S31 code the fork lacks). Ported: the
+  Views section is a labelled **Views row in View options** (`_savedViewsRow`, `.fp-vm-views`, one `button[data-view]` per
+  view, `aria-pressed` for the applied one), shown only when the layout has views on floors this card shows; none under
+  `kiosk` or `view_switch: false`, which draw no View options. `_savedViews` and `_applySavedView` run on the fork's own view
+  state (`_selectFloor`, `_pickedView`, `_startTurn`, `_pendingView`, `_forgetCamera`); upstream's `setFrame`/glide do not exist
+  here. `tap_action`/`hold_action` (`_tapOpts`, `_tapToggle`, `TOGGLE_AT_ONCE`) landed unchanged in the 2D and 3D device
+  bindings (kiosk never holds: `longPress: false` was already the fork's). The S31-only `PX_STEP`/`qpx`/`qstrip` block and the
+  header bar were not taken.
+- `src/core/render.ts`: the fork's own motion colours (light `#b5389a`, Midnight `#e86ad0`, Solarized `#6c71c4`) and temperature
+  tokens kept; `--fp-dev-fan` added to the Light, Midnight and Solarized sets (`#1f9ec4`, `#4cc3e8`, `#2aa198`, upstream's values)
+  beside `DEVICE_COLOURS.fan` and the `.dev-fan.on` rule.
+- `tests/card/config-editor.spec.ts`: both new tests kept (S29's and the Tap/Hold selects).
+- `tests/card/view-parity.spec.ts`: `viewsSub` points at the Views row (`has: .fp-view-menu button[data-view=...]`), the card is
+  mounted with a layout that has a view.
+
+Docs: `CHANGELOG.md` (upstream's 0.31.0 under "Merged from upstream"), `docs/DECISIONS.md` (upstream entries tagged `[upstream]`),
+`docs/PLAN.md` ("Upstream Sprint 33", S34 outline), `docs/card.md`, `README.md`, `docs/SPEC.md` worded for View options.
+`manifest.json` stays 0.27.2. Upstream specs written against S31 UI were rewritten for the fork, not dropped:
+`card-saved-views.spec.ts` (View options row, plus a computed-style pair), `card-fan.spec.ts` and `card-tap-action.spec.ts` (the
+fork's "Yes, turn off" confirm, the Overview opened by hand), `tests/editor/saved-views.spec.ts` (the open View menu covers
+Undo, so it is closed first); `tests/card/card-3d-tap-action.spec.ts` is new (upstream tested tap and hold in 2D only).
+
+## 2026-10-16: Sync with upstream 0.28.1 (branch `task/upstream-sync-0.31`)
+
+Merged upstream `7b28a75` (0.27.0 to 0.28.1: hand align with floor rotation, Align searches the turn, stairs,
+menu-close fixes, Studio door guide). Upstream's Sprint 31 card layout and Sprint 32 3D framing are not taken (this fork
+has its own card UI refactor). The plain merge left 24 files in conflict; the code files were merged again with base and
+upstream oxfmt-formatted first, which left no real conflict in `src/`. What was resolved by hand:
+
+- `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/PLAN.md`: both sides kept. Upstream's entries sit under their own heading and
+  carry "upstream" in the title (its 0.27.0 to 0.28.1, Sprint 29 and 30 collide with this fork's 0.27.x and Sprint 29).
+- `custom_components/floorplan_studio/manifest.json`: version stays the fork's 0.27.2 (the release step picks the number).
+- `scripts/shots.mjs`: upstream's `s.house` layout override and the fork's `s.furn` furniture layout are both kept.
+- `tests/card/card-3d-below.spec.ts`: imports of both sides (`openViewMenu`, the hand-align truth fixtures).
 
 ## 2026-10-12: 3D frames and TVs no longer flicker while turning (branch `task/zfight`)
 

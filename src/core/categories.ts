@@ -36,6 +36,7 @@ export const CATEGORY_OF: Record<DeviceType, CategoryId> = {
   climate: "climate",
   ac: "climate",
   boiler: "climate",
+  fan: "climate",
   camera: "security",
   siren: "security",
   alarm: "security",

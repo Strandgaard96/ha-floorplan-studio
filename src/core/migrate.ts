@@ -3,6 +3,8 @@ import {
   COORD_LIMIT,
   FX_MIN,
   FX_MAX,
+  MAX_VIEWS,
+  viewProblems,
   type CatalogEntry,
   type Device,
   type DeviceType,
@@ -86,6 +88,12 @@ function dropBadOffset(f: any) {
     delete f.offset;
 }
 
+/** S29.1: a floor `rotation` that is not a finite number from -180 to 180 is dropped, so the floor is not turned and the file opens. A good one is kept as written. */
+function dropBadRotation(f: any) {
+  const r = f.rotation;
+  if ("rotation" in f && !(typeof r === "number" && Number.isFinite(r) && r >= -180 && r <= 180)) delete f.rotation;
+}
+
 /** S14.3: an effect size outside 25-300 (or not a number) is dropped, so the device draws at 100 and the file opens. */
 function dropBadFx(f: any) {
   for (const d of f.devices)
@@ -94,6 +102,19 @@ function dropBadFx(f: any) {
 }
 
 const isObj = (x: unknown): x is Record<string, any> => typeof x === "object" && x !== null && !Array.isArray(x);
+
+/** S33.6: the saved views that `validate` would accept, in order, first of a duplicate id, at most MAX_VIEWS. */
+function keepViews(views: unknown[], floors: unknown): unknown[] {
+  const ids = new Set<string>(),
+    kept: unknown[] = [];
+  for (const v of views) {
+    if (kept.length >= MAX_VIEWS) break;
+    if (viewProblems(v, floors).length || ids.has((v as any).id)) continue;
+    ids.add((v as any).id);
+    kept.push(v);
+  }
+  return kept;
+}
 
 /** Accepts a v1 or v2 layout and returns a new v2 layout. The input is never changed. Missing arrays and ids are filled in. */
 export function migrate(x: unknown): Layout {
@@ -166,6 +187,7 @@ export function migrate(x: unknown): Layout {
     dropBadHeights(f);
     dropBadFx(f);
     dropBadOffset(f);
+    dropBadRotation(f);
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = {
@@ -178,6 +200,7 @@ export function migrate(x: unknown): Layout {
   };
   if (src.palette !== undefined) out.palette = src.palette;
   if (src.colors !== undefined) out.colors = src.colors; // passed through; validate judges it. Never invented.
+  if (Array.isArray(src.views)) out.views = keepViews(src.views, floors); // S33.6: a view is a convenience; a bad one is dropped, never the plan
   if (Array.isArray(out.catalog) && v === 1) for (const c of out.catalog) c.type = RENAME[c.type] ?? c.type;
   if (!Array.isArray(out.catalog)) out.catalog = buildCatalog(out);
   return out as Layout;

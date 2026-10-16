@@ -18,6 +18,7 @@ import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTex
 import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
+import { placePoint } from "./floor-stack";
 import { treeShadeSvg } from "./tree";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
@@ -86,8 +87,10 @@ export interface RenderOpts {
   fade?: number;
   roomGlow?: boolean;
   editor?: boolean;
-  /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point moved by `shift` (`floorShift`, cm). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
-  ghost?: { floor: Floor; shift: Pt };
+  /** S29.9: false leaves out the editor's corner handles (Align mode is read-only); absent is as before. */
+  handles?: boolean;
+  /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point placed by `placePoint({ turn, shift })` (`floorPlace`; `turn` in degrees clockwise, absent is 0, so a ghost without a turn is drawn exactly as before; a `turn` that is not a finite number within -360..360 draws nothing). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
+  ghost?: { floor: Floor; shift: Pt; turn?: number };
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
@@ -247,13 +250,14 @@ export const DEVICE_COLOURS: Record<DeviceType, string> = {
   vacuum: "#2f8f8f",
   siren: "#b02a2a",
   alarm: "#b02a2a",
+  fan: "#1f9ec4",
 };
 
 // S1.53: the light and dark (now blueprint) token sets, each written once and interpolated wherever CSS needs it, so a new
 // token can never be added to one selector and forgotten in another. The "ha" theme is built from the same two.
 const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-room-empty:#d6d6d2;--fp-garden:#9db98a;--fp-terrace:#cdb094;--fp-pavement:#c9c6bf;--fp-wall:#2b2a27;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#b5389a;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#2c7fb8;--fp-window:#2c7fb8;--fp-sealed:#9a8f80;--fp-water:#a9cfe3;--fp-fill:#c4c0b8;--fp-fill-line:#9a958b;
---fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#b5389a;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#8b8578;--fp-dev-light:#e0a800;--fp-dev-motion:#b5389a;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#4a4a48;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#6a3fbf;--fp-dev-vacuum:#2f8f8f;--fp-dev-fan:#1f9ec4;--fp-dev-speaker:#2c7fb8;--fp-halo:#8b8578;--fp-alpha:.25;--fp-disc:#fff;--fp-disc-alpha:.5;--fp-outline:#fff;--fp-text:#3a3a3a;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#79766e;--fp-paint-dim:none;--fp-crown-lift:0%;--fp-wall-external:#1a1917;--fp-wall-fence:#7a5c3a;--fp-wall-edge:#a29e94;--fp-measure:#3a3a3a;--fp-glow:#f5e2a0;--fp-aura:#f0c419;--fp-active:#8a5117;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact);--fp-temp-cold:#2f78b8;--fp-temp-mid:#9a958b;--fp-temp-hot:#c8412f`;
 /* Midnight (Diego's call, 2026-09-21, ex-"blueprint"): a deep navy ground, blue linework for walls, cool-white text, from the
    reference screenshot he supplied. It replaced HA's night-blue; light is unchanged. Every accent that carries meaning (device colours, the warn/danger/primary
@@ -268,7 +272,7 @@ const LIGHT_TOKENS = `--fp-ink:#2b2a27;--fp-bg:#f4f0e6;--fp-room:#e9e3d3;--fp-ro
    line on the plan needs. The TV keeps #2c7fb8 (S9.3). */
 const MIDNIGHT_TOKENS = `--fp-ink:#d8e2f2;--fp-bg:#0d1522;--fp-room:#14213a;--fp-room-empty:var(--fp-room);--fp-garden:#1d2a42;--fp-terrace:#21304c;--fp-pavement:#233352;--fp-wall:#8fb4f0;--fp-idle:#8b8578;
 --fp-on:#e0a800;--fp-open:#f28c28;--fp-motion:#e86ad0;--fp-heater:#e8801a;--fp-door:#a5601c;--fp-glass:#5fa8e8;--fp-window:#5fa8e8;--fp-sealed:#9a8f80;--fp-water:#1f4a78;--fp-fill:#1a2a46;--fp-fill-line:#3a5684;
---fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#e86ad0;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#6f93c9;--fp-dev-light:#e0a800;--fp-dev-motion:#e86ad0;--fp-dev-contact:#d64545;--fp-dev-heater:#e8801a;--fp-dev-climate:#e8801a;--fp-dev-ac-cool:#2c7fb8;--fp-dev-ac-heat:#e8801a;--fp-dev-tv:#2c7fb8;--fp-dev-media:#2c7fb8;--fp-dev-cover:#f28c28;--fp-dev-plug:#2c7fb8;--fp-dev-computer:#2c7fb8;--fp-dev-camera:#8a8a86;--fp-dev-garden:#3f8f4f;--fp-dev-person:#1b9e77;--fp-dev-radar:#8f6fd6;--fp-dev-vacuum:#35b0b0;--fp-dev-fan:#4cc3e8;--fp-dev-speaker:#2c7fb8;--fp-halo:#6f8fbf;--fp-alpha:.25;--fp-disc:#14213a;--fp-disc-alpha:.5;--fp-outline:#0d1522;--fp-text:#d8e2f2;--fp-warn:#f28c28;--fp-danger:#b02a2a;--fp-primary:#1f6699;--fp-furniture:#3f66b0;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#b4cdf7;--fp-wall-fence:#a67c52;--fp-wall-edge:#a29e94;--fp-measure:#8fb4f0;--fp-glow:#4a3f22;--fp-aura:#f0c419;--fp-active:#e0a800;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fff;--fp-on-light:#2b2a27;--fp-open-door:var(--fp-dev-contact);--fp-temp-cold:#5fa8e8;--fp-temp-mid:#8b8578;--fp-temp-hot:#f0604d`;
 
 // The three role-generated themes (2026-09-22, Diego's brief): each is one base hue shaded into every structural token, one
@@ -373,7 +377,7 @@ const BEACH_HOUSE_TOKENS = rolesToTokens({
    Solarized blue 55 % over base03, #15608c; windows keep the full blue. */
 const SOLARIZED_TOKENS = `--fp-ink:#93a1a1;--fp-bg:#002b36;--fp-room:#073642;--fp-room-empty:#06323d;--fp-garden:#0d3b48;--fp-terrace:#0d3d4a;--fp-pavement:#0a3a4a;--fp-wall:#93a1a1;--fp-idle:#586e75;
 --fp-on:#b58900;--fp-open:#cb4b16;--fp-motion:#6c71c4;--fp-heater:#cb4b16;--fp-door:#cb4b16;--fp-glass:#268bd2;--fp-window:#268bd2;--fp-sealed:#586e75;--fp-water:#0f3f5c;--fp-fill:#073642;--fp-fill-line:#586e75;
---fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#6c71c4;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
+--fp-tread:#93a1a1;--fp-dev-light:#b58900;--fp-dev-motion:#6c71c4;--fp-dev-contact:#dc322f;--fp-dev-heater:#cb4b16;--fp-dev-climate:#cb4b16;--fp-dev-ac-cool:#268bd2;--fp-dev-ac-heat:#cb4b16;--fp-dev-tv:#268bd2;--fp-dev-media:#d33682;--fp-dev-cover:#cb4b16;--fp-dev-plug:#268bd2;--fp-dev-computer:#268bd2;--fp-dev-camera:#586e75;--fp-dev-garden:#859900;--fp-dev-person:#2aa198;--fp-dev-radar:#6c71c4;--fp-dev-vacuum:#859900;--fp-dev-fan:#2aa198;--fp-dev-speaker:#268bd2;--fp-halo:#93a1a1;--fp-alpha:.25;--fp-disc:#073642;--fp-disc-alpha:.5;--fp-outline:#002b36;--fp-text:#93a1a1;--fp-warn:#b58900;--fp-danger:#dc322f;--fp-primary:#268bd2;--fp-furniture:#586e75;--fp-paint-dim:brightness(.62) saturate(.85);--fp-crown-lift:45%;--fp-wall-external:#fdf6e3;--fp-wall-fence:#cb4b16;--fp-wall-edge:#586e75;--fp-measure:#859900;--fp-glow:#657b83;--fp-aura:#b58900;--fp-active:#b58900;--fp-night:rgba(4,10,30,.45);
 --fp-on-dark:#fdf6e3;--fp-on-light:#002b36;--fp-open-door:var(--fp-dev-contact);--fp-text-out:#eee8d5;--fp-temp-cold:#268bd2;--fp-temp-mid:#657b83;--fp-temp-hot:#dc322f`;
 /* "ha": the neutrals come from Home Assistant's own variables, so the plan is the colour of the user's dashboard whatever theme they run. The
    fallback of each is the hex the plain theme would have had, so outside Home Assistant (no variable defined) it degrades to that theme, not to
@@ -468,7 +472,7 @@ export const MOTION_PULSES = 3,
   MOTION_PULSE_S = 1.4;
 
 /** S2.9: --fp-dev per type when on. A constant so S23.4 can derive the matching ink rule from the same list. */
-const DEV_ON_RULES = `.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}`;
+const DEV_ON_RULES = `.dev.on{--fp-dev:var(--fp-idle)} .dev-light.on{--fp-dev:var(--fp-dev-light)} .dev-motion.on{--fp-dev:var(--fp-dev-motion)} .dev-contact.on{--fp-dev:var(--fp-dev-contact)} .dev-heater.on{--fp-dev:var(--fp-dev-heater)} .dev-climate.on{--fp-dev:var(--fp-dev-climate)} .dev.siren.on{--fp-dev:var(--fp-danger)} .dev-siren.on{--fp-dev:var(--fp-danger)} .dev-alarm.on{--fp-dev:var(--fp-danger)} .dev-fan.on{--fp-dev:var(--fp-dev-fan)} .dev-ac.cool.on{--fp-dev:var(--fp-dev-ac-cool)} .dev-ac.heat.on{--fp-dev:var(--fp-dev-ac-heat)} .dev-tv.on{--fp-dev:var(--fp-dev-tv)} .dev-plug.on{--fp-dev:var(--fp-dev-plug)} .dev-computer.on{--fp-dev:var(--fp-dev-computer)} .dev-media.on{--fp-dev:var(--fp-dev-media)} .dev-switch.on{--fp-dev:var(--fp-idle)} .dev-humidity.on{--fp-dev:var(--fp-idle)} .dev-lock.on{--fp-dev:var(--fp-dev-contact)} .dev-vibration.on{--fp-dev:var(--fp-dev-contact)} .dev-person.on{--fp-dev:var(--fp-dev-person)} .dev-radar.on{--fp-dev:var(--fp-dev-radar)} .dev-vacuum.on{--fp-dev:var(--fp-dev-vacuum)} .dev-speaker.on{--fp-dev:var(--fp-dev-speaker)} .dev-cover.on{--fp-dev:var(--fp-dev-cover)}`;
 
 export const FLOORPLAN_CSS = `
 :host,.fp{${BLUEPRINT_TOKENS}}
@@ -675,7 +679,11 @@ ${THEME_EXTRAS}
 /* S23.7: plan symbols. A window's own line is quiet while it is not selected; its symbol is three hairlines (window, slit), red only
    while open, alarmed or its cover is open. S25.D1: a door or glass door has no symbol and no leaf. Open or with no sensor it is a hole
    (its own line is quiet); closed (a sensor says off, or a lock says locked, and none is open, unlocked or jammed) its own line is the thick line across the gap (CLOSED_DOOR_BAND), in --fp-door / --fp-glass. */
-.door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+.door.quiet{stroke:transparent}
+/* Studio only (2026-10-12): the editor has no live state, so every sensorless door is a hole and was invisible. It draws a faint dashed guide in the
+   door colour instead, thin whatever the zoom, like .e.none. Two classes plus the kind class, so it outranks .door and .door-glass whatever the source order. */
+.door.guide{stroke:var(--fp-door);stroke-width:1.5px;stroke-dasharray:4 4;stroke-opacity:.55;vector-effect:non-scaling-stroke;stroke-linecap:butt} .door.guide.door-glass{stroke:var(--fp-glass)}
+.door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-window,.door-sym.k-slit,.door-sym.k-fullwindow{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
    board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
@@ -1702,18 +1710,25 @@ function ghostMarkup(g: RenderOpts["ghost"]): string {
     !sh.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)
   )
     return "";
+  const turn = (g as { turn?: unknown } | undefined)?.turn;
+  if (turn !== undefined && !(typeof turn === "number" && Number.isFinite(turn) && Math.abs(turn) <= 360)) return "";
+  const place = { turn: turn ?? 0, shift: [sh[0], sh[1]] as Pt };
   const f = g?.floor as unknown as Record<string, unknown> | null | undefined;
   if (typeof f !== "object" || f === null) return "";
-  const at = (p: unknown): string | null =>
-    Array.isArray(p) &&
-    typeof p[0] === "number" &&
-    typeof p[1] === "number" &&
-    Number.isFinite(p[0]) &&
-    Number.isFinite(p[1]) &&
-    Math.abs(p[0] + sh[0]) <= COORD_LIMIT &&
-    Math.abs(p[1] + sh[1]) <= COORD_LIMIT
-      ? `${num(p[0] + sh[0])} ${num(p[1] + sh[1])}`
-      : null;
+  const at = (p: unknown): string | null => {
+    if (
+      !(
+        Array.isArray(p) &&
+        typeof p[0] === "number" &&
+        typeof p[1] === "number" &&
+        Number.isFinite(p[0]) &&
+        Number.isFinite(p[1])
+      )
+    )
+      return null;
+    const q = placePoint(place, [p[0], p[1]]);
+    return Math.abs(q[0]) <= COORD_LIMIT && Math.abs(q[1]) <= COORD_LIMIT ? `${num(q[0])} ${num(q[1])}` : null;
+  };
   const ringD = (r: unknown): string | null => {
     if (!Array.isArray(r) || r.length < 3 || r.length > 100_000) return null;
     const q = r.map(at);
@@ -2490,14 +2505,17 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S25.D1: a door or glass door is closed (its line shows) only when a sensor says off or a lock says locked, and no lock is unlocked or jammed (`doorStateOf`); otherwise it is a hole and its line is quiet.
     const sym = doorSymbol(f, d.kind, d.a, d.b),
       swing = SWING_KINDS.includes(d.kind),
-      quiet = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
+      hushed = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
+    // Studio only: a hole with no symbol (door, glass door) shows a faint guide, so it can be seen and picked; the card and 2.5D keep the hole.
+    const guide = !!o.editor && hushed && !sym,
+      quiet = hushed && !guide;
     const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`,
       pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
     // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
     // carries the glass on its face and hides the floor-level cut.
     if (pane) out.push(`<path data-dp="${i}" class="win-pane k-${esc(String(d.kind))}${state}" d="${pane.pane}"/>`);
     out.push(
-      `<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`,
+      `<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}${guide ? " guide" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`,
     );
     if (sym) out.push(`<path data-ds="${i}" class="door-sym k-${esc(String(d.kind))}${state}" d="${sym}"/>`);
     if (pane) out.push(`<path data-dj="${i}" class="win-jamb k-${esc(String(d.kind))}${state}" d="${pane.jambs}"/>`);
@@ -2774,7 +2792,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 },
       }),
     ); // S25.3: shown by CSS at far and mid only; text, so none with labels off
-  if (o.editor)
+  if (o.editor && o.handles !== false)
     for (const P of polys)
       P.pts.forEach((p, j) =>
         out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`),

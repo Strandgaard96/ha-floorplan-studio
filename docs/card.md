@@ -49,7 +49,7 @@ floors — ready to paste. See "A premade dashboard" below.
 | `rotate_switch` | follows the other controls | the two rotate buttons and the Left/Right keys. Unset: shown on every card that draws zoom or the View controls, hidden under `kiosk` and on a card with `zoom: false` and `view_switch: false`. `false` hides them, `true` shows them even under `kiosk` |
 | `names` | `false` | `true` writes every device's name under its icon, the studio's Names toggle. The Device names button (`Aa`) changes it for as long as the card is on screen |
 | `tilt` | `0.5` | how steeply 2.5D looks down, `0` (top-down, no lift, reads as 2D) to `1` (side-on). A number outside that clamps; anything else is `0.5`, the look before this key existed. Only read in 2.5D, and the control is hidden in 3D. See the Tilt slider, below |
-| `ghost_floor` | `false` | `true` draws the floor under the shown one as faint lines, at its place in the house (the floors' `offset`s). Only `true` counts; junk is off. The Floor below button in the view controls (2D and 2.5D) changes it for one viewer and the card remembers the pick; the lowest floor has none |
+| `ghost_floor` | `false` | `true` draws the floor under the shown one as faint lines, at its place in the house (the floors' `offset`s and `rotation`s, so a floor drawn turned a few degrees on the one below lines up). Only `true` counts; junk is off. The Floor below button in the view controls (2D and 2.5D) changes it for one viewer and the card remembers the pick; the lowest floor has none |
 | `floors_below` | `off` | 3D only: `ghost` draws every floor under the shown one translucent, `solid` in its own colours, `off` none. Junk is `off`. The Floors below select beside Walls changes it for one viewer; the pick is remembered |
 | `detail` | `auto` | how much of the plan is drawn at each zoom (Detail, below): `auto` follows the zoom, `full` always draws everything, `minimal` always draws only rooms and what needs attention. Unset or anything else is `full`: an idle device is a control, so none is left out unless `detail: auto` is asked for. The Detail button in the Overview changes it for one viewer, and a viewer's own pick wins over this key |
 | `walls` | `cut` | how 2.5D and 3D draw wall heights: `full` every wall at its real height, no cutaway; `cut` the doll's house look, walls facing you lowered so the rooms show; `low` every wall at the cutaway height. Anything else is `cut`. Read in 2.5D and 3D. See Walls, below |
@@ -58,6 +58,8 @@ floors — ready to paste. See "A premade dashboard" below.
 | `kiosk` | `false` | `true` shows only the plan, nothing else — see Kiosk mode, below |
 | `open_color` | red | `#rrggbb`: colours an open door or window, or a door whose vibration sensor triggered (and either one's pulsing alert line), instead of red. An invalid value is ignored |
 | `icon_size` | `1` | grows icons, names, values and radar dots by this factor, on top of the automatic scale-up on a large plan (see Size, below). A number from `0.5` to `3`; anything else clamps into that range, and a missing or non-numeric value is the default, `1` |
+| `tap_action` | `popup` | what a tap on a device icon does, in 2D and 3D: `popup`, `more-info`, `toggle` or `none` (see Tap, hold and hover, below). Written as `tap_action: {action: toggle}`; a bare string (`tap_action: toggle`) counts too. Anything else, including Home Assistant's `navigate`, `url`, `perform-action`, `call-service`, `assist` and `fire-dom-event`, is `popup`, with one console warning per card |
+| `hold_action` | `more-info` | what a long press (500 ms) on a device icon does: `more-info` or `none`. Anything else is `more-info`, with one console warning. `kiosk` never holds |
 | `active_list` | `true` | `false` hides the Overview panel — see Overview, below |
 | `center` | unset | `[x, y]`, plan cm: the point a pinned card zooms in on — see A card for one room, below. A non-array, wrong length, or non-finite value is ignored, silently, and the card shows the whole floor |
 | `zoom_level` | `1` | how far in a pinned card starts: `1` is the whole floor, `2` is half its width and height, and so on up to `8`. Anything other than a finite number is the default, `1`; an in-range-but-odd number (`0`, negative, past `8`) clamps instead of being refused |
@@ -277,6 +279,9 @@ editor and fails on a control that has no row here, so a new one gets a decision
 | `#lens` Lengths | no | an editing aid |
 | `#ghostFloor` Floor below | yes | the Floor below button in the view controls (2D and 2.5D), kept per viewer; config `ghost_floor`. In 3D the same choice is the Floors below select (off, ghost, solid); config `floors_below` |
 | `#night` Preview night | no | a preview of what the card already does by itself (`night`, `sun`) |
+| `#viewsSub` Saved views | yes | the Views row of View options, one button per view of the layout on a floor the card shows; a pick sets floor, mode, turn, zoom and centre like any viewer's pick (a view with no turn turns the plan to 0, in 3D the floor's framed camera stands), kept per viewer; Reset view goes back to the config. A view is saved in the Studio, into the layout |
+| `#saveView` Save current view | no | authoring: it writes a view into the layout, which a card never does |
+| `#viewsNone` No saved views on this floor | no | the empty-state note of the Studio's submenu |
 | `#copyCardView` Copy card view | no | authoring: it writes the card's `center` and `zoom_level` |
 | `#detailSub` Detail (Auto, Full, Minimal) | yes | the Detail button beside Layers in the Overview, same three choices; kept per viewer; config `detail`. The Studio starts on Full, the card on Auto. Not in 3D |
 | `#tabLayers` Layers (hide a family) | yes | the Layers button in the Overview unfolds a text chip per family: a click hides it, Alt-click shows it alone; kept per viewer. In 3D too, where Furniture is not hidden (its chip is disabled) |
@@ -492,6 +497,16 @@ zoom and turn for the whole card) move to the floor they were saved on.
 
 ![The demo turned 45 degrees: the toolbar has the View and Theme dropdowns and the labels and names toggles; the stack under it has zoom, Fit, the two rotate buttons and Reset view.](img/card-rotated-45.png)
 
+## Saved views
+
+A saved view is a named way of looking at the plan. It is made in the Studio (View, Saved views, Save current view) and kept in the layout, so every card offers it to every viewer; a card cannot write one. See "Saved views" in `editor.md`.
+
+When the layout has any, View options has a **Views** row (under Theme): one button per view, in the layout's order, the applied one pressed. A view on a floor the card does not show (`floors`, or its one pinned `floor`) is not offered, and nothing is offered under `kiosk` or `view_switch: false` (they draw no View options). A view whose id is `2d`, `2.5d` or `3d` is not offered either, so a stranger's file cannot shadow the View buttons (`validate` refuses such an id too).
+
+A pick is a viewer's pick, like any other: the floor, then the mode if the view names one (otherwise the viewer's own stays), then the turn (a view with none turns the plan to 0), then the zoom and the centre. The zoom is a ratio against this card's own fit, so a view looks alike on a phone and a wall tablet. In 3D the floor's framed camera stands. It is remembered per browser as any pick is, and a Home Assistant update keeps it. **Reset view** returns to the card's config, not to a saved view. A layout holds at most 24 views.
+
+A card older than 0.31.0 drops `views` when it loads the layout and shows no Views row.
+
 ## The Edit-card form
 
 No YAML needed: adding or editing the card in the Lovelace UI (the pencil
@@ -499,7 +514,7 @@ icon, or "Edit" on an existing card) shows a form instead of raw code —
 theme, a Floor selector, fade, the plug watts, room glow, zoom, view, view switch, rotation (with a note that viewers' views are remembered), kiosk, icon size, the
 open-door colour (with a Clear button, distinct from picking the theme's
 own default colour by hand), the Active list toggle, night and the sun
-entity. The Floor selector picks "All floors (switcher)" (the default — it
+entity, Tap and Hold (what a tap and a long press on a device do). The Floor selector picks "All floors (switcher)" (the default — it
 writes no `floor` key at all) or one specific floor, by name, once the
 card's own layout has loaded (`layout`, `layout_url`, or the plan stored in
 Home Assistant); until then it offers only "All floors". Choosing a single
@@ -533,6 +548,23 @@ Settings, Dashboards, Add dashboard, New dashboard from scratch, then its ⋮
 menu, Edit in YAML, and paste this over what's there. To add the card to a
 dashboard you already have instead, paste only the `cards:` entry into an
 existing view.
+
+### As a strategy
+
+The same panel closes with "Or as a strategy": three lines that make Home Assistant build the dashboard each time it loads, so a floor you add in the Studio shows up without pasting again.
+
+```yaml
+title: Floorplan
+strategy:
+  type: custom:floorplan-studio
+```
+
+Paste them over a dashboard's raw configuration (⋮, Edit in YAML). The card's script defines the strategy (`ll-strategy-dashboard-floorplan-studio`), asks the integration for the layout (`floorplan_studio/load`) and returns one panel view per floor, in the layout's order, titled with the floor's title, each holding one card pinned to its floor (`floor: <id>`). The view's path is a slug of the floor id.
+
+- `title` renames the dashboard (default `Floorplan`).
+- `card:` is an object of card options (`theme`, `view`, ...) merged into every card, never over `type` or `floor`: `card: {theme: slate, view: 2.5d}`. Anything that is not an object is ignored.
+- With no saved layout, a failed load, or a layout that does not validate, the dashboard is one view with a note that says what failed and what to do (install the integration, save from the Studio once).
+- Home Assistant's custom strategy interface is not part of its documented, versioned card API, so a future release may change how it calls this. The Install code snippet above does not depend on it.
 
 ## Themes
 
@@ -676,6 +708,7 @@ differently:
   `sensor.office_radar_target_1_y` (Home Assistant's own generated entity ids
   for the `name`s above — repeat the `target_2`/`target_3` blocks and add a
   pair each for more than one tracked person).
+- **Fan** — grey when off; on, it takes its own colour (`--fp-dev-fan`, in every theme) as a solid disc. A tap opens its popup (Turn on, Turn off; OFF asks first). A fan that reports a `percentage` and supports speed (`supported_features` bit 1) also has a **Speed** slider, 0 to 100 %, stepped by `percentage_step` (1 without it); moving it changes the number, release makes one `fan.set_percentage`. It is listed in Active, counted in **All off** under Fans, and hangs at the ceiling in 3D like a light (`z` overrides). A `fan.*` entity placed from a room's area menu or the entity list is typed `fan`; a device already typed `other` or `ac` on a `fan.*` entity keeps its type, change it in the device panel.
 - **Cover on a door** — an open door draws orange; tapping it opens the popup,
   and its button asks before opening or closing.
 - **Vacuum** — grey while docked, idle or paused; a teal icon while cleaning,
@@ -754,7 +787,7 @@ legend: the number is on the pill. `temp_colors: false`, or Temperature colours 
 
 ## Tap, hold and hover
 
-A tap never operates anything. On a device icon, a door, an unlinked appliance or a row of the Active list,
+By default a tap never operates anything (`tap_action: toggle` changes that, below). On a device icon, a door, an unlinked appliance or a row of the Active list,
 in 2D and in 3D, it opens a small popup next to the icon:
 
 - the name and one line of state (the same text the hover tooltip and the plan's readouts use: `48 %`, `21.5 °C`,
@@ -776,7 +809,9 @@ directly, as before.
   one `light.turn_on` call. A light that only switches on and off gets no slider.
 - **No toggle** (camera, media player, speaker, battery, inverter, server, access point, person, radar, vacuum):
   name, state and More info only. A vacuum tap still opens its own dialog.
-- `tap_action` is not a card option and the popup does not read one.
+- **`tap_action` and `hold_action`** (card-wide, device icons only; a door, an unlinked appliance, linked furniture and the Active list keep what they do). With no key a tap opens this popup and a hold opens more-info, as above.
+  `tap_action: {action: more-info}` opens Home Assistant's dialog at once; `none` does nothing; `toggle` presses the popup's primary button for you, for a light, a switch, an input_boolean or a fan only: **ON acts at once, and so does a light's OFF; any other OFF opens the popup at Confirm turn off** (the rule above stands, so a tap never turns a plug or a fan off without asking). **A lock, a cover and a siren always open the popup**, and so do climate, humidifier, water_heater, automation, remote, media_player and group entities: a stray tap never unlocks a door, moves a garage door or sounds a siren. A device with no button (a sensor, a camera, no state) opens the popup, a vacuum and a media player open what they always open. `hold_action: {action: none}` makes a long press do nothing. The keyboard is not covered: Enter (or Space) on a focused device icon always opens the popup, whatever `tap_action` says.
+  A stack still fans out first, whatever the tap action. The Edit-card form has a Tap and a Hold select; a default is left out of the YAML. There is no Studio twin, on purpose: a click in the Studio selects.
 
 **A stack of devices.** Devices whose discs overlap on screen (centres closer than 32 px, drawn ones only) are a stack,
 and a tap on any of them does not open a popup. It fans the stack out in a ring about its centre: each member moves to
@@ -893,7 +928,8 @@ with its own colour keeps it. There are no textures. Shadows are baked contact s
 - **Depth in 3D (always on, no key).** The house stands on a ground plane. A soft shadow lies along every wall foot and under furniture, boxes, device bodies and trees, on each floor drawn (floors below too), and none of it is tappable. A tree is a faceted crown on a trunk that ends where the crown starts. Doors, glass doors, windows, slits and full-height windows stand in a frame (a doorway, a sealed panel and a plain opening do not), and a tap on the frame is a tap on the door. A closed door's leaf is quiet; it is red only when open or alarmed. Wall tops, sun faces and shade faces read apart on every theme, and a room or stair with its own paint is dimmed on a dark theme as in 2D.
 - **Labels do not overlap.** When two labels in 3D would overlap, the more important one stays (a device icon, then a room name, a room readout, a device value, a device name; a room over a garden over water) and the other fades out in 120 ms (none under reduced motion). This happens when the view is still, never mid-drag, so nothing flickers while you turn the house. A room's readout fades whenever its room's name does. A faded icon cannot be tapped; turn the house or zoom and it returns.
 - **Floors in 3D.** The selected floor is drawn solid and live. Floors below are drawn only
-  with `floors_below` (translucent or solid, never live); floors above are never shown. Pick another floor and the model is built
+  with `floors_below` (translucent or solid, never live, each at its place in the house: turned by its `rotation` as well as
+  shifted by its `offset`, so the stairs of adjacent floors line up once the Studio's Align has set them); floors above are never shown. Pick another floor and the model is built
   again, the camera keeps its angle and frames the new floor. A lamp on a
   lower floor lights nothing on the upper one.
 - **No WebGL, or the graphics context is lost, or the 3D code cannot load:** the

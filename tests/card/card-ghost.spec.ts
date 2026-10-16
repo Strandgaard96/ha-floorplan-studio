@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { openViewMenu } from "./shell-helpers";
 import { readGhostIn } from "../fixtures/ghost-contrast";
+import { floorPlace, renderFloor } from "../../src/core";
 
 // S27.13: the card's ghost floor. `ghost_floor` in YAML and the Floor below button. Real page.mouse clicks on the real top element
 // (finding 3). The first floor sits 200 cm east of the ground floor (offset), so the ground floor's ghost is drawn 200 cm to the
@@ -244,3 +245,134 @@ for (const theme of ["blueprint", "light"]) {
     expect(Math.abs(litRead!.contrast - litDay.contrast) / litDay.contrast).toBeLessThan(0.02);
   });
 }
+
+// S29.5: the ghost is placed by `floorPlace`, the turn with the shift. The first floor is turned 7 degrees against the ground (no offsets), so a card
+// that read only the shift would draw the ghost flat.
+test.describe("S29.5 the card's ghost reads the pose", () => {
+  const turned = () => {
+    const l = structuredClone(demo);
+    l.floors.first.rotation = 7;
+    return l;
+  };
+  const ghostPath = (page: Page) => ghosts(page).first().locator("path").first().getAttribute("d");
+  const bootWith = async (page: Page, l: unknown) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(URL_);
+    await page.addScriptTag({ content: CARD_JS, type: "module" });
+    await page.evaluate(() => customElements.whenDefined("floorplan-studio-card"));
+    await page.evaluate(
+      (cfg) => {
+        const el = document.getElementById("card") as unknown as HTMLElement & {
+          setConfig(c: unknown): void;
+          hass: unknown;
+          updateComplete: Promise<unknown>;
+        };
+        el.setConfig(cfg);
+        el.hass = { states: {}, callService() {} };
+        return el.updateComplete;
+      },
+      { layout: l, floor: "first", ghost_floor: true },
+    );
+    await expect(ghosts(page)).toHaveCount(1);
+  };
+
+  test("the card's ghost path is the one renderFloor makes from floorPlace (the editor's ghost takes the same call)", async ({
+    page,
+  }) => {
+    const l = turned();
+    await bootWith(page, l);
+    const place = floorPlace(l, "ground", "first");
+    expect(Math.abs(place.turn), "the fixture really turns").toBeGreaterThan(5);
+    // the shape of a ghost reply comes from src/core/render.ts: `ghost: { floor, shift, turn }`
+    const ref = renderFloor(l.floors.first, {
+      scale: 1,
+      ghost: { floor: l.floors.ground, shift: place.shift, turn: place.turn },
+    });
+    const want = [...ref.matchAll(/<g class="ghost"[\s\S]*?<path[^>]* d="([^"]+)"/g)][0]?.[1];
+    expect(want, "the reference draws a ghost path").toBeTruthy();
+    expect(await ghostPath(page)).toBe(want);
+  });
+
+  // Review 29, finding 6: the Studio's Align ghost (the `ghostOpts` path) and the card's ghost, both opened on the same layout, are the same markup,
+  // not each only equal to a reference made in the test. A drift in one of the two readers of `floorPlace` fails here.
+  test("the Studio's Align ghost and the card's ghost are the same markup on the same turned layout", async ({
+    page,
+    context,
+  }) => {
+    const l = turned();
+    await bootWith(page, l);
+    const cardMarkup = await ghosts(page)
+      .first()
+      .evaluate((g) => g.outerHTML);
+    expect(cardMarkup).toContain("<path");
+    const ed = await context.newPage();
+    await ed.setViewportSize({ width: 1280, height: 900 });
+    await ed.goto("/standalone.html");
+    await expect(ed.locator("floorplan-studio-editor svg polygon[data-r]").first()).toBeVisible();
+    await ed.locator("#fixPlan").uncheck();
+    await ed.evaluate((x) => {
+      (document.querySelector("floorplan-studio-editor") as any).layout = x;
+    }, l);
+    await ed.locator('.chip[data-f="first"]').click();
+    await ed.locator("#mFloors > summary").click();
+    await ed.locator("#alignFloor").click();
+    await expect(ed.locator("#alignPanel")).toBeVisible();
+    const studio = ed.locator("floorplan-studio-editor svg g.ghost");
+    await expect(studio).toHaveCount(1);
+    const studioMarkup = await studio.first().evaluate((g) => g.outerHTML);
+    // both are drawn by renderFloor from the same floorPlace; the card and the Studio may use different scales, so compare the geometry after rounding to whole cm
+    const norm = (m: string) => m.replace(/-?\d+\.\d+/g, (n) => String(Math.round(Number(n))));
+    expect(studioMarkup.replace(/\s+/g, " ")).toContain("<path");
+    expect(norm(studioMarkup)).toBe(norm(cardMarkup));
+    await ed.close();
+  });
+
+  test("changing only the rotation of a floor redraws the ghost", async ({ page }) => {
+    const l = structuredClone(demo);
+    await bootWith(page, l);
+    const before = await ghostPath(page);
+    await page.evaluate(() => {
+      const el = document.getElementById("card") as unknown as {
+        _layout: { floors: Record<string, { rotation?: number }> };
+        requestUpdate(): void;
+        updateComplete: Promise<unknown>;
+      };
+      el._layout.floors.first!.rotation = 7;
+      el.requestUpdate();
+      return el.updateComplete;
+    });
+    await expect.poll(() => ghostPath(page)).not.toBe(before);
+  });
+
+  test("a tap on a spot where only the turned ghost is drawn opens nothing", async ({ page }) => {
+    await bootWith(page, turned());
+    const spot = await card(page).evaluate((el) => {
+      const root = el.shadowRoot!,
+        svg = root.querySelector("svg")!,
+        r = svg.getBoundingClientRect();
+      for (const path of root.querySelectorAll<SVGPathElement>("svg g.ghost path")) {
+        const m = path.getScreenCTM()!,
+          len = path.getTotalLength();
+        for (let l = 0; l <= len; l += 4) {
+          const p = path.getPointAtLength(l),
+            x = p.x * m.a + p.y * m.c + m.e,
+            y = p.x * m.b + p.y * m.d + m.f;
+          if (
+            x > r.left + 8 &&
+            x < r.right - 8 &&
+            y > r.top + 8 &&
+            y < r.bottom - 8 &&
+            root.elementFromPoint(x, y) === svg
+          )
+            return { x, y };
+        }
+      }
+      return null;
+    });
+    expect(spot, "the turned ghost has a line over bare background").not.toBeNull();
+    await page.mouse.click(spot!.x, spot!.y);
+    await expect(card(page).locator("css=.fp-pop, .fp-room, .fp-chooser, .fp-dialog")).toHaveCount(0);
+    await expect(card(page).locator("css=svg .room-picked")).toHaveCount(0);
+    await expect(ghosts(page)).toHaveCount(1);
+  });
+});

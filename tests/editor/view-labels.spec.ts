@@ -45,7 +45,10 @@ test("View > Show names and text: off removes every <text> from the plan, icons 
   expect(await page.locator("svg text.lbl:not(.mg-n), svg text.val").count()).toBe(0);
   const icons = await page.locator("svg g[data-x]").count();
   expect(icons).toBeGreaterThan(0);
-  await page.locator('details.menu > summary:text-is("View")').click();
+  await expect(
+    page.locator("details.menu[open]"),
+    "the toggle closed its menu; reopening View here would cover Undo on a wrapped toolbar",
+  ).toHaveCount(0);
   await dragOn(page, "svg g[data-x]", 60, 40); // a real drag on the icon still moves it
   await expect(page.locator("#undo")).toBeEnabled();
   await page.locator("#undo").click();
