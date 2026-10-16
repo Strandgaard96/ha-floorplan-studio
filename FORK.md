@@ -5,7 +5,7 @@ What this fork changed compared with upstream
 Newest first. Add an entry with every change that upstream does not have.
 
 **Forked from:** upstream `main` at `27fb096` (release 0.20.0, 2026-10-07).
-**Last synced:** upstream `main` at `d1ec086` (release 0.26.2, 2026-10-11).
+**Last synced:** upstream `main` at `7b28a75` (release 0.28.1, 2026-10-13).
 
 To see the full difference at any time:
 
@@ -15,6 +15,19 @@ git fetch upstream
 git log --oneline upstream/main..HEAD   # our commits
 git diff upstream/main --stat           # files we changed
 ```
+
+## 2026-10-16: Sync with upstream 0.28.1 (branch `task/upstream-sync-0.31`)
+
+Merged upstream `7b28a75` (0.27.0 to 0.28.1: hand align with floor rotation, Align searches the turn, stairs,
+menu-close fixes, Studio door guide). Upstream's Sprint 31 card layout and Sprint 32 3D framing are not taken (this fork
+has its own card UI refactor). The plain merge left 24 files in conflict; the code files were merged again with base and
+upstream oxfmt-formatted first, which left no real conflict in `src/`. What was resolved by hand:
+
+- `CHANGELOG.md`, `docs/DECISIONS.md`, `docs/PLAN.md`: both sides kept. Upstream's entries sit under their own heading and
+  carry "upstream" in the title (its 0.27.0 to 0.28.1, Sprint 29 and 30 collide with this fork's 0.27.x and Sprint 29).
+- `custom_components/floorplan_studio/manifest.json`: version stays the fork's 0.27.2 (the release step picks the number).
+- `scripts/shots.mjs`: upstream's `s.house` layout override and the fork's `s.furn` furniture layout are both kept.
+- `tests/card/card-3d-below.spec.ts`: imports of both sides (`openViewMenu`, the hand-align truth fixtures).
 
 ## 2026-10-12: 3D frames and TVs no longer flicker while turning (branch `task/zfight`)
 

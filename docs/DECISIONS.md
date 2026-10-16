@@ -179,9 +179,448 @@ now folds a piece's parts (`furniture:<i>:p<k>`) into one box in the piece's own
 shades, so a part-built piece casts the same one patch a one-block piece does. A convex hull gave the same box at
 twice the cost and broke the 5000-pieces-in-100-ms budget under the full suite.
 
+<!-- Entries below up to the 2026-10-11 stairwell entry were merged from upstream 0.27.0 to 0.28.1 (2026-10-16 sync). Their Sprint 29, Sprint 30 and S29.x, S30.x labels are upstream's sprints, not this fork's Sprint 29 above. -->
+
+## 2026-10-12: The Studio draws a faint guide for a door that is a hole (Sonnet)
+
+Supersedes the S25.D1 line "Editor: no live state, so a door is a hole there". Diego: "in studio doors are not visible". Cause: S25.D1
+made a door or glass door with no closed sensor a plain hole (`quiet`, stroke transparent), and the Studio has no live state, so every
+door there was an invisible gap. Assumption (not asked): only with `o.editor`, a hole that is not selected, open or alarmed gets class
+`guide` instead of `quiet`: `.door.guide`, 1.5 px non-scaling, dashed `4 4`, stroke-opacity .55, in --fp-door (--fp-glass for glass), like
+`.e.none`. The card, 2.5D and 3D keep the hole; a closed door keeps its thick line; the selected look, the hit line, window symbols and the
+`open` doorway kind are unchanged. Windows have a symbol, so they get no guide. Tests: `tests/core/door-guide.test.ts` and a
+computed-style pair in `tests/editor/door-guide.spec.ts` (guide not transparent in the Studio, same door transparent in the card).
+
+## 2026-10-12: Opus review of Sprint 30: short lines vote (Sonnet) [upstream]
+
+Supersedes "Shortest line counted | 20 cm" in S30.1. An L outline cut into 15 or 19 cm pieces (a click every 15 cm), turned 7.3
+degrees, answered turn -2, weak, no alt: no line reached 20 cm, so the histogram was empty and only turn 0 was a candidate.
+`HIST_MIN_LEN` is now 0 (zero-length lines still skipped). The S30.1 note said results were equal from 0 to 50 cm on the fixtures;
+that held, and the fixtures had no cut-up outline. Answers on hand-align, align-house and the stress pair are unchanged; the
+10 000-point circle (3 cm edges) now finds its four equal turns, so it gets an alt, which the weak-alt rule above drops again, and
+its golden answer is unchanged. Tests: a cut-up L at 7.3 and 4 degrees, both floors cut and only the lower cut, at 15 and 19 cm.
+
+## 2026-10-12: Opus review of Sprint 30: a weak answer's alt must not be weak (Sonnet) [upstream]
+
+Supersedes the `alt` rule of S30.1 and S30.8 ("any other fit within 5 points of the answer"). Two unrelated floors gave a weak
+answer and a weak alt, and the panel offered "a turn that fits about as well (24 %)": two bad guesses read as a choice. Now
+`chooseAlign` keeps an alt only if `ans.score >= WEAK_BELOW || alt.score >= WEAK_BELOW`. A 40 % answer with a 60 % far fit keeps
+its alt (a better lead); a 10 % answer with a 45 % fit does not. `chooseAlign` also ignores entries that are not fits and never
+throws, as `alignCandidates` does; `alignSummary` drops an alt whose turn or score is not a number (it read "0.0 degrees").
+The golden file `tests/fixtures/align-golden.json` changed on the 20 star cases only, and only in `alt` (now null); a script
+compared every other field.
+
+## 2026-10-12: S30.9 exit test and docs (Sonnet) [upstream]
+
+`tests/editor/align-turn-exit.spec.ts`: hand-align house, no pose; real clicks on Align, Apply for the ground then the first
+floor, Save. The saved file validates, outline corners in the house are within 2 cm of the truth (ground -2.5 degrees,
+first 1.5 in the house, which is the truth's -2.5 + 4), and the card with `floors_below: solid` has stair blocks of both
+floors below within 2 cm of the first floor's stair. Assumptions that held: the small-turn preference picks the right
+turn on both floors; Apply then Undo restores no pose; the first floor's pose composes with the ground's as the truth does.
+Changes from the plan: the README has no Align text (nothing to update); docs changed are `docs/SPEC.md` (Align finds the
+turn, 0.27.0 note), `docs/editor.md` (Auto align lines) and the guide's "Line the floors up" step. The control (unaligned
+house misses by more than 2 cm) is inside the test so it can fail.
+## 2026-10-12: S30.7 alignToBelow applies the turn (Sonnet) [upstream]
+
+`alignToBelow` passes the floor's current place turn as `from` and writes the answer's turn and shift through `setPose`.
+Nothing new in the writer: rounding, one undo step, "same" and Lock plan are `setPose`'s. The exact session pose is left
+alone; it is trusted only while it rounds to the stored pose, so a turn press after Apply starts from the stored pose.
+The S29.7 test "a floor with no turn behaves as before" asserted the old translation-only answer; it now asserts the
+found turn (-2.5 for the ground over the basement).
+## 2026-10-12: S30.8 the Align panel shows and applies the turn (Sonnet) [upstream]
+
+`alignPreview` memoises `alignCandidates` on `alignKeyOf(upper)#alignKeyOf(lower)`, with no turn: the search does not read the
+floor's current turn, so a turn press, a move and an undo reuse it. `chooseAlign(fits, place.turn)` and `alignSummary` run on
+every render (cheap). `alignSearches` counts the searches. Apply writes `poseFromPlace(..., { turn, shift })` through `setPose`
+(one undo step, none when the rounded pose is the stored one, refused under Lock plan) with `alignStatus`. Calls the plan left open:
+- Apply is disabled when the summary's move reads "Already aligned" (under 0.05 degree and half a centimetre), not when the
+  offset alone is unchanged as before; it stays enabled for a weak match.
+- `#alignAlt` has no rule of its own (a plain `<p>` of the panel), so there is no computed-style pair.
+- Changed meaning in the old specs: "a turn searches once" (S29.9, the key held the turn) is gone with its premise; a turn
+  press does not search now. "a turned floor previews and applies with its turn kept" became "a floor stored at the right
+  turn applies with that turn": the turn is the search's answer, not a kept one. `#alignMove` now starts "Move the centre".
+- "A weak match says so, and Apply still works" failed on this base: the search turns its 30 degree square into a 52 %
+  match. Its lower floor is now a seeded random star polygon (`starFloor(seeded(2))`, 8 %), which no turn fits.
+- Seen, not changed (core's choice, S30.4): on that star floor the answer scores 8 % (weak) and `alt` scores 14 %, so the
+  panel reads "A turn of 28.7° fits better (14 %)" under a weak answer. The tier rule keeps the small turn; it is honest.
+
+## 2026-10-12: S30.6 the panel's words (Sonnet) [upstream]
+
+`src/core/align-words.ts`. Pure text from the result `{ turn, t, score, weak, alt }`; it declares that shape itself and
+does not read `align.ts`. `alignSummary(result, place, pivot)` gives `{ score, alt, move }`; `alignStatus(result, place,
+belowName)` gives Apply's line. Calls the spec left open, decided here:
+- The move is the pivot's own: `placePoint(new, pivot) - placePoint(current, pivot)`. Up is smaller y, as on screen.
+  Whole cm; a part under half a centimetre is left out; nothing left reads "Already aligned".
+- The turn is the change from the current place, the short way (`normaliseTurn`), clockwise positive; not shown under 0.05.
+- `alt` is named by its turn relative to the answer: within 10 degrees of 180 "A half turn", of 90 "A quarter turn",
+  else "A turn of 7.5°" (the size, no side). Half and quarter show alt's own turn in brackets, as the spec's example does.
+  "fits better" when alt scores more than 1 point above the answer.
+- The status turn is the change, signed ("turned -2.5°" for anticlockwise), and left out when there is none.
+- No result: "Nothing to match", no alt, empty move. A junk number reads as 0; a name is plain text, never escaped here.
+
+## 2026-10-12: S30.1 design note: Align searches the turn (Opus) [upstream]
+
+`docs/specs/hand-align.md` (Sprint 30), `docs/PLAN.md` (S30.1 ticked, S30.2 to S30.5 reworded). No product code. A
+scratch prototype of the whole search (outside the repo) was run on the invented fixtures only: `hand-align-house.json`,
+`align-house.json`, `stress-layout.json`, `demo/` and shapes built in the probe. Its output is pasted below.
+
+**Verdict on the 600 ms budget: achievable, without triage.** Every candidate turn gets the full `alignShift`
+translation search. What makes it cheap is an exact line index (S30.5), not a ranking pass: a bucket grid on the lower
+floor's lines, cell at least 2 · `REFINE_REACH` (50 cm), at most 1024 cells a side, each cell listing every line that
+can be within `REFINE_REACH` of a point in it, in the lines' own order. Each distance query then looks at a few lines
+instead of all of them, and the answer is the same bit for bit (215 pairs deep equal with and without it). Measured on an
+Apple M5, the heavy floor's full search takes 32 ms with the index and 311 ms without; forced to 13 candidates, 212 ms
+against 2413 ms. So 13 candidates fit about 3 times over on this machine, and without the index 4 do not fit on a slower
+one. Triage was rejected: any ranking cheaper than the full search can drop the true turn (at turn 0 the hand first
+floor scores 19.7 %, the half turn 81.3 %), and it would make the answer depend on a second set of constants.
+Split, for the slowest case in the budget test: candidates under 5 ms, searches under 400, refinement under 100,
+scoring and merging under 50.
+
+**Constants, each with its number and reason.**
+
+| Constant | Value | Why |
+|---|---|---|
+| Histogram bin | 0.25 degree | Worst candidate error over the sweep 0.020 degree (bin 1: 0.09; bin 0.1: 0.000 at 2.5 times the work). Refinement removes the rest. |
+| Smoothing | triangle, plus or minus 1 degree | Same errors from 0.5 to 2 degrees; none doubles the worst error (0.040) and is the worst under noise (0.390 degree against 0.350). |
+| Shortest line counted | 20 cm | Results equal from 0 to 50 cm, so this is a reason, not a measurement: stair treads and wall stubs should not vote. |
+| Weights | length in whole cm, soft-binned into two bins as integers | Integer sums do not depend on the order lines are added (determinism). |
+| Peaks | at most 3, each at least half the highest, at least 2 degrees apart, sharpened by a parabola within half a bin | A house has one direction; 3 leaves room for a wing at another angle. 2 degrees apart keeps a smeared peak from taking two places. |
+| Candidate turns | 0, and each peak θ in (-45, 45] with θ + 90, θ + 180, θ - 90; rounded to 0.01 degree, -180 read as 180, deduplicated, sorted | At most 13. The probe never needed more than 5 on the fixtures; the 400-gon gave 12. |
+| Translation search per candidate | `alignShift` unchanged, every candidate | See the verdict. |
+| Refinement unknowns | shift x, shift y, turn | The turn is scaled by the lever (the samples' weighted RMS radius about their centre) so all three are in cm and the normal equations are balanced. |
+| Linearisation point | the placed samples' weighted centre, recomputed each round | About the origin, a floor far from [0, 0] couples turn and shift. |
+| Weights | `refine`'s: `w / (1 + (d / c)^2)^2`, c the per-axis median distance, at least 2 cm | One rule for both refinements. |
+| Turn cap | 2 degrees from where the refinement started | It refines, it does not search. The candidates are within 0.020 degree of the truth. |
+| Stop | every component of the step under 0.05 cm (the turn as its move at the lever), or 40 rounds | `refine`'s rule. 2 to 3 rounds on every fixture. |
+| Which fits are refined | all of them | 13 at most; refinement took under 6 ms per pair. Refining only the best 3 lets a candidate that drifts to its neighbour hide a better fit. |
+| Rounding | turn to 0.01 degree, then the shift refit at that turn (turn held) from the start that keeps the floor's centre where the refined place put it; shift to 0.1 cm; then scored on all samples | The turn is about the stored origin: at 1e7 cm from it a 0.005 degree rounding moves the floor 870 cm. Without the centre kept, an L at [1e7, 1e7] turned 3.37 came back at -2 with corners 13.9 cm off; with it, -3.37 and 0.03 cm. |
+| `SAME_TURN` | 2 degrees | Fits within 2 degrees of each other are one answer; inside it the scores within `TIE` of its best, then the smallest mean residual. Without it the ground's turn 0 candidate drifted to -2 and won by 0.3 points (68.7 against 68.4) with a residual of 9.01 cm against the truth's 7.75. |
+| `TIE` | 1 point | 0.27.0's, unchanged. |
+| `SMALL_TURN` | 10 degrees about `from` | Diego's floors are off by a few degrees; every probe turn under 10 was found from 0. |
+| `FAR_MARGIN` | 25 points, and the far fit not weak | Was 15. On 2000 seeded corner rectangles (the 0.27.0 test's generator), a quarter turn that fits three sides beats the true two by up to 22.6 points: at 15 23 land turned, at 20 10, at 25 and 30 none. Cost: the hand-align floors traced sideways (93) stay near 0 when the far fit wins by less than 25 (21 to 24), but then `alt` names it, so it is never a confident wrong answer. The align-house L at 93 wins by 43.7. |
+| `ALT_WITHIN` | 5 points | `alt` is the best other merged fit more than `SAME_TURN` away scoring at least the answer's score minus 5, including one that scores higher (a far fit that missed `FAR_MARGIN`). The words say "fits better" when it is more than `TIE` higher. |
+| Tie order in a tier | score within `TIE` of the best, then the turn nearer `from`, then the smaller move, then the smaller residual, then the smaller turn value | Every key is total, so the order of the input cannot decide. |
+
+**Determinism.** Before anything, the structure lines of both floors are put in a canonical order: each line from its
+smaller end (x, then y), the list sorted by its four numbers. Histograms use integer weights. So another start vertex,
+reversed walls and shuffled rooms give a deep equal result, not only within 0.01 degree (probe: all true). The
+`alignCandidates` result is built without `from`, so the memo holds for every `from`.
+
+**What the probe found that changes the plan.**
+- The 0.27.0 rectangle (`align-house` first) over the L at plus or minus 93 is ambiguous: its half-turn twin fits as
+  well (100 against 100). It is a fixture fact, not a bug. The far-turn tests use the L on a copy of itself; the
+  rectangle at 93 may give either, with `alt` naming the other.
+- Random orthogonal L-houses are not "unrelated": 7 of 40 pairs got a confident 50 to 75 %, a real corner fit. The
+  "no answer" test uses random star polygons (0 of 40 confident).
+- The joint refinement's basin on the hand ground (68 % fit) is narrower than 0.6 degree: two of four starts ended 0.11
+  to 0.135 degree off. The pipeline starts within 0.02, so it does not bite, but S30.3's 0.6 degree test runs on the
+  align-house rectangle and a plain rectangle only, as the plan already says.
+- "Lines in one direction only leaves the turn alone" is not what happens: one wall on one wall turned 0.6 is found
+  (both ends lever). The test becomes: one sample (no lever) leaves the turn alone; one wall on one wall turned 0.6
+  degree is found.
+- `from` 184 gives -176: the result is in (-180, 180].
+
+Probe output (the slower of two runs; Apple M5, node v26.10.0):
+
+```
+constants: bin 0.25, smooth +-1, shortest line 20 cm, peaks 3 at >= 0.5 of the highest, 2 deg apart; refine cap 2 deg, stop 0.05 cm, 40 rounds; SMALL_TURN 10, FAR_MARGIN 25, ALT_WITHIN 5, SAME_TURN 2, TIE 1
+
+hand-align first -> ground (truth 4, [83, -41])
+  candidate: score at the candidate (alignShift) -> after the joint refinement: turn, t, score, mean residual
+    -176: 81.3 % -> -176, [917,641], 81.3 %, 4.51 cm
+     -86: 57.2 % -> -86, [-41,817], 57.2 %, 10.57 cm
+       0: 19.7 % -> 2, [64.8,-16.9], 35.3 %, 10.91 cm
+       4: 81.9 % -> 4, [83,-41], 81.9 %, 4.51 cm
+      94: 56.6 % -> 94, [641,-17], 56.6 %, 10.57 cm
+  merged: -176 81.3 %; -86 57.2 %; 4 81.9 %; 94 56.6 %
+  from 0: {"turn":4,"t":[83,-41],"score":81.9,"weak":false,"alt":{"turn":-176,"score":81.3}}
+  from 184: {"turn":-176,"t":[917,641],"score":81.3,"weak":false,"alt":{"turn":4,"score":81.9}}
+
+hand-align ground -> basement (truth -2.5, [-57, 112])
+  candidate: score at the candidate (alignShift) -> after the joint refinement: turn, t, score, mean residual
+   -92.5: 48.2 % -> -92.5, [69.1,707.1], 48.2 %, 12.86 cm
+    -2.5: 68.4 % -> -2.5, [-57,112], 68.4 %, 7.75 cm
+       0: 25.3 % -> -2, [-53.6,107.5], 68.7 %, 9.01 cm
+    87.5: 48.2 % -> 87.5, [842.1,72.7], 48.2 %, 12.86 cm
+   177.5: 68.4 % -> 177.5, [968.2,667.8], 68.4 %, 7.75 cm
+  merged: -92.5 48.2 %; -2.5 68.4 %; 87.5 48.2 %; 177.5 68.4 %
+  from 0: {"turn":-2.5,"t":[-57,112],"score":68.4,"weak":false,"alt":{"turn":177.5,"score":68.4}}
+  from 184: {"turn":177.5,"t":[968.2,667.8],"score":68.4,"weak":false,"alt":{"turn":-2.5,"score":68.4}}
+
+timings, ms, Apple M5, node v26.10.0, the slower of two runs
+  case                          | alignShift scan | indexed | full search scan | indexed (cands/search/refine/score) | n | answer
+  stress first/ground           |    1.6 |   0.6 |     5.8 |   2.5 (0.1/1.8/0.3/0.1) | 4 | turn 0, t [0,0], 100 %
+  stress first/ground turned 7.30 |    3.0 |   2.3 |     7.1 |   7.5 (0.1/5.5/1.2/0.5) | 5 | turn -7.3, t [-80.8,132.7], 100 %
+  stress second/first           |    0.5 |   0.4 |     2.3 |   2.1 (0.1/1.5/0.3/0.1) | 4 | turn 0, t [0,0], 100 %
+  stress second/first turned 7.30 |    2.4 |   6.2 |    14.7 |  24.6 (0.2/15.1/5.7/1.4) | 5 | turn -7.3, t [-80.8,132.7], 100 %
+  heavy first/ground            |   63.9 |   5.3 |   311.0 |  32.2 (0.1/29.9/1.2/0.3) | 4 | turn 0, t [-0.3,1.6], 100 %
+  10 000-point circle           |  380.0 |  17.2 |   skipped |  26.7 (0.4/17.2/2.0/0.9) | 1 | turn 0.03, t [40.1,-25], 29.4 %
+
+line index: alignShift deep equal with and without it on 215 pairs: 0 differ
+
+turn sweep: each floor turned by +-(-9.7, -6.2, -3.3, -1.1, -0.35, 0.4, 1.8, 4, 7.3, 9.95) about [370, -120], the align-house ones also by +-(23, -31, 93); from 0
+  align-house first (rectangle) on the L: 26 cases, candidate within 0.020 deg of the truth, answer within 0.000 deg and 0.06 cm, at most 5 candidates; 2 other: 93: got 87 (truth -93.00), alt {"turn":-93,"score":100}; -93: got -87 (truth 93.00), alt {"turn":93,"score":100}
+  align-house L on the L: 26 cases, candidate within 0.020 deg of the truth, answer within 0.000 deg and 0.06 cm, at most 5 candidates; 0 other: none
+  hand first on ground: 20 cases, candidate within 0.020 deg of the truth, answer within 0.000 deg and 0.07 cm, at most 5 candidates; 0 other: none
+  hand ground on basement: 20 cases, candidate within 0.020 deg of the truth, answer within 0.020 deg and 0.46 cm, at most 5 candidates; 0 other: none
+  far tier: the best of the small tier about 0 against the best far fit, when the far one is right
+    rectangle on the L: 23: 5.7 vs 100; -31: 3.9 vs 100; 93: 68.2 vs 100; 180: 100 vs 100
+    L on the L: 23: 5.1 vs 100; -31: 4.7 vs 100; 93: 56.3 vs 100; 180: 68.1 vs 100
+
+histogram constants over the sweep (worst candidate error, deg / failures not counting the rectangle's half-turn twin at 93)
+  bin 0.1: +-0: 0.000/0  +-0.5: 0.000/0  +-1: 0.000/0  +-2: 0.000/0
+  bin 0.25: +-0: 0.040/0  +-0.5: 0.020/0  +-1: 0.020/0  +-2: 0.020/0
+  bin 0.5: +-0: 0.080/0  +-0.5: 0.040/0  +-1: 0.040/0  +-2: 0.040/0
+  bin 1: +-0: 0.170/0  +-0.5: 0.090/0  +-1: 0.090/0  +-2: 0.090/0
+
+noise: align-house first turned 3.40, corners jittered up to 4 cm, 15 stray walls; 10 seeds; worst turn error / worst corner, cm / scores
+  bin 0.25, smooth +-1, shortest 20 cm: 0.350 deg, 4.43 cm, scores 58.3 57.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+  bin 0.25, smooth +-0, shortest 20 cm: 0.390 deg, 4.28 cm, scores 58.1 55.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+  bin 0.25, smooth +-2, shortest 20 cm: 0.350 deg, 4.43 cm, scores 58.3 57.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+  bin 0.25, smooth +-1, shortest 0 cm: 0.350 deg, 4.43 cm, scores 58.3 57.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+  bin 0.25, smooth +-1, shortest 50 cm: 0.350 deg, 4.43 cm, scores 58.3 57.2 57.8 59.1 53.5 59.4 55.2 55.7 57.1 57.6 (clean 100)
+
+joint refinement from a start 0.6 deg and 8 cm off the truth (turn error, deg / corners, cm / rounds); shift only for comparison
+  align-house first (rectangle) on the L: +0.6/+8: 0.000/0.00/2 (shift only 5.7); -0.6/-8: 0.000/0.00/2 (shift only 5.7); +0.6/-8: 0.000/0.00/2 (shift only 5.7); -0.6/+8: 0.000/0.00/2 (shift only 5.7); +0/+0: 0.000/0.00/0 (shift only 0.0)
+  hand first on ground: +0.6/+8: 0.000/0.01/2 (shift only 6.7); -0.6/-8: 0.000/0.01/2 (shift only 6.7); +0.6/-8: 0.000/0.01/3 (shift only 7.1); -0.6/+8: 0.001/0.01/2 (shift only 6.9); +0/+0: 0.000/0.00/0 (shift only 0.0)
+  hand ground on basement: +0.6/+8: 0.001/0.01/2 (shift only 7.7); -0.6/-8: 0.112/2.11/2 (shift only 7.9); +0.6/-8: 0.036/0.46/2 (shift only 8.7); -0.6/+8: 0.135/2.34/2 (shift only 8.9); +0/+0: 0.000/0.00/0 (shift only 0.0)
+  one sample (no lever): turn stays 0.6; one wall on one wall turned 0.6: answer -0.6 (truth -0.6), alt {"turn":179.4,"score":100}
+
+hostile and edge cases, from 0
+  square turned 2 about its centre: {"turn":-2,"t":[-13.7,14.2],"score":100,"weak":false,"alt":{"turn":88,"score":100}} (truth -2)
+  plus turned 3.4: {"turn":-3.4,"t":[7.8,21.7],"score":100,"weak":false,"alt":{"turn":86.6,"score":100}} (truth -3.4)
+  demo first/ground: {"turn":0,"t":[0,0],"score":100,"weak":false,"alt":{"turn":180,"score":100}}
+  40 unrelated pairs of random star polygons: 0 confident (not weak, no alt)
+  40 unrelated pairs of random L-shaped houses: 7 confident (not weak, no alt), scores 50.3 50 75 50.6 50.6 50 52.3
+  2000 seeded corner rectangles (the 0.27.0 test's generator): a quarter turn that fits 3 sides beats the true 2 sides by up to 22.6 points (23 cases over 15); answers not at turn 0 by FAR_MARGIN 15: 23 (3 in the first 200), 20: 10 (2 in the first 200), 25: 0 (0 in the first 200), 30: 0 (0 in the first 200); wrong corner or turn at 25: 20, 0.27.0 alignShift wrong corner: 20
+  400-gon, 78 cm edges (a flat histogram): 12 candidates, 63 ms, {"turn":0,"t":[40,-25],"score":100,"weak":false,"alt":{"turn":-4.5,"score":100}}
+  determinism: twice true, other start vertex true, reversed outline true, lower floor reordered true
+  junk: 500 calls, 0 threw, 420 null; an L at [1e7, 1e7] turned 3.37: turn -3.37, corners 0.03 cm
+
+far turns on the hand-align floors, from 0 (about [370, -120])
+  hand first turned 23: truth -19.00, got -19 81.9, corners 0.03 cm, alt {"turn":161,"score":81.3}
+  hand first turned -23: truth 27.00, got 27 81.6, corners 0.05 cm, alt {"turn":-153,"score":81.6}
+  hand first turned -31: truth 35.00, got 35 81.6, corners 0.06 cm, alt {"turn":-145,"score":81.6}
+  hand first turned 31: truth -27.00, got -27 81.6, corners 0.02 cm, alt {"turn":153,"score":81.6}
+  hand first turned 93: truth -89.00, got -89 81.9, corners 0.04 cm, alt {"turn":91,"score":81.3}
+  hand first turned -93: truth 97.00, got 7 57.2, corners 1005.02 cm, alt {"turn":-83,"score":81.6}
+  hand ground turned 23: truth -25.50, got -25.5 68.4, corners 0.03 cm, alt {"turn":154.5,"score":68.4}
+  hand ground turned -23: truth 20.50, got 20.5 68.4, corners 0.02 cm, alt {"turn":-159.5,"score":68.4}
+  hand ground turned -31: truth 28.50, got 28.5 68.4, corners 0.02 cm, alt {"turn":-151.5,"score":68.4}
+  hand ground turned 31: truth -33.50, got -33.5 68.4, corners 0.04 cm, alt {"turn":146.5,"score":68.4}
+  hand ground turned 93: truth -95.50, got -5.5 47.6, corners 1005.02 cm, alt {"turn":84.5,"score":68.4}
+  hand ground turned -93: truth 90.50, got 0.5 47.9, corners 1044.06 cm, alt {"turn":-89.5,"score":68.9}
+```
+
+## 2026-10-11: Sprint 30 planned: Align searches the turn (assumptions, pending Diego) [upstream]
+
+`docs/PLAN.md` (Sprint 30), `docs/specs/hand-align.md` (section "Sprint 30", criteria 13 to 24).
+- **Why now.** The fixture reproduces Diego's case: the first floor scores 19.7 % at turn 0 and 81.9 % at its true 4
+  degrees, and 81.3 % at -176. So the plan must find the turn and must not lock on the half turn.
+- **Assumed, Diego to confirm (the plan's open questions):** the whole circle is searched, a turn within 10 degrees of
+  the floor's current turn is preferred, and a far turn wins only by 15 points and not weak; a fit of another turn
+  within 5 points is named in the panel; no preview before Apply (Apply, then Undo).
+- **The memo leaves the turn out.** `alignCandidates` reads only the stored structure, so it is memoised without the
+  turn; the cheap `chooseAlign` reads the current turn on every render. This supersedes S29.9's key with the turn: a
+  Turn press no longer searches.
+- **`alignFloor`'s third argument changes meaning**, from "search at this turn" to "the current turn, preferred". The
+  0.27.0 function lives on as `alignShift`.
+- **Weak evidence is never applied without Apply**, and Apply stays a button whatever the score, as in 0.27.0.
+- The constants (histogram, triage, refinement, margins) are proposals until the S30.1 design note (Opus) fixes them
+  with probe numbers.
+
+## 2026-10-11: Sprint 29 review fixes, round 2: the Outline is shut, typed limits speak [upstream]
+
+`src/editor/editor-app.ts`, `tests/editor/align-review.spec.ts`.
+- **The Outline was a way round read-only Align.** `openCtxForRow` and the Menu key set `ctxMenu` without the guard in `openCtxMenuAt`, and `goTo` selected the row's object. Now `openCtxForRow` returns false while Align is open, the Outline's contextmenu and Menu key are swallowed (no browser menu either), and `goTo` clears the selection it just made. Chosen over closing Align on a click: it keeps the user's work open and matches "nothing is selected" while Align is open; the pick is still centred. Supersedes the review 29 line "the right-click menu does nothing" where it meant the plan only.
+- **S28.12's drag-in-Align case is gone.** `alignPreview` no longer has a `dragging` branch: a drag cannot start in Align any more, so the memo is keyed on structure alone. The read-only test (a press on a device pans, the light does not move) replaces it.
+- **Typed values past COORD_LIMIT speak.** `setAlignOffset` and `setAlignRotation` go through `typedRefused`: lock, then the lock message; a pose that was "refused" (the limit), `poseNone`; the same value stays silent.
+- Stale words fixed: CHANGELOG, two code comments (the nearest stair below, the pivot rule), spec and editor.md.
+
+## 2026-10-11: Sprint 29 review fixes (Opus): Align is read-only, one pivot, same is not refused, one stair rule, decimals only [upstream]
+
+`src/editor/editor-app.ts`, `src/editor/state.ts`, `src/editor/inspector.ts`, `src/core/hand-align.ts`, `tests/editor/align-review.spec.ts`, `tests/editor/align-review.test.ts`, `tests/card/card-ghost.spec.ts`.
+- **Align is read-only (supersedes S29.9's "a device may be dragged while Align is open").** S29.9 left the plan live and only cleared the selection on entering Align. A click then selected an edge, wall, room, stair, door or opening that had no handle, Delete removed it unseen, a draw could start with Align open, and `.` typed into a draw length turned the floor. Now `onDown` while Align is open on this floor starts a pan and nothing else (no selection, no marquee, no drag; the wheel still zooms); Delete, Backspace, Ctrl+A, double click and the right-click menu do nothing; `startDraw` closes Align first; `alignKeyDo` returns false during a draw. The S28.12 "no search during a drag" test now presses a device, gets a pan, and checks the light did not move. Rejected: ignoring only the geometry hits and leaving devices draggable (a device is plan geometry too, and a half read-only mode is harder to explain than a whole one).
+- **One pivot.** `EditorState.setRotation(key, rot, pivot)` is `turnFloor` by `rot - exact rotation`, so the rotation box and the Turn buttons share the writer, the undo step, the session pose and the rounding. The box used `setPose` with the offset kept, which turns about the stored origin and swings a floor whose pivot is far from [0, 0]. The same angle (to 0.01 degree, -180 equal to 180) writes nothing.
+- **Same is not refused.** `EditorState.lastPose` records "wrote", "same" or "refused" for the last pose write. `poseNone()` in the editor says "Already aligned" for "same" and the coordinate-limit message only for "refused" that is not the lock. Apply, Align stairs and a refused press all use it. Align stairs used to call a pose that rounded to the stored one "beyond the limit" whenever the move was 0.05 cm or more. `writePose` also reads a stored -180 as 180, so a no-op edit leaves -180 alone.
+- **One rule for "which stair below".** The upper floor's first stair (with a footprint) is paired with the lower floor's stair nearest by centre distance, the upper centre as the place draws it; the first wins a tie. `stairReport` and `stairPlace` both call `nearestBelow`. Before, the report took the nearest and the button the first in the list, so the panel could name one stair and align to another. Supersedes S29.8 and S29.11 where they say "the first stair of each floor".
+- **Decimals only.** `parseAlignNumber` accepts a sign, digits and one point or comma. `Number()` took `0x10`, `1e3`, `Infinity` and `0b11`.
+- **Ghost parity.** `card-ghost.spec.ts` opens the card and the Studio's Align on one turned layout and compares the two `g.ghost` markups, whole cm. With the Studio's turn removed it fails.
+- Judgement calls: the Add menu (Door, Wall...) still writes while Align is open, because the user presses it on purpose and sees the result; only invisible or accidental writes are shut. Turned textures: nothing added.
+
+## 2026-10-11: S29.12, the exit test, `floorShift` removed, the docs [upstream]
+
+`tests/editor/hand-align-exit.spec.ts`, `src/core/floor-stack.ts`, `src/core/index.ts`, SPEC, editor.md, card.md, the guide, CHANGELOG.
+- **The exit test** drives the Studio with real clicks: Align stairs on the ground (against the basement), then on the first floor (against the ground), File, Save, and the saved file must validate. The card then reads that file. In 3D with `floors_below: solid` each footprint corner of the stair above has a stair block of the floor below within 2 cm: the basement under the ground; on the first floor, blocks of both floors under it on every corner; and the ground alone (basement taken out) on the first. The control: the unaligned fixture misses at some corner. In 2D with the ghost on, two walls of the ground's wing are checked on the screen (ghost-coloured on the wall, nothing 6 px off it).
+- **The expected corners are the stairs as drawn, not the stored points.** The fixture's stairs carry a `rot` (357.5, 356 degrees), so a stair's corners are its points turned about their centre. The first draft of the test compared against the raw points and missed by 7.5 cm at every corner; the saved poses were right (rotation 1.5, offset [24.2, 67.4], which the truth gives to 0.1).
+- **The ghost is checked on the wing's long walls, not on its corners.** The card fits the first floor's plan, so the wing's corners at y 900 lie outside the card and are cut off; the first floor paints over every wall that lies under it. The two long walls of the wing (x 0 and x 600 on the ground) are outside the first floor's wall and inside the card for part of their length: a point of each is picked there. This supersedes S29.3's "corner" wording for the exit test only; S29.3 keeps its corners by shifting the floor.
+- **`floorShift` is removed** from core and the exports. `floorPlace` with both rotations 0 gives turn 0 and the offset difference, which the old tests now state as numbers. A unit test reads every `.ts`, `.js` and `.mjs` file under `src/` and fails on the word.
+- **Docs.** SPEC (`floorPlace`, the hand align paragraph no longer "planned"), editor.md (the Align panel, top to bottom), card.md (ghost and floors below follow the turn), the Line the floors up step of the guide, CHANGELOG.
+- **Assumptions that held:** Align stairs on the ground first, then the first floor, because the first floor's place reads the ground's pose; buttons not dragging; one undo step per press. Nothing in S29.1 to S29.11 had to be changed by this task.
+
+## 2026-10-11: S29.11, the stair report and Align stairs in the panel [upstream]
+
+`src/editor/inspector.ts`, `src/editor/editor-app.ts` (`alignStairInfo`, `alignStairs`).
+- **Report.** `stairReport(upper, lower, floorPlace(layout, key, below))` is read on every render, so every press, key, box, Reset, undo and load updates it. A row reads "Name: 60 cm from Ground stairs, 2.5° off": whole cm, one decimal of degrees; a round stair shows the distance only. No stair on this floor: "No stairs on this floor"; none below: "No stairs on <floor>" and no list.
+- **Align stairs.** `stairPlace` gives the place; `poseFromPlace` turns it into the pose; `setPose` writes it in one undo step. The status is the text `stairPlace` made. Disabled when `stairPlace` is null (a stair missing on either floor). Lock plan refuses it as it does every writer.
+- **A coarse-pointer rule lost to specificity.** The 44 px rule `.align-panel .btn` was outranked by `.align-panel .al-cross .btn` and `.al-row .btn` (32 px), so the Move and step buttons stayed 32 px. The test measured it red first; the rule now names the same selectors and is declared after them. The two boxes get 44 px too.
+- **Panel order** follows the spec: Auto align, Move, Step, Turn, Angle step, who moves, Offset, Rotation, Reset, Stairs.
+
+## 2026-10-11: S29.10, Align keys, the rotation box and Reset [upstream]
+
+`src/editor/editor-app.ts` (`alignKeyDo`), `src/editor/inspector.ts`, `src/editor/guide.ts`.
+- **Keys.** `onKey` on the host asks `alignKeyDo` before the view keys. While Align is open on this floor, an arrow calls `moveAlign` and `,` `.` call `turnAlign`, by the selected steps. Not with Ctrl, Meta or Alt, not from a text field (`takesTyping`), and `ev.repeat` is swallowed, so a held key is one step. Outside Align the arrows pan as before. A keydown on `window` is not heard (finding 6).
+- **Focus.** `openAlign` focuses the host, so the keys work right after the menu click.
+- **Turning shifts the offset.** `turnFloor` turns about the pivot, so the floor's place does not move and the stored offset changes too. A test counts undo steps, not offsets, after a turn.
+- **Rotation box.** `#alignRot`, degrees, comma accepted, written by `setPose` with the offset kept; junk or the same value writes nothing and the box shows the layout again.
+- **Reset** is one `setPose(key, {rot:0, off:[0,0]})`; disabled when both are zero.
+- **Help** gets two rows in `CONTROLS`.
+
+## 2026-10-11: S29.9, the Align panel's buttons, and what a press does to the plan [upstream]
+
+`src/editor/inspector.ts` (`alignView`), `src/editor/editor-app.ts`.
+- **Wiring.** A Move button calls `nudgeFloor(key, screenDir, step, st.turnDeg)`, a Turn button `turnFloor(key, +-angle, floorPivot(floor))`, Apply `setPose(key, poseFromPlace(...))`. No second pose path. `st.turnDeg` is the layout's own `rotate` plus the user's view turn, the turn the plan is drawn with.
+- **The preview reads the turn.** `alignPreview` takes `floorPlace(layout, key, below).turn`, keys the memo on `alignKeyOf(upper, turn)` and searches with it; the offset Apply writes comes from `poseFromPlace`, so a turned floor keeps its rotation. The words are still whole cm ("Under 1 cm" for a smaller move, since offsets are now 0.1 cm).
+- **Steps.** 1, 5, 50 cm (5) and 0.1, 0.5, 1, 3 degrees (0.5), in `localStorage` key `fp-align-steps` as `{move, turn}`. Read lazily, every access in try/catch; a value not on the list falls back to its default, field by field.
+- **Read-only plan.** Opening Align clears the selection; while open the overlay draws only the pivot cross (`g.align-pivot`, `pointer-events:none` by class rule) and `renderFloor` gets `handles: false`, so no `circle.h`. Rejected: ignoring clicks on the plan; the existing S28.12 test drags a device while Align is open and that stays allowed.
+- **`handles` option in `RenderOpts`.** The editor's corner handles come from `render.ts`, so leaving them out needed a flag there. Absent means as before; the render snapshot is unchanged.
+- **`normaliseTurn` was inexact.** `((d % 360) + 360) % 360` turned 0.1 into 0.10000000000002274, which the writer then stored. It now wraps by one subtraction, exact for an angle already in range (S29.2's helper, found when a stored rotation of 0.1 read back wrong).
+- **While the view turns.** A press during the 45 degree turn animation uses the angle at that moment (`st.turnDeg`). Left as is: nobody presses within 200 ms of turning.
+## 2026-10-11: S29.8, Align stairs: the reversed flight [upstream]
+
+`src/core/hand-align.ts`. A straight flight has a low end and a top end (the middles of its low and top edges, from
+`stairBlocks`). Two ways to match a pair of flights: same order (low on low) or reversed (upper low on lower top, a
+flight drawn the other way round). Both are tried; the smaller turn wins; a tie keeps the same order.
+- **Reversed meets low with top, not low with low.** Low on low after a half turn leaves the footprints one flight
+  length apart. Low on top puts them on each other when the flights are the same length. This reads the spec's "turns
+  about them so the flights lie on one line" as: footprints coincide. Supersedes nothing; it fills a gap in the spec.
+- **The place is absolute.** `stairPlace(upper, lower, place)` reads the upper stairs as `place` draws them and returns the
+  whole new place (the kept turn plus the extra turn, wrapped to (-180, 180]), so the caller writes it with `poseFromPlace`.
+- **Round stairs, or one round and one straight:** centres meet, no turn; the text says "round stairs: moved, not turned".
+- **Names are raw.** The text carries the stair names as written; the panel escapes them.
+- **The report** (`stairReport`) has a row per upper stair that can be drawn; the nearest lower stair by centre distance; the
+  angle is between the axes modulo 180, 0 to 90 (a flight and its reverse have the same angle).
+## 2026-10-11: S29.7, Align keeps the turn [upstream]
+
+`alignFloor(upper, lower, turn = 0)` turns the upper floor's structure lines by `turn` (about the origin, clockwise) before it searches; junk reads as 0. The translation `t` is then in the lower floor's frame, so the upper floor's place is `{ turn, shift: t }`. `alignToBelow` takes the turn from `floorPlace(layout, key, below)`, searches with it, and writes `poseFromPlace(..., { turn, shift: t })` through `setPose`: the floor keeps its rotation and only the offset changes (with both rotations 0 this is the S27 answer). Search is still translation only; the angle search is Sprint 30. `alignKey(f, turn)` and `alignKeyOf(f, turn)` add the turn to the key only when it is not 0, so a move keeps the key, a turn changes it, and the old keys are unchanged. The Align panel still calls `alignKeyOf` and `setOffset` with one argument (S29.9 moves it over).
+
+## 2026-10-11: S29.6, one pose writer and when the exact pose is trusted [upstream]
+
+Design note for `EditorState` in `src/editor/state.ts`.
+- **One writer.** `setPose(key, { rot, off })` is the only code that stores a pose. It wraps the rotation into (-180, 180], rounds it to 0.01 and the offset to 0.1 cm, deletes each key at 0, writes no `-0`, records one undo step, and records none when the rounded pose is the stored one. `setOffset` keeps the floor's rotation and calls it, so it now rounds to 0.1 cm (whole cm before). A stored rotation that is not a number is never "the same": the next write heals it.
+- **The session pose.** `nudgeFloor` and `turnFloor` apply to an exact, unrounded pose kept in the editor (not in the layout, not an undo step) and write its rounding through `setPose`. Why: 3600 turns of 0.1 degree, each rounded to 0.01 and 0.1 cm, would add up.
+- **When it is trusted.** The exact pose is used only while `roundPose(exact)` equals the stored pose, field by field. That one comparison covers every other writer: a box, Reset, Apply, Align stairs, undo, redo and a load all change the stored pose, so the two differ and the next press starts from the stored pose. Redo that lands on the pose the press wrote gets the exact pose back, which is harmless. It is also keyed on the floor. No event hooks, no clearing calls to forget.
+- **Refused presses** (lock, limit, junk) leave the exact pose alone. A press that rounds to no change (a turn of 0.001) still advances the exact pose, so ten of them add up to a change.
+- **Move.** The direction on screen is turned back by the view turn to give the move in the floor's frame; the offset changes by that move turned by the floor's rotation. **Turn.** `rot' = rot + d`, `off' = off + R(rot)·c - R(rot')·c`, so the pivot's house point is exact.
+- **Align.** `alignToBelow` keeps the floor's turn (S29.7, below).
+## 2026-10-11: S29.4, a floor below turns by its points, not by its `ref` [upstream]
+
+`SceneOpts.turn` turns every solid in `add`, the one choke point of `scene-build.ts`, before the shift: base, holes and
+the point, each as `placePoint({ turn, shift })`.
+- **What reads points.** Slabs, room fills, walls, stair steps, and every footprint: they are turned with the points.
+- **What reads `ref`.** A crown (tree, shrub, pond lights) is a centre, a size and a `rot`. The centre turns with the point;
+  `rot` gets `+ turn`; size and ids stay. A stair's `faces` (wall normals) turn without the shift. Why: the crown's
+  ellipse axis and a face normal are directions, not places. Turning only the centre would leave a crown looking the
+  old way on a turned house.
+- **Untouched.** `crowns.ts` and `shade.ts` read the solids as given, so they follow with no change. A junk turn reads as 0.
+- **The cache.** The below cache keys on elevation, shift and turn. The card compares `[elevation, shift, turn]`, so a
+  rotation alone redraws.
+- **The card** takes `floorPlace` for the ghost and for `_sync3dBelow`. `floorShift` is no longer imported there.
+
+## 2026-10-11: S29.2, the pose maths: sign, composition, pivot [upstream]
+
+Design note for `src/core/floor-stack.ts`, written before the code.
+- **Sign.** Degrees, clockwise on screen with y pointing down. `R(t)·(x, y) = (x cos t - y sin t, x sin t + y cos t)`, so
+  `R(90)` sends (1, 0), a point to the right, to (0, 1), a point below it. `R(4)·(100, 0) = (99.756, 6.976)`. The same
+  sense as `turnAbout` and `rot` on furniture and stairs.
+- **A place** is `{ turn, shift }`: `p' = R(turn)·p + shift`. `floorPlace(l, from, to)` has `turn = rot_from - rot_to` and
+  `shift = R(-rot_to)·(off_from - off_to)`. Why: a stored point of `from` is at `R(rot_from)·p + off_from` in the house;
+  to read it in `to`'s stored frame undo `to`'s pose: `R(-rot_to)·(house - off_to)`. Example: a basement at the origin, a
+  ground at -2.5 degrees and [-57, 112]: ground to basement is `{ turn: -2.5, shift: [-57, 112] }`, so the ground's
+  (400, 240) lands at (353.09, 334.32) in the basement; basement to ground is turn 2.5 and shift `R(2.5)·(57, -112)`.
+- **Composition.** `composePlace(a, b)` applies `a` first, then `b`: turn `a.turn + b.turn`, shift `R(b.turn)·a.shift + b.shift`.
+  So `floorPlace(A, C) = composePlace(floorPlace(A, B), floorPlace(B, C))`. `invertPlace(p)` is turn `-turn`,
+  shift `-R(-turn)·shift`. Turns are not wrapped inside these (a sum stays a sum); only `poseFromPlace` wraps, and a turn is only known modulo 360.
+- **poseFromPlace(layout, key, below, place)** answers: which stored rotation and offset make `floorPlace(key, below)`
+  equal `place`? `rot = rot_below + turn` (wrapped to (-180, 180]), `off = off_below + R(rot_below)·shift`. Unrounded: the
+  writer rounds (0.01 degree, 0.1 cm).
+- **Zero rotations are exact.** The rotation of a vector by 0 returns it untouched, not through cos and sin, so two floors
+  with no rotation give exactly `floorShift`, signed zeros included.
+- **Junk reads as identity**, field by field: a rotation that is not a finite number in -180..180, an offset as `offsetOf`
+  reads it, an unknown key. Never throws.
+- **floorPivot(floor)** is the centre of the bounding box of `align.ts`'s structure lines (outline and external walls,
+  else room edges), else of the stairs' points, else `[0, 0]`. It reads geometry only, never the pose. `structure` and its
+  `Seg` type are exported from `align.ts` for it, so Align and the pivot cannot disagree on what a structure line is.
+- **Fixture.** `tests/fixtures/hand-align-house.json` is invented. Every floor is stored with no pose; the truth lives in
+  `hand-align-truth.ts`: ground to basement turn -2.5 shift [-57, 112], first to ground turn 4 shift [83, -41]. A stair is
+  a 200 x 80 box; the lower floor's stair is the upper one's box centre placed, with `rot` the upper's `rot + turn`
+  taken modulo 360, since a stair's `rot` is in [0, 360) (a box turned about its own centre, so the footprints match).
+
+## 2026-10-11: S29.1, `floor.rotation` is validated like the offset [upstream]
+
+`rotation` is a finite number from -180 to 180 inclusive. `validate` reports anything else and never throws; `migrate` drops it (as it drops a bad offset) so a hand-edited file opens, and keeps a good value exactly as written. Writers (later tasks) normalise and delete the key at 0; the schema does not insist on it. No view reads the field yet, so the render and 3D snapshots are unchanged.
+
 ## 2026-10-11: the stairwell is clipped out of every solid, not cut where it lies strictly inside (0.26.2)
 
 Diego's first floor still showed no stairs after 0.26.1. I loaded his layout into the 3D scene (private file, nothing of it is in the repo). On `first` the solids over the flight were two: the slab, which got its hole, and one room fill (a corridor, z 0..1), which did not. Two corners of the flight lie exactly on that room's edge (the flight's north side runs along the corridor's boundary). My 0.26.1 rule cut a hole only when the whole footprint lay strictly inside the room's outline, because earcut takes holes that do not touch the contour. So the fill lay over the flight. The direction was right (`down`, floor below, none above), and no other solid, furniture or lifted fill covers it. Fix: a prism's `holes` are now convex polygons that may lie inside, touch or cross the base. `prismTriangles` triangulates the base as before and subtracts each hole from every cap triangle by splitting along the hole's edges (convex pieces, fan-triangulated); the base's own walls are left out where a hole opens them, and the hole's walls are drawn only where the hole lies inside the base. A hole that is not convex is ignored (stairwells are rectangles or a 24-gon). `buildScene` gives the hole to every solid whose box the well meets (slab and each room fill). Picking, shadows and the ring still use the outline. Tests, failing first (6 of 6): a flight on the edge of its room, across two rooms, and inside a room with a fill over it, light and blueprint, by the pixel over the deepest step; unit tests for the clipping and for which solids get a hole. I rendered his layout: `first` now shows the well in the corridor; `ground` (both) and `basement` (up) draw their flights.
+## 2026-10-11: Hand align by panel buttons, not dragging (supersedes parts of the entry below)
+
+Diego changed the interaction the same day. This entry replaces the Align frame, Gestures, Undo and Pairs bullets of
+the entry below; its Schema, Own frame, Stairs and Split bullets hold, with offsets now stored to 0.1 cm.
+- **Buttons.** The Align panel moves the floor up, down, left, right as drawn on screen and turns it anticlockwise and
+  clockwise. No dragging, no turn handle, no snapping, no point pairs: steps you choose are easier to control and to
+  test than a gesture on the plan.
+- **Steps.** Move 1, 5, 50 cm (default 5); turn 0.1, 0.5, 1, 3 degrees (default 0.5). Remembered per viewer in
+  `localStorage`, in try/catch, never in the layout.
+- **Pivot.** The centre of the bounding box of the floor's structure lines, else its stairs, else the origin, in the
+  floor's own frame. It does not move when the pose changes, and Align mode edits no geometry, so it holds still for
+  the whole session. A turn writes rotation and offset together so the pivot's house point stays put. Rejected: the
+  bounds in the house frame (they move with every turn), and a pivot fixed at the first press (the same point, more
+  state).
+- **No drift.** `EditorState` keeps an exact pose for the floor being aligned and stores it rounded (0.01 degree,
+  0.1 cm); the exact pose is dropped as soon as anything else writes the pose. 3600 presses of 0.1 degree return to the
+  start within 0.01. Offsets go from whole cm to 0.1 cm because a 0.1 degree turn about a centre several metres out
+  moves the origin by fractions of a centimetre.
+- **Undo and repeat.** One press, one undo step. No hold-to-repeat, and key auto-repeat is ignored: with steps up to
+  50 cm and 3 degrees a hold buys little, and repeat would need a draft, a timer and release bookkeeping for one undo
+  step per hold (finding 6), or fill the 100-step history in seconds.
+- **Keys.** Arrows move and `,` `.` turn by the selected steps, on the editor host, only while Align is open and no text
+  field has focus. Not `[` `]`: they need AltGr or Option on an Italian keyboard. Outside Align the arrows pan, as now.
+- **View.** The current floor stays in its own frame; the ghost of the floor below moves the other way on screen. The
+  panel says "This floor moves" and every button names this floor. Holding the ghost still is a later option.
+- **Accepted by Diego.** The angle search is Sprint 30; a floor shown alone stays in its own frame; Align stairs uses the
+  first stair of each floor.
+
+## 2026-10-11: Hand align, with a floor rotation (plan for Sprint 29, 0.27.0; assumptions)
+
+Diego: hand align a floor over the floor below; his stairs do not line up in 3D; Align scores 20 to 24 % on his
+house. Then: the misalignment is a rotation plus an offset. Spec `docs/specs/hand-align.md`, plan Sprint 29. Defaults
+taken, each open to Diego:
+- **Schema.** `floor.rotation?: number`, degrees, clockwise on screen like `rot`, about the floor's stored origin, before
+  `offset`: house point = `R(rotation) · p + offset`. Validate finite within -180..180; migrate drops junk; writers
+  normalise to (-180, 180], round to 0.01 degree (0.1 is 3.5 cm at 20 m), delete at 0. Schema stays v2, as the offset
+  did in S27. Why the origin: a geometry-based pivot (the bounds centre) would move the floor in the house whenever a
+  room is added. The tools pivot on the structure's centre and write rotation and offset together, so drag and turn
+  stay independent.
+- **Own frame.** A floor shown alone is drawn in its own frame everywhere; only the ghost and the 3D floors below are
+  turned, through one helper, `floorPlace(layout, from, to)` -> `{ turn, shift }`, which replaces `floorShift`. Nothing
+  clickable is transformed, so no hit test changes in the card or the Studio. Rejected: drawing every floor in the house
+  frame, which would put a transform in every hit test, the editor's tools, the card's picking and the view memory.
+- **The Align frame.** While Align is open the view answers each pose change the other way, through the existing view
+  turn and pan, so the ghost holds still and the floor moves under the hand.
+- **Gestures.** Drag moves; a turn handle turns (Shift 15 degrees, else parallel snap within 1 degree); a click picks a
+  point; arrows 1 cm (Shift 10) and `[` `]` 0.1 degree (Shift 1) in Align mode only; Alt no snap; Escape cancels the
+  gesture, then picked points, then closes. Snap reuses `align.ts`'s structure lines and corners, not `snapCorner`
+  (which snaps one point inside one floor).
+- **Undo.** One step per gesture. A held key, press to release, is one gesture: auto repeat would fill the 100-step
+  history in three seconds.
+- **Pairs.** Pair 1 moves the points together; pair 2 turns about pair 1's point (pin and swing). Each one step.
+- **Stairs.** The report gives each stair's centre distance and axis angle to the nearest stair below. Align stairs
+  uses the first stair of each floor: both ends of a straight flight (the order with the smaller turn), the centre of a
+  round one.
+- **Split.** 0.27.0 ships the schema, every view and the hand tools; Apply keeps the current turn and searches
+  translation only. The angle search is Sprint 30 (0.28.0). Card layout and touch move to Sprint 31 (0.29.0), extras to
+  32 (0.30.0).
 
 ## 2026-10-11: the 3D ground lies under every solid, not only the slabs (0.26.1)
 

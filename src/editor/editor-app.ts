@@ -4,11 +4,19 @@ import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import {
   COORD_LIMIT,
   DEFAULT_MOTION_FADE_S,
-  alignFloor,
+  alignCandidates,
+  chooseAlign,
+  alignSummary,
+  alignStatus,
   alignKeyOf,
+  stairPlace,
+  stairReport,
   floorBelow,
-  floorShift,
+  floorPivot,
+  floorPlace,
+  floorPose,
   floorSwitch,
+  poseFromPlace,
   detailFor,
   type DetailMode,
   DEVICE_COLOURS,
@@ -122,7 +130,14 @@ import {
   type View,
 } from "./state";
 import { floorGroups, toolbarCss, toolbarView } from "./toolbar";
-import { asideView, inspectorCss } from "./inspector";
+import {
+  asideView,
+  inspectorCss,
+  parseAlignNumber,
+  readAlignSteps,
+  writeAlignSteps,
+  type AlignSteps,
+} from "./inspector";
 import type { AsideMode } from "./inspector";
 import { ctxMenuCss, ctxMenuView, ctxTargetFor, fitCtxMenu, type CtxTarget } from "./ctx-menu";
 
@@ -357,9 +372,9 @@ export class FloorplanStudioEditor extends LitElement {
   linkOff = new Set<string>();
   /** S27.10: the key of the floor the Align mode was opened on (null when closed), and its memoised preview. */
   alignKey: string | null = null;
-  /** How many times the Align preview has run `alignFloor` (a test reads it: a drag must not search on every pointer move). */
+  /** How many times the Align preview has run `alignCandidates` (a test reads it: a drag must not search on every pointer move). */
   alignSearches = 0;
-  private alignMemo: { key: string; r: ReturnType<typeof alignFloor> } | null = null;
+  private alignMemo: { key: string; fits: ReturnType<typeof alignCandidates> } | null = null;
   placeType: DeviceType | null = null;
   private sceneDraft: SceneDraft | null = null;
   private scenePos: { x: number; y: number } | null = null;
@@ -767,6 +782,7 @@ export class FloorplanStudioEditor extends LitElement {
     .furn{pointer-events:all}
     .hl{fill:none;stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke;pointer-events:none}
     .h{cursor:move} .h.on{fill:var(--fp-ink)}
+    .align-pivot{pointer-events:none} .align-pivot line{stroke:var(--fp-window);stroke-width:2;vector-effect:non-scaling-stroke}
     .len{fill:var(--fp-text);paint-order:stroke;stroke:var(--fp-outline);stroke-width:3;stroke-linejoin:round;pointer-events:none;user-select:none}
     .lbl{pointer-events:none;user-select:none}
     .dev,.door,.heater{cursor:move}
@@ -786,6 +802,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.addEventListener("focusout", this.onFocusOut);
     this.addEventListener("click", this.onButtonClick);
     window.addEventListener("click", this.onWindowClick);
+    window.addEventListener("pointerdown", this.onWindowPointerDown, true);
   }
   disconnectedCallback() {
     super.disconnectedCallback();
@@ -799,6 +816,7 @@ export class FloorplanStudioEditor extends LitElement {
     this.removeEventListener("focusout", this.onFocusOut);
     this.removeEventListener("click", this.onButtonClick);
     window.removeEventListener("click", this.onWindowClick);
+    window.removeEventListener("pointerdown", this.onWindowPointerDown, true);
     this.ro?.disconnect();
     this.stopFadeTimer();
     clearTimeout(this.locateTimer);
@@ -1219,6 +1237,12 @@ export class FloorplanStudioEditor extends LitElement {
     }
     if (this.draw) {
       this.drawClick(p, ev.altKey, ev);
+      return;
+    }
+    // Review 29: Align is read-only. A press on the plan only pans (the wheel still zooms); nothing is selected, dragged or marqueed, so no invisible selection can be deleted.
+    if (this.aligning) {
+      this.drag = { type: "pan", sx: ev.clientX, sy: ev.clientY, v: { ...st.view }, button: 0, moved: false };
+      capture();
       return;
     }
     // A press elsewhere, or late, is not the second click of that pair; a third press means the user double-clicked on purpose.
@@ -1697,6 +1721,7 @@ export class FloorplanStudioEditor extends LitElement {
   }
 
   private onDblClick = (ev: MouseEvent) => {
+    if (this.aligning) return; // Review 29: Align is read-only
     if (this.draw) {
       this.finishDraw();
       return;
@@ -2262,6 +2287,7 @@ export class FloorplanStudioEditor extends LitElement {
    * the signal instead, exactly how a left-button "room" drag already tells a click from a drag (`onUp`'s `d.moved`).
    */
   private openCtxMenuAt(clientX: number, clientY: number) {
+    if (this.aligning) return; // Review 29: the menu selects and deletes; Align is read-only
     const el = (this.renderRoot as unknown as DocumentOrShadowRoot).elementFromPoint(clientX, clientY);
     let hit = hitOf(el);
     if (hit.k === "bg" || hit.k === "room" || hit.k === "stairs")
@@ -2488,6 +2514,7 @@ export class FloorplanStudioEditor extends LitElement {
       this.renderRoot.querySelector<FpSearch>("#search")?.focus();
       return;
     }
+    if (this.alignKeyDo(ev)) return;
     const vk = viewKeyFor(ev);
     if (vk) {
       this.doViewKey(vk, ev);
@@ -2513,6 +2540,7 @@ export class FloorplanStudioEditor extends LitElement {
       !ev.shiftKey &&
       ev.key.toLowerCase() === "a" &&
       !this.draw &&
+      !this.aligning &&
       !takesTyping(t)
     ) {
       ev.preventDefault();
@@ -2641,6 +2669,7 @@ export class FloorplanStudioEditor extends LitElement {
       return;
     }
     if (ev.key !== "Delete" && ev.key !== "Backspace") return;
+    if (this.aligning) return; // Review 29: Align is read-only, so nothing is deleted from under it
     const s = this.st.sel;
     if (!s) return;
     const del = (fn: (f: Floor) => Floor | void) => {
@@ -2721,6 +2750,18 @@ export class FloorplanStudioEditor extends LitElement {
         this.requestUpdate();
       }
     }, 0);
+  };
+
+  /** A press outside an open menu closes it at once. A drag on the plan never ends in a click on the plan, so `onWindowClick`
+   * alone left the menu open over the toolbar (and over Undo) after a device was moved. */
+  private onWindowPointerDown = (ev: PointerEvent) => {
+    const path = ev.composedPath();
+    this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]").forEach((m) => {
+      if (!path.includes(m)) {
+        m.open = false;
+        this.closeSubs(m);
+      }
+    });
   };
 
   private onWindowClick = (ev: MouseEvent) => {
@@ -2856,6 +2897,7 @@ export class FloorplanStudioEditor extends LitElement {
     } else if (e.kind === "floor") {
       this.revealInOutline(`f:${e.floor}`);
     }
+    if (this.aligning) st.sel = null; // review 29: Align is read-only and nothing is selected in it; the pick is centred and ringed, not selected
     this.requestUpdate();
   }
 
@@ -2944,7 +2986,7 @@ export class FloorplanStudioEditor extends LitElement {
    *  right-click on the plan does; a floor, an unplaced entity or a "No room" row has no menu and the browser's own shows. */
   private openCtxForRow(row: OutlineRow, x: number, y: number): boolean {
     const e = row.node.entry;
-    if (!e || (e.kind !== "room" && e.kind !== "device")) return false;
+    if (this.aligning || !e || (e.kind !== "room" && e.kind !== "device")) return false; // review 29: the menu selects and deletes; Align is read-only
     // A row of the multi-selection keeps it, as a right-click on the plan does (Opus review).
     const sel = this.st.sel;
     if (
@@ -2971,6 +3013,10 @@ export class FloorplanStudioEditor extends LitElement {
     return true;
   }
   private onOutlineCtx = (row: OutlineRow, ev: MouseEvent) => {
+    if (this.aligning) {
+      ev.preventDefault();
+      return;
+    } // review 29: no plan menu while Align is open, and not the browser's either
     if (this.openCtxForRow(row, ev.clientX, ev.clientY)) ev.preventDefault();
   };
   /** The tree's own keys (WAI-ARIA tree pattern). A key it uses goes no further, so the arrows move in the tree, not the plan. */
@@ -2981,6 +3027,11 @@ export class FloorplanStudioEditor extends LitElement {
     const rows = this.outlineRows(this.findData().tree);
     if (ev.key === "ContextMenu" || (ev.key === "F10" && ev.shiftKey)) {
       // the Menu key: beside the row, as the pointer would
+      if (this.aligning) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        return;
+      } // review 29: Align is read-only
       const row = rows.find((x) => x.node.id === t.dataset.node),
         b = t.getBoundingClientRect();
       if (row && this.openCtxForRow(row, b.left + 24, b.bottom)) {
@@ -3236,6 +3287,7 @@ export class FloorplanStudioEditor extends LitElement {
       this.planFixed();
       return;
     }
+    this.closeAlign(false); // review 29: a draw and Align never run together
     this.draw = new Draw(kind, wall, area);
     this.hover = this.aim = this.rayAim = null;
     this.st.sel = null;
@@ -3972,16 +4024,22 @@ export class FloorplanStudioEditor extends LitElement {
     this.st.confirmDelete = true;
     this.requestUpdate();
   }
+  /** True while the Align mode is open on the floor being edited: the plan is then read-only (review 29). */
+  private get aligning() {
+    return this.asideMode === "align" && this.alignKey === this.st.floor;
+  }
   /** S27.10: Floors, Align to floor below… opens the Align mode on the current floor; the floor below shows as a ghost while it is open. */
   openAlign() {
     this.closeMenus();
     if (floorBelow(this.st.layout, this.st.floor) === null) return;
     this.stopDraw();
+    this.st.sel = null;
     this.alignKey = this.st.floor;
     this.asideMode = "align";
-    this.alignMemo = null;
+    this.alignMemo = null; // S29.9: no selection, so no handle is left on the plan
     if (this.st.helpOpen) this.st.setHelp(false);
     this.requestUpdate();
+    this.focus({ preventScroll: true }); // S29.10: the keys are heard on the host, so the menu click must leave focus there
   }
   closeAlign(update = true) {
     this.alignKey = null;
@@ -3989,7 +4047,12 @@ export class FloorplanStudioEditor extends LitElement {
     if (this.asideMode === "align") this.asideMode = "selection";
     if (update) this.requestUpdate();
   }
-  /** The Align mode's numbers, from the live layout: the floor below, the best move (S27.4, memoised per pair of floor objects, so a hass update does not search again), and the offset Apply would write. */
+  /**
+   * The Align mode's numbers, from the live layout: the floor below, the answer (S30.8), the panel's lines, and the pose Apply would write.
+   * The expensive part, `alignCandidates`, reads only the two floors' structure, so it is memoised on `alignKeyOf` of both (no turn: a nudge,
+   * a turn press and an undo make new objects with the same structure and do not search). The cheap part, `chooseAlign`, reads the floor's
+   * current turn and runs on every render.
+   */
   alignPreview() {
     const st = this.st,
       key = this.alignKey;
@@ -3997,78 +4060,196 @@ export class FloorplanStudioEditor extends LitElement {
     if (key === null || bk === null) return null;
     const upper = st.layout.floors[key],
       lower = st.layout.floors[bk];
-    // A drag edits the floor on every pointer move, and every edit is a new floor object: searching each time would stall the drag.
-    // The preview keeps the last answer while a drag is in progress and searches once when it ends.
-    const dragging = this.drag !== null && this.drag.type !== "pan" && this.drag.type !== "marquee" && this.drag.moved;
-    // S28.12: keyed on what the search reads (`alignKey`), not on the floor objects: a nudge or an undo makes new objects with the same structure.
-    const k = dragging && this.alignMemo ? this.alignMemo.key : `${alignKeyOf(upper)}#${alignKeyOf(lower)}`;
+    const place = floorPlace(st.layout, key, bk);
+    const k = `${alignKeyOf(upper)}#${alignKeyOf(lower)}`;
     if (!this.alignMemo || this.alignMemo.key !== k) {
       this.alignSearches++;
-      this.alignMemo = { key: k, r: alignFloor(upper, lower) };
+      this.alignMemo = { key: k, fits: alignCandidates(upper, lower) };
     }
-    const r = this.alignMemo.r,
-      cur = upper.offset ?? [0, 0],
-      lo = lower.offset ?? [0, 0];
-    const next: Pt | null = r ? [Math.round(lo[0] + r.t[0]) + 0, Math.round(lo[1] + r.t[1]) + 0] : null;
+    const r = chooseAlign(this.alignMemo.fits, place.turn),
+      pose = floorPose(st.layout, key);
+    const to = r ? poseFromPlace(st.layout, key, bk, { turn: r.turn, shift: r.t }) : null;
+    const belowTitle = lower.title || bk;
     return {
       key,
       belowKey: bk,
-      belowTitle: lower.title || bk,
+      belowTitle,
       r,
-      cur,
-      next,
-      delta: next ? ([next[0] - cur[0], next[1] - cur[1]] as Pt) : null,
+      place,
+      cur: pose.off,
+      rot: pose.rot,
+      to,
+      words: r ? alignSummary(r, place, floorPivot(upper)) : null,
+      status: r ? alignStatus(r, place, belowTitle) : "",
     };
   }
-  /** Apply: the best offset in one undo step. */
+  /** Apply: the best pose, turn and offset, in one undo step (`setPose`). */
   applyAlign() {
     const a = this.alignPreview();
-    if (!a || !a.r || !a.next) return;
-    if (this.st.setOffset(a.key, a.next)) {
-      this.changed(`Aligned to ${a.belowTitle}: ${Math.round(a.r.score)} % match`);
+    if (!a || !a.r || !a.to) return;
+    if (this.st.setPose(a.key, a.to)) {
+      this.changed(a.status);
       return;
     }
     if (this.st.planBlocked) {
       this.refused();
       return;
     }
-    // Not locked, so the offset was unchanged or out of range: say which (it was always "Already aligned").
+    this.poseNone();
+  }
+  /** A pose write that wrote nothing and is not the lock: the pose was already this one ("Already aligned"), or it passes the coordinate limit. */
+  private poseNone() {
     this.status =
-      a.delta && a.delta[0] === 0 && a.delta[1] === 0
+      this.st.lastPose === "same"
         ? "Already aligned"
         : `The offset would be beyond the limit of ${COORD_LIMIT} cm. Move this floor nearer the origin first`;
     this.requestUpdate();
+  }
+  /** S29.11: the stair report for the panel, live from the layout (so it follows every press), and whether Align stairs can run. */
+  alignStairInfo() {
+    const st = this.st,
+      key = this.alignKey,
+      bk = key === null ? null : floorBelow(st.layout, key);
+    if (key === null || bk === null) return null;
+    const upper = st.layout.floors[key],
+      lower = st.layout.floors[bk],
+      place = floorPlace(st.layout, key, bk);
+    return {
+      rows: stairReport(upper, lower, place),
+      belowTitle: lower.title || bk,
+      can: stairPlace(upper, lower, place) !== null,
+    };
+  }
+  /** Align stairs: the first stair of this floor laid on the nearest stair below, turn and shift, one undo step; the status says what it did. */
+  alignStairs() {
+    const st = this.st,
+      key = this.alignKey,
+      bk = key === null ? null : floorBelow(st.layout, key);
+    if (key === null || bk === null) return;
+    const r = stairPlace(st.layout.floors[key], st.layout.floors[bk], floorPlace(st.layout, key, bk));
+    if (!r) {
+      this.status = "Both floors need a stair to align";
+      this.requestUpdate();
+      return;
+    }
+    const pose = poseFromPlace(st.layout, key, bk, r.place);
+    if (st.setPose(key, pose)) {
+      this.changed(r.text);
+      return;
+    }
+    if (st.planBlocked) {
+      this.refused();
+      return;
+    }
+    this.poseNone();
+  }
+  /** S29.9: the two remembered step choices (move in cm, turn in degrees), read from `localStorage` on first use. */
+  private stepsNow: AlignSteps | null = null;
+  get alignSteps(): AlignSteps {
+    return (this.stepsNow ??= readAlignSteps());
+  }
+  setAlignStep(kind: "move" | "turn", n: number) {
+    this.stepsNow = { ...this.alignSteps, [kind]: n };
+    writeAlignSteps(this.stepsNow);
+    this.requestUpdate();
+  }
+  /** One press of a Move button: this floor moves by the step along `dir` on screen (the view's turn is taken into account); one undo step. */
+  moveAlign(dir: Pt) {
+    const key = this.alignKey;
+    if (key === null) return;
+    const cm = this.alignSteps.move;
+    if (this.st.nudgeFloor(key, dir, cm, this.st.turnDeg)) {
+      this.changed(
+        `Moved this floor ${cm} cm ${dir[0] > 0 ? "right" : dir[0] < 0 ? "left" : dir[1] < 0 ? "up" : "down"}`,
+      );
+      return;
+    }
+    this.pressRefused();
+  }
+  /** One press of a Turn button, about the floor's pivot (its place in the house does not change); one undo step. */
+  turnAlign(sign: 1 | -1) {
+    const key = this.alignKey;
+    if (key === null) return;
+    const deg = this.alignSteps.turn;
+    if (this.st.turnFloor(key, sign * deg, floorPivot(this.st.layout.floors[key]))) {
+      this.changed(`Turned this floor ${deg}\u00B0 ${sign > 0 ? "clockwise" : "anticlockwise"}`);
+      return;
+    }
+    this.pressRefused();
+  }
+  /** A press that wrote nothing: the lock says so; otherwise the pose would pass the coordinate limit. */
+  private pressRefused() {
+    if (this.st.planBlocked) {
+      this.refused();
+      return;
+    }
+    this.poseNone();
+  }
+  /** A typed value that wrote nothing: the lock says so; the same value is silent (the box shows the layout again); a pose past the coordinate limit says so. */
+  private typedRefused() {
+    if (this.st.planBlocked) this.refused();
+    else if (this.st.lastPose === "refused") this.poseNone();
+    else this.requestUpdate();
   }
   /** One of the two offset fields (cm): a number, one undo step; junk or the same value changes nothing and the field shows the layout again. */
   setAlignOffset(axis: 0 | 1, text: string) {
     const a = this.alignPreview();
     if (!a) return;
-    const n = text.trim() === "" ? NaN : Number(text.trim().replace(",", "."));
+    const n = parseAlignNumber(text);
     if (!Number.isFinite(n)) {
-      this.status = "Type a number of centimetres";
+      this.status = "Type a number of centimetres, such as 3,5 or -2.25";
       this.requestUpdate();
       return;
     }
     const to: Pt = axis === 0 ? [n, a.cur[1]] : [a.cur[0], n];
     if (this.st.setOffset(a.key, to)) this.changed("Floor offset set");
-    else this.refused();
+    else this.typedRefused();
   }
+  /** S29.10: the rotation box (degrees, a comma works); one undo step, about the pivot the Turn buttons use; junk or the same value changes nothing and the box shows the layout again. */
+  setAlignRotation(text: string) {
+    const a = this.alignPreview();
+    if (!a) return;
+    const n = parseAlignNumber(text);
+    if (!Number.isFinite(n)) {
+      this.status = "Type a number of degrees, such as 3,5 or -2.25";
+      this.requestUpdate();
+      return;
+    }
+    // Review 29: about the pivot the Turn buttons use, so the floor's place in the house does not jump; the same angle writes nothing.
+    if (this.st.setRotation(a.key, n, floorPivot(this.st.layout.floors[a.key]))) this.changed("Floor rotation set");
+    else this.typedRefused();
+  }
+  /** Reset: rotation and offset both to zero, one undo step. */
   resetAlignOffset() {
     const a = this.alignPreview();
-    if (a && (a.cur[0] !== 0 || a.cur[1] !== 0)) {
-      if (this.st.setOffset(a.key, [0, 0])) this.changed("Floor offset reset");
+    if (a && (a.rot !== 0 || a.cur[0] !== 0 || a.cur[1] !== 0)) {
+      if (this.st.setPose(a.key, { rot: 0, off: [0, 0] })) this.changed("Floor offset and rotation reset");
       else this.refused();
     }
   }
+  /** S29.10: while Align is open on this floor, the arrows move it and `,` `.` turn it, by the selected steps. Held keys (auto-repeat) do nothing; a text field keeps its keys. */
+  private alignKeyDo(ev: KeyboardEvent): boolean {
+    if (!this.aligning || this.draw) return false; // review 29: a draw owns its keys ('.' types a length)
+    if (ev.defaultPrevented || ev.isComposing || ev.ctrlKey || ev.metaKey || ev.altKey) return false;
+    const dir: Record<string, Pt> = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] };
+    const d = dir[ev.key];
+    if (!d && ev.key !== "," && ev.key !== ".") return false;
+    if (takesTyping(ev.composedPath()[0] as HTMLElement | undefined)) return false;
+    ev.preventDefault();
+    if (ev.repeat) return true;
+    if (d) this.moveAlign(d);
+    else this.turnAlign(ev.key === "." ? 1 : -1);
+    return true;
+  }
   /** The floor below as `renderFloor`'s ghost: while the Align mode is open, or when View, Floor below is on (S27.11). */
-  private ghostOpts(): { floor: Floor; shift: Pt } | undefined {
+  private ghostOpts(): { floor: Floor; shift: Pt; turn: number } | undefined {
     const st = this.st,
       bk = floorBelow(st.layout, st.floor);
     if (bk === null) return undefined;
     const aligning = this.asideMode === "align" && this.alignKey === st.floor;
-    return aligning || st.ghostFloor
-      ? { floor: st.layout.floors[bk], shift: floorShift(st.layout, bk, st.floor) }
-      : undefined;
+    if (!aligning && !st.ghostFloor) return undefined;
+    const p = floorPlace(st.layout, bk, st.floor);
+    return { floor: st.layout.floors[bk], shift: p.shift, turn: p.turn };
   }
   async startAddFloor() {
     this.addingFloor = true;
@@ -4350,6 +4531,12 @@ export class FloorplanStudioEditor extends LitElement {
       f = st.f,
       s = st.sel,
       o: string[] = [];
+    // S29.9: while Align is open the plan is read-only: no handle, no highlight, only the cross at the pivot the Turn buttons turn about.
+    if (this.asideMode === "align" && this.alignKey === st.floor) {
+      const c = floorPivot(f),
+        r = 9 * k;
+      return `<g class="align-pivot"><line x1="${num(c[0] - r)}" y1="${num(c[1])}" x2="${num(c[0] + r)}" y2="${num(c[1])}"/><line x1="${num(c[0])}" y1="${num(c[1] - r)}" x2="${num(c[0])}" y2="${num(c[1] + r)}"/></g>`;
+    }
     const line = (a: Pt, b: Pt, cls: string, extra = "") =>
       `<line class="${cls}" x1="${num(a[0])}" y1="${num(a[1])}" x2="${num(b[0])}" y2="${num(b[1])}" ${extra}/>`;
     const deg = st.turnDeg,
@@ -4523,6 +4710,7 @@ export class FloorplanStudioEditor extends LitElement {
         detail: detailFor(viewBoxFor(f, 80, st.rotation), v, this.detailMode),
         showNames: st.showNames,
         editor: true,
+        handles: !(this.asideMode === "align" && this.alignKey === st.floor),
         trace: true,
         rotate: rot,
         colors: st.layout.colors,

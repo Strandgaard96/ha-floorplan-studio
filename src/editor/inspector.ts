@@ -49,6 +49,15 @@ export const inspectorCss = css`
     .imode p{margin:8px 0 0;font-size:13px}
     .imode .rows{max-height:max(120px, calc(var(--fp-editor-height,calc(100vh - 150px)) - 380px))}
     .imodes{border-bottom:1px solid var(--fp-idle)}
+    /* S29.9: the Align panel's Move cross, Turn pair and step choices. Plain buttons in rows that wrap; 44 px targets on a coarse pointer. */
+    .align-panel .al-cross{display:grid;grid-template-columns:repeat(3,minmax(36px,1fr));gap:4px;margin:6px 0}
+    .align-panel .al-cross .btn{min-height:32px;padding:2px 4px}
+    .align-panel .al-cross .up{grid-column:2} .align-panel .al-cross .left{grid-column:1;grid-row:2} .align-panel .al-cross .right{grid-column:3;grid-row:2} .align-panel .al-cross .down{grid-column:2;grid-row:3}
+    .align-panel .al-stairs{margin:4px 0;padding-left:18px}
+    .align-panel .al-row{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
+    .align-panel .al-row .btn{flex:1 1 auto;min-width:36px;min-height:32px;padding:2px 6px}
+    .align-panel .al-label{font-size:.85em;opacity:.8;margin:6px 0 0}
+    @media (pointer:coarse){.align-panel .btn,.align-panel .al-cross .btn,.align-panel .al-row .btn{min-height:44px;min-width:44px} .align-panel input{min-height:44px}}
     .imodes .tab:disabled{opacity:.4;cursor:default}
     /* S22.6: the aside is its own scroll container, as tall as the canvas beside it (same height rule, same floor), so
        a long room panel scrolls inside it and the plan stays put; before, it grew the page and scrolling it moved the plan away. */
@@ -293,7 +302,50 @@ export function linkView(h: FloorplanStudioEditor, st: EditorState) {
   </div>`;
 }
 
-/** S27.10: the Align mode. The floor below by name, the score, the proposed move in words, Apply, and the offset as two fields for a hand nudge, with Reset. Nothing is written before Apply or a field change. */
+/** S29.9: the choices of the two step controls (Move in cm, Turn in degrees) and their defaults. */
+export const ALIGN_MOVE_STEPS = [1, 5, 50] as const;
+export const ALIGN_TURN_STEPS = [0.1, 0.5, 1, 3] as const;
+export interface AlignSteps {
+  move: number;
+  turn: number;
+}
+export const ALIGN_STEPS_KEY = "fp-align-steps";
+export const DEFAULT_ALIGN_STEPS: AlignSteps = { move: 5, turn: 0.5 };
+
+/**
+ * Review 29: the text of an offset or rotation box as a number, or NaN. Plain decimals only: an optional sign, digits, and one
+ * point or comma. `Number()` would take "0x10" (16), "1e3" (1000), "Infinity" and "0b11", none of which anyone types on purpose.
+ */
+export function parseAlignNumber(text: string): number {
+  const t = String(text).trim();
+  if (!/^[+-]?(\d+[.,]?\d*|[.,]\d+)$/.test(t)) return NaN;
+  return Number(t.replace(",", "."));
+}
+
+/** The remembered steps (per viewer, never in the layout). Storage is untrusted: blocked, missing or junk gives the defaults. */
+export function readAlignSteps(): AlignSteps {
+  try {
+    const o = JSON.parse(localStorage.getItem(ALIGN_STEPS_KEY) ?? "null");
+    const move = (ALIGN_MOVE_STEPS as readonly unknown[]).includes(o?.move)
+      ? (o.move as number)
+      : DEFAULT_ALIGN_STEPS.move;
+    const turn = (ALIGN_TURN_STEPS as readonly unknown[]).includes(o?.turn)
+      ? (o.turn as number)
+      : DEFAULT_ALIGN_STEPS.turn;
+    return { move, turn };
+  } catch {
+    return { ...DEFAULT_ALIGN_STEPS };
+  }
+}
+export function writeAlignSteps(s: AlignSteps): void {
+  try {
+    localStorage.setItem(ALIGN_STEPS_KEY, JSON.stringify(s));
+  } catch {
+    /* blocked storage: the choice lasts this session */
+  }
+}
+
+/** S27.10, S29.9: the Align mode. The floor below by name, Auto align (score, the move in words, Apply), the Move cross and Turn pair with their step choices, and the offset as two fields with Reset. Nothing is written before a press, Apply or a field change. */
 export function alignView(h: FloorplanStudioEditor) {
   const a = h.alignPreview();
   if (!a) return nothing;
@@ -304,35 +356,69 @@ export function alignView(h: FloorplanStudioEditor) {
       h.closeAlign();
     }
   };
-  const words = (d: Pt) => {
-    const parts = [
-      d[0] ? `${Math.abs(d[0])} cm ${d[0] < 0 ? "left" : "right"}` : "",
-      d[1] ? `${Math.abs(d[1])} cm ${d[1] < 0 ? "up" : "down"}` : "",
-    ].filter(Boolean);
-    return parts.length ? parts.join(", ") : "Already aligned";
-  };
   const field = (id: string, label: string, axis: 0 | 1) => html`<label for=${id}>${label}</label>
     <input id=${id} type="text" inputmode="decimal" autocomplete="off" .value=${live(String(a.cur[axis]))} @change=${(e: Event) => h.setAlignOffset(axis, (e.target as HTMLInputElement).value)} @keydown=${(
       e: KeyboardEvent,
     ) => {
       if (e.key === "Enter") (e.target as HTMLInputElement).blur();
     }}>`;
+  const steps = h.alignSteps,
+    stairs = h.alignStairInfo();
+  const mv = (id: string, cls: string, label: string, glyph: string, dir: Pt) =>
+    html`<button class="btn keep ${cls}" id=${id} aria-label=${label} title=${label} @click=${() => h.moveAlign(dir)}>${glyph}</button>`;
+  const turn = (id: string, label: string, glyph: string, sign: 1 | -1) =>
+    html`<button class="btn keep" id=${id} aria-label=${label} title=${label} @click=${() => h.turnAlign(sign)}>${glyph}</button>`;
   return html`<div class="imode align-panel" id="alignPanel" role="tabpanel" aria-label="Align to floor below" @keydown=${esc}>
     <div class="imode-head">
       <button class="btn keep" id="alignClose" aria-label="Close" @click=${() => h.closeAlign()}>&times;</button>
       <span>Align to floor below</span>
     </div>
     <p>Lay this floor over <strong>${a.belowTitle}</strong>. The floor below is drawn as faint lines on the plan.</p>
+    <h4 class="pnl-h">Auto align</h4>
     ${
-      a.r && a.delta
-        ? html`<p id="alignScore">${a.r.weak ? `Weak match: ${Math.round(a.r.score)} %. Check the plan before you apply it` : `${Math.round(a.r.score)} % match`}</p>
-        <p id="alignMove">${words(a.delta)}</p>`
+      a.r && a.words
+        ? html`<p id="alignScore">${a.words.score}</p>
+        ${a.words.alt === null ? nothing : html`<p id="alignAlt">${a.words.alt}</p>`}
+        <p id="alignMove">${a.words.move}</p>`
         : html`<p id="alignNone">Nothing to match: ${a.belowTitle} or this floor has no outline or walls.</p>`
     }
-    <button class="btn primary keep" id="alignApply" ?disabled=${!a.r || !a.delta || (a.delta[0] === 0 && a.delta[1] === 0)} @click=${() => h.applyAlign()}>Apply</button>
+    <button class="btn primary keep" id="alignApply" ?disabled=${!a.r || !a.words || a.words.move === "Already aligned"} @click=${() => h.applyAlign()}>Apply</button>
+    <h4 class="pnl-h">Move</h4>
+    <div class="al-cross" role="group" aria-label="Move this floor">
+      ${mv("alignUp", "up", "Move this floor up", "\u2191", [0, -1])}${mv("alignLeft", "left", "Move this floor left", "\u2190", [-1, 0])}${mv("alignRight", "right", "Move this floor right", "\u2192", [1, 0])}${mv("alignDown", "down", "Move this floor down", "\u2193", [0, 1])}
+    </div>
+    <p class="al-label" id="alignStepLabel">Step (cm)</p>
+    <div class="al-row" role="group" aria-labelledby="alignStepLabel">
+      ${ALIGN_MOVE_STEPS.map((n) => html`<button class="btn keep" data-step=${n} aria-pressed=${steps.move === n ? "true" : "false"} aria-label=${`Move step ${n} cm`} @click=${() => h.setAlignStep("move", n)}>${n} cm</button>`)}
+    </div>
+    <h4 class="pnl-h">Turn</h4>
+    <div class="al-row" role="group" aria-label="Turn this floor">
+      ${turn("alignTurnL", "Turn this floor anticlockwise", "\u21B6 Anticlockwise", -1)}${turn("alignTurnR", "Turn this floor clockwise", "Clockwise \u21B7", 1)}
+    </div>
+    <p class="al-label" id="alignAngleLabel">Angle step (degrees)</p>
+    <div class="al-row" role="group" aria-labelledby="alignAngleLabel">
+      ${ALIGN_TURN_STEPS.map((n) => html`<button class="btn keep" data-angle=${n} aria-pressed=${steps.turn === n ? "true" : "false"} aria-label=${`Angle step ${n} degrees`} @click=${() => h.setAlignStep("turn", n)}>${n}\u00B0</button>`)}
+    </div>
+    <p id="alignWho">This floor moves. The floor below (faint lines) is drawn moving the other way.</p>
     <h4 class="pnl-h">Offset (cm)</h4>
     ${field("alignX", "x (right)", 0)}${field("alignY", "y (down)", 1)}
-    <button class="btn keep" id="alignReset" ?disabled=${a.cur[0] === 0 && a.cur[1] === 0} @click=${() => h.resetAlignOffset()}>Reset</button>
+    <h4 class="pnl-h">Rotation (degrees)</h4>
+    <label for="alignRot">turn (clockwise)</label>
+    <input id="alignRot" type="text" inputmode="decimal" autocomplete="off" .value=${live(String(a.rot))} @change=${(e: Event) => h.setAlignRotation((e.target as HTMLInputElement).value)} @keydown=${(
+      e: KeyboardEvent,
+    ) => {
+      if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+    }}>
+    <button class="btn keep" id="alignReset" ?disabled=${a.rot === 0 && a.cur[0] === 0 && a.cur[1] === 0} @click=${() => h.resetAlignOffset()}>Reset</button>
+    <h4 class="pnl-h">Stairs</h4>
+    ${
+      !stairs || !stairs.rows.length
+        ? html`<p id="alignStairsNone">No stairs on this floor</p>`
+        : stairs.rows.every((r) => r.nearest === null)
+          ? html`<p id="alignStairsNone">No stairs on ${stairs.belowTitle}</p>`
+          : html`<ul id="alignStairs" class="al-stairs">${stairs.rows.map((r) => html`<li>${r.name}: ${r.distance === null || !r.nearest ? "no stair below" : html`${Math.round(r.distance)} cm from ${r.nearest.name}${r.angle === null ? nothing : `, ${(Math.round(r.angle * 10) / 10).toFixed(1)}\u00B0 off`}`}</li>`)}</ul>`
+    }
+    <button class="btn keep" id="alignStairsBtn" ?disabled=${!stairs?.can} @click=${() => h.alignStairs()}>Align stairs</button>
   </div>`;
 }
 

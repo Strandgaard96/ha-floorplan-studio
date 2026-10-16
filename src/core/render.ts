@@ -18,6 +18,7 @@ import { TEXTURE_IDS, texturePatterns, texturePatternId, normTextureRot, normTex
 import { rolesToTokens } from "./theme-roles";
 import { heatColour, inkFor, mixSrgb, themeExtras } from "./ink";
 import { esc, num, pts, tag } from "./fmt";
+import { placePoint } from "./floor-stack";
 import { treeShadeSvg } from "./tree";
 import { coverActive } from "./cover";
 import { doorStateOf } from "./door-state";
@@ -86,8 +87,9 @@ export interface RenderOpts {
   fade?: number;
   roomGlow?: boolean;
   editor?: boolean;
-  /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point moved by `shift` (`floorShift`, cm). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
-  ghost?: { floor: Floor; shift: Pt };
+  /** S29.9: false leaves out the editor's corner handles (Align mode is read-only); absent is as before. */ handles?: boolean;
+  /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point placed by `placePoint({ turn, shift })` (`floorPlace`; `turn` in degrees clockwise, absent is 0, so a ghost without a turn is drawn exactly as before; a `turn` that is not a finite number within -360..360 draws nothing). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
+  ghost?: { floor: Floor; shift: Pt; turn?: number };
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
   rotate?: { deg: number; pivot: Pt };
   /** `layout.colors`: a colour per device type, set as `--fp-dev-<type>` on a group round the drawing. */
@@ -675,7 +677,11 @@ ${THEME_EXTRAS}
 /* S23.7: plan symbols. A window's own line is quiet while it is not selected; its symbol is three hairlines (window, slit), red only
    while open, alarmed or its cover is open. S25.D1: a door or glass door has no symbol and no leaf. Open or with no sensor it is a hole
    (its own line is quiet); closed (a sensor says off, or a lock says locked, and none is open, unlocked or jammed) its own line is the thick line across the gap (CLOSED_DOOR_BAND), in --fp-door / --fp-glass. */
-.door.quiet{stroke:transparent} .door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
+.door.quiet{stroke:transparent}
+/* Studio only (2026-10-12): the editor has no live state, so every sensorless door is a hole and was invisible. It draws a faint dashed guide in the
+   door colour instead, thin whatever the zoom, like .e.none. Two classes plus the kind class, so it outranks .door and .door-glass whatever the source order. */
+.door.guide{stroke:var(--fp-door);stroke-width:1.5px;stroke-dasharray:4 4;stroke-opacity:.55;vector-effect:non-scaling-stroke;stroke-linecap:butt} .door.guide.door-glass{stroke:var(--fp-glass)}
+.door-sym{fill:none;stroke:var(--fp-door);stroke-width:1;vector-effect:non-scaling-stroke;pointer-events:none}
 .door-sym.k-window,.door-sym.k-slit,.door-sym.k-fullwindow{stroke:var(--fp-window)} .door-sym.open,.door-sym.alarm,.door-sym.cover-open{stroke:var(--fp-open-door)}
 /* S1 (Opus review of S23): a window's pane fills the whole cut, so the outer half of the gap on an outer wall is glass, not the
    board; opaque, a glass tint mixed into the bare room. Its jambs are window hairlines, red with the state like the symbol. */
@@ -1702,18 +1708,25 @@ function ghostMarkup(g: RenderOpts["ghost"]): string {
     !sh.every((n) => typeof n === "number" && Number.isFinite(n) && Math.abs(n) <= COORD_LIMIT)
   )
     return "";
+  const turn = (g as { turn?: unknown } | undefined)?.turn;
+  if (turn !== undefined && !(typeof turn === "number" && Number.isFinite(turn) && Math.abs(turn) <= 360)) return "";
+  const place = { turn: turn ?? 0, shift: [sh[0], sh[1]] as Pt };
   const f = g?.floor as unknown as Record<string, unknown> | null | undefined;
   if (typeof f !== "object" || f === null) return "";
-  const at = (p: unknown): string | null =>
-    Array.isArray(p) &&
-    typeof p[0] === "number" &&
-    typeof p[1] === "number" &&
-    Number.isFinite(p[0]) &&
-    Number.isFinite(p[1]) &&
-    Math.abs(p[0] + sh[0]) <= COORD_LIMIT &&
-    Math.abs(p[1] + sh[1]) <= COORD_LIMIT
-      ? `${num(p[0] + sh[0])} ${num(p[1] + sh[1])}`
-      : null;
+  const at = (p: unknown): string | null => {
+    if (
+      !(
+        Array.isArray(p) &&
+        typeof p[0] === "number" &&
+        typeof p[1] === "number" &&
+        Number.isFinite(p[0]) &&
+        Number.isFinite(p[1])
+      )
+    )
+      return null;
+    const q = placePoint(place, [p[0], p[1]]);
+    return Math.abs(q[0]) <= COORD_LIMIT && Math.abs(q[1]) <= COORD_LIMIT ? `${num(q[0])} ${num(q[1])}` : null;
+  };
   const ringD = (r: unknown): string | null => {
     if (!Array.isArray(r) || r.length < 3 || r.length > 100_000) return null;
     const q = r.map(at);
@@ -2490,14 +2503,17 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
     // S25.D1: a door or glass door is closed (its line shows) only when a sensor says off or a lock says locked, and no lock is unlocked or jammed (`doorStateOf`); otherwise it is a hole and its line is quiet.
     const sym = doorSymbol(f, d.kind, d.a, d.b),
       swing = SWING_KINDS.includes(d.kind),
-      quiet = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
+      hushed = (sym || (swing && !closed)) && !sel && !open && !vibrating && !coverOpen;
+    // Studio only: a hole with no symbol (door, glass door) shows a faint guide, so it can be seen and picked; the card and 2.5D keep the hole.
+    const guide = !!o.editor && hushed && !sym,
+      quiet = hushed && !guide;
     const state = `${vibrating ? " alarm" : ""}${open ? " open" : ""}${coverOpen ? " cover-open" : ""}`,
       pane = x25 ? null : windowPane(f, d.kind, d.a, d.b);
     // S1: a window's pane goes under its own line and the hairlines; the jambs go on top. Not in 2.5D: the raised wall
     // carries the glass on its face and hides the floor-level cut.
     if (pane) out.push(`<path data-dp="${i}" class="win-pane k-${esc(String(d.kind))}${state}" d="${pane.pane}"/>`);
     out.push(
-      `<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`,
+      `<line data-d="${i}" class="${cls}${sel ? " sel" : ""}${quiet ? " quiet" : ""}${guide ? " guide" : ""}" ${seg} stroke-width="${sel ? w + DOOR_SELECT_EXTRA : w}"><title>${esc(d.name ?? "")}</title></line>`,
     );
     if (sym) out.push(`<path data-ds="${i}" class="door-sym k-${esc(String(d.kind))}${state}" d="${sym}"/>`);
     if (pane) out.push(`<path data-dj="${i}" class="win-jamb k-${esc(String(d.kind))}${state}" d="${pane.jambs}"/>`);
@@ -2774,7 +2790,7 @@ export function renderFloor(f: Floor, o: RenderOpts): string {
         anchor: (i) => nameAt[i] ?? { at: centroid(f.rooms[i]!.pts), size: 0 },
       }),
     ); // S25.3: shown by CSS at far and mid only; text, so none with labels off
-  if (o.editor)
+  if (o.editor && o.handles !== false)
     for (const P of polys)
       P.pts.forEach((p, j) =>
         out.push(`<circle class="h" data-h="${P.id}:${j}" cx="${num(p[0])}" cy="${num(p[1])}" r="${num(5 * k)}"/>`),

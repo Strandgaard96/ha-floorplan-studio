@@ -84,11 +84,11 @@ describe("EditorState.setOffset (S27.8)", () => {
     expect(s.canUndo).toBe(false);
   });
 
-  it("rounds to whole centimetres", () => {
+  it("rounds to 0.1 cm (S29.6; whole cm before)", () => {
     const s = st(false);
-    expect(s.setOffset("first", [137.4, -61.6])).toBe(true);
-    expect(s.layout.floors.first.offset).toEqual([137, -62]);
-    expect(s.setOffset("first", [0.4, -0.4])).toBe(true);
+    expect(s.setOffset("first", [137.44, -61.66])).toBe(true);
+    expect(s.layout.floors.first.offset).toEqual([137.4, -61.7]);
+    expect(s.setOffset("first", [0.04, -0.04])).toBe(true);
     expect("offset" in s.layout.floors.first).toBe(false);
     ok(s);
   });

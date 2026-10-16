@@ -35,7 +35,7 @@ import {
   activeDevices,
   findPowerSensor,
   floorsAroundKey,
-  floorShift,
+  floorPlace,
   floorBelow,
   floorsBelow,
   floorElevation,
@@ -2135,7 +2135,7 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** S27.14: gives the view the floors below the shown one: each lower floor at its elevation relative to this one (negative) and its
-   * `floorShift`. Only when something changed (the view rebuilds its meshes on every call), and always after `setFloor`. */
+   * `floorPlace` (shift and turn). Only when something changed (the view rebuilds its meshes on every call), and always after `setFloor`. */
   private _sync3dBelow(): void {
     const layout = this._layout,
       key = this._floorKey(),
@@ -2144,12 +2144,11 @@ export class FloorplanStudioCard extends LitElement {
     const mode = this._below();
     const keys = mode === "off" ? [] : floorsBelow(layout, key),
       here = floorElevation(layout, key);
-    const entries = keys.map((k) => ({
-      floor: layout.floors[k],
-      elevation: floorElevation(layout, k) - here,
-      shift: floorShift(layout, k, key),
-    }));
-    const nums = JSON.stringify(entries.map((e) => [e.elevation, e.shift]));
+    const entries = keys.map((k) => {
+      const p = floorPlace(layout, k, key);
+      return { floor: layout.floors[k], elevation: floorElevation(layout, k) - here, shift: p.shift, turn: p.turn };
+    });
+    const nums = JSON.stringify(entries.map((e) => [e.elevation, e.shift, e.turn]));
     const last = this._view3dBelow;
     if (
       last &&
@@ -4189,12 +4188,14 @@ export class FloorplanStudioCard extends LitElement {
   }
 
   /** The floor below and its shift for `renderFloor`, or `undefined`: off, 3D (its own Floors below select), or the lowest floor. */
-  private _ghost(): { floor: Floor; shift: Pt } | undefined {
+  private _ghost(): { floor: Floor; shift: Pt; turn: number } | undefined {
     const key = this._floorKey(),
       layout = this._layout;
     if (!this._ghostOn() || !key || !layout) return undefined;
     const below = floorBelow(layout, key);
-    return below ? { floor: layout.floors[below], shift: floorShift(layout, below, key) } : undefined;
+    if (!below) return undefined;
+    const place = floorPlace(layout, below, key); // S29.5: the turn and the shift, as the Studio's ghost reads them
+    return { floor: layout.floors[below], shift: place.shift, turn: place.turn };
   }
 
   /** S27.13: the Floor below button, 2D and 2.5D. Disabled on the lowest floor, which has nothing under it. */

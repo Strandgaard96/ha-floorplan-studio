@@ -135,9 +135,9 @@ export interface Trace { src: string; x: number; y: number; w: number; rot: numb
 /** `ha` is the HA floor id this floor is; when set, `title` is the name HA gave it. Heights, all optional, in cm, 0 to 1000
  *  (`src/core/heights.ts` holds the defaults, which are read and never stored): `height` is the storey's wall and ceiling
  *  height (250), `slab` the floor slab under the next storey (25). The same `height` on a Room (its ceiling), Wall, Furniture
- *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. `offset` (S27.2, cm, x right and y down) is where the floor sits in the house: a point's place in the house is its stored point plus the offset. Stored coordinates never change; absent means [0, 0], and writers delete the key at [0, 0]. */
+ *  and Unlinked; `height` and `sill` on a Door or Opening (a window defaults to 120 high from 90, a slit window to 60 high, its head 40 under the ceiling of its wall); `z` on a Device is its mount height. `offset` (S27.2, cm, x right and y down) is where the floor sits in the house: a point's place in the house is its stored point plus the offset. Stored coordinates never change; absent means [0, 0], and writers delete the key at [0, 0]. `rotation` (S29.1, degrees, clockwise on screen with y pointing down, from -180 to 180) turns the floor about its stored origin [0, 0] before the offset: a stored point p sits in the house at R(rotation) · p + offset. Absent means 0, and writers delete the key at 0. */
 export interface Floor {
-  ha?: string; height?: number; slab?: number; offset?: [number, number]; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
+  ha?: string; height?: number; slab?: number; offset?: [number, number]; rotation?: number; title: string; outline: Pt[]; owk?: EdgeKind[]; rooms: Room[]; walls: Wall[]; stairs: Stairs[]; doors: Door[];
   openings: Opening[]; extras: Extra[]; devices: Device[]; furniture: Furniture[]; unlinked: Unlinked[]; trace?: Trace;
 }
 export interface CatalogEntry { id: string; floor: string; room: string; type: DeviceType; name: string; entity: string }
@@ -288,6 +288,8 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     optHeight(f, "height"); optHeight(f, "slab");
     if (f.offset !== undefined && !(isPt(f.offset) && f.offset.every((n: number) => Math.abs(n) <= COORD_LIMIT)))
       errors.push(`${at} offset must be two finite numbers [x, y] within +-${COORD_LIMIT} cm; leave it out for [0, 0]`);
+    if (f.rotation !== undefined && !(typeof f.rotation === "number" && Number.isFinite(f.rotation) && f.rotation >= -180 && f.rotation <= 180))
+      errors.push(`${at} rotation must be a finite number of degrees from -180 to 180; leave it out for 0`);
     if (farCoordinate(f)) errors.push(`${at} a coordinate lies further than ${COORD_LIMIT} cm (100 km) from the origin; keep every point within +-${COORD_LIMIT} cm`);
     poly("outline", f.outline);
     // S1.52: owk is optional (migrate fills it), but once present it must match the outline point by point.

@@ -6,6 +6,8 @@ export interface GuideStep {
 /** The view keys, for the Help panel's controls table. The same keys the card takes (`view-keys.ts`). */
 export const CONTROLS: { keys: string; does: string }[] = [
   { keys: "Arrow keys", does: "Pan the view up, down, left and right" },
+  { keys: "Arrow keys in Align", does: "Move the floor you are aligning by the chosen step" },
+  { keys: ",  and  .", does: "Turn the floor you are aligning anticlockwise and clockwise, in Align" },
   { keys: "+  and  -", does: "Zoom in and out" },
   { keys: "[  and  ]", does: "Turn the plan 45 degrees left and right" },
   { keys: "Space", does: "Reset the view: the whole floor, upright" },
@@ -105,7 +107,7 @@ export const GUIDE_STEPS: GuideStep[] = [
   },
   {
     title: "Line the floors up",
-    body: "If a floor sits a little off the one under it, open [Floors], then [Align to floor below…], and click Apply. To see the floor below as faint lines while you draw, open [View], then [Floor below].",
+    body: "If a floor sits a little off the one under it, open [Floors], then [Align to floor below…]. Auto align finds the turn too and says it in words; read the line about another turn that fits, then click Apply. Or move and turn the floor with the arrow buttons and keys, or press Align stairs to lay its stairs on the ones below. To see the floor below as faint lines while you draw, open [View], then [Floor below].",
   },
   {
     title: "Save your plan",

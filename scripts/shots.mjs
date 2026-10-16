@@ -36,6 +36,25 @@ const cardJs = readFileSync(CARD, "utf8");
 // shows as a displaced outline: part of it falls where the shown floor draws nothing, part under its room fills.
 const ghostLayout = structuredClone(layout);
 ghostLayout.floors.first.offset = [120, 40];
+// S29.13: the ghost turned. The first floor is drawn 5.5 degrees anticlockwise (rotation -5.5) and sits where it did, so the ground floor below
+// it is drawn turned by +5.5 about the plan's origin on top of the shift: the page sets the pose, `demo/layout.json` is not touched.
+const turnedLayout = structuredClone(ghostLayout);
+turnedLayout.floors.first.rotation = -5.5;
+// The 3D fixture: `hand-align-house.json` stores no pose. Aligned = the truth written as a pose (the same numbers as tests/fixtures/hand-align-truth.ts:
+// ground -2.5 degrees and [-57, 112] from the basement, first 4 degrees and [83, -41] from the ground, so the first floor's pose is composed here).
+const handHouse = JSON.parse(readFileSync("tests/fixtures/hand-align-house.json", "utf8"));
+const handAligned = structuredClone(handHouse);
+{
+  const rot = (v, d) => {
+    const a = (d * Math.PI) / 180;
+    return [v[0] * Math.cos(a) - v[1] * Math.sin(a), v[0] * Math.sin(a) + v[1] * Math.cos(a)];
+  };
+  handAligned.floors.ground.rotation = -2.5;
+  handAligned.floors.ground.offset = [-57, 112];
+  const o = rot([83, -41], -2.5);
+  handAligned.floors.first.rotation = 1.5;
+  handAligned.floors.first.offset = [-57 + o[0], 112 + o[1]];
+}
 const alignHouse = JSON.parse(readFileSync("tests/fixtures/align-house.json", "utf8"));
 
 // One entity table for the whole demo. `off` is every device at rest; `on` is every device doing its thing.
@@ -1169,6 +1188,31 @@ try {
       ghost: true,
       cfg: { ghost_floor: true, active_list: false },
     });
+  // S29.13: the same ghost turned by the first floor's rotation: 2D in three themes, 2.5D in the default.
+  for (const t of THEMES.filter((x) => ["blueprint", "light", "ha-dark"].includes(x.id)))
+    cardShots.push({
+      name: `card-first-ghost-turned-${t.id}`,
+      floor: "first",
+      which: "off",
+      dark: t.dark,
+      theme: t.theme,
+      vars: t.vars,
+      page: t.page,
+      turned: true,
+      cfg: { ghost_floor: true, active_list: false },
+    });
+  cardShots.push({
+    name: "card-first-ghost-turned-blueprint-2-5d",
+    floor: "first",
+    which: "off",
+    dark: bp.dark,
+    theme: bp.theme,
+    vars: bp.vars,
+    page: bp.page,
+    turned: true,
+    view: "2.5d",
+    cfg: { ghost_floor: true, active_list: false },
+  });
   cardShots.push({
     name: "card-first-ghost-blueprint-2-5d",
     floor: "first",
@@ -1230,7 +1274,15 @@ try {
       },
       [
         {
-          layout: s.ghost ? ghostLayout : s.rooms ? roomLayout : s.floor === "ground" ? monLayout : layout,
+          layout: s.turned
+            ? turnedLayout
+            : s.ghost
+              ? ghostLayout
+              : s.rooms
+                ? roomLayout
+                : s.floor === "ground"
+                  ? monLayout
+                  : layout,
           floor: s.floor,
           theme: s.theme,
           ...(s.view ? { view: s.view } : {}),
@@ -1446,6 +1498,17 @@ try {
         ghost: true,
         cfg: { floors_below: mode, active_list: false },
       });
+  // S29.13: the hand-align house on its first floor with the floors below solid: the stairs of three floors, unaligned (no pose) and aligned (the truth as a pose).
+  for (const t of THEMES.filter((x) => x.id === "blueprint" || x.id === "light" || x.id === "ha-dark"))
+    for (const aligned of [false, true])
+      shots3d.push({
+        name: `card-handhouse-first-below-solid-${aligned ? "aligned" : "unaligned"}-${t.id}-3d`,
+        floor: "first",
+        t,
+        orbit: true,
+        house: aligned ? handAligned : handHouse,
+        cfg: { floors_below: "solid", active_list: false },
+      });
   for (const s of shots3d) {
     const ctx = await browser.newContext({
       viewport: { width: 900, height: 700 },
@@ -1487,17 +1550,19 @@ try {
       },
       [
         {
-          layout: s.furn
-            ? furnLayout
-            : s.ghost
-              ? ghostLayout
-              : s.tex
-                ? texLayout
-                : s.rooms
-                  ? roomLayout
-                  : s.floor === "ground"
-                    ? monLayout
-                    : layout,
+          layout:
+            s.house ??
+            (s.furn
+              ? furnLayout
+              : s.ghost
+                ? ghostLayout
+                : s.tex
+                  ? texLayout
+                  : s.rooms
+                    ? roomLayout
+                    : s.floor === "ground"
+                      ? monLayout
+                      : layout),
           floor: s.floor,
           theme: s.t.theme,
           view: "3d",
@@ -1602,6 +1667,96 @@ try {
       shots.push(name);
       await ctx.close();
     }
+  // S29.13: the Align panel on the hand-align house's first floor, after a real click on Align stairs (so the stair report and the status line show
+  // numbers), at 1280 and 380 px wide, in a light, a dark (blueprint) and the HA dark theme. The whole page is shot, so a wrapped toolbar and a panel
+  // below the fold both show. The theme names are the Studio's.
+  for (const width of [1280, 380])
+    for (const [theme, scheme, label] of [
+      ["light", "light", "light"],
+      ["blueprint", "light", "blueprint"],
+      ["ha", "dark", "ha-dark"],
+    ]) {
+      const name = `editor-handalign-panel-${label}-${width}px`;
+      const ctx = await browser.newContext({
+        viewport: { width, height: 800 },
+        colorScheme: scheme,
+        reducedMotion: "reduce",
+      });
+      const page = await ctx.newPage();
+      page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
+      await page.addInitScript((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
+      await page.goto(pathToFileURL(resolve(EDITOR)).href);
+      await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
+      await page.evaluate((l) => {
+        document.querySelector("floorplan-studio-editor").layout = l;
+      }, handHouse);
+      await page.locator("#fixPlan").uncheck(); // the plan opens locked, and a locked plan refuses Align
+      await page.locator('.chip[data-f="first"]').click();
+      await page.locator("#mFloors > summary").click();
+      await page.locator("#alignFloor").click();
+      await page.locator("#alignPanel").waitFor();
+      const b = page.locator("#alignStairsBtn");
+      await b.scrollIntoViewIfNeeded();
+      const r = await b.boundingBox();
+      await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+      await page.locator("#status").filter({ hasText: "Aligned" }).waitFor();
+      await page.locator("#alignPanel").scrollIntoViewIfNeeded();
+      await page.mouse.move(0, 0);
+      if ((await page.locator("floorplan-studio-editor svg g.ghost").count()) !== 1)
+        errors.push(`${name}: no ghost drawn`);
+      await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
+      shots.push(name);
+      await ctx.close();
+    }
+  // S30.10: the Align panel on the hand-align house's ground floor from no pose: the turn line and the other-turn line showing ("preview"),
+  // then after a real click on Apply ("applied": Already aligned, Apply disabled). 1280 and 380 px, blueprint, light and ha-dark.
+  for (const state of ["preview", "applied"])
+    for (const width of [1280, 380])
+      for (const [theme, scheme, label] of [
+        ["blueprint", "light", "blueprint"],
+        ["light", "light", "light"],
+        ["ha", "dark", "ha-dark"],
+      ]) {
+        const name = `editor-align-turn-${state}-${label}-${width}px`;
+        const ctx = await browser.newContext({
+          viewport: { width, height: 800 },
+          colorScheme: scheme,
+          reducedMotion: "reduce",
+        });
+        const page = await ctx.newPage();
+        page.on("pageerror", (e) => errors.push(`${name}: ${e}`));
+        await page.addInitScript((t) => localStorage.setItem("floorplan-studio:theme", t), theme);
+        await page.goto(pathToFileURL(resolve(EDITOR)).href);
+        await page.locator("floorplan-studio-editor svg polygon[data-r]").first().waitFor();
+        await page.evaluate((l) => {
+          document.querySelector("floorplan-studio-editor").layout = l;
+        }, handHouse);
+        await page.locator("#fixPlan").uncheck();
+        await page.locator('.chip[data-f="ground"]').click();
+        await page.locator("#mFloors > summary").click();
+        await page.locator("#alignFloor").click();
+        await page.locator("#alignPanel").waitFor();
+        await page.locator("#alignScore").waitFor();
+        if (state === "preview") {
+          if (!/^Turn 2\.5° anticlockwise/.test(await page.locator("#alignMove").innerText()))
+            errors.push(`${name}: no turn line`);
+          if (!/half turn/.test(await page.locator("#alignAlt").innerText()))
+            errors.push(`${name}: no other-turn line`);
+        } else {
+          const b = page.locator("#alignApply");
+          await b.scrollIntoViewIfNeeded();
+          const r = await b.boundingBox();
+          await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+          await page.locator("#status").filter({ hasText: "Aligned to" }).waitFor();
+          if ((await page.locator("#alignMove").innerText()) !== "Already aligned")
+            errors.push(`${name}: not Already aligned after Apply`);
+        }
+        await page.locator("#alignPanel").scrollIntoViewIfNeeded();
+        await page.mouse.move(0, 0);
+        await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
+        shots.push(name);
+        await ctx.close();
+      }
 } finally {
   await browser.close();
 }

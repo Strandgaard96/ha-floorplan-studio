@@ -86,6 +86,12 @@ function dropBadOffset(f: any) {
     delete f.offset;
 }
 
+/** S29.1: a floor `rotation` that is not a finite number from -180 to 180 is dropped, so the floor is not turned and the file opens. A good one is kept as written. */
+function dropBadRotation(f: any) {
+  const r = f.rotation;
+  if ("rotation" in f && !(typeof r === "number" && Number.isFinite(r) && r >= -180 && r <= 180)) delete f.rotation;
+}
+
 /** S14.3: an effect size outside 25-300 (or not a number) is dropped, so the device draws at 100 and the file opens. */
 function dropBadFx(f: any) {
   for (const d of f.devices)
@@ -166,6 +172,7 @@ export function migrate(x: unknown): Layout {
     dropBadHeights(f);
     dropBadFx(f);
     dropBadOffset(f);
+    dropBadRotation(f);
     Object.defineProperty(floors, fname, { value: f, enumerable: true, writable: true, configurable: true });
   }
   const out: any = {

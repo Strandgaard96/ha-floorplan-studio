@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { FLOORPLAN_CSS, renderFloor } from "../../src/core/render";
 import type { Floor, Layout } from "../../src/core/schema";
+import { placePoint } from "../../src/core/floor-stack";
 
 // S27.5: the floor below, drawn by renderFloor as faint lines under the current floor.
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8")) as Layout;
@@ -190,5 +191,121 @@ describe("S27.5 ghost floor", () => {
     expect(FLOORPLAN_CSS).toMatch(/\.ghost[^{]*\{[^}]*pointer-events:none/);
     expect(FLOORPLAN_CSS).toMatch(/\.ghost[^{]*\{[^}]*stroke:var\(--fp-ghost\)/);
     expect(ghostPart(ghosted({ floor: ground, shift: [0, 0] }))).not.toMatch(/pointer-events|stroke=/);
+  });
+});
+
+// S29.3: the ghost turns. `ghost.turn` is degrees clockwise on screen, applied with `placePoint({ turn, shift })` to each point.
+describe("S29.3 the ghost turns", () => {
+  const f = {
+    ...ground,
+    outline: [
+      [300, 200],
+      [900, 200],
+      [900, 500],
+      [300, 500],
+    ],
+    rooms: [
+      {
+        name: "R",
+        kind: "room",
+        pts: [
+          [310, 210],
+          [400, 210],
+          [400, 300],
+        ],
+      },
+    ],
+    walls: [{ id: "w", a: [310, 210], b: [400, 300], kind: "wall" }],
+    stairs: [
+      {
+        id: "s",
+        name: "S",
+        pts: [
+          [320, 220],
+          [420, 220],
+          [420, 260],
+        ],
+        shape: "straight",
+        steps: 5,
+        rot: 0,
+      },
+    ],
+  } as unknown as Floor;
+  const place = { turn: 4, shift: [83, -41] as [number, number] };
+  const nums = (d: string) => (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+  const paths = (svg: string) => [...ghostPart(svg).matchAll(/ d="([^"]*)"/g)].map((m) => nums(m[1]!));
+
+  it("puts each point at placePoint of the stored one, to the precision the markup prints", () => {
+    const out = paths(ghosted({ floor: f, shift: place.shift, turn: place.turn }));
+    const want = [300, 200, 900, 200, 900, 500, 300, 500].reduce<number[]>(
+      (a, _, i, r) => (i % 2 ? a : [...a, ...placePoint(place, [r[i]!, r[i + 1]!])]),
+      [],
+    );
+    expect(out[0]).toHaveLength(8);
+    out[0]!.forEach((v, i) => expect(v, `coordinate ${i}`).toBeCloseTo(want[i]!, 1));
+    // a turn of 4 degrees moves (900, 200) by about 63 cm and 42 cm, which no mere shift does
+    expect(out[0]![2]).not.toBeCloseTo(900 + 83, 0);
+  });
+
+  it("turns rooms, walls and stairs too, and turns the other way for a negative turn", () => {
+    const pos = ghostPart(ghosted({ floor: f, shift: [0, 0], turn: 4 })),
+      neg = ghostPart(ghosted({ floor: f, shift: [0, 0], turn: -4 }));
+    const [x, y] = placePoint({ turn: 4, shift: [0, 0] }, [310, 210]);
+    expect(pos).toContain(`M${x!.toFixed(1).replace(/\.0$/, "")}`);
+    expect(pos).not.toBe(neg);
+    expect(paths(ghosted({ floor: f, shift: [0, 0], turn: 4 }))).toHaveLength(
+      paths(ghosted({ floor: f, shift: [0, 0] })).length,
+    );
+    expect(y).toBeGreaterThan(210);
+  });
+
+  it("without a turn, or with 0, the markup is byte for byte what it was", () => {
+    const base = ghosted({ floor: f, shift: [137, -61] });
+    expect(ghosted({ floor: f, shift: [137, -61], turn: 0 })).toBe(base);
+    expect(ghosted({ floor: f, shift: [137, -61], turn: undefined })).toBe(base);
+  });
+
+  it("draws nothing for a turn that is junk, and never throws", () => {
+    for (const t of [NaN, Infinity, -Infinity, "4", null, [4], {}, 361, -361, 1e9]) {
+      expect(() => ghosted({ floor: f, shift: [0, 0], turn: t }), String(t)).not.toThrow();
+      expect(ghostPart(ghosted({ floor: f, shift: [0, 0], turn: t })), String(t)).not.toContain("<path");
+    }
+  });
+
+  it("draws nothing for a point the turn throws beyond the coordinate limit", () => {
+    const far = {
+      ...f,
+      outline: [
+        [0, 0],
+        [9.9e6, 0],
+        [9.9e6, 9.9e6],
+      ],
+      rooms: [],
+      walls: [],
+      stairs: [],
+    } as unknown as Floor;
+    expect(ghostPart(ghosted({ floor: far, shift: [0, 0], turn: 45 }))).not.toContain("<path");
+  });
+
+  it("never lets a name through when turned", () => {
+    const evil = '"><script>';
+    const e = {
+      ...f,
+      title: evil,
+      rooms: [
+        {
+          name: evil,
+          kind: evil,
+          pts: [
+            [0, 0],
+            [9, 0],
+            [9, 9],
+          ],
+        },
+      ],
+    } as unknown as Floor;
+    const svg = ghosted({ floor: e, shift: [0, 0], turn: 4 });
+    expect(svg).not.toContain("<script");
+    expect(svg).not.toContain(evil);
   });
 });

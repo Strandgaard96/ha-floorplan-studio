@@ -27,9 +27,30 @@ Left to right:
   Device, inside Add, is the catalog of every device on this layout, placed
   or not.
 - **Floors** — Add floor, Align to floor below…, Move up, Move down, Delete floor….
-  Align lays this floor over the one below it: the Inspector shows the score and the
-  move in words, Apply writes the floor's offset (one undo step) and the offset can be
-  nudged by hand. It needs a floor below, and Lock plan refuses it.
+  Align lays this floor over the one below it. It needs a floor below, and Lock plan refuses it. The faint lines are the
+  floor below, drawn while Align is open; the floor you are aligning stays where it is on screen, so Move right sends
+  the faint lines left (the panel says so). The Inspector's panel, top to bottom:
+  - **Auto align**: the score, then the change in words ("Turn 2.5° anticlockwise, move the centre 38 cm left, 90 cm
+    down"). When another turn fits about as well, one more line names it ("A half turn (177.5°) fits about as well
+    (68 %). Check the plan before you apply it."); it is never applied for you. Apply writes the turn and the offset
+    (one undo step; disabled and reading "Already aligned" when nothing would change). A move, a turn press or an undo
+    does not search again; a changed wall does.
+  - **Move**: four buttons, up, left, right, down as drawn on screen (a turned view still moves the right way), by the
+    **Step** you pick: 1, 5 (default) or 50 cm.
+  - **Turn**: anticlockwise and clockwise about the floor's centre, by the **Angle step**: 0.1, 0.5 (default), 1 or 3
+    degrees. The centre stays where it is in the house.
+  - **Keys**: the arrow keys move and `,` `.` turn, by the same steps, while Align is open and no text box has focus
+    (outside Align the arrows pan). A held key is one step. Each press is one undo step.
+  - **Offset and Rotation**: boxes that show the stored values (0.1 cm, 0.01 degree) and take typed ones, one undo step
+    per change; text that is not a number changes nothing. **Reset** sets both to 0 in one step.
+  - **Stairs**: each stair of this floor with the nearest stair below (distance, and degrees off for a straight flight),
+    live on every press. **Align stairs** lays this floor's first stair on the stair below nearest to it (the one the first row of the list names), moving and turning it
+    (a round stair only moves), and says what it did; one undo step.
+  The two step choices are kept in this browser (not in the plan, not an undo step).
+  While Align is open the plan is read-only: a press only pans (the wheel still zooms), nothing is selected, dragged or
+  deleted, and the right-click menu is off, on the plan and in the Outline (a click on an Outline row of this floor centres
+  it and selects nothing; the Menu key on a row does nothing). Starting a draw closes Align. A typed offset or rotation past the
+  coordinate limit says so in the status line.
 - **View** — how the plan looks while you work: snap grid, measure grid, lengths, a Labels submenu (Device names, Names and values),
   Floor below (the floor under this one as faint lines, kept in this browser, no undo step),
   Preview night, theme, Detail (Auto, Full or Minimal), Re-center and Fit to window. The editor draws the plan
