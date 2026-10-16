@@ -4,6 +4,7 @@ import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import {
   COORD_LIMIT,
   DEFAULT_MOTION_FADE_S,
+  MAX_VIEWS,
   alignCandidates,
   chooseAlign,
   alignSummary,
@@ -2216,6 +2217,12 @@ export class FloorplanStudioEditor extends LitElement {
     return lines.join("\n");
   }
 
+  /** S33.10: the same dashboard as a strategy: Home Assistant asks the card's script for it on every load, so a floor added in
+   * the Studio is there next time, which the YAML above (a snapshot) is not. Three lines, no per-plan values. */
+  private strategyYaml(): string {
+    return ["title: Floorplan", "strategy:", "  type: custom:floorplan-studio"].join("\n");
+  }
+
   private copyInstallCode(code: string) {
     const cb = navigator.clipboard;
     if (!cb) {
@@ -2353,7 +2360,8 @@ export class FloorplanStudioEditor extends LitElement {
    * into a TEXTAREA (so as not to steal Delete/Backspace from someone editing a field) and focus sits in this one
    * the moment it opens. */
   private installCodeView() {
-    const code = this.installCodeYaml();
+    const code = this.installCodeYaml(),
+      strategy = this.strategyYaml();
     // S8.10 follow-up (Opus review): same fixed-90px overlap as the draggable panels (see panelTop's own comment),
     // just with a static CSS top instead of a JS position — cleared here with an inline style, which wins over the
     // class's own top:90px.
@@ -2371,6 +2379,16 @@ export class FloorplanStudioEditor extends LitElement {
         }
       }}>${code}</textarea>
       <button class="btn keep" id="installcodeCopy" @click=${() => this.copyInstallCode(code)}>Copy</button>
+      <p><strong>Or as a strategy.</strong> The same dashboard, built by Home Assistant each time it loads, so a floor you add here shows up without pasting again. Paste this instead (Edit in YAML). Options for every card go under <code>card:</code>, for example <code>card: {theme: slate}</code>.</p>
+      <textarea id="installcodeStrategy" readonly rows="3" style="flex-shrink:0" @focus=${(e: Event) => (e.target as HTMLTextAreaElement).select()} @keydown=${(
+        e: KeyboardEvent,
+      ) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          this.toggleInstallCode();
+        }
+      }}>${strategy}</textarea>
+      <button class="btn keep" id="installcodeStrategyCopy" @click=${() => this.copyInstallCode(strategy)}>Copy</button>
     </div>`;
   }
 
@@ -2767,6 +2785,10 @@ export class FloorplanStudioEditor extends LitElement {
   private onWindowClick = (ev: MouseEvent) => {
     const path = ev.composedPath();
     if (this.ctxMenu && !path.some((n) => (n as Element).classList?.contains?.("ctxmenu"))) this.closeCtxMenu();
+    if (this.viewMenu && !path.some((n) => (n as Element).id === "viewCtx")) {
+      this.viewMenu = null;
+      this.requestUpdate();
+    }
     this.renderRoot.querySelectorAll<HTMLDetailsElement>("details.menu[open]").forEach((m) => {
       if (!path.includes(m)) {
         m.open = false;
@@ -4279,6 +4301,102 @@ export class FloorplanStudioEditor extends LitElement {
       this.focus({ preventScroll: true });
     } else this.refused();
   };
+
+  // ---- S33.7: saved views. Save, rename and delete are one undo step each (EditorState); applying is not an edit. ----
+  /** The Saved views form: null while closed, else the id of the view being renamed ("" when saving a new one). */
+  viewForm: { rename: string } | null = null;
+  /** The context menu of one saved view (right-click, or the menu key), in client coordinates. */
+  viewMenu: { id: string; x: number; y: number } | null = null;
+  /** Resets the form and the menu: the submenu closed, or a click went elsewhere. */
+  resetViews() {
+    if (this.viewForm || this.viewMenu) {
+      this.viewForm = null;
+      this.viewMenu = null;
+      this.requestUpdate();
+    }
+  }
+  async startSaveView(rename = "") {
+    this.viewMenu = null;
+    this.viewForm = { rename };
+    this.requestUpdate();
+    await this.updateComplete;
+    const i = this.renderRoot.querySelector<HTMLInputElement>("#viewName");
+    if (rename) i?.select();
+    else i?.focus();
+  }
+  onViewFormKey = (ev: KeyboardEvent) => {
+    if (ev.key === "Escape") {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.viewForm = null;
+      this.requestUpdate();
+      this.renderRoot.querySelector<HTMLElement>("#saveView")?.focus({ preventScroll: true });
+      return;
+    }
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      this.submitViewForm();
+    }
+  };
+  submitViewForm() {
+    const form = this.viewForm;
+    if (!form) return;
+    const name = this.renderRoot.querySelector<HTMLInputElement>("#viewName")?.value.trim() ?? "";
+    if (!name || name.length > 60) {
+      this.status = "Type a name for the view, up to 60 characters, or press Esc";
+      this.requestUpdate();
+      return;
+    }
+    if (form.rename) {
+      this.viewForm = null;
+      if (this.st.renameView(form.rename, name)) this.changed(`Renamed view to ${name}`);
+      else this.requestUpdate();
+      return;
+    }
+    if (this.st.savedViews.length >= MAX_VIEWS) {
+      this.status = `A layout holds at most ${MAX_VIEWS} views: delete one first`;
+      this.requestUpdate();
+      return;
+    }
+    const mode = this.renderRoot.querySelector<HTMLSelectElement>("#viewMode")?.value;
+    this.viewForm = null;
+    if (this.st.saveView(name, mode === "2d" || mode === "2.5d" || mode === "3d" ? mode : undefined))
+      this.changed(`Saved view ${name}`);
+    else this.requestUpdate();
+  }
+  applyView(id: string) {
+    const v = this.st.savedViews.find((x) => x.id === id);
+    if (!v) return;
+    if (v.floor !== this.st.floor) this.setFloorNow(v.floor);
+    if (this.st.applyView(id)) {
+      this.status = `Showing view ${v.name}`;
+      this.requestUpdate();
+    }
+  }
+  openViewMenu(ev: MouseEvent, id: string) {
+    ev.preventDefault();
+    const r = (ev.currentTarget as HTMLElement).getBoundingClientRect(),
+      pointer = ev.clientX || ev.clientY;
+    this.viewForm = null;
+    this.viewMenu = {
+      id,
+      x: Math.min(pointer ? ev.clientX : r.left + 24, window.innerWidth - 180),
+      y: Math.min(pointer ? ev.clientY : r.bottom, window.innerHeight - 100),
+    };
+    this.requestUpdate();
+  }
+  renameViewFromMenu() {
+    const id = this.viewMenu?.id,
+      v = this.st.savedViews.find((x) => x.id === id);
+    if (v) void this.startSaveView(v.id);
+  }
+  deleteViewFromMenu() {
+    const id = this.viewMenu?.id,
+      v = this.st.savedViews.find((x) => x.id === id);
+    this.viewMenu = null;
+    if (v && this.st.deleteView(v.id)) this.changed(`Deleted view ${v.name}`);
+    else this.requestUpdate();
+  }
 
   setFloor(name: string) {
     const from = this.st.floor,

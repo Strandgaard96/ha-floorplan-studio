@@ -11,6 +11,7 @@ import { openOverview, openViewMenu } from "./shell-helpers";
 // The same table is in docs/card.md ("Studio and card"); the last test keeps the two together.
 
 type Decision = { card: "yes"; has: string } | { card: "deliberate"; why: string };
+const FIRST_VIEW = "view-living";
 const EDITING_AID = "an editing aid: it helps place and measure things, and a dashboard viewer places nothing";
 /** Editor control id -> what the card does. `has` is a selector in the card's shadow root. */
 const PARITY: Record<string, Decision> = {
@@ -30,6 +31,10 @@ const PARITY: Record<string, Decision> = {
   thSub: { card: "yes", has: 'select[aria-label="Theme"]' },
   recenter: { card: "yes", has: 'button[aria-label="Fit"]' },
   fit: { card: "yes", has: 'button[aria-label="Fit"]' },
+  // S33.7: the Studio's Saved views. Saving writes the layout, which a viewer's card never does (spec X3 non-goal); showing one is the Views row of the card's View options (S33.8; this fork has no ⋯ menu): a button `data-view=<id>` per view of the layout, so the card below is given a layout that has one.
+  viewsSub: { card: "yes", has: `.fp-view-menu button[data-view="${FIRST_VIEW}"]` },
+  saveView: { card: "deliberate", why: "authoring: it writes a view into the layout, which a card never does" },
+  viewsNone: { card: "deliberate", why: "the empty-state note of the Studio's submenu" },
   copyCardView: { card: "deliberate", why: "authoring: it writes the card's own `center` and `zoom_level`" },
   // S24.6: Layers replaced the Filter menu; S24.8 gives the card a text chip per family in its Overview, unfolded by this button.
   // S25.8: the Detail button beside Layers, same three choices; the card and the Studio both start on Full (UI refactor 1a).
@@ -51,6 +56,8 @@ const CARD_ONLY: Record<string, string> = {
 };
 
 const demo = JSON.parse(readFileSync("demo/layout.json", "utf8"));
+/** The card is checked on a layout that has a saved view: the Views section is drawn only for one that does. */
+const withView = { ...structuredClone(demo), views: [{ id: FIRST_VIEW, name: "Living", floor: "ground" }] };
 const CARD_JS = readFileSync(resolve("dist/floorplan-studio-card.js"), "utf8");
 const HARNESS = pathToFileURL(resolve("tests/card/harness.html")).href;
 
@@ -87,7 +94,7 @@ test("every control the card is said to have is on a 2.5D card", async ({ page }
     el.setConfig({ type: "custom:floorplan-studio-card", view: "2.5d", layout });
     el.hass = { states: {}, themes: { darkMode: false } };
     await el.updateComplete;
-  }, demo);
+  }, withView);
   await openViewMenu(page); // UI refactor 3: Theme, Labels, Device names, Floor below, Tilt and Walls are in the View options menu
   await openOverview(page); // UI refactor 1: and Layers and Detail are in the Overview, which starts folded
   for (const [id, d] of Object.entries(PARITY)) {

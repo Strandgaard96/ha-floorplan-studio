@@ -2,6 +2,111 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+<!-- Entries from here up to the 2026-10-12 temperature pill entry were merged from upstream 0.31.0 (2026-10-16 sync); their S33.x labels are upstream's Sprint 33 (extras, part 1), not a sprint of this fork. Where they say "the ⋯ menu", this fork has the Views row of View options. -->
+
+## 2026-10-15: S33 Opus review fixes (Sonnet) [upstream]
+
+- 1, blocker. `tap_action: toggle` ran any op without a confirm at once: a lock's Unlock, a cover's Open and an off siren's Turn on. Supersedes the S33.4 rule "ON acts at once". Now `TOGGLE_AT_ONCE` (card) lists the entity domains that act at once: `light`, `switch`, `input_boolean`, `fan`. Every other domain opens the popup. Domains checked against `SWITCHABLE` and `popupOp`: lock and cover (no confirm, a physical door: popup), siren (loud: popup), climate, humidifier, water_heater (a setpoint device, not a lamp), automation (Turn off disables it), remote, media_player, group (`homeassistant.turn_off` reaches every member). A `switch` can drive a garage relay; that is the user's wiring and it stays a plain switch. The popup then shows the same button; nothing else changed. Test: `card-tap-action.spec.ts`, lock, cover and siren (3 failed first, with a real click and no popup), plus a fan and an automation as guards.
+- 2. Spec X1 says "unlinked menu: offered". `fan` was missing from `UNLINKED_TYPES`; added, with a test that every type the spec's tables name is checked.
+- 3. A saved view whose id is `2d`, `2.5d` or `3d` is refused by `viewProblems`, so `validate` and `migrate` drop it. The card hid such a view (its menu value is the View mode's); the Studio would have listed it. The Studio's `saveView` ids always start `view-`, so it never minted one.
+- 4. `dashboardFor`'s error card is markdown, which Home Assistant renders as a Jinja template. Layout text copied into it (floor names, validation errors) now has `{`, `<`, `>` and `&` escaped as entities, and the list is capped at 10 lines plus "... and N more".
+- 5. Enter on a focused device icon opens the popup whatever `tap_action` says. Kept, and written down in `docs/card.md`.
+
+## 2026-10-15: S33.11 the open questions Q1, Q4, Q5, Q6 held, and the docs (Sonnet) [upstream]
+
+- Diego approved Sprint 33 on 2026-10-15 with the defaults. Each held; nothing changed on the way. The questions Q2 and Q3 belong to Sprint 34.
+- Q1, saved views. Held: in the layout, saved in the Studio, offered by every card. Studio and card both have it (`viewsSub` in `view-parity.spec.ts`). Per-viewer views from the card stay out.
+- Q4, strategy. Held: one panel view per floor, each card pinned to its floor. Card bundle only; the Studio's Install code shows the three lines. The strategy interface is not in Home Assistant's documented API; S33.12 tries it on Diego's HA.
+- Q5, `tap_action`. Held: card-wide, device icons only, `popup`, `more-info`, `toggle`, `none`; `hold_action` `more-info` and `none`. OFF by toggle asks for every type but a light. Card only, on purpose: a click in the Studio selects.
+- Q6, fan. Held: a Fans group in All off, ceiling height as a light. Studio and card both, through `renderFloor` and the type menu.
+- Docs checked against the code, not the spec: `MAX_VIEWS` is 24, `MAX_VIEW_ZOOM` 8, a hold is `HOLD_MS` 500 ms (the plan said 600 in a test brief; the code and the docs say 500), the Views section sits after Device names and stays under `view_switch: false`, nothing is offered under `kiosk`, a saved view whose id is `2d`, `2.5d` or `3d` is not offered. The strategy takes `title` and `card:`; `card:` never replaces `type` or `floor`.
+- The README has no state table. Its feature list names fan, `tap_action`, saved views and the strategy instead.
+- The CHANGELOG carries the older-card note (spec Risks): a card older than 0.31.0 reads "No layout" for a layout with a fan device until the page reloads, and drops `views`.
+
+## 2026-10-15: S33.10 the strategy element and the Studio's strategy block (Sonnet) [upstream]
+
+- Built to spec X4. `src/card/strategy.ts` gains `generate(config, hass)` and `strategyElement()`. `generate` sends `{ type: "floorplan_studio/load" }` on `hass.connection.sendMessagePromise` and hands the reply (`{ layout }`, shape from `websocket.py` `ws_load`) or the failure to `dashboardFor`. It never rejects: no `hass`, no connection, a `sendMessagePromise` that is not a function, a rejection (HA's `{ code, message }`) and a synchronous throw all give the error view.
+- The element is built by a function, not at import, because the class extends `HTMLElement` and `strategy.ts` stays loadable without a DOM. The card's file registers it with `defineElement("ll-strategy-dashboard-floorplan-studio", ...)` right after the card, so it has the same 30-second registry watch (S8.3). Card only: no editor twin, a strategy is not a view control.
+- Studio, File, Install code. A second block, "Or as a strategy", with three lines (`title: Floorplan`, `strategy:`, `  type: custom:floorplan-studio`) and its own Copy. No theme or floor list in it: that is the point, nothing in it goes stale. A line says options for every card go under `card:`. The textarea does not shrink (`flex-shrink:0`, inline) so the three lines stay visible when the window is low; the first block shrinks instead.
+- Not verified here: that Home Assistant calls `generate` this way. The custom strategy API is not part of its documented card API (spec Risks); the release step (S33.12) tries it on Diego's HA and reads the generated dashboard back. The element is checked in the built bundle (`customElements.get`, `generate` on the demo layout gives ground, first, test).
+- Proof. `tests/card/strategy.test.ts`: the 5 new tests failed first (element not defined), 14 of 14 pass; `tests/editor/editor.spec.ts` "S33.10" failed first (no "Or as a strategy") and passes 10 of 10 with `--repeat-each=10`. Install code looked at in the Studio at 1280x800, 1280x560 and 380x700 (scratchpad `install-*.png`), blueprint theme only.
+- Not done here: the docs prose (S33.11).
+
+## 2026-10-15: S33.8 saved views in the card (Sonnet) [upstream]
+
+- Built to spec X3, Card. `_savedViews()` offers a view when its floor is one the card can show (`_floorList()`, or the one floor it is pinned to) and the card is not kiosk. `_applySavedView(id)`: floor (`_selectFloor`), mode, turn, then zoom and centre. Written to view memory by the same `_saveViewNow` as any pick; no new storage key.
+- Judgement, the menu value. The spec fixes `view:<id>`, which is also the View mode's value (`view:2d`). The mode wins: a saved view whose id is `2d`, `2.5d` or `3d` is not offered, so a stranger's file cannot shadow a core control. `_onMenuPick` tries the mode first, a saved view second. The Studio's ids (`view-<slug>`) never clash.
+- Mode absent leaves the viewer's own mode (Viewer's choice). Rotation absent is 0, as S33.7 asked. A turn goes the short way, with the zoom and centre as the turn's anchor, so the zoomed box lands at the new angle. In 3D (the mode after the pick) zoom and centre are skipped and the floor's stored camera is forgotten, so the floor is framed again.
+- Zoom is a ratio against the card's own fit (60 cm margin), the centre is plan cm before any turn; both are what `_anchorOfView` already stores. `validate` has run on the layout, so a view here is well formed.
+- Checked item. `_appliedView` is the id of the last pick. It is cleared by another floor, Reset view and a new config, not by `hass`, and not stored: after a reload the view is still applied (the floor memory holds it) but no item is checked.
+- Reset view returns to the config, not to a saved view (X3). It was already so: no change to it.
+- Parity. `viewsSub` in `view-parity.spec.ts` is now `yes`, item `view:view-living`, and the 2.5D card in that test gets a layout with one view (the section is drawn only for a layout that has one). `docs/card.md` parity row updated.
+- Proof. `tests/card/card-saved-views.spec.ts` (12 tests): 10 of 12 failed first (no Views section); with `_savedViews` made to return nothing 11 of 12 fail (the twelfth, no views no section, holds either way). 120 of 120 with `--repeat-each=10`. Screenshots of the open menu in light, midnight and blueprint looked at (scratchpad `views-*.png`); `npm run shots` not run: the plan's render is untouched.
+- Not done here: the strategy (S33.10); the docs prose (S33.11).
+
+## 2026-10-15: S33.2 fan speed in the popup (Sonnet, card only) [upstream]
+
+- Built to spec X1, Speed. `fanCaps(attrs)` in `src/card/popup.ts`: a slider only when `supported_features` is a number with bit 1 set and `percentage` is a finite number; the step is `percentage_step` when in (0, 100], else 1. Strings, `NaN`, `null` or a missing key mean no slider, never a throw. A `percentage` outside 0..100 is shown clamped. Slider kind `s` ("Speed", 0 to 100) joins `SliderKind`; the commit is one `fan.set_percentage` with `entity_id` and `percentage`, sent on release only (the light's draft logic is reused).
+- Shown whenever the popup has a button (state not `unavailable`), on or off, as the light's sliders are. A fan that is off with `percentage` 0 shows the slider at 0.
+- Criterion 4 needed no code: All off ("Turn off on this floor") already lists a fan under Fans (S33.1). `floorOffCalls` sends it as `homeassistant.turn_off` with the other non-light, non-switch entities, which Home Assistant routes to the fan; the test pins that. Not changed.
+- Proof. `tests/card/card-fan.spec.ts`: 4 of 7 failed first (slider tests: no Speed input); the other 3 (tap, Turn on, OFF asks first) were already true after S33.1. 10 of 10 with `--repeat-each=10`.
+
+## 2026-10-15: S33.5 Tap and Hold in the Edit-card form (Sonnet) [upstream]
+
+- Two selects, `#tap_action` and `#hold_action`, after Active list. A pick writes `{ action }`; the default (popup, more-info) drops the key. Shown value comes from the same readers as the card (`tapActionOf`, `holdActionOf`), so a string, an object and junk read the same in the form and on the card. Junk shows the default and fires no event until the person picks.
+- Proof. New test in `tests/card/config-editor.spec.ts` failed first (no `select#tap_action`); 10 of 10 with `--repeat-each=10`. The form is not in `npm run shots`; not looked at as an image.
+
+## 2026-10-15: S33.4 tap_action in the card (Sonnet, judgement) [upstream]
+
+- Change. `bindDeviceActions` takes `tapAction()`, `holdAction()` (read per press, so `setConfig` needs no rebind) and `toggle()`. The card passes them to the plan and to the 3D view, not to the Active list rows (a row is a list, not an icon) and not to doors, appliances or linked pieces (spec X2). One `console.warn` per card, naming the key or keys, from `setConfig`.
+- Judgement, the stack. The toggle branch sits inside `solo`, so a stack fans out first for every tap action, `none` and `more-info` included. Without that, a tap that does nothing would leave overlapped icons unreachable. A tap that fans a stack out never toggles.
+- Judgement, the vacuum. Its branch stays ahead of the toggle: `popup` and `toggle` open its own dialog (it is `NO_TOGGLE`, and a bare tap never starts the robot). `more-info` and `none` are honoured, because the person asked for them in so many words. A media player is the same: its tap is already more-info, `none` silences it, `toggle` is more-info.
+- Toggle. The card runs the popup's own rule (`_popupOp`, `lampOp`): ON and a light's OFF call at once; any other OFF opens the popup already at Confirm turn off (S14.2 stands, so turning OFF a non-light by toggle still asks); no button (sensor, camera, no state) opens the popup. The call code is one `_runOp`, shared with the popup's button.
+- Hold. `hold_action: none` arms a hold that does nothing, so the release of a long press does not become a tap. Kiosk starts no timer, as before. A hold with no entity is as before.
+- Proof. `tests/card/card-tap-action.spec.ts` (20 tests): 13 failed before the code; stack, door, kiosk and absent-key guards passed already, and the stack guard fails with `solo` removed. `--repeat-each=10`: 200 of 200.
+- Not done here: `docs/card.md` still says `tap_action` is not an option (S33.11 owns the docs).
+
+## 2026-10-15: S33.7 saved views in the Studio (Sonnet, judgement: what a view stores when the floor is shown whole) [upstream]
+
+- Decision. Shown whole stores no `zoom` and no `center`. Only floor, `rotation` (left out at 0), `mode` (left out for Viewer's choice) and `name`. Why: a card opens in its own window with its own fit (the card's margin is 60 cm, the Studio's 80 cm, and the aspect differs), so a stored `zoom: 1` with a centre would pin the Studio's picture on a card where it is a different crop. Leaving both out lets every card do what it does for a floor with no view: fit the floor. The schema already says zoom and centre come together or not at all.
+- What counts as whole. The view the memory (`exportView`) already calls whole (zoom 1 against the Studio's fit, centred), or no tighter than the card's own fit (zoomed out, or panned while zoomed out). A zoom below 1 cannot be stored (the schema's range is 1 to 8), and a plan cut off at one edge is not what a person means by saving a view.
+- Zoomed in. `zoom` is the ratio against the card's fit (60 cm margin, the smaller of the width and height ratios, as Copy card view), rounded to 0.01 and held to 1..8; `center` is the plan point in the middle, whole cm, held to the coordinate limit. The turn is the user's turn (`viewRot`), not the layout's own `rotate`, which the card applies by itself.
+- Apply. Floor, then turn (a view that names none is turned 0, so a view never inherits the last turn), then fit, then zoom and centre. Not an edit: no undo step, the layout is untouched. The Studio draws flat only, so `mode` is stored and ignored here; the card reads it (S33.8, which must also treat an absent `rotation` as 0).
+- Writers (`EditorState`). `saveView`, `renameView`, `deleteView`: one snapshot each, none for an empty or over-long name, an unchanged name, an unknown id or the 25th view. Ids are `view-<slug>` with `-2`, `-3` on a clash. Lock plan lets all of them through: a view is not geometry. An emptied list removes the `views` key. `deleteFloor` filters that floor's views inside its own snapshot, so one Undo brings floor and views back; add, rename, move and replace leave views alone and a test runs `validate` after each, and after Undo and Redo.
+- UI. A `#viewsSub` submenu in View: `#saveView` opens an inline form (`#viewName`, `#viewMode`), Enter saves, Escape cancels, an empty name says so and saves nothing. One button per view of the floor on show (`data-view`), names as text (a `"><script>` name is tested). Right-click or the menu key opens Rename and Delete (`#viewCtx`) inside the menu, so a click in it does not close the View menu. Closing the submenu drops the form and the menu.
+- Proof. `tests/editor/saved-views.test.ts`: 23 of 23 failed first (no `saveView`); with the `deleteFloor` line removed 5 fail. `tests/editor/saved-views.spec.ts`: 7 of 8 failed before the UI existed (the eighth passed only because the dev server picked up the UI mid-run, so it proves nothing on its own); 80 of 80 with `--repeat-each=10`.
+- Not done here: the card's Views section and the `view-parity.spec.ts` row (S33.8); the docs (S33.11).
+
+## 2026-10-15: S33.1 fan is a device type (Sonnet) [upstream]
+
+- Change. `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`; spec X1's table is built as written. Parity: both, one draw path (`renderFloor`), the type menu is `TYPE_LABELS` in `src/editor/panels.ts`.
+- Decisions per table. `typeForEntity`: `fan.*` is `fan`; `TYPE_RULES.fan` offers the fan domain; `AREA_PLACEABLE_TYPES` has it. `NO_TOGGLE`: not in it. `ROOM_ROW_TAP`: toggle. `FLOOR_OFF_GROUP`: new group `fans` ("Fans"), between plugs and media. `ACTIVE_LIST_RULE`: on. `ATTENTION_RULE`: none. `CATEGORY_OF`: climate. `DEVICE_Z` 215 and `UNLINKED_HEIGHTS` 250, as light. `DEVICE_SOLID`: none. Popup OFF asks first (no code: `popupOp` already does for any non-light on a `fan.*`).
+- Colour. `--fp-dev-fan`, rule `.dev-fan.on{--fp-dev:var(--fp-dev-fan)}`. Light `#1f9ec4`, midnight `#4cc3e8`, solarized `#2aa198`. The generated themes (blueprint, slate, terminal, coffee and the rest) take `devFor("fan")`, which is their accent, as every type without its own override does, so a fan is orange in blueprint like the plug and the computer. Left as is: a per-theme override is a theme decision, not this task's.
+- Copied lists updated by hand: `src/card/three/palette.ts`, `tests/core/icons.test.ts`. The three-palette test did not fail on its own, as the plan said it would not.
+- Tests moved to the new premise (each a table that was a decision per type): `no-toggle-types`, `popup-rules`, `active`, `cover-idle`, `floor-off`, `ha` (the "falls back to other" case used `fan.x`, now `humidifier.x`), `heights`, `room-info` (the toggle set gains fan), `scene`, `solids-devices`, `solids-objects` (fan stems, 215 cm). No premise weakened.
+- Demo. One fan, `fan.demo_bedroom`, in the Bedroom, in `demo/layout.json` and in `demo/layout.v1.json` (the migrate test compares the two). `scripts/shots.mjs` gives it off, on (60 %) and unavailable states.
+- Not done here: the speed slider is S33.2. Existing `other` or `ac` devices on a `fan.*` entity are not retyped (X1).
+- Proof. `tests/core/fan-type.test.ts`: 10 of 10 failed before the code. `tests/card/fan-css.spec.ts` (computed style, every theme) fails with the CSS rule removed ("blueprint: fan on is its own colour", got the idle grey) and passes 10 of 10 with `--repeat-each=10`.
+
+## 2026-10-15: S33.3 tap_action and hold_action reader (Sonnet) [upstream]
+
+- `tapActionOf(raw)` and `holdActionOf(raw)` in `src/card/tap-action.ts` return `{ action, warn }`. A string is the action; an object's `action` is read inside a try, so a getter or proxy that throws is junk. Absent (`undefined`, `null`) is the default with `warn: false`; anything else not in the known list (arrays, numbers, `{}`, `navigate`, `Toggle`, a hold of `popup` or `toggle`) is the default with `warn: true`. Lookup is `includes` on an array, never a property of an object, so `__proto__` cannot match.
+- The reader returns a flag, not a message: the card owns the once-per-card warning and names the key (S33.4).
+- Test `tests/card/tap-action.test.ts`: failed first (module missing); with `toggle` added to the hold list (scratch mutation, restored) it fails.
+
+## 2026-10-15: S33.6 Layout.views in the schema (Sonnet) [upstream]
+
+- Built to spec X3. `SavedView`, `MAX_VIEWS` = 24, `viewProblems` (one predicate), used by `validate` (errors name `views[i]`) and by `migrate`, which keeps the good entries in order, drops bad ones and repeated ids, caps at 24, and drops a `views` that is not an array. A view is a convenience; it never costs the plan.
+- `floor` must be an own key of `floors`, so `__proto__` and `constructor` fail. `MAX_VIEW_ZOOM` = 8 lives in `schema.ts` (core does not import the card); a test holds it equal to the card's `MAX_ZOOM`.
+- Not done here, by task scope: the Delete floor writer dropping its views (Studio lane, S33.7). No Studio or card twin yet.
+
+## 2026-10-15: S33.9 dashboardFor (Sonnet, card only) [upstream]
+
+- `src/card/strategy.ts`: `dashboardFor(result, config)` is pure and never throws. `result` is the `{ layout }` reply (shape from `websocket.py`), `{ error }` or an Error. It runs `migrate` then `validate`; `migrate` throws on a bad shape, so that is caught and shown like a `validate` failure.
+- One panel view per floor in the layout's order, `title` the floor's title (key if empty), `path` a slug of the key, made unique with `-2`, `-3` (a key like `***` or `__proto__` slugs to `floor` or `proto`, never empty). The card is `{ type, floor }` plus `config.card`; `type`, `floor` and `__proto__` in `config.card` are dropped, and options are set with `defineProperty`.
+- No layout, a load error, an invalid layout or no floors: one view, one markdown card with what failed and what to do. Titles are data in the result; Lovelace renders them, this file builds no HTML.
+- No Studio twin (spec X4: the Studio's twin is the Install code block, S33.11). Not registered as an element yet: that is S33.10.
+
 ## 2026-10-12: the temperature pill starts at the text's left edge, and has a border
 
 Diego: "give the temperature pill a small border" and "Badeværelse oppe is not aligned in the pill". Measured in his

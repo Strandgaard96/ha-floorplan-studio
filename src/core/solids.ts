@@ -782,6 +782,7 @@ export const DEVICE_SOLID: Record<DeviceType, "radiator" | "speaker" | "tv" | "n
   vacuum: "none",
   siren: "none",
   alarm: "none",
+  fan: "none",
 };
 const kindOf = (d: Device) =>
   has(DEVICE_SOLID, (d as { type?: unknown } | null)?.type) ? DEVICE_SOLID[d.type] : "none";

@@ -24,6 +24,7 @@ export const ROOM_ROW_TAP: Record<DeviceType, "toggle" | "more-info"> = {
   light: "toggle",
   switch: "toggle",
   plug: "toggle",
+  fan: "toggle",
   cover: "toggle",
   motion: "more-info",
   contact: "more-info",

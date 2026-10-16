@@ -171,6 +171,7 @@ export function rolesToTokens(roles: ThemeRoles): string {
     `--fp-dev-person:${devFor("person")}`,
     `--fp-dev-radar:${devFor("radar")}`,
     `--fp-dev-vacuum:${devFor("vacuum")}`,
+    `--fp-dev-fan:${devFor("fan")}`,
     // S9.4: speaker is a fixed blue in every theme, the same exception TV is (S9.3) — never derived from the role's own accent.
     `--fp-dev-speaker:#2c7fb8`,
     // S29 (H3): the temperature scale. Fixed hues per light or dark kind, like the TV and speaker blues: a one-accent theme must still

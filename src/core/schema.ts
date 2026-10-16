@@ -6,7 +6,7 @@ export type DeviceType =
   | "heater" | "light" | "switch" | "plug" | "temp" | "humidity" | "motion"
   | "contact" | "camera" | "climate" | "ac" | "tv" | "computer" | "media" | "cover"
   | "battery" | "inverter" | "server" | "access_point" | "lock" | "vibration" | "other"
-  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm";
+  | "boiler" | "car" | "ups" | "printer" | "speaker" | "person" | "radar" | "vacuum" | "siren" | "alarm" | "fan";
 export type FurnitureSymbol =
   | "table" | "sofa" | "bed" | "cabinet" | "chair" | "sink" | "toilet" | "shower"
   | "bathtub" | "tv" | "computer" | "speaker" | "tree" | "patio-wood" | "patio-concrete" | "car";
@@ -149,8 +149,14 @@ export interface CatalogEntry { id: string; floor: string; room: string; type: D
  * floor (`placedEntities`) — an agent should not place it a second time.
  */
 export interface AvailableEntity { entity: string; name: string; domain: string; area?: string; areaName?: string; room?: string; dc?: string; placed: boolean }
+/** Most saved views a layout keeps. */
+export const MAX_VIEWS = 24;
+/** The most a saved view may zoom in. The card's own `MAX_ZOOM` (`viewport.ts`) is the same number; a test holds them together. */
+export const MAX_VIEW_ZOOM = 8;
+/** A named way of looking at the plan, saved in the Studio and offered by every card. `floor` is a key of `floors`; `mode` is how it opens (left out: the viewer's choice); `rotation` is the turn in degrees, a multiple of 45 from 0 to 315; `zoom` (1 to 8) and `center` (cm) come together or not at all. No 3D camera. */
+export interface SavedView { id: string; name: string; floor: string; mode?: "2d" | "2.5d" | "3d"; rotation?: number; zoom?: number; center?: Pt }
 /** `rotate`: the whole plan turned on screen, clockwise, in steps of 45 degrees. The stored coordinates are never turned. */
-export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
+export interface Layout { version: 2; unit: "cm"; north: number; rotate?: number; colors?: Partial<Record<DeviceType, string>>; palette?: string[]; views?: SavedView[]; floors: Record<string, Floor>; catalog: CatalogEntry[]; available?: AvailableEntity[] }
 
 /** S7.11: the most characters a floor's `trace.src` may hold, the whole data URL: 4 MB. */
 export const MAX_TRACE_BYTES = 4 * 1024 * 1024;
@@ -209,12 +215,28 @@ export const isSiren = (d: { entity?: unknown }): boolean => typeof d.entity ===
 export const drawsEffect = (d: { type?: unknown; entity?: unknown }): boolean => (FX_TYPES as readonly unknown[]).includes(d.type) || isSiren(d);
 /** The effect size as a fraction (1 = the type's own size). A missing or invalid `fx` reads as 1. */
 export const fxScale = (d: { fx?: unknown }): number => (typeof d.fx === "number" && Number.isFinite(d.fx) && d.fx >= FX_MIN && d.fx <= FX_MAX ? d.fx / 100 : 1);
-export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm"];
+export const DEVICE_TYPES: readonly DeviceType[] = ["heater", "light", "switch", "plug", "temp", "humidity", "motion", "contact", "camera", "climate", "ac", "tv", "computer", "media", "cover", "battery", "inverter", "server", "access_point", "lock", "vibration", "other", "boiler", "car", "ups", "printer", "speaker", "person", "radar", "vacuum", "siren", "alarm", "fan"];
 /** The types that mean "something moved here": the room's motion border, the icon fade and the card's fade timer all read this one list. A plain occupancy or presence sensor is typed `motion` (ha.ts), so it is in. `person` is not: it says who is home, not that a room is in use. */
 export const MOTION_TYPES: readonly DeviceType[] = ["motion", "radar"];
 export const FURNITURE_SYMBOLS: readonly FurnitureSymbol[] = ["table", "sofa", "bed", "cabinet", "chair", "sink", "toilet", "shower", "bathtub", "tv", "computer", "speaker", "tree", "patio-wood", "patio-concrete", "car"];
 /** S4.25: the appliance types offered in the Add > Unlinked device menu — a curated subset of DEVICE_TYPES, each with a fixed icon and no linked-entity state. "heatpump" reuses the "ac" icon and colour; there is no separate type for it. */
-export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light"];
+export const UNLINKED_TYPES: readonly DeviceType[] = ["heater", "ac", "boiler", "battery", "computer", "tv", "car", "server", "ups", "inverter", "speaker", "printer", "light", "fan"];
+
+/** What is wrong with one saved view, as short phrases; empty when it is good. Never throws. `floors` is the layout's floors: a view must name one of its own keys (not `__proto__`, not `constructor`). Shared by `validate` and `migrate`, so a view that migrate keeps is a view validate accepts. */
+export function viewProblems(v: unknown, floors: unknown): string[] {
+  if (!isObj(v)) return ["is not an object"];
+  const out: string[] = [];
+  if (!(typeof v.id === "string" && v.id.length >= 1 && v.id.length <= 64)) out.push("id must be text of 1 to 64 characters");
+  else if (v.id === "2d" || v.id === "2.5d" || v.id === "3d") out.push("id must not be a view mode (2d, 2.5d, 3d): the card's menu uses those values");
+  if (!(typeof v.name === "string" && v.name.length >= 1 && v.name.length <= 60)) out.push("name must be text of 1 to 60 characters");
+  if (!(typeof v.floor === "string" && isObj(floors) && Object.prototype.hasOwnProperty.call(floors, v.floor))) out.push("floor must be the key of a floor");
+  if (v.mode !== undefined && !(v.mode === "2d" || v.mode === "2.5d" || v.mode === "3d")) out.push("mode must be 2d, 2.5d or 3d");
+  if (v.rotation !== undefined && !(typeof v.rotation === "number" && Number.isInteger(v.rotation) && v.rotation >= 0 && v.rotation < 360 && v.rotation % 45 === 0)) out.push("rotation must be a multiple of 45 in [0, 360)");
+  if (v.zoom !== undefined && !(typeof v.zoom === "number" && Number.isFinite(v.zoom) && v.zoom >= 1 && v.zoom <= MAX_VIEW_ZOOM)) out.push(`zoom must be a number from 1 to ${MAX_VIEW_ZOOM}`);
+  if (v.center !== undefined && !(isPt(v.center) && (v.center as number[]).every((n) => Math.abs(n) <= COORD_LIMIT))) out.push(`center must be two numbers [x, y] within +-${COORD_LIMIT} cm`);
+  if ((v.zoom === undefined) !== (v.center === undefined)) out.push("zoom and center come together or not at all");
+  return out;
+}
 
 /** Checks a v2 layout. Never throws; returns every problem it finds. */
 export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false; errors: string[] } {
@@ -237,6 +259,18 @@ export function validate(x: unknown): { ok: true; layout: Layout } | { ok: false
     }
   }
   if (!isObj(x.floors)) errors.push("floors must be an object");
+  if (x.views !== undefined) {
+    if (!Array.isArray(x.views)) errors.push("views must be a list");
+    else if (x.views.length > MAX_VIEWS) errors.push(`views holds at most ${MAX_VIEWS}, found ${x.views.length}; delete some`);
+    else {
+      const vids = new Set<string>();
+      x.views.forEach((v: unknown, i: number) => {
+        for (const p of viewProblems(v, x.floors)) errors.push(`views[${i}] ${p}`);
+        const id = isObj(v) ? v.id : undefined;
+        if (typeof id === "string") { if (vids.has(id)) errors.push(`views[${i}] duplicate id ${id}`); vids.add(id); }
+      });
+    }
+  }
   const deviceIds = new Set<string>();
   for (const [fname, f] of Object.entries<any>(isObj(x.floors) ? x.floors : {})) {
     if (!isObj(f)) { errors.push(`floor ${fname} must be an object`); continue; }

@@ -2604,7 +2604,7 @@ Branch `task/s21-open-items`. Each task: one outcome, its failing test first.
 - [x] S21.2 Humidity, motion, contact and vibration join `NO_TOGGLE`, as `temp` did in S19.E4. A test iterates `DEVICE_TYPES`: each type is in `NO_TOGGLE` or in a written list of types that toggle, with the reason.
 - [x] S21.3 Verify: `npm run lint`, `npm test`, `npx playwright test`, each read bare.
 
-## Roadmap after the 2026-10-08 review (sprints 22 to 32)
+## Roadmap after the 2026-10-08 review (sprints 22 to 34)
 
 Diego, 2026-10-08: "do a review of the menus, submenus, right click menus, general user interface and usability of the studio and the card [...] propose a plan to make it better, cleaner, easier to use and navigate when one like me has hundreds of devices." Added: auto-align floors, floors below in 3D, an animated floor switch, "no cramming stuff in stacks". He said yes to this plan on 2026-10-08.
 
@@ -2623,6 +2623,9 @@ Review basis: a seeded stress house (3 floors, 46 rooms, 437 devices, 718 entiti
 | 30 | 0.28.0 | Align searches angles | The turned fixture aligns automatically within 2 cm and 0.2° |
 | 31 | 0.29.0 | Card layout and touch: chrome around the plan, fit to height, phone bottom sheet, ⋯ menu, 44 px targets, keyboard on the plan | Tablet and phone tasks at target tap counts |
 | 32 | 0.30.0 | Extras: saved views, favourites, heat map, dashboard strategy, tap_action, fan type | One acceptance test each |
+| Upstream 32 | 0.30.0 | 3D framing in the card: the house fits after a resize, above the phone's bottom sheet, and a room pick focuses the room (Diego, 2026-10-14: "fix all 3") | `tests/card/card-3d-framing.spec.ts`, every case green, four sizes | (not taken: this fork has its own card UI refactor; recorded as merged, 2026-10-16)
+| Upstream 33 | 0.31.0 | Extras, part 1: fan type, `tap_action` and `hold_action`, saved views in the layout, dashboard strategy (split 2026-10-15, spec `docs/specs/extras-s33.md`, waits for Diego's yes) | One acceptance test each, criteria 1 to 12 | (merged 2026-10-16: the card shell differs, see FORK.md)
+| Upstream 34 | 0.32.0 | Extras, part 2: favourites, then a temperature heat map (presence over a day dropped) | Written after Q2 and Q3 |
 
 Separate product, not in this repo: the FloorPlan Digital Twin iOS app. A RoomPlan spike (T0) after sprint 24, in its own repo, after its own design and spec.
 
@@ -3859,3 +3862,168 @@ run and in another line order), then fixes with their tests and the re-check. Ex
    show every time. Other option: name it only when both turns are within 10 degrees of the current one.
 3. **Preview before Apply?** Default: no. Apply is one undo step, so Apply, look, Undo is the preview. Other option: draw
    the proposed place as a second ghost while the panel is open (a render change, a day more).
+
+## Upstream Sprint 33: Release 0.31.0, extras part 1 (merged from upstream, 2026-10-16; not a sprint of this fork)
+
+This fork has no header, side or bottom sheet and no ⋯ menu (upstream Sprint 31, not taken). Wherever the text below says "the ⋯ menu", the fork's Views row in View options stands in; a popup stands beside the device.
+
+Branch `task/s33-extras`. Lanes branch off it as `task/s33-<lane>`, each in its own worktree with its own `PW_PORT`,
+and merge back. Diego, 2026-10-15, asked whether the six extras of roadmap row 33 should be split. They are: Sprint 33
+takes the four with one clear reading (fan type, `tap_action`, saved views, dashboard strategy); Sprint 34 takes
+favourites and the heat map, which need his answer first. Spec: `docs/specs/extras-s33.md` (the split, decisions X1 to
+X6, criteria 1 to 12, open questions Q1 to Q6).
+
+**Approved by Diego 2026-10-15 with the defaults.** Lane fan
+depends on Q6 only in S33.1's two table rows; lane views on Q1; lane tap on Q5; lane strategy on Q4.
+
+Exit test: one acceptance test per item, green with no `test.fail()` left: `tests/core/fan-type.test.ts` and
+`tests/card/card-fan.spec.ts` (criteria 1 to 4), `tests/card/card-tap-action.spec.ts` (5 to 7),
+`tests/core/saved-views.test.ts`, `tests/editor/saved-views.spec.ts` and `tests/card/card-saved-views.spec.ts` (8 to
+10), `tests/card/strategy.test.ts` (11); then the full suite (12).
+
+Rules. As Sprint 32: each task one outcome, its failing test written first and watched failing, the report says how it
+failed (finding 5); real `page.mouse` at real coordinates on the real top element (finding 3); a new Playwright test
+runs `--repeat-each=10`, no `waitForTimeout` (finding 13); each command bare, `$?` on its own line (finding 14);
+layout files and card YAML are untrusted, `validate`, `migrate` and every config reader never throw (finding 1);
+every interpolated name escaped, tested with `"><script>` (finding 2); a writer never commits an invalid layout, tested
+over every combination of its inputs (finding 12); a new union member is a decision in every per-type table
+(findings 17, 20); a stubbed reply is copied from the code that sends it (finding 21); a change to `render.ts` or a
+stylesheet runs `npm run shots` and is looked at (finding 16); any new CSS rule that matters gets its
+`getComputedStyle` pair (finding 10).
+
+Studio parity (memory rule). Saved views: both, `viewsSub` joins `view-parity.spec.ts`. Fan: both, through
+`renderFloor` and the type menu. `tap_action`: card only, on purpose (a Studio click selects). Strategy: card bundle
+only; the Studio's Install code shows the snippet. Each DECISIONS line says which.
+
+Out of scope: favourites, heat map (Sprint 34); a 3D camera in a saved view; per-device `tap_action`; retyping
+existing `fan.*` devices; schema v3.
+
+Models. Coders are Sonnet. **Judgement** tasks carry the spec section in the brief, and the coordinator reads the
+coder's note before accepting. Opus reviews the integrated build once.
+
+Wave 1, four lanes, no shared file except where named:
+
+Lane fan (core tables, then the popup):
+- [x] S33.1 Fan is a device type (Sonnet). `fan` joins `DeviceType` and `DEVICE_TYPES` after `alarm`, with spec X1's
+      entry in every per-type table. Test, failing first, new `tests/core/fan-type.test.ts`: `typeForEntity` of a
+      `fan.*` is `fan`; `validate` takes a fan device; `DEVICE_ICONS.fan` starts with `M`; `NO_TOGGLE` lacks it;
+      `ROOM_ROW_TAP.fan` is `toggle`; `FLOOR_OFF_GROUP.fan` is `fans` and `OFF_GROUPS` is lights, switches, plugs, fans,
+      media; `--fp-dev-fan` is set in every theme. Then adding the member turns every iterating test red;
+      work down them (the report lists each with its decision; the `room-info` test that pins the toggle set moves to
+      the new premise, finding 19). The two copied lists, `src/card/three/palette.ts` and `tests/core/icons.test.ts`,
+      do not fail on their own: update them by hand, and make `icons.test.ts` import `DEVICE_TYPES`. `npm run
+      docs:schema`. `npm run shots`, the fan in both states in every theme, looked at.
+      Files: `src/core/schema.ts`, `src/core/ha.ts`, `src/core/icons.ts`, `src/core/render.ts` (colour var only),
+      the theme files, `src/core/{active,attention,categories,floor-off,heights,room-info,solids,state-text,layers}.ts`,
+      `src/card/three/palette.ts`, `src/editor` type menu, the iterating tests, `docs/schema.md`, the demo (one fan).
+- [x] S33.2 Fan speed in the popup (Sonnet). Spec X1, Speed. A `fan` with `percentage` and `supported_features & 1`
+      gets a slider; release makes one `fan.set_percentage`. Test, failing first, `tests/card/card-fan.spec.ts`:
+      criteria 3 and 4 with real clicks and a real drag; a fan without SET_SPEED gets no slider; `percentage` junk
+      (`"40"`, `NaN`, 140) draws no slider or a clamped one, never throws.
+      Files: `src/card/popup.ts`, `src/card/popup-ui.ts`, `tests/card/card-fan.spec.ts`.
+
+Lane tap (pure first):
+- [x] S33.3 Read `tap_action` and `hold_action` (Sonnet). New `src/card/tap-action.ts`: `tapActionOf(raw)` and
+      `holdActionOf(raw)` return one of spec X2's actions; a string is the action; anything else is the default plus a
+      `warn` flag. Test, failing first, new `tests/card/tap-action.test.ts`: every action, every unsupported HA action,
+      `__proto__`, arrays, numbers, null, an object with a getter that throws.
+      Files: new `src/card/tap-action.ts`, new `tests/card/tap-action.test.ts`.
+
+Lane views (schema first):
+- [x] S33.6 `Layout.views` in the schema (Sonnet). Spec X3: the type, `MAX_VIEWS`, `validate`, and `migrate` passing
+      `views` through and dropping bad entries. Test, failing first, new `tests/core/saved-views.test.ts`: criterion 8,
+      plus a layout saved with views, run through `migrate` and `validate` again, keeps them (today `migrate` drops the
+      key). `npm run docs:schema`.
+      Files: `src/core/schema.ts`, `src/core/migrate.ts`, new `tests/core/saved-views.test.ts`, `docs/schema.md`.
+
+Lane strategy (pure first):
+- [x] S33.9 Build a dashboard from a layout (Sonnet). New `src/card/strategy.ts`: `dashboardFor(result, config)`,
+      where `result` is the load reply or an error, returns the Lovelace dashboard of spec X4. Test, failing first,
+      new `tests/card/strategy.test.ts`: three floors in order, slugs, merged `card` options that never replace `type`
+      or `floor`, a floor named `__proto__`, a title with `"><script>` (passed as data, never as HTML), no layout, an
+      error, an invalid layout, junk `config`.
+      Files: new `src/card/strategy.ts`, new `tests/card/strategy.test.ts`.
+
+Wave 2, after wave 1. Lane views' Studio task runs beside the card lane; the card file takes one task at a time:
+
+- [x] S33.7 Saved views in the Studio (Sonnet, **judgement**: what "Save current view" stores when the floor is
+      shown whole). Spec X3, Studio. View menu `#viewsSub`: Save current view (name, Open in), apply, Rename, Delete;
+      one undo step for save, rename and delete, none for apply; Delete floor drops its views in the same step. Test,
+      failing first: `tests/editor/saved-views.test.ts` (state: every floor operation on a layout with views, then
+      `validate`; one undo step each; an unchanged rename is no step, finding 6) and
+      `tests/editor/saved-views.spec.ts` (criterion 9 with real clicks; a `"><script>` name drawn as text).
+      Files: `src/editor/state.ts`, `src/editor/toolbar.ts`, `src/editor/editor-app.ts`, the two tests.
+- [x] S33.4 `tap_action` in the card (Sonnet, **judgement**: where the toggle branch sits against the stack and the
+      vacuum). `bindDeviceActions` takes the two actions; the card passes them from `setConfig`; one console warning
+      per card for an unsupported action. Test, failing first, new `tests/card/card-tap-action.spec.ts`: criteria 5 to
+      7 with real clicks and a real 600 ms hold, `hass.callService` recorded; a stack still fans first; kiosk never
+      holds; doors and appliances unchanged.
+      Files: `src/card/actions.ts`, `src/card/floorplan-studio-card.ts`, the new spec.
+- [x] S33.5 Tap and Hold in the Edit-card form (Sonnet). Two selects; a default left out of the YAML. Test, failing
+      first, in `tests/card/config-editor.spec.ts`: pick Toggle, the config gains `tap_action: {action: toggle}`; back
+      to Popup, the key is gone.
+      Files: `src/card/config-editor.ts`, `tests/card/config-editor.spec.ts`.
+- [x] S33.8 Saved views in the card (Sonnet). After S33.4 (shared card file) and S33.6. Spec X3, Card: the Views
+      section of the ⋯ menu, apply as a viewer's pick, Reset view to the config. Test, failing first, new
+      `tests/card/card-saved-views.spec.ts`: criterion 10 with real clicks, in 2D and 3D; a view on a floor the card's
+      `floors` leaves out is not offered; a `hass` update keeps the applied view; the `viewsSub` row in
+      `view-parity.spec.ts` and the table in `docs/card.md`.
+      Files: `src/card/more-menu.ts`, `src/card/floorplan-studio-card.ts`, `tests/card/card-saved-views.spec.ts`,
+      `tests/card/view-parity.spec.ts`, `docs/card.md` (the parity table only).
+- [x] S33.10 The strategy element (Sonnet). After S33.9 and S33.8 (the card bundle's entry). `defineElement(
+      "ll-strategy-dashboard-floorplan-studio", ...)` with `static async generate(config, hass)` calling
+      `floorplan_studio/load` and `dashboardFor`. Test, failing first, in `tests/card/strategy.test.ts`: the element
+      is defined after the bundle loads; `generate` with a stub `hass.connection.sendMessagePromise` whose reply is
+      `{ layout }` (shape copied from `custom_components/floorplan_studio/websocket.py`, said in the test) returns
+      criterion 11's dashboard; a rejected promise returns the error view. Studio: File, Install code shows "Or as a
+      strategy" with the three lines; a test reads them.
+      Files: `src/card/strategy.ts`, the card entry, `src/editor/editor-app.ts` (Install code only), the tests.
+
+Wave 3, on `task/s33-extras`:
+- [x] S33.11 Exit, docs, shots (Sonnet; the docs part may go to Haiku). Every exit-test file green, `--repeat-each=10`
+      on each new Playwright file. Docs: `docs/card.md` (Config keys: `tap_action`, `hold_action`; Tap, hold and hover:
+      the line that says `tap_action` is not an option goes; Saved views; A premade dashboard: the strategy; fan in
+      What a device looks like), `docs/editor.md` (Saved views), `docs/SPEC.md` (schema `views`, fan type, the `ac`
+      line), `README.md` state table, CHANGELOG under Unreleased (the older-card note from the spec's Risks),
+      DECISIONS (each default that held or changed, Q1 and Q4 to Q6 as answered). `npm run shots`, looked at in three
+      themes before `--accept`. `npm run lint`, `npm test`, `npx playwright test`, each bare with `$?` on its own line.
+      Files: the docs, `shots/` baseline.
+
+Review: one Opus pass on the integrated build, against `docs/WORKFLOW.md`'s checklist plus: can any Studio operation
+leave a view on a missing floor; does `migrate` keep views through a save and a reload; does `toggle` ever turn a
+non-light off without asking; does every table name `fan`, the two copied lists too; does the strategy ever throw on
+a bad layout. Fixes with their tests, then the re-check.
+
+- [ ] S33.12 Release 0.31.0. After the review and Diego's yes on push and tag: `docs/WORKFLOW.md`, Release, every step,
+      ending with the version read back from Home Assistant, a fan tapped on the phone, and a dashboard made from the
+      strategy on Diego's HA, read back.
+
+Dependencies: S33.1, S33.3, S33.6, S33.9 at once; S33.2 after S33.1; S33.7 after S33.6; S33.4 after S33.3; S33.5
+after S33.4; S33.8 after S33.4 and S33.6; S33.10 after S33.8 and S33.9; S33.11 after all; S33.12 after the review.
+
+### Open questions for Diego (each with the default this plan builds)
+
+The spec's Q1 to Q6; Q2 and Q3 belong to Sprint 34.
+
+1. **Saved views.** Default: in the layout, saved in the Studio, shown by every card. Other: per viewer, in the
+   browser, from the card.
+4. **Strategy.** Default: one panel view per floor. Other: one view with the switcher.
+5. **`tap_action`.** Default: card-wide, `popup`, `more-info`, `toggle`, `none`; OFF asks for non-lights. Other:
+   per device too, or HA's full action set.
+6. **Fan.** Default: in All off as Fans, ceiling height. Other: left out of All off, floor height.
+
+## Upstream Sprint 34: Release 0.32.0, extras part 2 (outline, upstream's plan; not merged)
+
+Not planned in full until Diego answers Q2 and Q3 of `docs/specs/extras-s33.md`. Branch `task/s34-extras`.
+
+- Favourites (spec X5). Default: card key `favourites: [entity ids]`, a Favourites section at the top of the Overview
+  with each row's primary button, ranked first in Search, at most 24, rows for entities not on the plan dropped. Card
+  only (the Overview is card chrome). About four tasks: reader (pure), section, Search rank, Edit-card form.
+  If Q2 picks per-user favourites: a star in the popup, kept with HA's `frontend/set_user_data`; one task more, and the
+  stub's reply copied from HA's frontend websocket (finding 21).
+- Heat map (spec X6), last and alone in its lane. Default: rooms filled by current mean temperature or humidity
+  (`meanReading`), drawn by `renderFloor` (finding 8), so the Studio's View menu gets it too and `view-parity.spec.ts`
+  a row; card key `heat_map`, a ⋯ menu item, remembered per viewer; not in 3D. About five tasks: ramp maths (pure), the
+  render pass with its CSS pairs and shots, the card item and memory, the Studio item, docs.
+- Dropped: presence over a day from the recorder's history.
+- Exit test, release and review as Sprint 33.

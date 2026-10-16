@@ -70,6 +70,7 @@ export const UNLINKED_HEIGHTS: Record<DeviceType, number> = {
   other: 100,
   // Ceiling-mounted.
   light: 250,
+  fan: 250,
   camera: 230,
   motion: 230,
   radar: 230,
@@ -92,6 +93,7 @@ export const DEVICE_Z: Record<DeviceType, number> = {
   // Ceiling-mounted. The icon stands for the fitting, not for its mount: a pendant or a dome hangs 35-45 cm under a 250 cm ceiling in 3D,
   // so it reads as in the room and not stuck to the slab (S14.5, Diego: "put all lights and high icons lower, they float too high").
   light: 215,
+  fan: 215,
   camera: 205,
   motion: 205,
   radar: 205,

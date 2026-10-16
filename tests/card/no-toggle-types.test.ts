@@ -21,6 +21,7 @@ const TOGGLES: Record<string, string> = {
   other: "no type to rule it out; the domain decides",
   lock: "lock/unlock",
   cover: "open/close",
+  fan: "a person switches a fan (S33.1)",
   siren: "a real turn_on/turn_off (S18.14)",
 };
 

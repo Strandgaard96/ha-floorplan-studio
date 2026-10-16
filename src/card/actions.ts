@@ -1,6 +1,7 @@
 import type { Device, Door, Furniture, Unlinked } from "../core";
 import { entitiesOfDevice, entitiesOfDoor, pieceDevice, playerOf } from "../core";
 import type { Hass } from "./floorplan-studio-card";
+import type { HoldAction, TapAction } from "./tap-action";
 
 /** Device types a tap opens more-info for at once, never a toggle: a camera and a media player have none, and a battery, an inverter, a server or an access point is watched, not switched (S2.13). A vacuum is here too (S7.10), but its tap opens its own dialog, not more-info — see the `d.type === "vacuum"` branch below, checked before this set. S9.4: a speaker is a media_player device like `media`, and gets the same decision for the same reason — `media_player.toggle` is play/pause or power, never a clean on/off, so guessing which one the user meant is worse than always opening more-info. */
 export const NO_TOGGLE: ReadonlySet<string> = new Set([
@@ -87,6 +88,11 @@ export function bindDeviceActions(
     getPiece?: (index: number) => Furniture | undefined;
     /** S25.5: asked on the tap of a device icon, before its popup. True means the tap was a stack's and the host fanned it out; nothing else happens. */
     stack?: (index: number) => boolean;
+    /** S33.4: the card's `tap_action` and `hold_action`, read afresh on every press, for device icons only (a door, an appliance and a linked piece keep what they do). Absent is `popup` and `more-info`. */
+    tapAction?: () => TapAction;
+    holdAction?: () => HoldAction;
+    /** S33.4: what `tap_action: toggle` does for a device. The card decides: it acts at once, or opens the popup (already at Confirm turn off for a non-light that is on). */
+    toggle?: (t: TapTarget, at: { x: number; y: number }, from: Element | null) => void;
     /** What a press lands on, when the DOM cannot say (the 3D view picks with a ray): an element that carries `data-x`,
      *  `data-d` or `data-u`, or null. Replaces the lookup of the event's target. */
     resolve?: (e: PointerEvent) => Element | null;
@@ -154,7 +160,8 @@ export function bindDeviceActions(
         );
     if (!target) return;
     const at = { x: startX, y: startY };
-    const popup = (t: TapTarget) => () => opts?.openPopup?.(t, at, target.tagName === "BUTTON" ? target : null);
+    const popupFrom = (el: Element) => (el.tagName === "BUTTON" ? el : null);
+    const popup = (t: TapTarget) => () => opts?.openPopup?.(t, at, popupFrom(target));
 
     if (target.tagName === "line") {
       const i = Number(target.getAttribute("data-d"));
@@ -198,24 +205,39 @@ export function bindDeviceActions(
     const solo = (act: () => void) => () => {
       if (!opts?.stack?.(i)) act();
     };
-    if (d.type === "vacuum") {
-      // Its tap opens its own dialog, which is the question: the robot is never started by a bare tap.
-      arm(solo(() => opts?.openVacuumDialog?.(d)));
-      return;
-    }
+    const tapA = opts?.tapAction?.() ?? "popup",
+      holdA = opts?.holdAction?.() ?? "more-info";
     const own = d.entity;
-    // A media player has its own, better panel: a tap is its more-info, as for a speaker or TV placed as an appliance (Diego, 2026-10-07).
-    if (own?.startsWith("media_player.")) {
+    const info = own ? () => fireEvent(host, "hass-more-info", { entityId: own }) : undefined;
+    // `none` still arms a hold, doing nothing: the release of a long press must not turn into a tap.
+    const onHold = holdA === "none" ? () => undefined : info;
+    const t: TapTarget = { device: d, index: i };
+    const asPopup = popup(t);
+    if (d.type === "vacuum") {
+      // S33.4: a vacuum has no toggle; `popup` and `toggle` open its own dialog, which is the question: the robot is never started by a bare tap.
       arm(
-        solo(() => fireEvent(host, "hass-more-info", { entityId: own })),
-        () => fireEvent(host, "hass-more-info", { entityId: own }),
+        solo(
+          tapA === "none" ? () => undefined : tapA === "more-info" && info ? info : () => opts?.openVacuumDialog?.(d),
+        ),
+        holdA === "none" ? onHold : undefined,
       );
       return;
     }
-    arm(
-      solo(popup({ device: d, index: i })),
-      own ? () => fireEvent(host, "hass-more-info", { entityId: own }) : undefined,
-    );
+    // A media player has its own, better panel: a tap is its more-info, as for a speaker or TV placed as an appliance (Diego, 2026-10-07).
+    if (own?.startsWith("media_player.")) {
+      arm(solo(tapA === "none" ? () => undefined : info!), onHold);
+      return;
+    }
+    // The stack comes first for every tap action (`solo`): overlapped icons stay reachable, and a tap that fans a stack out toggles nothing.
+    const act =
+      tapA === "none"
+        ? () => undefined
+        : tapA === "more-info" && info
+          ? info
+          : tapA === "toggle" && opts?.toggle
+            ? () => opts.toggle!(t, at, popupFrom(target))
+            : asPopup;
+    arm(solo(act), onHold);
   };
 
   const onMove = (e: Event) => {

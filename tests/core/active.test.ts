@@ -69,7 +69,8 @@ const ON_STATE: Partial<Record<Device["type"], ReturnType<typeof st>>> = {
   printer: st("on"),
   radar: st("on"),
   siren: st("on"),
-  alarm: st("armed_away"), // S18.14
+  alarm: st("armed_away"),
+  fan: st("on"), // S18.14, S33.1
 };
 /** The same devices, at rest — never active for an "on" type. */
 const OFF_STATE: Partial<Record<Device["type"], ReturnType<typeof st>>> = {
@@ -90,6 +91,7 @@ const OFF_STATE: Partial<Record<Device["type"], ReturnType<typeof st>>> = {
   camera: st("idle"),
   siren: st("off"),
   alarm: st("disarmed"),
+  fan: st("off"),
   vacuum: st("returning"), // "returning" is on-plan-active but off-list (the one deliberate gap)
 };
 

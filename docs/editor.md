@@ -53,7 +53,7 @@ Left to right:
   coordinate limit says so in the status line.
 - **View** — how the plan looks while you work: snap grid, measure grid, lengths, a Labels submenu (Device names, Names and values),
   Floor below (the floor under this one as faint lines, kept in this browser, no undo step),
-  Preview night, theme, Detail (Auto, Full or Minimal), Re-center and Fit to window. The editor draws the plan
+  Preview night, theme, Detail (Auto, Full or Minimal), Saved views, Re-center and Fit to window. The editor draws the plan
   flat only; 2.5D (and soon 3D) is a way to look, so it lives in the card.
   Everything here that is about looking, not editing, is in the card too:
   see "Studio and card" in `card.md` for the list, and for what is left out on
@@ -343,6 +343,17 @@ opened or reset keeps the view. An older entry that names a 2.5D view, a tilt or
 a field that does not parse is dropped on its own, and a browser that blocks
 storage just forgets. A floor the host asks for (`floor` on the element) wins
 over the remembered floor. Reset view clears the zoom and turn.
+
+## Saved views
+
+A saved view is a named way of looking at the plan that every card offers (see "Saved views" in `card.md`). It is kept in the layout, in `views`, so it travels with Save and Export.
+
+View, **Saved views**:
+
+- **Save current view...** asks a name (1 to 60 characters) and **Open in**: Viewer's choice (the default), 2D, 2.5D or 3D. It stores the floor on show, the turn if the plan is turned, and the zoom and centre if the floor is zoomed in. A floor shown whole stores no zoom and no centre, so each card fits it to its own window. Enter saves, Escape cancels.
+- One item per view of the floor on show. A click shows it (the floor, the turn, the zoom): that is looking, not editing, so it is no undo step and does not touch the file. A right-click, or the Menu key, opens **Rename** and **Delete**.
+- Save, Rename and Delete are one undo step each; a rename to the same name is none. Delete floor removes the floor's views in the same step, and Undo brings them back. Lock plan does not stop them: a view is not geometry.
+- A layout holds at most 24 views. The editor draws flat only, so a view's mode is stored and read by the card, not here.
 
 ## Detail (zoom)
 

@@ -178,6 +178,10 @@ Object.assign(STATES.off, {
   "person.demo_alex": "not_home",
 });
 Object.assign(STATES.on, { "person.demo_sam": "home", "sensor.demo_sam_room": "Kitchen", "person.demo_alex": "home" });
+// S33.1: the demo fan, off and running.
+Object.assign(STATES.off, { "fan.demo_bedroom": "off" });
+Object.assign(STATES.on, { "fan.demo_bedroom": ["on", { percentage: 60, supported_features: 1 }] });
+Object.assign(STATES.gone, { "fan.demo_bedroom": "unavailable" });
 Object.assign(STATES.gone, {
   "person.demo_sam": "unavailable",
   "sensor.demo_sam_room": "unavailable",

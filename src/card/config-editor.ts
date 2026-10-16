@@ -15,12 +15,24 @@ import {
 import type { DetailMode, Layout, Theme, WallsMode } from "../core";
 import type { FloorplanStudioCardConfig, Hass } from "./floorplan-studio-card";
 import { defineElement } from "./define";
+import { holdActionOf, tapActionOf, type HoldAction, type TapAction } from "./tap-action";
 import { BELOW_LABELS, BELOW_MODES, ROTATION_STEP, belowModeOf, normaliseRotation } from "./view-state";
 
 /** The form edits the card's own config type; every key it shows is one the card reads (S7.5 kiosk, S7.6 night and sun). */
 export type EditorConfig = FloorplanStudioCardConfig;
 
 type ZoomChoice = "on" | "wheel" | "off";
+
+const TAP_CHOICES: readonly (readonly [TapAction, string])[] = [
+  ["popup", "Popup"],
+  ["more-info", "More info"],
+  ["toggle", "Toggle"],
+  ["none", "Nothing"],
+];
+const HOLD_CHOICES: readonly (readonly [HoldAction, string])[] = [
+  ["more-info", "More info"],
+  ["none", "Nothing"],
+];
 
 const DEFAULT_THEME: Theme = "blueprint";
 const DEFAULT_FADE = 120;
@@ -441,6 +453,17 @@ export class FloorplanStudioCardEditor extends LitElement {
     this._set("names", (e.target as HTMLInputElement).checked, false);
   }
 
+  /** S33.5: Tap and Hold pick one of the actions `tap-action.ts` reads. The default (popup, more-info) leaves the key out of the YAML; a junk value in YAML shows the default and is left alone until the person picks. */
+  private _onTap(e: Event): void {
+    const v = (e.target as HTMLSelectElement).value as TapAction;
+    this._set("tap_action", v === "popup" ? undefined : { action: v }, undefined);
+  }
+
+  private _onHold(e: Event): void {
+    const v = (e.target as HTMLSelectElement).value as HoldAction;
+    this._set("hold_action", v === "more-info" ? undefined : { action: v }, undefined);
+  }
+
   private _onNight(e: Event): void {
     this._set("night", (e.target as HTMLSelectElement).value as EditorConfig["night"], DEFAULT_NIGHT);
   }
@@ -652,6 +675,20 @@ export class FloorplanStudioCardEditor extends LitElement {
       <div class="row">
         <label class="main" for="active_list">Active list</label>
         <input id="active_list" type="checkbox" .checked=${this._config.active_list ?? DEFAULT_ACTIVE_LIST} @change=${this._onActiveList} />
+      </div>
+
+      <div class="row">
+        <label class="main" for="tap_action">Tap</label>
+        <select id="tap_action" title="What a tap on a device icon does. Toggle turns it on at once; turning a device off (a light excepted) still asks." @change=${this._onTap}>
+          ${TAP_CHOICES.map(([v, label]) => html`<option value=${v} ?selected=${tapActionOf(this._config.tap_action).action === v}>${label}</option>`)}
+        </select>
+      </div>
+
+      <div class="row">
+        <label class="main" for="hold_action">Hold</label>
+        <select id="hold_action" title="What holding a device icon does. A kiosk never holds." @change=${this._onHold}>
+          ${HOLD_CHOICES.map(([v, label]) => html`<option value=${v} ?selected=${holdActionOf(this._config.hold_action).action === v}>${label}</option>`)}
+        </select>
       </div>
 
       <div class="row">

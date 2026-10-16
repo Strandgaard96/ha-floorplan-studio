@@ -119,6 +119,7 @@ export const TYPE_LABELS: [DeviceType, string][] = [
   ["vacuum", "Vacuums"],
   ["siren", "Siren"],
   ["alarm", "Alarm"],
+  ["fan", "Fans"],
 ];
 
 /** A type as a word in a sentence ("Added access point"): its label, lower case unless it is an initialism (UPS, AC, TV).

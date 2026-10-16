@@ -110,6 +110,7 @@ const STEM: Record<DeviceType, boolean> = {
   vacuum: false,
   siren: true,
   alarm: true,
+  fan: true, // S33.1: ceiling mount, 215 cm
 };
 
 describe("2.5D furniture", () => {

@@ -59,6 +59,7 @@ const DEVICE_TYPES = [
   "vacuum",
   "siren",
   "alarm",
+  "fan",
 ] as const;
 
 export interface RoleStyle {

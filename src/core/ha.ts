@@ -47,6 +47,7 @@ const TYPE_RULES: Partial<Record<DeviceType, { domain: string; dcs?: string[]; n
   cover: [{ domain: "cover" }],
   siren: [{ domain: "siren" }],
   alarm: [{ domain: "alarm_control_panel" }],
+  fan: [{ domain: "fan" }],
   battery: [{ domain: "sensor", dcs: ["battery"] }],
   person: [{ domain: "person" }, { domain: "device_tracker" }],
   // S7.9: the radar's own entity is its presence sensor, typically a binary_sensor.*occupancy; the target x/y pairs
@@ -108,6 +109,8 @@ export function typeForEntity(e: HaData["entities"][number], ha?: Pick<HaData, "
       return "siren";
     case "alarm_control_panel":
       return "alarm";
+    case "fan":
+      return "fan";
     case "switch":
       return e.dc === "outlet" ? "plug" : "switch";
     case "sensor":
@@ -196,6 +199,7 @@ export const AREA_PLACEABLE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>
   "vacuum",
   "siren",
   "alarm",
+  "fan",
 ]);
 export const AREA_NOISE_TYPES: ReadonlySet<DeviceType> = new Set<DeviceType>(["other", "battery", "person"]);
 

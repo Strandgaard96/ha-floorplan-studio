@@ -76,7 +76,7 @@ describe("typeForEntity (S4.18): a reverse domain/device_class guess for placing
     expect(typeForEntity(ent("media_player.x", "media_player"))).toBe("media"); // not tv
   });
   it("falls back to other for a domain with no rule and a sensor/binary_sensor with no recognised device_class", () => {
-    expect(typeForEntity(ent("fan.x", "fan"))).toBe("other");
+    expect(typeForEntity(ent("humidifier.x", "humidifier"))).toBe("other"); // was fan.x until S33.1 gave fan a type
     expect(typeForEntity(ent("sensor.x", "sensor", "pressure"))).toBe("other");
     expect(typeForEntity(ent("sensor.x", "sensor"))).toBe("other");
     expect(typeForEntity(ent("binary_sensor.x", "binary_sensor", "moisture"))).toBe("other");
