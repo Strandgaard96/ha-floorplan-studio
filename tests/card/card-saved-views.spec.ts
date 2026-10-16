@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { openViewMenu, viewControl } from "./shell-helpers";
-import { open as open3d, configure as configure3d, drawn, holder, card as card3d } from "./helpers-3d";
+import { open as open3d, configure as configure3d, drawn, holder, card as card3d, cam } from "./helpers-3d";
 
 // S33.8 (docs/specs/extras-s33.md, X3 Card, criterion 10), as this fork draws it: the layout's saved views are the Views row of the
 // View options popover (the fork has no ⋯ menu), one toggle button per view, `data-view` the view's id. A pick is a viewer's pick: floor, then mode, then turn (a view that names
@@ -263,6 +263,63 @@ test.describe("S33.8 saved views in the card", () => {
     await expect(holder(page)).toBeVisible(); // still 3D
     await drawn(page);
     expect(await modeOf(page)).toBe("3d");
+  });
+
+  test("in 3D a view reframes the camera: an orbited, zoomed Ground camera gives the default First framing, not the orbited one", async ({
+    page,
+  }) => {
+    await open3d(page, { layout: withViews(VIEWS), view: "3d" });
+    await expect(holder(page)).toBeVisible();
+    await drawn(page);
+    await chip(page, "First").click();
+    await drawn(page);
+    const fresh = await cam(page); // First, never orbited: the default az and the framed distance
+    await chip(page, "Ground").click();
+    await drawn(page);
+    await page.evaluate(() =>
+      (window as unknown as { __fp3d: { look(az: number, polar: number): void } }).__fp3d.look(1.1, 0.7),
+    );
+    await page.mouse.move(550, 400);
+    await page.mouse.wheel(0, -600);
+    await expect.poll(async () => (await cam(page)).dist).toBeLessThan(fresh.dist * 0.9);
+    const orbited = await cam(page);
+    expect(Math.abs(orbited.az - fresh.az)).toBeGreaterThan(0.3); // the orbit is a real difference to tell apart
+    await pick(page, view("view-bed-close"));
+    await expect.poll(() => shownFloor(page)).toBe("First");
+    await expect.poll(async () => (await cam(page)).az).toBeCloseTo(fresh.az, 2);
+    await expect.poll(async () => (await cam(page)).dist).toBeCloseTo(fresh.dist, 0);
+    await expect.poll(async () => (await cam(page)).polar).toBeCloseTo(fresh.polar, 2);
+  });
+
+  test("Reset view un-presses the applied view's button", async ({ page }) => {
+    await boot(page, { view: "2d" });
+    await pick(page, view("view-bed-close"));
+    await settled(page);
+    await expect(viewItem(page, view("view-bed-close"))).toHaveAttribute("aria-pressed", "true");
+    await resetView(page);
+    await settled(page);
+    await openMenu(page);
+    await expect(viewItem(page, view("view-bed-close"))).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a second setConfig un-presses the applied view's button", async ({ page }) => {
+    await boot(page, { view: "2d" });
+    await pick(page, view("view-bed-close"));
+    await settled(page);
+    await expect(viewItem(page, view("view-bed-close"))).toHaveAttribute("aria-pressed", "true");
+    await page.evaluate(
+      ([c, l]) => {
+        const el = document.getElementById("card") as unknown as {
+          setConfig(c: unknown): void;
+          updateComplete: Promise<unknown>;
+        };
+        el.setConfig({ type: "custom:floorplan-studio-card", layout: l, ...(c as object) });
+        return el.updateComplete;
+      },
+      [{ view: "2d" }, withViews(VIEWS)] as const,
+    );
+    await openMenu(page);
+    await expect(viewItem(page, view("view-bed-close"))).toHaveAttribute("aria-pressed", "false");
   });
 
   test("a view whose mode is 3d switches a 2D card to 3D", async ({ page }) => {

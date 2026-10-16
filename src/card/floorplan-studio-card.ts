@@ -430,10 +430,10 @@ const loadLib3d = (): Promise<Lib3d> => {
 /** The card that has focus (or has something inside it focused), whatever shadow roots it sits in. */
 let focusedCard: FloorplanStudioCard | null = null;
 
-/** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 /** S33 review: the entity domains `tap_action: toggle` may operate without the popup. A plain on/off of a light, a switch, an input_boolean or a fan. Lock, cover and siren open the popup: a stray tap never unlocks a door, moves a garage door or sounds a siren. Climate, humidifier, water_heater, automation, remote, media_player and group do too: their on/off is not a lamp's. */
 const TOGGLE_AT_ONCE = new Set(["light", "switch", "input_boolean", "fan"]);
 
+/** `custom:floorplan-studio-card`: renders one floor of the layout, live from `hass`. */
 export class FloorplanStudioCard extends LitElement {
   static styles = [
     unsafeCSS(FLOORPLAN_CSS),

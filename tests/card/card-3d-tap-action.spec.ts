@@ -192,7 +192,7 @@ test.describe("3D fan", () => {
     expect((await calls(page))[0]).toBe("fan.set_percentage fan.demo_bedroom");
   });
 
-  test("toggle: a tap turns a fan off at once (a fan is a plain on/off), in 3D too", async ({ page }) => {
+  test("toggle: a tap on an on fan opens its popup at Yes, turn off and calls nothing, in 3D too", async ({ page }) => {
     await boot(page, { tap_action: "toggle" }, "first");
     const p = await device(page, 6);
     await page.mouse.click(p.x, p.y);

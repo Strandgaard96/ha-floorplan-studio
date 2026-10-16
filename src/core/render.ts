@@ -87,7 +87,8 @@ export interface RenderOpts {
   fade?: number;
   roomGlow?: boolean;
   editor?: boolean;
-  /** S29.9: false leaves out the editor's corner handles (Align mode is read-only); absent is as before. */ handles?: boolean;
+  /** S29.9: false leaves out the editor's corner handles (Align mode is read-only); absent is as before. */
+  handles?: boolean;
   /** S27.5: the floor below, drawn over the room fills and stairs and under walls, names and devices as faint lines (`g.ghost`: the outline, room edges, walls and stairs; no fill, text, device or hit target), every point placed by `placePoint({ turn, shift })` (`floorPlace`; `turn` in degrees clockwise, absent is 0, so a ghost without a turn is drawn exactly as before; a `turn` that is not a finite number within -360..360 draws nothing). Omitted, or junk (not a floor, a shift that is not two finite numbers within `COORD_LIMIT`), nothing is drawn and the markup is byte for byte as before. */
   ghost?: { floor: Floor; shift: Pt; turn?: number };
   /** Turns the whole drawing by `deg` (clockwise) about `pivot`; names, values and icons are turned back so they stay upright. */
