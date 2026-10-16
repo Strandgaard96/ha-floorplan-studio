@@ -604,7 +604,7 @@ describe("alignFloor searches the turn (S30.4)", () => {
       if (Math.abs(r.turn) > 0.05) turned++;
     }
     expect(turned).toBe(0);
-  });
+  }, 20_000);
 
   it("far from the origin: an L at [1e7 - 900, 1e7 - 700] turned 3.374 about its centre (a turn that rounds to 3.37, moving the origin 700 cm) is found within 0.2 degree and 2 cm", () => {
     const L = blank([

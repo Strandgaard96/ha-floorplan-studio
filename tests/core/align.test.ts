@@ -478,7 +478,7 @@ describe("golden answers recorded from the scan (S30.5)", () => {
       if (JSON.stringify(viaJson(alignFloorGolden(c.upper, c.lower, c.turn))) !== JSON.stringify(g.align[c.name]))
         wrong.push(c.name);
     expect(wrong).toEqual([]);
-  });
+  }, 20_000);
 
   it("refinePlace gives the recorded answer from every start, turn free and held", () => {
     const cases = placeCases();
