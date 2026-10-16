@@ -18,7 +18,7 @@ async function openViews(page: Page) {
 }
 /** This fork's open View menu covers Undo (its toolbar is laid out differently from upstream's), so close it first, as a person would. */
 async function undo(page: Page) {
-  if (await isOpen(page, "#mOpt")) await page.locator("#mOpt > summary").click();
+  if (await isOpen(page, "#mOpt")) await page.locator("#mOpt > summary").click(); // close it
   await page.locator("#undo").click();
 }
 async function save(page: Page, name: string, mode?: string) {
