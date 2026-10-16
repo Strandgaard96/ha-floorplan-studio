@@ -143,7 +143,7 @@ test.describe("tap_action: toggle", () => {
     await boot(page, { tap_action: { action: "toggle" } });
     await tapIcon(page, 3);
     await expect(pop(page)).toBeVisible();
-    await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Confirm turn off");
+    await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Yes, turn off");
     expect(await calls(page)).toEqual([]);
     await pop(page).locator("css=.fp-pop-do").click();
     expect(await calls(page)).toEqual(['switch.turn_off {"entity_id":"switch.demo_tv_plug"}']);

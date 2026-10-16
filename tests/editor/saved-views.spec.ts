@@ -16,6 +16,11 @@ async function openViews(page: Page) {
   if (!(await isOpen(page, "#mOpt"))) await page.locator("#mOpt > summary").click();
   if (!(await isOpen(page, "#viewsSub"))) await page.locator("#viewsSub > summary").click();
 }
+/** This fork's open View menu covers Undo (its toolbar is laid out differently from upstream's), so close it first, as a person would. */
+async function undo(page: Page) {
+  if (await isOpen(page, "#mOpt")) await page.locator("#mOpt > summary").click();
+  await page.locator("#undo").click();
+}
 async function save(page: Page, name: string, mode?: string) {
   await openViews(page);
   await page.locator("#saveView").click();
@@ -159,15 +164,15 @@ test("Rename and Delete from the item's context menu are one undo step each; an 
   await page.locator("#viewName").fill("Beta");
   await page.locator("#viewName").press("Enter");
   expect((await stored(page)).views![0].name).toBe("Beta");
-  await page.locator("#undo").click();
+  await undo(page);
   expect((await stored(page)).views![0].name).toBe("Alpha"); // one step took it back; the unchanged rename left none
   await openViews(page);
   await items(page).first().click({ button: "right" });
   await page.locator("#viewDelete").click();
   expect((await stored(page)).views).toBeUndefined();
-  await page.locator("#undo").click();
+  await undo(page);
   expect((await stored(page)).views!.map((v) => v.name)).toEqual(["Alpha"]);
-  await page.locator("#undo").click(); // the save
+  await undo(page); // the save
   expect((await stored(page)).views).toBeUndefined();
 });
 

@@ -98,6 +98,38 @@ test.describe("S33.8 saved views in the card", () => {
     await expect(viewsRow(page)).toHaveCount(1);
   });
 
+  test("the Views row is laid out as a labelled column in the popover (computed-style pair of the .fp-vm-views rule)", async ({
+    page,
+  }) => {
+    await boot(page, { view: "2d" });
+    await openMenu(page);
+    const row = viewsRow(page);
+    const css = await row.evaluate((el) => {
+      const c = getComputedStyle(el),
+        b = el.querySelector("button")!,
+        bc = getComputedStyle(b);
+      const m = el.closest(".fp-view-menu")!;
+      return {
+        display: c.display,
+        dir: c.flexDirection,
+        label: el.querySelector("span")!.textContent,
+        labelColor: getComputedStyle(el.querySelector("span")!).color,
+        ink: c.color,
+        buttonW: b.getBoundingClientRect().width,
+        rowW: el.getBoundingClientRect().width,
+        buttonFont: bc.fontSize,
+        inMenu: m.contains(el),
+      };
+    });
+    expect(css.display).toBe("flex");
+    expect(css.dir).toBe("column");
+    expect(css.label).toBe("Views");
+    expect(css.labelColor).toBe(css.ink);
+    expect(css.buttonW).toBeGreaterThan(css.rowW - 2); // a full-width button, as every button of the popover
+    expect(css.buttonFont).toBe("14px");
+    expect(css.inMenu).toBe(true);
+  });
+
   test("a layout with no views has no Views row", async ({ page }) => {
     await boot(page, { view: "2d" }, structuredClone(demo));
     await openMenu(page);

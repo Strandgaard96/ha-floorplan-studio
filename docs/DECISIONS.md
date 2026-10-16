@@ -2,6 +2,19 @@
 
 Newest first. A change supersedes; nothing is edited.
 
+## 2026-10-16: upstream Sprint 33 in the fork: saved views live in View options (fork, sync of 0.31.0)
+
+Upstream put the saved views in the Views section of its ⋯ menu (Sprint 31 header, not taken here). The fork's card has no such
+menu, so the layout's views are a labelled **Views row in View options**, under Theme: one full-width toggle button per view
+(`button[data-view]`, `aria-pressed` on the applied one), in the layout's order. Decided: a row, not a select, so a pick is one
+click and the applied view shows; the row is drawn only when the layout has a view on a floor the card shows; `kiosk` and
+`view_switch: false` draw no View options, so they offer no views (upstream's `view_switch: false` kept its menu; here the
+popover goes with the View control). Applying a view uses the fork's own state: `_selectFloor`, the mode pick, `_startTurn` (a
+view with no rotation turns to 0) and `_pendingView` for zoom and centre; there is no `setFrame` or glide to call. `tap_action`
+and `hold_action` are wired through the same `bindDeviceActions` options in 2D and 3D; the confirm button of the fork's popup
+reads "Yes, turn off" (upstream: "Confirm turn off"), so the ported specs say that. `fan` is `NO_TOGGLE`-free: a tap opens the
+popup, and `TOGGLE_AT_ONCE` lets only light, switch, input_boolean and fan toggle at once.
+
 <!-- Entries from here up to the 2026-10-12 temperature pill entry were merged from upstream 0.31.0 (2026-10-16 sync); their S33.x labels are upstream's Sprint 33 (extras, part 1), not a sprint of this fork. Where they say "the ⋯ menu", this fork has the Views row of View options. -->
 
 ## 2026-10-15: S33 Opus review fixes (Sonnet) [upstream]

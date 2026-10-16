@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { openOverview } from "./shell-helpers";
 
 // S33.2 (docs/specs/extras-s33.md, X1, criteria 3 and 4): a real click on a fan's icon opens its popup, Turn on and Turn off
 // call fan.turn_on and fan.turn_off (OFF asks first), a fan that reports `percentage` and SET_SPEED gets a speed slider whose
@@ -90,12 +91,12 @@ test.describe("S33.2 fan popup", () => {
     expect(await parsed(page)).toEqual([{ call: "fan.turn_on", data: { entity_id: "fan.demo_bedroom" } }]);
   });
 
-  test("Turn off asks first, then is one fan.turn_off", async ({ page }) => {
+  test("Turn off asks first (Yes, turn off), then is one fan.turn_off", async ({ page }) => {
     await boot(page, st("on"));
     await tapFan(page);
     await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Turn off");
     await pop(page).locator("css=.fp-pop-do").click();
-    await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Confirm turn off");
+    await expect(pop(page).locator("css=.fp-pop-do")).toHaveText("Yes, turn off");
     expect(await calls(page)).toEqual([]);
     await pop(page).locator("css=.fp-pop-do").click();
     expect(await parsed(page)).toEqual([{ call: "fan.turn_off", data: { entity_id: "fan.demo_bedroom" } }]);
@@ -169,7 +170,8 @@ test.describe("S33.2 fan popup", () => {
   });
 
   test("Turn off on this floor lists a fan that is on under Fans and turns it off with the rest", async ({ page }) => {
-    await boot(page, st("on", SPEED), {}, false); // the checklist button lives in the Overview
+    await boot(page, st("on", SPEED), {}, false);
+    await openOverview(page); // the checklist button lives in the Overview, which this fork starts folded
     const b = card(page).locator("css=.fp-floor-off");
     const r = (await b.boundingBox())!;
     expect(
